@@ -1,6 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { createPlatformServices } from "./index";
+import { createD1, installSchema as installFullSchema, seedMap, seedRevisionAssignment, seedTitle } from "./ocr-test-harness";
 
 const createCountingD1 = () => {
   const sqlite = new DatabaseSync(":memory:");
@@ -194,5 +195,36 @@ describe("platform cache", () => {
     await services.listMaps();
     expect(getCount()).toBe(first);
     expect(getCount()).toBeGreaterThan(0);
+  });
+});
+
+describe("platform cache amplification", () => {
+  it("serves a warm composed challenge list with no D1 reads, bounded KV reads, and the same result as uncached", async () => {
+    const { database, sqlite } = createD1();
+    installFullSchema(sqlite);
+    for (let index = 0; index < 12; index += 1) {
+      seedMap(sqlite, `map.${index}`);
+      seedRevisionAssignment(sqlite, { gameplayRevisionId: `revision:map.${index}:initial`, mapId: `map.${index}`, challengeFamily: "map_title_rule", challengeId: "rule.conqueror" });
+    }
+    seedTitle(sqlite, "CONQUEROR");
+    sqlite.prepare("INSERT INTO map_title_rules (id, title_key, kind, condition, evidence_rule, submission_mode, display_kind, slot, default_scope, status, introduced_version, created_at, updated_at) VALUES ('rule.conqueror', 'CONQUEROR', 'conqueror', '完成地图', '上传截图', 'manual', 'map_name_suffix', 'conqueror', 'all_active', 'active', '2026.07.15', 1, 1)").run();
+
+    const { kv } = createFakeKv();
+    let kvReads = 0;
+    const countingKv = { ...kv, get: (async (...args: Parameters<KVNamespace["get"]>) => { kvReads += 1; return (kv.get as (...a: unknown[]) => unknown)(...args); }) as KVNamespace["get"] } as KVNamespace;
+    const create = (cache?: KVNamespace) => createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, undefined, undefined, cache);
+
+    const uncached = await create().listChallenges({ family: "map" });
+    expect(uncached.length).toBeGreaterThan(0);
+    await create(countingKv).listChallenges({ family: "map" });
+
+    let d1Statements = 0;
+    const originalPrepare = database.prepare.bind(database);
+    database.prepare = ((sql: string) => { d1Statements += 1; return originalPrepare(sql); }) as D1Database["prepare"];
+    kvReads = 0;
+    const warm = await create(countingKv).listChallenges({ family: "map" });
+    expect(warm).toEqual(uncached);
+    expect(d1Statements).toBe(0);
+    expect(kvReads).toBeLessThanOrEqual(5);
   });
 });
