@@ -101,7 +101,6 @@ const services: PlatformServices = {
   listAdminBindingClaims: async () => ({ contractVersion: "1", items: [] }),
   decideAdminBindingClaim: async () => {},
   retryHistoricalTitleMigration: async () => {},
-  createSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "evidence_pending", mapName: "Test Map", attachmentIds: ["00000000-0000-0000-0000-000000000004"] }),
   getSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "processing", mapName: "Test Map", createdAt: 1, updatedAt: 1 }),
   createQqLoginAttempt: async () => ({ contractVersion: "1", attemptId: "00000000-0000-0000-0000-000000000005", attemptToken: "a".repeat(64), code: "ABC234", expiresAt: 1 }),
   getQqLoginStatus: async () => ({ contractVersion: "1", status: "pending" }),
@@ -1967,9 +1966,9 @@ describe("API", () => {
     const awaiting = await adminApp.request("http://localhost/v1/admin/submissions?status=awaiting_player_confirmation&page=1&pageSize=20", {}, env);
     expect(awaiting.status).toBe(200);
     expect(requests[1]).toEqual({ statuses: ["awaiting_player_confirmation"], page: 1, pageSize: 20 });
-    const dashboard = await adminApp.request("http://localhost/v1/admin/submissions?status=received,evidence_pending,evidence_stored,upload_pending,ocr_pending,ready_for_review,ocr_review_required&page=1&pageSize=5", {}, env);
+    const dashboard = await adminApp.request("http://localhost/v1/admin/submissions?status=upload_pending,ocr_pending,ready_for_review,ocr_review_required&page=1&pageSize=5", {}, env);
     expect(dashboard.status).toBe(200);
-    expect(requests[2]).toEqual({ statuses: ["received", "evidence_pending", "evidence_stored", "upload_pending", "ocr_pending", "ready_for_review", "ocr_review_required"], page: 1, pageSize: 5 });
+    expect(requests[2]).toEqual({ statuses: ["upload_pending", "ocr_pending", "ready_for_review", "ocr_review_required"], page: 1, pageSize: 5 });
     expect((await adminApp.request("http://localhost/v1/admin/submissions?status=unknown", {}, env)).status).toBe(422);
     expect((await adminApp.request("http://localhost/v1/admin/submissions?status=ready_for_review&order=oldest&page=1&pageSize=20", {}, env)).status).toBe(200);
     expect(requests[3]).toEqual({ statuses: ["ready_for_review"], order: "oldest", page: 1, pageSize: 20 });

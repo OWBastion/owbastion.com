@@ -116,7 +116,7 @@
 | `completed` | 已完成 |
 | `rejected` | 未通过 |
 
-管理后台保留历史及处理中状态：`upload_pending`（上传中…）、`received`（已收到）、`evidence_pending`（保存截图中）、`evidence_stored`（截图已保存）、`ocr_pending`（等待识别）、`ready_for_review`（等待核对）、`ocr_review_required`（等待处理）、`approved`（已通过）和 `resubmission_required`（需重新提交）。
+管理后台保留处理中状态：`upload_pending`（上传中…）、`ocr_pending`（等待识别）、`ready_for_review`（等待核对）、`ocr_review_required`（等待处理）、`approved`（已通过）和 `resubmission_required`（需重新提交）。
 
 ## OCR 识别状态
 
