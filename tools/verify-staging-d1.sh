@@ -6,7 +6,7 @@ query() {
 }
 
 submission_schema="$(query "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'submissions';")"
-for status in received evidence_pending evidence_stored upload_pending ocr_pending ready_for_review ocr_review_required approved rejected resubmission_required; do
+for status in upload_pending ocr_pending ready_for_review ocr_review_required approved rejected resubmission_required; do
   jq -e --arg status "$status" '.[0].results[0].sql | contains($status)' <<<"$submission_schema" >/dev/null
 done
 

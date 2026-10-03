@@ -153,14 +153,6 @@ export const adminPlayerListResponseSchema = z.object({ contractVersion, items: 
 export const adminPlayerStatusRequestSchema = z.object({ contractVersion, status: adminPlayerStatus, reason: z.string().trim().max(256).optional() });
 export const adminPlayerIdentityRequestSchema = z.object({ contractVersion, playerName: z.string().trim().min(1).max(64) });
 
-const attachmentSchema = z.object({
-  externalAttachmentId: externalId,
-  contentType: z.string().trim().min(1).max(128),
-  byteSize: z.number().int().nonnegative().optional(),
-  sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
-  sourceUrl: z.string().url().max(4096),
-});
-
 const submissionStatus = z.enum(["upload_pending", "ocr_pending", "awaiting_player_confirmation", "ready_for_review", "ocr_review_required", "approved", "rejected", "resubmission_required"]);
 export const verifiedRunDifficultySchema = z.enum(["简单", "一般", "困难", "专家", "传奇", "地狱"]);
 const verifiedRunStatusSchema = z.enum(["active", "invalidated"]);
@@ -944,7 +936,7 @@ export const ocrAccuracyMarkSchema = z.enum(["accurate", "inaccurate"]);
 
 export const adminSubmissionSchema = z.object({
   submissionId: z.string().uuid(),
-  status: z.union([submissionStatus, z.enum(["received", "evidence_pending", "evidence_stored"])]),
+  status: submissionStatus,
   challengeId: externalId,
   gameplayRevisionId: externalId.nullable().optional(),
   challenge: adminSubmissionChallengeSchema.nullable().optional(),
@@ -1231,33 +1223,6 @@ export const adminVerifiedRunCorrectionResponseSchema = z.object({
   detail: adminVerifiedRunDetailResponseSchema,
   affectedProjections: z.array(adminVerifiedRunProjectionSchema).min(1).max(2),
 }).strict();
-
-export const submissionRequestSchema = z.object({
-  contractVersion,
-  actor: z.object({
-    provider: z.literal("qq"),
-    groupOpenId: externalId,
-    memberOpenId: externalId,
-  }),
-  source: z.object({
-    provider: z.literal("qq"),
-    conversationId: externalId,
-    messageId: externalId,
-  }),
-  challenge: z.object({
-    type: z.literal("map_completion"),
-    mapName: z.string().trim().min(1).max(256),
-  }),
-  attachments: z.array(attachmentSchema).min(1).max(20),
-});
-
-export const submissionResponseSchema = z.object({
-  contractVersion,
-  submissionId: z.string().uuid(),
-  status: z.enum(["evidence_pending", "evidence_stored", "ocr_pending", "resubmission_required"]),
-  mapName: z.string(),
-  attachmentIds: z.array(z.string().uuid()),
-});
 
 export const submissionStatusResponseSchema = z.object({
   contractVersion,
@@ -1600,8 +1565,6 @@ export type AdminPlayerDetail = z.infer<typeof adminPlayerDetailSchema>;
 export type AdminPlayerListResponse = z.infer<typeof adminPlayerListResponseSchema>;
 export type AdminPlayerStatusRequest = z.infer<typeof adminPlayerStatusRequestSchema>;
 export type AdminPlayerIdentityRequest = z.infer<typeof adminPlayerIdentityRequestSchema>;
-export type SubmissionRequest = z.infer<typeof submissionRequestSchema>;
-export type SubmissionResponse = z.infer<typeof submissionResponseSchema>;
 export type SubmissionStatusResponse = z.infer<typeof submissionStatusResponseSchema>;
 export type PlayerSubmissionStatus = SubmissionStatusResponse["status"];
 export type PlayerSubmissionDetail = z.infer<typeof playerSubmissionDetailSchema>;

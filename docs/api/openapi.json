@@ -2407,16 +2407,6 @@
     }
    }
   },
-  "/v1/submissions": {
-   "post": {
-    "operationId": "createSubmission",
-    "responses": {
-     "201": {
-      "$ref": "#/components/responses/Json"
-     }
-    }
-   }
-  },
   "/v1/submissions/{submissionId}": {
    "get": {
     "operationId": "getPublicSubmission",

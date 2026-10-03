@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import {
   qqBindingRequestSchema,
-  submissionRequestSchema,
   qqBindingClaimVerifyRequestSchema,
   qqLoginAttemptRequestSchema,
   qqLoginVerifyRequestSchema,
@@ -1851,7 +1850,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const statuses = c.req.query("status")?.split(",").map((status) => status.trim()).filter(Boolean) ?? [];
     const spotCheck = c.req.query("spotCheck");
     const order = c.req.query("order");
-    const allowedStatuses = ["received", "evidence_pending", "evidence_stored", "upload_pending", "ocr_pending", "awaiting_player_confirmation", "ready_for_review", "ocr_review_required", "approved", "rejected", "resubmission_required"] as const;
+    const allowedStatuses = ["upload_pending", "ocr_pending", "awaiting_player_confirmation", "ready_for_review", "ocr_review_required", "approved", "rejected", "resubmission_required"] as const;
     if (statuses.some((status) => !allowedStatuses.includes(status as typeof allowedStatuses[number]))) return errorResponse(c, 422, "INVALID_REQUEST", "The submission status is invalid");
     if (spotCheck && !["pending", "confirmed", "revoked"].includes(spotCheck)) return errorResponse(c, 422, "INVALID_REQUEST", "The spot-check status is invalid");
     if (order && order !== "oldest" && order !== "newest") return errorResponse(c, 422, "INVALID_REQUEST", "The submission order is invalid");
@@ -2073,25 +2072,6 @@ export const createApp = (dependencies: AppDependencies) => {
     return errorResponse(c, 422, "INVITE_REQUIRED", "Use an invitation to request a binding");
   });
 
-
-  app.post("/v1/submissions", async (c) => {
-    const auth = await dependencies.authenticate(c.req.raw, c.env);
-    if (!auth) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
-    if (!auth.roles.includes("channel:write")) return errorResponse(c, 403, "FORBIDDEN", "The actor cannot write channel data");
-    const idempotencyKey = c.req.header("idempotency-key");
-    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = submissionRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-
-    try {
-      return c.json(await dependencies.services(c.env).createSubmission(parsed.data, auth, idempotencyKey), 201);
-    } catch (error) {
-      if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, "IDEMPOTENCY_CONFLICT", "The idempotency key was used with a different request");
-      if (error instanceof Error && error.message === "BINDING_NOT_FOUND") return errorResponse(c, 422, "BINDING_NOT_FOUND", "The binding does not exist");
-      if (error instanceof Error && error.message === "PLAYER_BANNED") return errorResponse(c, 403, "PLAYER_BANNED", "The player account is banned");
-      throw error;
-    }
-  });
 
   app.get("/v1/submissions/:submissionId", async (c) => {
     c.header("Access-Control-Allow-Origin", "*");

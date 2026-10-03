@@ -322,7 +322,7 @@ submitted request only when the player asked for manual handling; automatic
 routes to maintainer review (ambiguity, low confidence, Verified Run conflicts)
 carry no player-visible reason beyond the waiting state.
 
-The legacy QQ flow retains its evidence retrieval states. Portal uploads are
+Submissions come only from Portal uploads. They are
 single-image submissions and enter `ocr_pending` only after the upload hash,
 size, content type, and private object ownership are verified. The Portal waits
 for OCR to finish before showing the player the next action. A selected

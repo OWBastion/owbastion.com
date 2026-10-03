@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionPromotionRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventVersionAvailabilityRequestSchema, adminRandomEventVersionListResponseSchema, adminSubmissionReviewPreviewRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, adminVerifiedRunCorrectionRequestSchema, adminVerifiedRunSchema, agentMapSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema, agentTitleListResponseSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, ocrAccuracyFeedbackRequestSchema, ocrAccuracyFeedbackResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqBindingClaimVerifyRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
+import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionPromotionRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventVersionAvailabilityRequestSchema, adminRandomEventVersionListResponseSchema, adminSubmissionReviewPreviewRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, adminVerifiedRunCorrectionRequestSchema, adminVerifiedRunSchema, agentMapSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema, agentTitleListResponseSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, ocrAccuracyFeedbackRequestSchema, ocrAccuracyFeedbackResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqBindingClaimVerifyRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema } from "./index";
 
 describe("v1 platform contracts", () => {
   it("validates global and scoped achievement creation", () => {
@@ -38,10 +38,6 @@ describe("v1 platform contracts", () => {
   it("validates the administrator BattleTag name update contract", () => {
     expect(adminPlayerIdentityRequestSchema.safeParse({ contractVersion: "1", playerName: "新名称" }).success).toBe(true);
     expect(adminPlayerIdentityRequestSchema.safeParse({ contractVersion: "1", playerName: "   " }).success).toBe(false);
-  });
-
-  it("rejects a submission without evidence metadata", () => {
-    expect(submissionRequestSchema.safeParse({ contractVersion: "1", actor: { provider: "qq", groupOpenId: "group-1", memberOpenId: "user-1" }, challenge: { type: "map_completion", mapName: "Test Map" }, source: { provider: "qq", conversationId: "group-1", messageId: "message-1" }, attachments: [] }).success).toBe(false);
   });
 
   it("keeps challenge qualification canonical and complete OCR field review explicit", () => {
@@ -161,7 +157,7 @@ describe("v1 platform contracts", () => {
   });
 
   it("keeps legacy submission states visible in the admin contract", () => {
-    expect(adminSubmissionSchema.safeParse({ submissionId: "00000000-0000-4000-8000-000000000003", status: "evidence_stored", challengeId: "map.test", challenge: null, mapName: "测试地图", difficulty: "困难", playerAccountId: "11111111-1111-4111-8111-111111111111", playerName: "Player", createdAt: 1, updatedAt: 2, ocrStatus: "not_started", ocrAttempt: null, ocrErrorCode: null, ocr: null, evidenceUrl: "https://api.example.com/evidence" }).success).toBe(true);
+    expect(adminSubmissionSchema.safeParse({ submissionId: "00000000-0000-4000-8000-000000000003", status: "ocr_pending", challengeId: "map.test", challenge: null, mapName: "测试地图", difficulty: "困难", playerAccountId: "11111111-1111-4111-8111-111111111111", playerName: "Player", createdAt: 1, updatedAt: 2, ocrStatus: "not_started", ocrAttempt: null, ocrErrorCode: null, ocr: null, evidenceUrl: "https://api.example.com/evidence" }).success).toBe(true);
   });
 
   it("includes resolved challenge detail on admin player recent submissions", () => {
