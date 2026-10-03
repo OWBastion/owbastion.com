@@ -33,7 +33,6 @@ export type PlatformCache = {
 export const createPlatformCache = (kv?: KVNamespace): PlatformCache => {
   const versions = new Map<PlatformCacheScope, string>();
   const memos = new Map<PlatformCacheScope, Map<string, Promise<unknown>>>();
-  const bumped = new Set<PlatformCacheScope>();
 
   const versionOf = async (scope: PlatformCacheScope): Promise<string> => {
     const known = versions.get(scope);
@@ -84,16 +83,14 @@ export const createPlatformCache = (kv?: KVNamespace): PlatformCache => {
   };
 
   const invalidate = async (scope: PlatformCacheScope): Promise<void> => {
-    if (!kv || bumped.has(scope)) return;
-    bumped.add(scope);
+    if (!kv) return;
     memos.delete(scope);
     const token = `${Date.now().toString(36)}.${crypto.randomUUID()}`;
     try {
       await kv.put(VERSION_KEYS[scope], token);
       versions.set(scope, token);
     } catch (error) {
-      bumped.delete(scope);
-      versions.delete(scope);
+      versions.set(scope, `err.${crypto.randomUUID()}`);
       logCacheEvent("version_bump_failed", { scope, error: error instanceof Error ? error.message : String(error) });
     }
   };
@@ -194,10 +191,8 @@ export const instrumentDatabase = (database: D1Database, cache: PlatformCache): 
     async batch<T = unknown>(statements: D1PreparedStatement[]) {
       const inner = statements.map((statement) => (statement as WrappedStatement).__inner ?? statement);
       const results = await database.batch<T>(inner as [D1PreparedStatement, ...D1PreparedStatement[]]);
-      for (const statement of statements) {
-        const sql = (statement as WrappedStatement).__sql;
-        if (sql) await invalidateFor(sql);
-      }
+      const scopes = new Set(statements.flatMap((statement) => scopesTouchedBy((statement as WrappedStatement).__sql ?? "")));
+      for (const scope of scopes) await cache.invalidate(scope);
       return results;
     },
     async exec(sql: string) {
