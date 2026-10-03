@@ -90,6 +90,8 @@ function submitConfirm() {
 const verifiedRunLabel = computed(() => props.preview ? verifiedRunPreviewLabel(props.preview.verifiedRun) : null);
 const verifiedRunIneligible = computed(() => props.preview ? verifiedRunIneligibleLabel(props.preview.verifiedRun) : null);
 const satisfiedCompletions = computed(() => props.preview?.completions.filter((completion) => completion.basis === "satisfies") ?? []);
+// One caption for the side effects of approving: linked completions and what happens to the Verified Run.
+const outcomeNote = computed(() => [satisfiedCompletions.value.length ? `联动完成：${satisfiedCompletions.value.map((completion) => completion.titleName).join("、")}` : null, verifiedRunLabel.value ?? verifiedRunIneligible.value].filter(Boolean).join(" · "));
 
 watch(
   () => props.actionLoading,
@@ -130,37 +132,6 @@ function confirmSpotCheck() {
 function spotCheckLoading(decision: SpotCheckDecision) {
   return Boolean(props.actionLoading && pendingSpotCheck.value === decision);
 }
-
-/**
- * review-layout's column count comes from `grid-template-columns:
- * repeat(auto-fit, …)`, which is content-driven rather than tied to a fixed
- * width — there is no CSS query for "auto-fit resolved to one column," so
- * the narrow-mode order/stickiness overrides read the browser's own
- * resolved column count instead of guessing a matching breakpoint.
- */
-const reviewLayoutRef = ref<HTMLElement | null>(null);
-const reviewLayoutStacked = ref(false);
-let reviewLayoutObserver: ResizeObserver | null = null;
-
-function updateReviewLayoutStacked() {
-  const el = reviewLayoutRef.value;
-  if (!el) return;
-  const columns = getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).filter(Boolean);
-  reviewLayoutStacked.value = columns.length <= 1;
-}
-
-onMounted(() => {
-  const el = reviewLayoutRef.value;
-  if (!el) return;
-  updateReviewLayoutStacked();
-  reviewLayoutObserver = new ResizeObserver(updateReviewLayoutStacked);
-  reviewLayoutObserver.observe(el);
-});
-
-onBeforeUnmount(() => {
-  reviewLayoutObserver?.disconnect();
-  reviewLayoutObserver = null;
-});
 </script>
 
 <template>
@@ -180,69 +151,61 @@ onBeforeUnmount(() => {
     <UAlert v-if="reviewError" color="error" variant="subtle" :description="reviewError" role="alert" />
 
     <!--
-      Desktop: evidence | rail (claim → decide → verify → meta)
-      Narrow: single column claim → decide → evidence → verify → meta
+      Desktop: evidence and the field check under it | rail (claim → decide → Challenge match → meta)
+      Narrow: single column claim → decide → evidence → field check → Challenge match → meta
       Decisions stay in document flow (sticky), never fixed — fixed docks
       overflow when spot-check / OCR retry expand the control surface.
     -->
-    <div ref="reviewLayoutRef" class="review-layout" :class="{ 'review-layout--stacked': reviewLayoutStacked }">
-      <div class="evidence-col flow-evidence">
-        <UCard class="evidence-card surface-panel elevation-3">
+    <div class="review-layout">
+      <div class="evidence-col">
+        <UCard class="evidence-card surface-panel elevation-3 flow-evidence">
           <template #header>
             <div class="card-heading">
               <h3>提交截图</h3>
             </div>
           </template>
-          <img
-            v-if="evidenceSrc && !evidenceError"
-            class="evidence-image"
-            :src="evidenceSrc"
-            alt="玩家提交的挑战截图"
-            @error="emit('evidence-error')"
-          />
+          <EvidenceViewer v-if="evidenceSrc && !evidenceError" :src="evidenceSrc" alt="玩家提交的挑战截图" @error="emit('evidence-error')" />
           <p v-else class="evidence-message" role="status">暂无截图。</p>
         </UCard>
+        <div class="flow-fields">
+          <AdminSubmissionReviewFields
+            :submission="submission"
+            :preview="preview"
+            :disabled="actionsLoading"
+            @field-corrections="updateFieldCorrections"
+          />
+        </div>
       </div>
 
       <div class="review-rail">
-      <section class="claim-card surface-panel elevation-2 flow-claim" aria-labelledby="claim-title" :aria-busy="previewLoading || undefined">
-        <header class="claim-card__header">
-          <div class="claim-card__title-block">
-            <h3 id="claim-title">通过后将产生</h3>
-          </div>
-        </header>
-        <template v-if="preview">
-          <ul v-if="preview.titles.length" class="outcome-list">
-            <li v-for="title in preview.titles" :key="`${title.titleKey}:${title.mapName ?? ''}`">
-              <strong>{{ title.alreadyOwned ? `已拥有「${title.titleName}」，不重复获得` : `获得「${title.titleName}」` }}</strong>
-              <span v-if="title.mapName" class="claim-meta">{{ title.mapName }}</span>
-            </li>
-          </ul>
-          <p v-if="satisfiedCompletions.length" class="claim-meta">联动完成：{{ satisfiedCompletions.map((completion) => completion.titleName).join("、") }}</p>
-          <p v-if="verifiedRunLabel" class="claim-meta">{{ verifiedRunLabel }}</p>
-          <p v-else-if="verifiedRunIneligible" class="claim-meta">{{ verifiedRunIneligible }}</p>
-          <p v-if="!preview.titles.length && !verifiedRunLabel" class="claim-empty">不会产生称号或 Verified Run。</p>
-        </template>
-        <p v-else-if="ocrPending" class="claim-empty" role="status">正在重新识别截图，完成后自动刷新。</p>
-        <p v-else-if="!previewLoading && !previewError" class="claim-empty">没有可核对的识别结果，无法通过。可以在下方手动填写截图中的字段，重新发送 OCRKit 请求，或要求重新提交。</p>
-        <p v-if="approvalHint" id="approval-hint" class="claim-hint" :class="{ 'claim-hint--error': !previewLoading && previewCurrent !== false && Boolean(previewError || preview?.blockingCode) }" role="status">{{ approvalHint }}</p>
-        <UButton v-if="previewError && !previewLoading" type="button" label="重新计算" icon="i-lucide-refresh-cw" size="sm" color="neutral" variant="ghost" @click="emit('retry-preview')" />
-      </section>
-
       <section
-        class="actions-card glass surface-panel elevation-2 flow-actions"
-        aria-label="审核操作"
-        :aria-busy="actionLoading || undefined"
+        class="decision-card glass surface-panel elevation-2 flow-actions"
+        aria-label="审核决定"
+        :aria-busy="actionLoading || previewLoading || undefined"
       >
-        <div v-if="reviewRecord" class="review-record">
-          <p>上次审核：<strong>{{ reviewRecordLabel(reviewRecord) }}</strong> · <time :datetime="new Date(reviewRecord.reviewedAt).toISOString()">{{ formatTime(reviewRecord.reviewedAt) }}</time></p>
-          <p v-if="reviewRecord.reason" class="review-record__reason">说明：{{ reviewRecord.reason }}</p>
+        <div class="outcome">
+          <h3 id="claim-title" class="outcome__label">通过后将产生</h3>
+          <template v-if="preview">
+            <ul v-if="preview.titles.length" class="outcome-list">
+              <li v-for="title in preview.titles" :key="`${title.titleKey}:${title.mapName ?? ''}`">
+                <strong>{{ title.alreadyOwned ? `已拥有「${title.titleName}」，不重复获得` : `获得「${title.titleName}」` }}</strong>
+                <span v-if="title.mapName" class="claim-meta">{{ title.mapName }}</span>
+              </li>
+            </ul>
+            <p v-else-if="!verifiedRunLabel" class="claim-empty">不会产生称号或 Verified Run。</p>
+            <p v-if="outcomeNote" class="claim-meta">{{ outcomeNote }}</p>
+          </template>
+          <p v-else-if="ocrPending" class="claim-empty" role="status">正在重新识别截图，完成后自动刷新。</p>
+          <p v-else-if="!previewLoading && !previewError" class="claim-empty">没有可核对的识别结果，无法通过。可以手动填写截图中的字段，重新发送 OCRKit 请求，或要求重新提交。</p>
+          <p v-if="approvalHint" id="approval-hint" class="claim-hint" :class="{ 'claim-hint--error': !previewLoading && previewCurrent !== false && Boolean(previewError || preview?.blockingCode) }" role="status">{{ approvalHint }}</p>
+          <UButton v-if="previewError && !previewLoading" type="button" label="重新计算" icon="i-lucide-refresh-cw" size="sm" color="neutral" variant="ghost" @click="emit('retry-preview')" />
         </div>
         <div class="actions action-row" role="group" aria-label="审核决定">
           <UButton
             type="button"
             icon="i-lucide-check"
             label="通过"
+            size="lg"
             :aria-describedby="approvalHint ? 'approval-hint' : undefined"
             :loading="decisionLoading('approved')"
             :disabled="actionsLoading || approvalBlocked"
@@ -266,6 +229,11 @@ onBeforeUnmount(() => {
             :disabled="actionsLoading"
             @click="openConfirm({ kind: 'review', decision: 'rejected' })"
           />
+        </div>
+
+        <div v-if="reviewRecord" class="review-record">
+          <p>上次审核：<strong>{{ reviewRecordLabel(reviewRecord) }}</strong> · <time :datetime="new Date(reviewRecord.reviewedAt).toISOString()">{{ formatTime(reviewRecord.reviewedAt) }}</time></p>
+          <p v-if="reviewRecord.reason" class="review-record__reason">说明：{{ reviewRecord.reason }}</p>
         </div>
 
         <div v-if="submission.spotCheck?.status === 'pending'" class="spot-check-panel" aria-labelledby="spot-check-title">
@@ -295,60 +263,61 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="ocr-retry-actions" :aria-busy="ocrRetryLoading || ocrAccuracyLoading || undefined">
-          <p v-if="ocrRetryError" class="ocr-retry-error" role="alert">{{ ocrRetryError }}</p>
-          <UButton
-            type="button"
-            icon="i-lucide-refresh-cw"
-            :label="ocrPending && !ocrQueueSendFailed ? '识别中…' : '重新发送 OCRKit 请求'"
-            color="neutral"
-            variant="ghost"
-            :loading="ocrRetryLoading || (ocrPending && !ocrQueueSendFailed)"
-            :disabled="actionsLoading || (ocrPending && !ocrQueueSendFailed)"
-            @click="emit('retry-ocr')"
-          />
-          <div v-if="submission.ocrResultId" class="ocr-accuracy" role="group" aria-label="识别准确性标记">
-            <p class="ocr-accuracy__hint">识别准确性<span v-if="submission.ocrAccuracy">（当前：{{ submission.ocrAccuracy === "accurate" ? "准确" : "有误" }}）</span>。标记仅用于识别质量改进，不影响审核决定。</p>
-            <p v-if="ocrAccuracyError" class="ocr-retry-error" role="alert">{{ ocrAccuracyError }}</p>
-            <div class="ocr-accuracy__buttons">
-              <UButton
-                type="button"
-                icon="i-lucide-check"
-                label="识别准确"
-                :color="submission.ocrAccuracy === 'accurate' ? 'primary' : 'neutral'"
-                :variant="submission.ocrAccuracy === 'accurate' ? 'soft' : 'ghost'"
-                size="sm"
-                :loading="ocrAccuracyLoading"
-                :disabled="actionsLoading || ocrAccuracyLoading || submission.ocrAccuracy === 'accurate'"
-                @click="emit('ocr-accuracy', 'accurate')"
-              />
-              <UButton
-                type="button"
-                icon="i-lucide-flag"
-                label="识别有误"
-                :color="submission.ocrAccuracy === 'inaccurate' ? 'primary' : 'neutral'"
-                :variant="submission.ocrAccuracy === 'inaccurate' ? 'soft' : 'ghost'"
-                size="sm"
-                :loading="ocrAccuracyLoading"
-                :disabled="actionsLoading || ocrAccuracyLoading || submission.ocrAccuracy === 'inaccurate'"
-                @click="emit('ocr-accuracy', 'inaccurate')"
-              />
+        <details class="more-actions" :open="Boolean(ocrRetryError || ocrAccuracyError || ocrQueueSendFailed) || undefined">
+          <summary>更多操作</summary>
+          <div class="ocr-retry-actions" :aria-busy="ocrRetryLoading || ocrAccuracyLoading || undefined">
+            <p v-if="ocrRetryError" class="ocr-retry-error" role="alert">{{ ocrRetryError }}</p>
+            <UButton
+              type="button"
+              icon="i-lucide-refresh-cw"
+              :label="ocrPending && !ocrQueueSendFailed ? '识别中…' : '重新发送 OCRKit 请求'"
+              color="neutral"
+              variant="ghost"
+              :loading="ocrRetryLoading || (ocrPending && !ocrQueueSendFailed)"
+              :disabled="actionsLoading || (ocrPending && !ocrQueueSendFailed)"
+              @click="emit('retry-ocr')"
+            />
+            <div v-if="submission.ocrResultId" class="ocr-accuracy" role="group" aria-label="识别准确性标记">
+              <p class="ocr-accuracy__hint">识别准确性<span v-if="submission.ocrAccuracy">（当前：{{ submission.ocrAccuracy === "accurate" ? "准确" : "有误" }}）</span>。标记仅用于识别质量改进，不影响审核决定。</p>
+              <p v-if="ocrAccuracyError" class="ocr-retry-error" role="alert">{{ ocrAccuracyError }}</p>
+              <div class="ocr-accuracy__buttons">
+                <UButton
+                  type="button"
+                  icon="i-lucide-check"
+                  label="识别准确"
+                  :color="submission.ocrAccuracy === 'accurate' ? 'primary' : 'neutral'"
+                  :variant="submission.ocrAccuracy === 'accurate' ? 'soft' : 'ghost'"
+                  size="sm"
+                  :loading="ocrAccuracyLoading"
+                  :disabled="actionsLoading || ocrAccuracyLoading || submission.ocrAccuracy === 'accurate'"
+                  @click="emit('ocr-accuracy', 'accurate')"
+                />
+                <UButton
+                  type="button"
+                  icon="i-lucide-flag"
+                  label="识别有误"
+                  :color="submission.ocrAccuracy === 'inaccurate' ? 'primary' : 'neutral'"
+                  :variant="submission.ocrAccuracy === 'inaccurate' ? 'soft' : 'ghost'"
+                  size="sm"
+                  :loading="ocrAccuracyLoading"
+                  :disabled="actionsLoading || ocrAccuracyLoading || submission.ocrAccuracy === 'inaccurate'"
+                  @click="emit('ocr-accuracy', 'inaccurate')"
+                />
+              </div>
             </div>
           </div>
-        </div>
+        </details>
       </section>
 
-      <!-- Verify: match + OCR stacked beside evidence -->
+      <!-- Challenge match: what approval would grant -->
       <div class="flow-signals">
-          <AdminSubmissionReviewSignals
-            stacked
-            :submission="submission"
-            :preview="preview"
-            :preview-loading="previewLoading"
-            :disabled="actionsLoading"
-            @field-corrections="updateFieldCorrections"
-            @confirmed-challenges="updateConfirmedChallenges"
-          />
+        <AdminSubmissionReviewChallenges
+          :submission="submission"
+          :preview="preview"
+          :preview-loading="previewLoading"
+          :disabled="actionsLoading"
+          @confirmed-challenges="updateConfirmedChallenges"
+        />
       </div>
 
       <!-- Traceability (low priority) -->
@@ -442,8 +411,8 @@ onBeforeUnmount(() => {
 
 .surface-panel,
 .flow-evidence,
-.flow-claim,
 .flow-actions,
+.flow-fields,
 .flow-signals,
 .flow-meta {
   width: 100%;
@@ -462,32 +431,46 @@ onBeforeUnmount(() => {
   min-width: 0;
   align-items: start;
   gap: var(--review-gap);
-  grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
+  grid-template-columns: minmax(0, 1fr);
 }
+/* One column: the two wrappers dissolve so every block takes its place in reading order (outcome and decision, then the evidence and what to check on it). */
+.evidence-col,
 .review-rail {
-  display: grid;
-  gap: var(--review-gap);
-  min-width: 0;
+  display: contents;
+}
+.flow-actions { order: 1; }
+.flow-evidence { order: 2; }
+.flow-fields { order: 3; }
+.flow-signals { order: 4; }
+.flow-meta { order: 5; }
+/* The screenshot and the check on it get the larger column; the decision rail stays beside them, with the decision pinned in view. */
+@container (min-width: 56rem) {
+  .review-layout { grid-template-columns: minmax(0, 3fr) minmax(20rem, 2fr); }
+  .evidence-col,
+  .review-rail {
+    display: grid;
+    gap: var(--review-gap);
+    min-width: 0;
+    align-content: start;
+  }
+    .flow-actions,
+  .flow-evidence,
+  .flow-fields,
+  .flow-signals,
+  .flow-meta { order: 0; }
+  /* Sticky decisions stay in flow — never position:fixed */
+  .flow-actions {
+    position: sticky;
+    top: var(--review-sticky-top);
+    z-index: 5;
+  }
 }
 
-.evidence-col {
-  position: sticky;
-  top: var(--review-sticky-top);
-  min-width: 0;
-}
 .evidence-card {
   display: block;
   width: 100%;
   max-width: 100%;
   border-color: var(--line);
-}
-.evidence-image {
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  height: auto;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
 }
 .evidence-message {
   margin: 0;
@@ -496,7 +479,7 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 
-.actions-card {
+.decision-card {
   display: grid;
   gap: 0.5rem;
   padding: var(--review-inset);
@@ -506,12 +489,23 @@ onBeforeUnmount(() => {
     var(--elevation-2),
     inset 0 1px 0 color-mix(in oklch, white 28%, transparent);
 }
+.more-actions {
+  border-top: 1px solid color-mix(in oklch, var(--line) 80%, transparent);
+  padding-top: 0.5rem;
+}
+.more-actions > summary {
+  min-height: var(--review-touch);
+  display: flex;
+  align-items: center;
+  color: var(--muted);
+  font-size: var(--type-label-sm-size);
+  font-weight: 600;
+  cursor: pointer;
+}
 .ocr-retry-actions {
   display: grid;
   justify-items: start;
   gap: 0.25rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid color-mix(in oklch, var(--line) 80%, transparent);
 }
 .ocr-retry-error {
   margin: 0;
@@ -568,39 +562,6 @@ onBeforeUnmount(() => {
   line-height: 1.5;
 }
 
-.claim-card {
-  padding: var(--review-inset);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  background: var(--surface-raised);
-  box-shadow: var(--elevation-1);
-}
-.claim-card__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-  min-width: 0;
-}
-.claim-card__title-block {
-  min-width: 0;
-  flex: 1 1 auto;
-}
-.claim-card__header h3 {
-  margin: 0;
-  font-size: var(--type-body-size);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-.claim-kind {
-  flex: 0 0 auto;
-  color: var(--quiet);
-  font-size: var(--type-caption-size);
-  font-weight: 500;
-  white-space: nowrap;
-}
 .claim-meta {
   margin: 0.5rem 0 0;
   color: var(--muted);
@@ -608,28 +569,20 @@ onBeforeUnmount(() => {
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
-.claim-facts {
+.outcome {
   display: grid;
-  gap: 0.5rem;
-  margin: 0.75rem 0 0;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--line);
+  gap: var(--space-1);
 }
-.claim-facts > div {
-  display: grid;
-  gap: 0.2rem;
-  min-width: 0;
-}
-.claim-facts dt {
-  color: var(--quiet);
-  font-size: var(--type-caption-size);
-}
-.claim-facts dd {
+.outcome__label {
   margin: 0;
-  color: var(--text);
+  color: var(--muted);
   font-size: var(--type-label-sm-size);
-  line-height: 1.45;
-  overflow-wrap: anywhere;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.decision-card .actions {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
 }
 .claim-empty {
   margin: 0.5rem 0 0;
@@ -651,7 +604,9 @@ onBeforeUnmount(() => {
 }
 .outcome-list strong {
   color: var(--text);
-  font-size: var(--type-label-sm-size);
+  font-size: var(--type-card-title-size);
+  font-weight: 600;
+  line-height: var(--type-card-title-leading);
   overflow-wrap: anywhere;
 }
 .outcome-list .claim-meta {
@@ -697,43 +652,19 @@ onBeforeUnmount(() => {
   padding: 0 var(--review-inset) 0.75rem;
 }
 
-/* Sticky decisions stay in flow — never position:fixed */
-.flow-actions {
-  position: sticky;
-  top: var(--review-sticky-top);
-  z-index: 5;
-}
-
-/* review-layout's auto-fit collapse (above) is content-driven, not tied to a
-   fixed width — there is no CSS query for "auto-fit resolved to one
-   column," so the narrow-order swap and the sticky evidence column read the
-   browser's own resolved grid-template-columns column count instead
-   (ResizeObserver in the script block) rather than approximating it with a
-   width value of our own. */
-.review-layout--stacked .review-rail {
-  order: -1;
-}
-.review-layout--stacked .evidence-col {
-  position: static;
-}
-
 @container (max-width: 23.99rem) {
   .detail-meta-bar {
     align-items: flex-start;
     flex-wrap: wrap;
   }
-  .claim-kind {
-    margin-top: 0.15rem;
-  }
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .actions-card {
+  .decision-card {
     background: var(--glass-bg-solid-raised);
     border-color: var(--line-strong);
     box-shadow: none;
   }
-  .claim-card,
   .evidence-card,
   .meta-disclosure {
     box-shadow: none;
@@ -741,8 +672,7 @@ onBeforeUnmount(() => {
 }
 
 @media (prefers-contrast: more) {
-  .actions-card,
-  .claim-card,
+  .decision-card,
   .evidence-card,
   .meta-disclosure {
     border-color: var(--text);
@@ -750,7 +680,7 @@ onBeforeUnmount(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .actions-card {
+  .decision-card {
     transition:
       background-color var(--theme-transition),
       border-color var(--theme-transition),

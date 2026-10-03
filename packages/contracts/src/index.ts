@@ -1244,6 +1244,8 @@ export const playerSubmissionOcrSummarySchema = z.object({
   playerName: z.string().nullable(),
   challengeCompleted: z.boolean().nullable(),
   achievementTitles: z.array(z.string()).optional(),
+  // The recognition model that produced this summary, so a player can tell which model read their screenshot.
+  modelVersion: z.string().optional(),
 }).strict();
 
 export const playerSubmissionOcrFeedbackSchema = z.object({

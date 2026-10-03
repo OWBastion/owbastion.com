@@ -159,6 +159,12 @@ describe("OCR accuracy feedback", () => {
     expect(detail.evidenceUrl).toBe("https://evidence.owbastion.codes/uploads/submissions/submission-1/evidence.png");
   });
 
+  it("names the recognition model in the player's OCR summary", async () => {
+    const { services } = await setup();
+    const detail = await services.getPlayerSubmission({ submissionId: "submission-1" }, "session-token");
+    expect(detail.ocr).toMatchObject({ mapName: "萨摩亚", modelVersion: "ocr-v1" });
+  });
+
   it("records a player accuracy mark without transcription content", async () => {
     const { sqlite, services } = await setup();
     const response = await services.submitPlayerOcrFeedback({ submissionId: "submission-1", ocrResultId: "ocr-1", accuracy: "accurate" }, "session-token", "key-1");

@@ -6063,7 +6063,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         evidenceUrl: publicEvidenceUrl(attachment?.objectKey),
         ocrFailCount: submission.ocrFailCount,
         manualReviewEligible: submission.status === "resubmission_required" && submission.ocrFailCount >= ocrManualReviewThreshold,
-        ...(raw ? { ocr: { mapName: raw.data?.map_name ?? null, difficulty: raw.data?.difficulty ?? null, playerName: raw.data?.viewer_player ?? null, challengeCompleted: raw.data?.challenge_completed ?? null, achievementTitles: raw.data?.achievement_titles ?? [] } } : {}),
+        ...(raw ? { ocr: { mapName: raw.data?.map_name ?? null, difficulty: raw.data?.difficulty ?? null, playerName: raw.data?.viewer_player ?? null, challengeCompleted: raw.data?.challenge_completed ?? null, achievementTitles: raw.data?.achievement_titles ?? [], ...(raw.model_version ? { modelVersion: raw.model_version } : {}) } } : {}),
         ...(feedback ? { feedback } : {}),
         ...(grantRow?.grant.status === "active" ? { titleGrant: { grantId: grantRow.grant.id, titleKey: grantRow.title.key, titleName: grantRow.title.label, ...(grantRow.mapName ? { mapName: grantRow.mapName } : {}) } } : {}),
         ...playerVerifiedRunSubmissionOutcomeFields(verifiedRunOutcome),

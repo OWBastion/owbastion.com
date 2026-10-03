@@ -23,6 +23,7 @@ const settlePreview = async () => { await new Promise((resolve) => setTimeout(re
 
 const navigate = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 let ocrResultReady = false;
+let queueItems: Array<{ submissionId: string }> | Error = [];
 let ocrMarkedInaccurate = false;
 const dialogStub = { AdminResponsiveDialog: { props: ["open", "title", "description"], template: '<div v-if="open" role="dialog" :aria-label="title"><p>{{ description }}</p><slot name="body" /><slot name="footer" /></div>' } };
 const adminApi = vi.fn((path: string, options?: { method?: string; body?: unknown }) => {
@@ -46,6 +47,7 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: unknow
   if (path === "/v1/submissions/submission-1/ocr-accuracy" && options?.method === "POST") { ocrMarkedInaccurate = true; return Promise.resolve({ contractVersion: "1", submissionId: "submission-1", ocrResultId: "ocr-result-1", accuracy: "inaccurate", alreadySubmitted: false }); }
   if (path === "/v1/submissions/submission-8/ocr/retry" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", submissionId: "submission-8", status: "ocr_pending" });
   if (path === "/v1/submissions/submission-3/spot-check" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", submissionId: "submission-3", status: "confirmed", grantId: "grant-1" });
+  if (path.startsWith("/v1/submissions?")) return queueItems instanceof Error ? Promise.reject(queueItems) : Promise.resolve({ items: queueItems, total: queueItems.length });
   throw new Error(`Unexpected request: ${path}`);
 });
 mockNuxtImport("useAdminApi", () => () => adminApi);
@@ -69,10 +71,9 @@ describe("admin review detail page", () => {
     expect(wrapper.text()).toContain("守望先锋");
     expect(wrapper.text()).toContain("地图挑战");
     expect(wrapper.text()).toContain("通过");
-    expect(wrapper.text()).toContain("OCRKit");
+    expect(wrapper.text()).toContain("OCRKit · v1");
     expect(wrapper.text()).not.toContain("识别字段与原始证据");
-    expect(wrapper.text()).toContain("98%");
-    expect(wrapper.text()).toContain("已识别");
+    expect(wrapper.text()).toContain("帕拉伊苏");
     expect(wrapper.text()).toContain("左侧成就面板");
     expect(wrapper.text()).toContain("无");
     expect(wrapper.text()).not.toContain("98% · ok");
@@ -92,12 +93,44 @@ describe("admin review detail page", () => {
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
   });
 
-  it("submits a review and navigates back to the queue", async () => {
+  it("submits a review", async () => {
     const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
     await flushPromises();
     await wrapper.findAll("button").find((button) => button.text().includes("通过"))!.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-1/review", expect.objectContaining({ method: "POST" }));
+  });
+
+  describe("after a decision on the default queue", () => {
+    const approve = async () => {
+      useAdminReviewQueuePath().value = "/admin/reviews";
+      adminApi.mockClear();
+      navigate.mockClear();
+      const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
+      await flushPromises();
+      await settlePreview();
+      await wrapper.findAll("button").find((button) => button.text().includes("通过"))!.trigger("click");
+      await flushPromises();
+    };
+
+    it("continues with the next waiting submission, oldest first", async () => {
+      queueItems = [{ submissionId: "submission-1" }, { submissionId: "submission-9" }];
+      await approve();
+      expect(adminApi).toHaveBeenCalledWith("/v1/submissions?page=1&pageSize=2&status=ready_for_review,ocr_review_required&order=oldest");
+      expect(navigate).toHaveBeenCalledWith("/admin/reviews/submission-9");
+    });
+
+    it("returns to the queue when nothing else is waiting", async () => {
+      queueItems = [{ submissionId: "submission-1" }];
+      await approve();
+      expect(navigate).toHaveBeenCalledWith("/admin/reviews");
+    });
+
+    it("returns to the queue when the next submission cannot be looked up", async () => {
+      queueItems = new Error("offline");
+      await approve();
+      expect(navigate).toHaveBeenCalledWith("/admin/reviews");
+    });
   });
 
   it("keeps review actions available after the submission is already decided", async () => {
@@ -167,6 +200,8 @@ describe("admin review detail page", () => {
     adminApi.mockClear();
     const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
     await flushPromises();
+    expect(wrapper.find('input[aria-label="搜索 Challenge"]').exists()).toBe(false);
+    await wrapper.findAll("button").find((button) => button.text().includes("添加其他 Challenge"))!.trigger("click");
     await wrapper.get('input[aria-label="搜索 Challenge"]').setValue("英雄");
     await wrapper.get('button[aria-label="添加 称号 HERO"]').trigger("click");
     await settlePreview();
@@ -179,7 +214,7 @@ describe("admin review detail page", () => {
     adminApi.mockClear();
     const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
     await flushPromises();
-    await wrapper.findAll(".field-review__row")[0]!.get('[role="checkbox"]').trigger("click");
+    await wrapper.get('button[aria-label^="地图："]').trigger("click");
     wrapper.findComponent({ name: "USelect" }).vm.$emit("update:modelValue", "花村");
     await settlePreview();
     expect(adminApi).toHaveBeenLastCalledWith("/v1/submissions/submission-1/review/preview", expect.objectContaining({ body: { contractVersion: "1", fieldCorrections: [{ fieldKey: "map_name", reviewedValue: "花村" }] } }));
@@ -189,6 +224,64 @@ describe("admin review detail page", () => {
       method: "POST",
       body: expect.objectContaining({ fieldCorrections: [{ fieldKey: "map_name", reviewedValue: "花村" }] }),
     }));
+  });
+
+  describe("recognition check", () => {
+    const chip = (wrapper: Awaited<ReturnType<typeof mountPage>>, label: string) => wrapper.get(`button[aria-label^="${label}："]`);
+    const editor = (wrapper: Awaited<ReturnType<typeof mountPage>>, label: string) => wrapper.find(`[role="group"][aria-label="${label}核对"]`);
+
+    it("sums the fields up in one line and shows each as a chip with what was recognized", async () => {
+      const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
+      await flushPromises();
+      expect(wrapper.text()).toContain("5 项一致，1 项待你确认");
+      expect(chip(wrapper, "地图").attributes("aria-label")).toBe("地图：帕拉伊苏，一致");
+      expect(chip(wrapper, "难度").attributes("aria-label")).toBe("难度：地狱，一致");
+      expect(chip(wrapper, "通关标记").attributes("aria-label")).toContain("待确认");
+    });
+
+    it("opens the field a Challenge is waiting for and shows what was recognized there", async () => {
+      const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
+      await flushPromises();
+      expect(editor(wrapper, "通关标记").exists()).toBe(true);
+      expect(editor(wrapper, "通关标记").text()).toContain("99%");
+      expect(editor(wrapper, "地图").exists()).toBe(false);
+      await chip(wrapper, "地图").trigger("click");
+      expect(editor(wrapper, "地图").text()).toContain("帕拉伊苏");
+      expect(editor(wrapper, "通关标记").exists()).toBe(false);
+    });
+
+    it("settles the line once the waiting field is confirmed", async () => {
+      const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
+      await flushPromises();
+      await wrapper.get('button[aria-label="核对通关标记"]').trigger("click");
+      await settlePreview();
+      expect(wrapper.text()).toContain("6 项全部一致");
+      expect(chip(wrapper, "通关标记").attributes("aria-label")).toContain("已核对");
+    });
+
+    it("tells a corrected value from a confirmed one and lets the check be undone", async () => {
+      adminApi.mockClear();
+      const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
+      await flushPromises();
+      await chip(wrapper, "地图").trigger("click");
+      wrapper.findComponent({ name: "USelect" }).vm.$emit("update:modelValue", "花村");
+      await settlePreview();
+      expect(chip(wrapper, "地图").attributes("aria-label")).toBe("地图：花村，已校正");
+      await wrapper.get('button[aria-label="撤销核对地图"]').trigger("click");
+      await settlePreview();
+      expect(chip(wrapper, "地图").attributes("aria-label")).toBe("地图：帕拉伊苏，一致");
+      expect(adminApi).toHaveBeenLastCalledWith("/v1/submissions/submission-1/review/preview", expect.objectContaining({ body: { contractVersion: "1" } }));
+    });
+
+    it("keeps the less common fields behind one control and asks for a value before confirming one", async () => {
+      const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
+      await flushPromises();
+      expect(wrapper.find('button[aria-label^="对局码："]').exists()).toBe(false);
+      await wrapper.findAll("button").find((button) => button.text().includes("更多字段"))!.trigger("click");
+      await chip(wrapper, "对局码").trigger("click");
+      expect(editor(wrapper, "对局码").text()).toContain("未识别");
+      expect(wrapper.get('button[aria-label="核对对局码"]').attributes("disabled")).toBeDefined();
+    });
   });
 
   it("does not allow approval when the preview has no outcome", async () => {
@@ -226,6 +319,7 @@ describe("admin review detail page", () => {
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-1/review", expect.objectContaining({ method: "POST", body: { contractVersion: "1", decision: "rejected", reason: "截图被裁剪，看不到通关标记" } }));
     expect(navigate).toHaveBeenCalledWith("/admin/reviews?status=all&page=2");
+    expect(adminApi).not.toHaveBeenCalledWith(expect.stringContaining("pageSize=2"));
   });
 
   it("shows the last decision and still lets the maintainer decide again, warning about what the Submission already produced", async () => {

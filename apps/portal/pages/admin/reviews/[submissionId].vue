@@ -4,8 +4,10 @@ import type { AdminSubmission, AdminSubmissionReviewInput, AdminSubmissionReview
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
 import { knownReviewBlockingMessage, reviewBlockingMessage } from "~/utils/submissionReview";
+import { defaultReviewQueueOrder, reviewQueueStatuses } from "~/utils/reviewQueue";
 
-definePageMeta({ middleware: ["auth", "admin-client"] });
+// Each submission gets a fresh page, so moving on to the next one starts from clean review state instead of reusing the previous one.
+definePageMeta({ middleware: ["auth", "admin-client"], key: (route) => route.fullPath });
 const route = useRoute();
 const api = useAdminApi();
 const toast = useToast();
@@ -114,6 +116,19 @@ function updateReviewInput(value: AdminSubmissionReviewInput) {
   reviewInput.value = value;
 }
 
+/** Next submission of the default queue, so a maintainer can keep reviewing without returning to the list. Filtered queue views go back to that list instead. */
+async function nextReviewPath(currentSubmissionId: string) {
+  const order = defaultReviewQueueOrder(queuePath.value);
+  if (!order) return null;
+  try {
+    const { items } = await api<{ items: AdminSubmission[] }>(`/v1/submissions?page=1&pageSize=2&status=${reviewQueueStatuses}&order=${order}`);
+    const next = items.find((item) => item.submissionId !== currentSubmissionId);
+    return next ? `/admin/reviews/${encodeURIComponent(next.submissionId)}` : null;
+  } catch {
+    return null;
+  }
+}
+
 async function review(decision: "approved" | "rejected" | "resubmission_required", reason?: string) {
   if (!submission.value || actionLoading.value) return;
   if (decision === "approved" && previewKey.value !== reviewInputKey.value) return;
@@ -124,7 +139,7 @@ async function review(decision: "approved" | "rejected" | "resubmission_required
     const result = await api<{ decision: typeof decision; titleName?: string; alreadyOwned?: boolean; grants?: Array<{ titleName: string; alreadyOwned: boolean }> }>(`/v1/submissions/${encodeURIComponent(submission.value.submissionId)}/review`, { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", decision, ...(reason ? { reason } : {}), ...(fieldCorrections.length ? { fieldCorrections } : {}), ...(decision === "approved" && confirmedChallengeIds.length ? { confirmedChallengeIds } : {}) } });
     const grants = result.grants ?? (result.titleName ? [{ titleName: result.titleName, alreadyOwned: Boolean(result.alreadyOwned) }] : []);
     toast.add({ title: decision === "approved" ? grants.length > 1 ? `审核通过，已处理 ${grants.length} 个称号` : grants[0]?.alreadyOwned ? `审核通过；玩家此前已拥有「${grants[0].titleName}」，未重复获得` : `审核通过，玩家已获得「${grants[0]?.titleName ?? "称号"}」` : decision === "rejected" ? "审核已拒绝" : "已要求重新提交", color: "success" });
-    await navigateTo(queuePath.value);
+    await navigateTo(await nextReviewPath(submissionId.value) ?? queuePath.value);
   } catch (error) {
     const details = portalErrorDetails(error, "审核提交失败，请查看服务端日志。");
     reviewError.value = knownReviewBlockingMessage(details.code) ?? (details.code ? `审核提交失败（${details.code}）：${details.description}` : details.description);

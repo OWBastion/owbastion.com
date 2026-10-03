@@ -87,6 +87,26 @@
 - Use `AdminResponsiveDialog` for overlays and collapse the columns rather than
   shrinking data below operable sizes.
 
+## Admin review workspace
+
+- The screenshot is the primary evidence and `EvidenceViewer` (wheel zoom, drag
+  to pan, double-click fit/original size, fullscreen) shows it, never a
+  fixed-size image. The check of the recognized fields sits directly under it,
+  where the maintainer compares them, as one summary line and a chip per field;
+  a chip opens that field's editor, and the first field a Challenge waits for
+  opens by itself. The rail beside is two blocks: one card with the outcome and
+  the decision, and the Challenge match as a divided list with its search kept
+  behind one control until nothing was proposed. The recognition model version
+  is named wherever recognition results are shown, to maintainers and players.
+- The decision rail leads with what approval will produce, then the decision
+  controls, pinned in view on wide layouts. Secondary maintenance actions
+  (resend recognition, accuracy mark) stay collapsed until needed or until they
+  report an error.
+- Narrow layouts read in one column: outcome, decision, evidence, field check,
+  Challenge match; the decision is not pinned there.
+- After a decision on the default queue the next waiting submission opens;
+  a filtered queue view returns to that view instead.
+
 ## Admin batch confirmation
 
 - Show selection, affected count, consequence, and the confirm/cancel actions
