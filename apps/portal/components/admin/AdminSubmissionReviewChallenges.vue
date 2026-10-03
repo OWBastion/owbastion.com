@@ -38,57 +38,63 @@ const addChallenge = (challengeId: string) => {
   challengeQuery.value = "";
 };
 const candidateDetail = (candidate: AdminSubmissionReviewCandidate) => [candidate.mapName && candidate.kind !== "title_achievement" ? candidate.mapName : null, candidate.difficulty].filter(Boolean).join(" · ");
+// One quiet line under the name: where it applies, its condition, and which fields it rests on.
+const candidateNote = (candidate: AdminSubmissionReviewCandidate) => [candidateDetail(candidate), candidate.condition, candidate.requiredFields.length ? `依据：${reviewFieldList(candidate.requiredFields)}` : null].filter(Boolean).join(" · ");
+const searchOpen = ref(false);
+// With nothing proposed, searching is the only way forward, so it is open from the start.
+const searchVisible = computed(() => searchOpen.value || !listedCandidates.value.length);
 
 const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证据满足条件" : outcome === "review" ? "证据需人工确认" : outcome === "resubmit" ? "未匹配 Challenge" : "等待判定";
 </script>
 
 <template>
   <div class="challenges">
-    <AdminSignalPanel kicker="核对" title="Challenge 判定" title-id="auto-match-title">
+    <AdminSignalPanel title="Challenge 判定" title-id="auto-match-title">
       <template #aside>
         <StatusBadge v-if="preview" :label="matchOutcomeLabel(preview.evidenceOutcome)" :tone="preview.evidenceOutcome === 'automatic' ? 'success' : 'warning'" />
       </template>
       <p v-if="submission.reason" class="signal-reason">{{ submission.reason }}</p>
-      <p class="signal-note">列表只包含提交时有效、且玩家尚未拥有的 Challenge。识别不完整但截图能证明时，勾选“截图可证明”；批准前可在“通过后将产生”中核对结果。</p>
-      <div v-if="listedCandidates.length" class="match-candidates">
-        <article v-for="candidate in listedCandidates" :key="candidate.challengeId" class="match-candidate" :class="{ 'match-candidate--selected': candidate.selectedBy !== null }">
-          <div class="match-candidate__title">
-            <strong>{{ candidate.label }}</strong>
-            <span class="candidate-scope">{{ reviewCandidateScopeLabel(candidate) }}</span>
+      <ul v-if="listedCandidates.length" class="match-list" aria-label="候选 Challenge">
+        <li v-for="candidate in listedCandidates" :key="candidate.challengeId" class="match-candidate" :class="{ 'match-candidate--selected': candidate.selectedBy !== null }">
+          <div class="match-candidate__main">
+            <p class="match-candidate__title">
+              <strong>{{ candidate.label }}</strong>
+              <span class="candidate-scope">{{ reviewCandidateScopeLabel(candidate) }}</span>
+            </p>
+            <p v-if="candidateNote(candidate)" class="candidate-reasons">{{ candidateNote(candidate) }}</p>
           </div>
-          <p v-if="candidateDetail(candidate)" class="candidate-reasons">{{ candidateDetail(candidate) }}</p>
-          <p v-if="candidate.condition" class="candidate-condition">{{ candidate.condition }}</p>
-          <div class="match-candidate__meta">
+          <div class="match-candidate__side">
             <StatusBadge :label="reviewCandidateStatus(candidate).label" :tone="reviewCandidateStatus(candidate).tone" />
-            <span v-if="candidate.requiredFields.length" class="candidate-reasons">依据：{{ reviewFieldList(candidate.requiredFields) }}</span>
+            <UCheckbox
+              v-if="candidate.evidence !== 'matched'"
+              :model-value="confirmedChallengeIds.includes(candidate.challengeId)"
+              label="截图可证明"
+              :disabled="disabled"
+              @update:model-value="setChallengeConfirmation(candidate.challengeId, Boolean($event))"
+            />
           </div>
-          <UCheckbox
-            v-if="candidate.evidence !== 'matched'"
-            :model-value="confirmedChallengeIds.includes(candidate.challengeId)"
-            label="截图可证明"
-            :disabled="disabled"
-            @update:model-value="setChallengeConfirmation(candidate.challengeId, Boolean($event))"
-          />
-        </article>
-      </div>
+        </li>
+      </ul>
       <p v-if="withdrawnConfirmations" class="signal-note" role="status">{{ withdrawnConfirmations }} 项人工确认已不适用于当前识别结果，已取消。</p>
       <p v-if="!listedCandidates.length && previewLoading && !preview" class="signal-empty">正在计算 Challenge…</p>
-      <p v-else-if="!listedCandidates.length && preview" class="signal-empty">当前证据没有匹配到 Challenge，可以在下方搜索添加。</p>
+      <p v-else-if="!listedCandidates.length && preview" class="signal-empty">当前证据没有匹配到 Challenge，可以搜索添加。已拥有或已被管理员撤销的称号不会出现在列表中。</p>
       <p v-else-if="!listedCandidates.length" class="signal-empty">暂无可判定的识别结果。</p>
-      <section v-if="candidates.length" class="manual-add" aria-labelledby="manual-add-title">
-        <h4 id="manual-add-title">搜索并添加 Challenge</h4>
-        <UInput v-model="challengeQuery" icon="i-lucide-search" aria-label="搜索 Challenge" placeholder="输入称号、地图或条件" :disabled="disabled" />
-        <ul v-if="searchResults.length" class="manual-add__results">
-          <li v-for="candidate in searchResults" :key="candidate.challengeId" class="manual-add__result">
-            <div>
-              <strong>{{ candidate.label }}</strong>
-              <span class="candidate-scope">{{ reviewCandidateScopeLabel(candidate) }}<template v-if="candidateDetail(candidate)"> · {{ candidateDetail(candidate) }}</template></span>
-            </div>
-            <UButton type="button" label="添加" size="sm" color="neutral" variant="outline" :disabled="disabled" :aria-label="`添加 ${candidate.label}`" @click="addChallenge(candidate.challengeId)" />
-          </li>
-        </ul>
-        <p v-else-if="challengeQuery.trim()" class="signal-empty">没有匹配的 Challenge。已拥有或已被管理员撤销的称号不会出现在列表中。</p>
-      </section>
+      <div v-if="candidates.length" class="manual-add">
+        <UButton v-if="!searchVisible" type="button" icon="i-lucide-plus" label="添加其他 Challenge" size="sm" color="neutral" variant="ghost" @click="searchOpen = true" />
+        <template v-else>
+          <UInput v-model="challengeQuery" icon="i-lucide-search" aria-label="搜索 Challenge" placeholder="输入称号、地图或条件" :disabled="disabled" />
+          <ul v-if="searchResults.length" class="manual-add__results">
+            <li v-for="candidate in searchResults" :key="candidate.challengeId" class="manual-add__result">
+              <div>
+                <strong>{{ candidate.label }}</strong>
+                <span class="candidate-scope">{{ reviewCandidateScopeLabel(candidate) }}<template v-if="candidateDetail(candidate)"> · {{ candidateDetail(candidate) }}</template></span>
+              </div>
+              <UButton type="button" label="添加" size="sm" color="neutral" variant="outline" :disabled="disabled" :aria-label="`添加 ${candidate.label}`" @click="addChallenge(candidate.challengeId)" />
+            </li>
+          </ul>
+          <p v-else-if="challengeQuery.trim()" class="signal-empty">没有匹配的 Challenge。</p>
+        </template>
+      </div>
     </AdminSignalPanel>
   </div>
 </template>
@@ -104,62 +110,66 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
   font-size: var(--type-label-sm-size);
   line-height: 1.5;
 }
-.match-candidates {
+.match-list {
   display: grid;
-  width: 100%;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 .match-candidate {
-  display: grid;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  color: var(--text);
-  background: var(--surface);
-  text-align: left;
-  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line);
 }
-.match-candidate--selected {
-  border-color: color-mix(in oklch, var(--accent) 64%, var(--line));
-  background: var(--accent-surface);
+.match-candidate:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.match-candidate__main {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
 }
 .match-candidate__title {
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
 }
 .match-candidate__title strong {
   overflow-wrap: anywhere;
-  font-size: var(--type-label-sm-size);
+  font-size: var(--type-label-size);
+}
+.match-candidate--selected .match-candidate__title strong {
+  color: var(--accent);
+}
+.match-candidate__side {
+  display: grid;
+  flex: none;
+  justify-items: end;
+  gap: var(--space-2);
 }
 .candidate-scope {
-  flex: 0 0 auto;
   color: var(--muted);
   font-size: var(--type-caption-size);
 }
-.match-candidate__meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
+.candidate-reasons {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--type-caption-size);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 .manual-add {
   display: grid;
   gap: var(--space-2);
-  margin-top: var(--space-4);
+  margin-top: var(--space-3);
   padding-top: var(--space-3);
   border-top: 1px solid var(--line);
-}
-.manual-add h4 {
-  margin: 0;
-  font-size: var(--type-label-sm-size);
 }
 .manual-add__results {
   display: grid;
@@ -188,20 +198,16 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
   overflow-wrap: anywhere;
   font-size: var(--type-label-sm-size);
 }
-.candidate-reasons,
-.candidate-condition {
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--type-caption-size);
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-.candidate-condition {
-  color: var(--text);
-}
-@container (min-width: 40rem) {
-  .match-candidates {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+@container (max-width: 26rem) {
+  .match-candidate {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .match-candidate__side {
+    grid-auto-flow: column;
+    justify-content: space-between;
+    justify-items: start;
+    align-items: center;
   }
 }
 </style>

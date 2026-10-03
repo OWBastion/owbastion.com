@@ -90,6 +90,8 @@ function submitConfirm() {
 const verifiedRunLabel = computed(() => props.preview ? verifiedRunPreviewLabel(props.preview.verifiedRun) : null);
 const verifiedRunIneligible = computed(() => props.preview ? verifiedRunIneligibleLabel(props.preview.verifiedRun) : null);
 const satisfiedCompletions = computed(() => props.preview?.completions.filter((completion) => completion.basis === "satisfies") ?? []);
+// One caption for the side effects of approving: linked completions and what happens to the Verified Run.
+const outcomeNote = computed(() => [satisfiedCompletions.value.length ? `联动完成：${satisfiedCompletions.value.map((completion) => completion.titleName).join("、")}` : null, verifiedRunLabel.value ?? verifiedRunIneligible.value].filter(Boolean).join(" · "));
 
 watch(
   () => props.actionLoading,
@@ -176,38 +178,27 @@ function spotCheckLoading(decision: SpotCheckDecision) {
       </div>
 
       <div class="review-rail">
-      <section class="claim-card surface-panel elevation-2 flow-claim" aria-labelledby="claim-title" :aria-busy="previewLoading || undefined">
-        <header class="claim-card__header">
-          <div class="claim-card__title-block">
-            <h3 id="claim-title">通过后将产生</h3>
-          </div>
-        </header>
-        <template v-if="preview">
-          <ul v-if="preview.titles.length" class="outcome-list">
-            <li v-for="title in preview.titles" :key="`${title.titleKey}:${title.mapName ?? ''}`">
-              <strong>{{ title.alreadyOwned ? `已拥有「${title.titleName}」，不重复获得` : `获得「${title.titleName}」` }}</strong>
-              <span v-if="title.mapName" class="claim-meta">{{ title.mapName }}</span>
-            </li>
-          </ul>
-          <p v-if="satisfiedCompletions.length" class="claim-meta">联动完成：{{ satisfiedCompletions.map((completion) => completion.titleName).join("、") }}</p>
-          <p v-if="verifiedRunLabel" class="claim-meta">{{ verifiedRunLabel }}</p>
-          <p v-else-if="verifiedRunIneligible" class="claim-meta">{{ verifiedRunIneligible }}</p>
-          <p v-if="!preview.titles.length && !verifiedRunLabel" class="claim-empty">不会产生称号或 Verified Run。</p>
-        </template>
-        <p v-else-if="ocrPending" class="claim-empty" role="status">正在重新识别截图，完成后自动刷新。</p>
-        <p v-else-if="!previewLoading && !previewError" class="claim-empty">没有可核对的识别结果，无法通过。可以在下方手动填写截图中的字段，重新发送 OCRKit 请求，或要求重新提交。</p>
-        <p v-if="approvalHint" id="approval-hint" class="claim-hint" :class="{ 'claim-hint--error': !previewLoading && previewCurrent !== false && Boolean(previewError || preview?.blockingCode) }" role="status">{{ approvalHint }}</p>
-        <UButton v-if="previewError && !previewLoading" type="button" label="重新计算" icon="i-lucide-refresh-cw" size="sm" color="neutral" variant="ghost" @click="emit('retry-preview')" />
-      </section>
-
       <section
-        class="actions-card glass surface-panel elevation-2 flow-actions"
-        aria-label="审核操作"
-        :aria-busy="actionLoading || undefined"
+        class="decision-card glass surface-panel elevation-2 flow-actions"
+        aria-label="审核决定"
+        :aria-busy="actionLoading || previewLoading || undefined"
       >
-        <div v-if="reviewRecord" class="review-record">
-          <p>上次审核：<strong>{{ reviewRecordLabel(reviewRecord) }}</strong> · <time :datetime="new Date(reviewRecord.reviewedAt).toISOString()">{{ formatTime(reviewRecord.reviewedAt) }}</time></p>
-          <p v-if="reviewRecord.reason" class="review-record__reason">说明：{{ reviewRecord.reason }}</p>
+        <div class="outcome">
+          <h3 id="claim-title" class="outcome__label">通过后将产生</h3>
+          <template v-if="preview">
+            <ul v-if="preview.titles.length" class="outcome-list">
+              <li v-for="title in preview.titles" :key="`${title.titleKey}:${title.mapName ?? ''}`">
+                <strong>{{ title.alreadyOwned ? `已拥有「${title.titleName}」，不重复获得` : `获得「${title.titleName}」` }}</strong>
+                <span v-if="title.mapName" class="claim-meta">{{ title.mapName }}</span>
+              </li>
+            </ul>
+            <p v-else-if="!verifiedRunLabel" class="claim-empty">不会产生称号或 Verified Run。</p>
+            <p v-if="outcomeNote" class="claim-meta">{{ outcomeNote }}</p>
+          </template>
+          <p v-else-if="ocrPending" class="claim-empty" role="status">正在重新识别截图，完成后自动刷新。</p>
+          <p v-else-if="!previewLoading && !previewError" class="claim-empty">没有可核对的识别结果，无法通过。可以手动填写截图中的字段，重新发送 OCRKit 请求，或要求重新提交。</p>
+          <p v-if="approvalHint" id="approval-hint" class="claim-hint" :class="{ 'claim-hint--error': !previewLoading && previewCurrent !== false && Boolean(previewError || preview?.blockingCode) }" role="status">{{ approvalHint }}</p>
+          <UButton v-if="previewError && !previewLoading" type="button" label="重新计算" icon="i-lucide-refresh-cw" size="sm" color="neutral" variant="ghost" @click="emit('retry-preview')" />
         </div>
         <div class="actions action-row" role="group" aria-label="审核决定">
           <UButton
@@ -238,6 +229,11 @@ function spotCheckLoading(decision: SpotCheckDecision) {
             :disabled="actionsLoading"
             @click="openConfirm({ kind: 'review', decision: 'rejected' })"
           />
+        </div>
+
+        <div v-if="reviewRecord" class="review-record">
+          <p>上次审核：<strong>{{ reviewRecordLabel(reviewRecord) }}</strong> · <time :datetime="new Date(reviewRecord.reviewedAt).toISOString()">{{ formatTime(reviewRecord.reviewedAt) }}</time></p>
+          <p v-if="reviewRecord.reason" class="review-record__reason">说明：{{ reviewRecord.reason }}</p>
         </div>
 
         <div v-if="submission.spotCheck?.status === 'pending'" class="spot-check-panel" aria-labelledby="spot-check-title">
@@ -415,7 +411,6 @@ function spotCheckLoading(decision: SpotCheckDecision) {
 
 .surface-panel,
 .flow-evidence,
-.flow-claim,
 .flow-actions,
 .flow-fields,
 .flow-signals,
@@ -443,12 +438,11 @@ function spotCheckLoading(decision: SpotCheckDecision) {
 .review-rail {
   display: contents;
 }
-.flow-claim { order: 1; }
-.flow-actions { order: 2; }
-.flow-evidence { order: 3; }
-.flow-fields { order: 4; }
-.flow-signals { order: 5; }
-.flow-meta { order: 6; }
+.flow-actions { order: 1; }
+.flow-evidence { order: 2; }
+.flow-fields { order: 3; }
+.flow-signals { order: 4; }
+.flow-meta { order: 5; }
 /* The screenshot and the check on it get the larger column; the decision rail stays beside them, with the decision pinned in view. */
 @container (min-width: 56rem) {
   .review-layout { grid-template-columns: minmax(0, 3fr) minmax(20rem, 2fr); }
@@ -459,8 +453,7 @@ function spotCheckLoading(decision: SpotCheckDecision) {
     min-width: 0;
     align-content: start;
   }
-  .flow-claim,
-  .flow-actions,
+    .flow-actions,
   .flow-evidence,
   .flow-fields,
   .flow-signals,
@@ -486,7 +479,7 @@ function spotCheckLoading(decision: SpotCheckDecision) {
   text-align: center;
 }
 
-.actions-card {
+.decision-card {
   display: grid;
   gap: 0.5rem;
   padding: var(--review-inset);
@@ -569,39 +562,6 @@ function spotCheckLoading(decision: SpotCheckDecision) {
   line-height: 1.5;
 }
 
-.claim-card {
-  padding: var(--review-inset);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  background: var(--surface-raised);
-  box-shadow: var(--elevation-1);
-}
-.claim-card__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-  min-width: 0;
-}
-.claim-card__title-block {
-  min-width: 0;
-  flex: 1 1 auto;
-}
-.claim-card__header h3 {
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--type-label-sm-size);
-  font-weight: 600;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-}
-.claim-kind {
-  flex: 0 0 auto;
-  color: var(--quiet);
-  font-size: var(--type-caption-size);
-  font-weight: 500;
-  white-space: nowrap;
-}
 .claim-meta {
   margin: 0.5rem 0 0;
   color: var(--muted);
@@ -609,28 +569,20 @@ function spotCheckLoading(decision: SpotCheckDecision) {
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
-.claim-facts {
+.outcome {
   display: grid;
-  gap: 0.5rem;
-  margin: 0.75rem 0 0;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--line);
+  gap: var(--space-1);
 }
-.claim-facts > div {
-  display: grid;
-  gap: 0.2rem;
-  min-width: 0;
-}
-.claim-facts dt {
-  color: var(--quiet);
-  font-size: var(--type-caption-size);
-}
-.claim-facts dd {
+.outcome__label {
   margin: 0;
-  color: var(--text);
+  color: var(--muted);
   font-size: var(--type-label-sm-size);
-  line-height: 1.45;
-  overflow-wrap: anywhere;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.decision-card .actions {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
 }
 .claim-empty {
   margin: 0.5rem 0 0;
@@ -705,18 +657,14 @@ function spotCheckLoading(decision: SpotCheckDecision) {
     align-items: flex-start;
     flex-wrap: wrap;
   }
-  .claim-kind {
-    margin-top: 0.15rem;
-  }
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .actions-card {
+  .decision-card {
     background: var(--glass-bg-solid-raised);
     border-color: var(--line-strong);
     box-shadow: none;
   }
-  .claim-card,
   .evidence-card,
   .meta-disclosure {
     box-shadow: none;
@@ -724,8 +672,7 @@ function spotCheckLoading(decision: SpotCheckDecision) {
 }
 
 @media (prefers-contrast: more) {
-  .actions-card,
-  .claim-card,
+  .decision-card,
   .evidence-card,
   .meta-disclosure {
     border-color: var(--text);
@@ -733,7 +680,7 @@ function spotCheckLoading(decision: SpotCheckDecision) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .actions-card {
+  .decision-card {
     transition:
       background-color var(--theme-transition),
       border-color var(--theme-transition),

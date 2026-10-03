@@ -71,7 +71,7 @@ describe("admin review detail page", () => {
     expect(wrapper.text()).toContain("守望先锋");
     expect(wrapper.text()).toContain("地图挑战");
     expect(wrapper.text()).toContain("通过");
-    expect(wrapper.text()).toContain("OCRKit");
+    expect(wrapper.text()).toContain("OCRKit · v1");
     expect(wrapper.text()).not.toContain("识别字段与原始证据");
     expect(wrapper.text()).toContain("帕拉伊苏");
     expect(wrapper.text()).toContain("左侧成就面板");
@@ -200,6 +200,8 @@ describe("admin review detail page", () => {
     adminApi.mockClear();
     const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
     await flushPromises();
+    expect(wrapper.find('input[aria-label="搜索 Challenge"]').exists()).toBe(false);
+    await wrapper.findAll("button").find((button) => button.text().includes("添加其他 Challenge"))!.trigger("click");
     await wrapper.get('input[aria-label="搜索 Challenge"]').setValue("英雄");
     await wrapper.get('button[aria-label="添加 称号 HERO"]').trigger("click");
     await settlePreview();

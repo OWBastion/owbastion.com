@@ -24,6 +24,7 @@ const annotatableFields = [
 ] as const;
 const typedFieldPlaceholder: Record<string, string> = { version: "例如 2026.0928.1", run_code: "输入截图中的对局码", duration_seconds: "整数秒", deaths: "整数", skips: "整数" };
 const ocrPayload = computed(() => props.submission.ocr as OcrPayload | null);
+const modelVersion = computed(() => typeof ocrPayload.value?.model_version === "string" && ocrPayload.value.model_version ? ocrPayload.value.model_version : null);
 const checkedTitles = computed(() => Array.isArray(ocrPayload.value?.data?.achievement_titles) ? ocrPayload.value?.data?.achievement_titles.filter((value): value is string => typeof value === "string" && value.trim().length > 0) : []);
 const achievementPanelLabel = computed(() => checkedTitles.value.length ? checkedTitles.value.join("、") : "无");
 const runtimeEvidence = computed(() => {
@@ -170,7 +171,7 @@ const confirmField = (key: string) => toggleFieldConfirmation(key, true);
 
 <template>
   <div class="fields">
-    <AdminSignalPanel kicker="OCRKit" title="识别核对" title-id="check-title">
+    <AdminSignalPanel :kicker="modelVersion ? `OCRKit · ${modelVersion}` : 'OCRKit'" title="识别核对" title-id="check-title">
       <template #aside>
         <StatusBadge :label="ocrStatusLabel(submission.ocrStatus)" :tone="ocrStatusTone(submission.ocrStatus)" />
       </template>

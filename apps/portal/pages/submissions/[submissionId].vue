@@ -17,7 +17,7 @@ type SubmissionDetail = {
   manualReviewEligible?: boolean;
   titleGrant?: { grantId: string; titleKey: string; titleName: string; mapName?: string };
   verifiedRunOutcome?: VerifiedRunSubmissionOutcome;
-  ocr?: { mapName: string | null; difficulty: string | null; playerName: string | null; challengeCompleted: boolean | null; achievementTitles: string[] };
+  ocr?: { mapName: string | null; difficulty: string | null; playerName: string | null; challengeCompleted: boolean | null; achievementTitles: string[]; modelVersion?: string };
   feedback?: {
     ocrResultId: string;
     accuracy: "accurate" | "inaccurate" | null;
@@ -239,6 +239,7 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
               <div class="detail-grid__row"><dt>玩家</dt><dd>{{ ocrValue(data.ocr.playerName) }}</dd></div>
               <div class="detail-grid__row"><dt>通关标记</dt><dd>{{ ocrValue(data.ocr.challengeCompleted) }}</dd></div>
               <div class="detail-grid__row" v-if="data.ocr.achievementTitles?.length"><dt>识别到的成就</dt><dd>{{ data.ocr.achievementTitles.join('、') }}</dd></div>
+              <div class="detail-grid__row" v-if="data.ocr.modelVersion"><dt>识别模型</dt><dd>{{ data.ocr.modelVersion }}</dd></div>
             </dl>
           </UCard>
 

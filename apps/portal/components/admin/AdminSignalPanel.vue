@@ -1,12 +1,12 @@
 <script setup lang="ts">
-defineProps<{ kicker: string; title: string; titleId: string }>();
+defineProps<{ kicker?: string; title: string; titleId: string }>();
 </script>
 
 <template>
   <section class="signal-panel" :aria-labelledby="titleId">
     <header class="signal-panel__header">
       <div>
-        <p class="signal-kicker">{{ kicker }}</p>
+        <p v-if="kicker" class="signal-kicker">{{ kicker }}</p>
         <h3 :id="titleId">{{ title }}</h3>
       </div>
       <slot name="aside" />

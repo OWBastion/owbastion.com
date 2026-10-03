@@ -282,7 +282,7 @@
   "/v1/me/submissions/{submissionId}": {
    "get": {
     "operationId": "getPlayerSubmission",
-    "description": "Private player submission detail may include only the safe mastery outcome status and awarded XP. It excludes match codes, Verified Run IDs, internal reasons, conflict fields, and OCR raw data. When present, evidenceUrl is the unlisted CDN URL needed by the screenshot view; anyone who obtains it can read the image. When the submission carries usable OCR evidence, the response may include a feedback presentation contract with a derived mode (none/targeted/grouped), safe field identifiers and values, the prompt origin category, and explicit submitted/available state; it never includes numeric confidence, thresholds, warnings, risk signals, or raw OCRKit payloads.",
+    "description": "Private player submission detail may include only the safe mastery outcome status and awarded XP. It excludes match codes, Verified Run IDs, internal reasons, conflict fields, and OCR raw data; the OCR summary carries the recognition model version only as an identifier. When present, evidenceUrl is the unlisted CDN URL needed by the screenshot view; anyone who obtains it can read the image. When the submission carries usable OCR evidence, the response may include a feedback presentation contract with a derived mode (none/targeted/grouped), safe field identifiers and values, the prompt origin category, and explicit submitted/available state; it never includes numeric confidence, thresholds, warnings, risk signals, or raw OCRKit payloads.",
     "parameters": [
      {
       "$ref": "#/components/parameters/submissionId"

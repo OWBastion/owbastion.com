@@ -15,7 +15,7 @@ const baseSubmission = {
   evidenceUrl: "https://example.test/evidence.png",
   ocrFailCount: 1,
   manualReviewEligible: false,
-  ocr: { mapName: "帕拉伊苏", difficulty: "困难", playerName: "他又", challengeCompleted: true },
+  ocr: { mapName: "帕拉伊苏", difficulty: "困难", playerName: "他又", challengeCompleted: true, modelVersion: "ocr-v3" },
 };
 
 const api = vi.fn((path?: string, options?: { method?: string }) => {
@@ -53,6 +53,8 @@ describe("submission detail page", () => {
     expect(wrapper.text()).toContain("需重新提交");
     expect(wrapper.text()).toContain("截图证据需要重新提交");
     expect(wrapper.text()).toContain("识别摘要");
+    expect(wrapper.text()).toContain("识别模型");
+    expect(wrapper.text()).toContain("ocr-v3");
     expect(wrapper.text()).toContain("提交编号");
     expect(wrapper.text()).toContain("最后更新");
     expect(wrapper.get('a[href="/submissions/new"]').text()).toContain("重新提交截图");
