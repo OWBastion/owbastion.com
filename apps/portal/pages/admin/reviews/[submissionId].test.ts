@@ -23,6 +23,7 @@ const settlePreview = async () => { await new Promise((resolve) => setTimeout(re
 
 const navigate = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 let ocrResultReady = false;
+let queueItems: Array<{ submissionId: string }> | Error = [];
 let ocrMarkedInaccurate = false;
 const dialogStub = { AdminResponsiveDialog: { props: ["open", "title", "description"], template: '<div v-if="open" role="dialog" :aria-label="title"><p>{{ description }}</p><slot name="body" /><slot name="footer" /></div>' } };
 const adminApi = vi.fn((path: string, options?: { method?: string; body?: unknown }) => {
@@ -46,6 +47,7 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: unknow
   if (path === "/v1/submissions/submission-1/ocr-accuracy" && options?.method === "POST") { ocrMarkedInaccurate = true; return Promise.resolve({ contractVersion: "1", submissionId: "submission-1", ocrResultId: "ocr-result-1", accuracy: "inaccurate", alreadySubmitted: false }); }
   if (path === "/v1/submissions/submission-8/ocr/retry" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", submissionId: "submission-8", status: "ocr_pending" });
   if (path === "/v1/submissions/submission-3/spot-check" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", submissionId: "submission-3", status: "confirmed", grantId: "grant-1" });
+  if (path.startsWith("/v1/submissions?")) return queueItems instanceof Error ? Promise.reject(queueItems) : Promise.resolve({ items: queueItems, total: queueItems.length });
   throw new Error(`Unexpected request: ${path}`);
 });
 mockNuxtImport("useAdminApi", () => () => adminApi);
@@ -92,12 +94,44 @@ describe("admin review detail page", () => {
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
   });
 
-  it("submits a review and navigates back to the queue", async () => {
+  it("submits a review", async () => {
     const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
     await flushPromises();
     await wrapper.findAll("button").find((button) => button.text().includes("通过"))!.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-1/review", expect.objectContaining({ method: "POST" }));
+  });
+
+  describe("after a decision on the default queue", () => {
+    const approve = async () => {
+      useAdminReviewQueuePath().value = "/admin/reviews";
+      adminApi.mockClear();
+      navigate.mockClear();
+      const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
+      await flushPromises();
+      await settlePreview();
+      await wrapper.findAll("button").find((button) => button.text().includes("通过"))!.trigger("click");
+      await flushPromises();
+    };
+
+    it("continues with the next waiting submission, oldest first", async () => {
+      queueItems = [{ submissionId: "submission-1" }, { submissionId: "submission-9" }];
+      await approve();
+      expect(adminApi).toHaveBeenCalledWith("/v1/submissions?page=1&pageSize=2&status=ready_for_review,ocr_review_required&order=oldest");
+      expect(navigate).toHaveBeenCalledWith("/admin/reviews/submission-9");
+    });
+
+    it("returns to the queue when nothing else is waiting", async () => {
+      queueItems = [{ submissionId: "submission-1" }];
+      await approve();
+      expect(navigate).toHaveBeenCalledWith("/admin/reviews");
+    });
+
+    it("returns to the queue when the next submission cannot be looked up", async () => {
+      queueItems = new Error("offline");
+      await approve();
+      expect(navigate).toHaveBeenCalledWith("/admin/reviews");
+    });
   });
 
   it("keeps review actions available after the submission is already decided", async () => {
@@ -226,6 +260,7 @@ describe("admin review detail page", () => {
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-1/review", expect.objectContaining({ method: "POST", body: { contractVersion: "1", decision: "rejected", reason: "截图被裁剪，看不到通关标记" } }));
     expect(navigate).toHaveBeenCalledWith("/admin/reviews?status=all&page=2");
+    expect(adminApi).not.toHaveBeenCalledWith(expect.stringContaining("pageSize=2"));
   });
 
   it("shows the last decision and still lets the maintainer decide again, warning about what the Submission already produced", async () => {

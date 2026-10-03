@@ -87,6 +87,17 @@
 - Use `AdminResponsiveDialog` for overlays and collapse the columns rather than
   shrinking data below operable sizes.
 
+## Admin review workspace
+
+- The screenshot is the primary evidence: it gets the larger column and uses
+  `EvidenceViewer` (wheel zoom, drag to pan, double-click fit/original size,
+  fullscreen), never a fixed-size image.
+- The decision rail leads with what approval will produce, then the decision
+  controls. Secondary maintenance actions (resend recognition, accuracy mark)
+  stay collapsed until needed or until they report an error.
+- After a decision on the default queue the next waiting submission opens;
+  a filtered queue view returns to that view instead.
+
 ## Admin batch confirmation
 
 - Show selection, affected count, consequence, and the confirm/cancel actions

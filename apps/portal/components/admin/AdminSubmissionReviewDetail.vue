@@ -193,13 +193,7 @@ onBeforeUnmount(() => {
               <h3>提交截图</h3>
             </div>
           </template>
-          <img
-            v-if="evidenceSrc && !evidenceError"
-            class="evidence-image"
-            :src="evidenceSrc"
-            alt="玩家提交的挑战截图"
-            @error="emit('evidence-error')"
-          />
+          <EvidenceViewer v-if="evidenceSrc && !evidenceError" :src="evidenceSrc" alt="玩家提交的挑战截图" @error="emit('evidence-error')" />
           <p v-else class="evidence-message" role="status">暂无截图。</p>
         </UCard>
       </div>
@@ -295,47 +289,50 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="ocr-retry-actions" :aria-busy="ocrRetryLoading || ocrAccuracyLoading || undefined">
-          <p v-if="ocrRetryError" class="ocr-retry-error" role="alert">{{ ocrRetryError }}</p>
-          <UButton
-            type="button"
-            icon="i-lucide-refresh-cw"
-            :label="ocrPending && !ocrQueueSendFailed ? '识别中…' : '重新发送 OCRKit 请求'"
-            color="neutral"
-            variant="ghost"
-            :loading="ocrRetryLoading || (ocrPending && !ocrQueueSendFailed)"
-            :disabled="actionsLoading || (ocrPending && !ocrQueueSendFailed)"
-            @click="emit('retry-ocr')"
-          />
-          <div v-if="submission.ocrResultId" class="ocr-accuracy" role="group" aria-label="识别准确性标记">
-            <p class="ocr-accuracy__hint">识别准确性<span v-if="submission.ocrAccuracy">（当前：{{ submission.ocrAccuracy === "accurate" ? "准确" : "有误" }}）</span>。标记仅用于识别质量改进，不影响审核决定。</p>
-            <p v-if="ocrAccuracyError" class="ocr-retry-error" role="alert">{{ ocrAccuracyError }}</p>
-            <div class="ocr-accuracy__buttons">
-              <UButton
-                type="button"
-                icon="i-lucide-check"
-                label="识别准确"
-                :color="submission.ocrAccuracy === 'accurate' ? 'primary' : 'neutral'"
-                :variant="submission.ocrAccuracy === 'accurate' ? 'soft' : 'ghost'"
-                size="sm"
-                :loading="ocrAccuracyLoading"
-                :disabled="actionsLoading || ocrAccuracyLoading || submission.ocrAccuracy === 'accurate'"
-                @click="emit('ocr-accuracy', 'accurate')"
-              />
-              <UButton
-                type="button"
-                icon="i-lucide-flag"
-                label="识别有误"
-                :color="submission.ocrAccuracy === 'inaccurate' ? 'primary' : 'neutral'"
-                :variant="submission.ocrAccuracy === 'inaccurate' ? 'soft' : 'ghost'"
-                size="sm"
-                :loading="ocrAccuracyLoading"
-                :disabled="actionsLoading || ocrAccuracyLoading || submission.ocrAccuracy === 'inaccurate'"
-                @click="emit('ocr-accuracy', 'inaccurate')"
-              />
+        <details class="more-actions" :open="Boolean(ocrRetryError || ocrAccuracyError || ocrQueueSendFailed) || undefined">
+          <summary>更多操作</summary>
+          <div class="ocr-retry-actions" :aria-busy="ocrRetryLoading || ocrAccuracyLoading || undefined">
+            <p v-if="ocrRetryError" class="ocr-retry-error" role="alert">{{ ocrRetryError }}</p>
+            <UButton
+              type="button"
+              icon="i-lucide-refresh-cw"
+              :label="ocrPending && !ocrQueueSendFailed ? '识别中…' : '重新发送 OCRKit 请求'"
+              color="neutral"
+              variant="ghost"
+              :loading="ocrRetryLoading || (ocrPending && !ocrQueueSendFailed)"
+              :disabled="actionsLoading || (ocrPending && !ocrQueueSendFailed)"
+              @click="emit('retry-ocr')"
+            />
+            <div v-if="submission.ocrResultId" class="ocr-accuracy" role="group" aria-label="识别准确性标记">
+              <p class="ocr-accuracy__hint">识别准确性<span v-if="submission.ocrAccuracy">（当前：{{ submission.ocrAccuracy === "accurate" ? "准确" : "有误" }}）</span>。标记仅用于识别质量改进，不影响审核决定。</p>
+              <p v-if="ocrAccuracyError" class="ocr-retry-error" role="alert">{{ ocrAccuracyError }}</p>
+              <div class="ocr-accuracy__buttons">
+                <UButton
+                  type="button"
+                  icon="i-lucide-check"
+                  label="识别准确"
+                  :color="submission.ocrAccuracy === 'accurate' ? 'primary' : 'neutral'"
+                  :variant="submission.ocrAccuracy === 'accurate' ? 'soft' : 'ghost'"
+                  size="sm"
+                  :loading="ocrAccuracyLoading"
+                  :disabled="actionsLoading || ocrAccuracyLoading || submission.ocrAccuracy === 'accurate'"
+                  @click="emit('ocr-accuracy', 'accurate')"
+                />
+                <UButton
+                  type="button"
+                  icon="i-lucide-flag"
+                  label="识别有误"
+                  :color="submission.ocrAccuracy === 'inaccurate' ? 'primary' : 'neutral'"
+                  :variant="submission.ocrAccuracy === 'inaccurate' ? 'soft' : 'ghost'"
+                  size="sm"
+                  :loading="ocrAccuracyLoading"
+                  :disabled="actionsLoading || ocrAccuracyLoading || submission.ocrAccuracy === 'inaccurate'"
+                  @click="emit('ocr-accuracy', 'inaccurate')"
+                />
+              </div>
             </div>
           </div>
-        </div>
+        </details>
       </section>
 
       <!-- Verify: match + OCR stacked beside evidence -->
@@ -462,7 +459,11 @@ onBeforeUnmount(() => {
   min-width: 0;
   align-items: start;
   gap: var(--review-gap);
-  grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
+  grid-template-columns: minmax(0, 1fr);
+}
+/* The screenshot is what the maintainer inspects, so it gets the larger share once there is room for two columns. */
+@container (min-width: 56rem) {
+  .review-layout { grid-template-columns: minmax(0, 3fr) minmax(20rem, 2fr); }
 }
 .review-rail {
   display: grid;
@@ -481,14 +482,6 @@ onBeforeUnmount(() => {
   max-width: 100%;
   border-color: var(--line);
 }
-.evidence-image {
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  height: auto;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-}
 .evidence-message {
   margin: 0;
   padding: 4rem 0;
@@ -506,12 +499,23 @@ onBeforeUnmount(() => {
     var(--elevation-2),
     inset 0 1px 0 color-mix(in oklch, white 28%, transparent);
 }
+.more-actions {
+  border-top: 1px solid color-mix(in oklch, var(--line) 80%, transparent);
+  padding-top: 0.5rem;
+}
+.more-actions > summary {
+  min-height: var(--review-touch);
+  display: flex;
+  align-items: center;
+  color: var(--muted);
+  font-size: var(--type-label-sm-size);
+  font-weight: 600;
+  cursor: pointer;
+}
 .ocr-retry-actions {
   display: grid;
   justify-items: start;
   gap: 0.25rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid color-mix(in oklch, var(--line) 80%, transparent);
 }
 .ocr-retry-error {
   margin: 0;

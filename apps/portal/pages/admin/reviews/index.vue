@@ -5,6 +5,7 @@ import { submissionStatusText, submissionStatusTone } from "~/utils/submissionSt
 import { ocrStatusLabel, ocrStatusTone } from "~/utils/ocrStatus";
 import type { AdminSubmission } from "~/composables/useAdminApi";
 import { portalErrorDetails } from "~/utils/portal-error";
+import { reviewQueueStatuses } from "~/utils/reviewQueue";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "截图审核 · 躲避堡垒 3" });
@@ -20,7 +21,6 @@ type OcrPayload = { data?: { map_name?: unknown; achievement_titles?: unknown };
 const formatStatus = (value: string) => submissionStatusText[value] ?? value;
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 type ReviewStatus = "queue" | "all" | keyof typeof submissionStatusText;
-const queueStatuses = "ready_for_review,ocr_review_required";
 function parseReviewStatus(value: unknown): ReviewStatus {
   const raw = Array.isArray(value) ? value[0] : value;
   if (raw === "all" || raw === "queue") return raw;
@@ -98,7 +98,7 @@ const columns: TableColumn<AdminSubmission>[] = [
   { id: "actions", header: "", enableHiding: false },
 ];
 const { loading } = useAdminAsyncData("submission-review-list", async () => {
-    const statusQuery = reviewStatus.value === "all" ? "" : reviewStatus.value === "queue" ? `&status=${queueStatuses}` : `&status=${encodeURIComponent(reviewStatus.value)}`;
+    const statusQuery = reviewStatus.value === "all" ? "" : reviewStatus.value === "queue" ? `&status=${reviewQueueStatuses}` : `&status=${encodeURIComponent(reviewStatus.value)}`;
     const spotCheckQuery = spotCheckFilter.value === "all" ? "" : `&spotCheck=${spotCheckFilter.value}`;
     const response = await api<{ items: AdminSubmission[]; total: number }>(`/v1/submissions?page=${page.value}&pageSize=20${statusQuery}${spotCheckQuery}&order=${reviewOrder.value}`);
     if (page.value > 1 && !response.items.length && response.total) page.value -= 1;
