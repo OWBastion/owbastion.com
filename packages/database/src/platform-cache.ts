@@ -13,7 +13,7 @@ const VERSION_KEYS: Record<PlatformCacheScope, string> = {
   catalog: "owb:v1:ver:catalog",
   grants: "owb:v1:ver:grants",
 };
-const ENTRY_TTL_SECONDS = 6 * 60 * 60;
+const ENTRY_TTL_SECONDS = 2 * 60 * 60;
 
 const logCacheEvent = (event: string, fields: Record<string, unknown>) => {
   try {
