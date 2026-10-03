@@ -1254,16 +1254,19 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     return items;
   };
   const loadMapTitleRuleChallenges = async (includeInactive = false, eligibilityAt = now(), includeHiddenTitles = false): Promise<Challenge[]> => {
-    const [rows, revisionRows, assignments, compat, exceptions] = await Promise.all([
-      platformCache.cached("catalog", `rule-title-rows:${includeInactive ? "all" : "open"}:${includeHiddenTitles ? "all" : "visible"}`, () => db.select({ rule: mapTitleRules, title: titleCatalog }).from(mapTitleRules).innerJoin(titleCatalog, eq(mapTitleRules.titleKey, titleCatalog.key))
-        .where(and(includeInactive ? undefined : inArray(mapTitleRules.status, ["active", "sunsetting"]), eq(titleCatalog.lifecycle, "active"), includeHiddenTitles ? undefined : eq(titleCatalog.publicVisibility, 1)))),
-      platformCache.cached("catalog", "active-revision-maps", () => db.select({ map: maps, revision: gameplayRevisions }).from(gameplayRevisions)
-        .innerJoin(maps, eq(gameplayRevisions.mapId, maps.id))
-        .where(and(eq(maps.status, "active"), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])))),
-      platformCache.cached("catalog", "rule-assignments", () => db.select().from(gameplayRevisionChallengeAssignments).where(eq(gameplayRevisionChallengeAssignments.challengeFamily, "map_title_rule"))),
-      platformCache.cached("catalog", "rule-compat", () => db.select().from(mapTitleRuleCompat)),
-      platformCache.cached("catalog", "rule-exceptions", () => db.select().from(mapTitleRuleExceptions)),
-    ]);
+    const { rows, revisionRows, assignments, compat, exceptions } = await platformCache.cached("catalog", `rule-challenge-inputs:${includeInactive ? "all" : "open"}:${includeHiddenTitles ? "all" : "visible"}`, async () => {
+      const [rows, revisionRows, assignments, compat, exceptions] = await Promise.all([
+        db.select({ rule: mapTitleRules, title: titleCatalog }).from(mapTitleRules).innerJoin(titleCatalog, eq(mapTitleRules.titleKey, titleCatalog.key))
+          .where(and(includeInactive ? undefined : inArray(mapTitleRules.status, ["active", "sunsetting"]), eq(titleCatalog.lifecycle, "active"), includeHiddenTitles ? undefined : eq(titleCatalog.publicVisibility, 1))),
+        db.select({ map: maps, revision: gameplayRevisions }).from(gameplayRevisions)
+          .innerJoin(maps, eq(gameplayRevisions.mapId, maps.id))
+          .where(and(eq(maps.status, "active"), inArray(gameplayRevisions.lifecycle, ["default", "selectable"]))),
+        db.select().from(gameplayRevisionChallengeAssignments).where(eq(gameplayRevisionChallengeAssignments.challengeFamily, "map_title_rule")),
+        db.select().from(mapTitleRuleCompat),
+        db.select().from(mapTitleRuleExceptions),
+      ]);
+      return { rows, revisionRows, assignments, compat, exceptions };
+    });
     const assignmentByRevisionRule = new globalThis.Map(assignments.map((item) => [`${item.gameplayRevisionId}:${item.challengeId}`, item]));
     const compatByRuleMap = new globalThis.Map(compat.map((item) => [`${item.ruleId}:${item.mapId}`, item.legacyChallengeId]));
     const exceptionByRuleMap = new globalThis.Map(exceptions.map((item) => [`${item.ruleId}:${item.mapId}`, item]));
@@ -1296,7 +1299,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     return items;
   };
   const loadMapScopedTitleChallenges = async (eligibilityAt = now(), includeHiddenTitles = false): Promise<Challenge[]> => {
-    const rows = await platformCache.cached("catalog", `map-scoped-title-rows:${includeHiddenTitles ? "all" : "visible"}`, () => db.select({ challenge: titleChallenges, title: titleCatalog, assignment: gameplayRevisionChallengeAssignments, revision: gameplayRevisions, map: maps })
+    const { rows, compatIds } = await platformCache.cached("catalog", `map-scoped-title-rows:${includeHiddenTitles ? "all" : "visible"}`, async () => ({ rows: await db.select({ challenge: titleChallenges, title: titleCatalog, assignment: gameplayRevisionChallengeAssignments, revision: gameplayRevisions, map: maps })
       .from(gameplayRevisionChallengeAssignments)
       .innerJoin(titleChallenges, eq(gameplayRevisionChallengeAssignments.challengeId, titleChallenges.id))
       .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
@@ -1312,10 +1315,10 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         eq(maps.status, "active"),
         eq(gameplayRevisions.mapId, gameplayRevisionChallengeAssignments.mapId),
         inArray(gameplayRevisions.lifecycle, ["default", "selectable"]),
-      )));
-    const compatIds = new Set((await platformCache.cached("catalog", "rule-compat", () => db.select().from(mapTitleRuleCompat))).map(({ legacyChallengeId }) => legacyChallengeId));
+      )), compatIds: (await db.select({ legacyChallengeId: mapTitleRuleCompat.legacyChallengeId }).from(mapTitleRuleCompat)).map(({ legacyChallengeId }) => legacyChallengeId) }));
+    const compat = new Set(compatIds);
     return rows.flatMap(({ challenge, title, assignment, revision, map }) => {
-      if (compatIds.has(challenge.id)) return [];
+      if (compat.has(challenge.id)) return [];
       const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, eligibilityAt, challenge.gameVersion);
       if (!status || (status !== "active" && status !== "sunsetting")) return [];
       const gameVersion = challenge.gameVersion?.trim();
