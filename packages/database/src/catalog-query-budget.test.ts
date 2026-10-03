@@ -509,7 +509,7 @@ describe("catalog query budgets", () => {
 
     resetCount();
     await services.getAgentMap({ mapId: "map.0" });
-    expect(getCount()).toBeLessThanOrEqual(2);
+    expect(getCount()).toBeLessThanOrEqual(3);
 
     resetCount();
     await services.getAgentAchievement({ challengeId: "title.global.one" });

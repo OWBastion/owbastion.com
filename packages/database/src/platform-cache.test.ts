@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createPlatformServices } from "./index";
 import { createD1, installSchema as installFullSchema, seedMap, seedRevisionAssignment, seedTitle } from "./ocr-test-harness";
 
@@ -226,5 +226,30 @@ describe("platform cache amplification", () => {
     expect(warm).toEqual(uncached);
     expect(d1Statements).toBe(0);
     expect(kvReads).toBeLessThanOrEqual(5);
+  });
+
+  it("does not rewrite the Agents map projection entry as the clock advances without crossing a window boundary", async () => {
+    const { database, sqlite } = createD1();
+    installFullSchema(sqlite);
+    seedMap(sqlite, "map.a");
+    const store = new Map<string, string>();
+    let puts = 0;
+    const kv = {
+      get: async (key: string, options?: unknown) => { const raw = store.get(key); return raw === undefined ? null : options === "json" ? JSON.parse(raw) : raw; },
+      put: async (key: string, value: string) => { puts += 1; store.set(key, value); },
+    } as unknown as KVNamespace;
+    const create = () => createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, undefined, undefined, kv);
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-10-04T00:00:00Z"));
+      const first = await create().getAgentMap({ mapId: "map.a" });
+      expect(first?.mapId).toBe("map.a");
+      puts = 0;
+      vi.setSystemTime(new Date("2026-10-04T07:00:00Z"));
+      expect(await create().getAgentMap({ mapId: "map.a" })).toEqual(first);
+      expect(puts).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

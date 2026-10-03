@@ -1576,10 +1576,15 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     public_challenge_id: string | null;
     compat_rule_id: string | null;
   };
-  // The projection SQL binds now() into pioneer exception windows, so the cache
-  // key buckets by hour to bound staleness of window transitions to <= 1h.
-  const loadAgentMapProjectionsFast = (input: { mapId?: string }): Promise<AgentMap[]> =>
-    platformCache.cached("catalog", `agent-map-projections:${input.mapId ?? "all"}:${Math.floor(now() / 3_600_000)}`, () => loadAgentMapProjectionsFastUncached(input));
+  // The projection SQL binds now() into pioneer exception windows, so its result
+  // only changes when now() crosses a window boundary. Key the entry by how many
+  // boundaries have passed instead of a clock bucket, so it is not rewritten hourly.
+  const loadAgentMapProjectionsFast = async (input: { mapId?: string }): Promise<AgentMap[]> => {
+    const boundaries = await platformCache.cached("catalog", "exception-window-boundaries", () => db.select({ startsAt: mapTitleRuleExceptions.startsAt, endsAt: mapTitleRuleExceptions.endsAt }).from(mapTitleRuleExceptions));
+    const timestamp = now();
+    const passed = boundaries.reduce((count, { startsAt, endsAt }) => count + Number(startsAt !== null && startsAt <= timestamp) + Number(endsAt !== null && endsAt <= timestamp), 0);
+    return platformCache.cached("catalog", `agent-map-projections:${input.mapId ?? "all"}:${passed}`, () => loadAgentMapProjectionsFastUncached(input));
+  };
   const loadAgentMapProjectionsFastUncached = async (input: { mapId?: string }): Promise<AgentMap[]> => {
     const timestamp = now();
     const mapFilter = input.mapId ? " AND m.id = ?" : "";
