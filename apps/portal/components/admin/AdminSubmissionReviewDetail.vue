@@ -121,8 +121,8 @@ function approve() {
   emit("review", "approved");
 }
 
-function updateFieldCorrections(value: AdminSubmissionReviewInput["fieldCorrections"]) {
-  reviewInput.value = { ...reviewInput.value, fieldCorrections: value };
+function updateFieldCorrections(value: Array<{ fieldKey: string; reviewedValue: string }>) {
+  reviewInput.value = { ...reviewInput.value, fieldCorrections: value as AdminSubmissionReviewInput["fieldCorrections"] };
   emit("review-input", reviewInput.value);
 }
 

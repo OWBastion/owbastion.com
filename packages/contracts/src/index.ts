@@ -55,6 +55,24 @@ export const bindingInviteRedeemRequestSchema = z.object({ contractVersion, code
 export const bindingInviteRedeemResponseSchema = z.object({ contractVersion, claimId: z.string().uuid(), claimToken: z.string().min(32), code: inviteClaimCode, playerName: z.string().trim().min(1).max(64), playerId, expiresAt: z.number().int() });
 export const bindingClaimStatusResponseSchema = z.object({ contractVersion, status: z.enum(["pending_confirmation", "pending_review", "approved", "rejected", "expired"]), expiresAt: z.number().int(), historicalMigration: publicHistoricalMigrationSummarySchema });
 export const bindingClaimSessionResponseSchema = z.object({ contractVersion, status: z.literal("authenticated") });
+export const qqBindingRequestSchema = z.object({
+  contractVersion,
+  provider: z.literal("qq"),
+  groupOpenId: externalId,
+  memberOpenId: externalId,
+  playerName: z.string().trim().min(1).max(64),
+  playerId,
+});
+export const qqBindingResponseSchema = z.object({
+  contractVersion,
+  bindingId: z.string().uuid(),
+  identityId: z.string().uuid(),
+  provider: z.literal("qq"),
+  groupOpenId: externalId,
+  memberOpenId: externalId,
+  playerName: z.string().trim().min(1).max(64),
+  playerId,
+});
 export const qqBindingClaimVerifyRequestSchema = z.object({ contractVersion, provider: z.literal("qq"), code: inviteClaimCode, groupOpenId: externalId, memberOpenId: externalId, messageId: externalId });
 export const qqBindingClaimVerifyResponseSchema = z.object({ contractVersion, status: z.literal("verified"), environment: z.enum(["production", "test"]) });
 export const qqBindingRequestSchema = z.object({
