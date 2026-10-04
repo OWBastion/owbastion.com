@@ -43,7 +43,8 @@ and Player Account authentication:
 - authenticated QQBot confirms invitation-bound channel claims from a stable
   QQ member OpenID; QQBot never creates or merges Player Accounts directly;
 - authenticated QQBot binding and verification calls use stable QQ group/member
-  metadata; QQBot does not create current Portal screenshot submissions;
+  metadata; QQBot submits a screenshot only through `POST /v1/qq/submissions`
+  (below) and never writes evidence or Submission state itself;
 - channel writes require an idempotency key; equal retries replay the original
   response and a changed reuse is rejected;
 - D1 stores Player Accounts, Passkey credentials and challenges, direct Portal
@@ -600,6 +601,31 @@ appear in that array. The map holder endpoint applies the same readiness
 filter and every holder item carries `gameplayRevisionId`; the global player
 grant endpoint contains only active global grants, never revision-scoped map
 grants. These are additive fields under contractVersion `1`.
+
+## QQ screenshot ingress
+
+`/上传` is a second ingress into the same Submission, private evidence, OCR,
+Challenge matching, review, and Grant lifecycle as the Portal upload. QQBot
+resolves exactly one image (the command message's own attachment, otherwise the
+quoted message's) and calls `POST /v1/qq/submissions` with the QQ command
+message ID, group and member OpenIDs, and the attachment URL, filename, and
+declared type. The `Idempotency-Key` derives from the command message identity.
+The request carries no map, Challenge, or BattleTag; the platform derives the
+Player from the active QQ binding and rejects unbound, banned, or inactive-group
+callers before fetching anything.
+
+The platform fetches the QQ attachment while the URL is valid, over HTTPS only
+from trusted QQ hosts, with revalidated bounded redirects, a time limit, and a
+10 MiB cap. The stored type comes from the image's actual signature, not the
+declared metadata. The bytes are written to private R2 before any D1 Submission
+exists, and OCR then runs from the R2 object key through the existing queue. The
+attachment URL is never persisted in D1, audit payloads, queue messages, or logs.
+
+The Submission ID is derived from the idempotency identity, so retries and
+concurrent duplicates resolve to one Submission. Reusing the key with a
+different payload is rejected with `IDEMPOTENCY_CONFLICT`. If the OCR queue is
+unavailable, the new rows are removed so a retry starts clean. Results are read
+through the Portal; QQ result notification is not part of this ingress.
 
 ## QQBot and login
 

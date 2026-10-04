@@ -113,6 +113,19 @@ export const qqLoginVerifyRequestSchema = z.object({
   memberOpenId: externalId,
   messageId: externalId,
 });
+export const qqScreenshotSubmissionRequestSchema = z.object({
+  contractVersion,
+  commandMessageId: externalId,
+  groupOpenId: externalId,
+  memberOpenId: externalId,
+  attachment: z.object({
+    url: z.string().trim().url().max(2048),
+    filename: z.string().trim().min(1).max(256),
+    contentType: z.string().trim().min(1).max(128),
+    size: z.number().int().positive().optional(),
+  }).strict(),
+}).strict();
+export const qqScreenshotSubmissionResponseSchema = z.object({ contractVersion, submissionId: z.string().uuid(), status: z.literal("processing") });
 const passkeyCredentialResponseSchema = z.record(z.string(), z.unknown());
 const passkeyOptionsSchema = z.record(z.string(), z.unknown());
 export const passkeyLoginOptionsRequestSchema = z.object({ contractVersion }).strict();
@@ -1548,6 +1561,8 @@ export type QqLoginAttemptRequest = z.infer<typeof qqLoginAttemptRequestSchema>;
 export type QqLoginAttemptResponse = z.infer<typeof qqLoginAttemptResponseSchema>;
 export type QqLoginStatusResponse = z.infer<typeof qqLoginStatusResponseSchema>;
 export type QqLoginVerifyRequest = z.infer<typeof qqLoginVerifyRequestSchema>;
+export type QqScreenshotSubmissionRequest = z.infer<typeof qqScreenshotSubmissionRequestSchema>;
+export type QqScreenshotSubmissionResponse = z.infer<typeof qqScreenshotSubmissionResponseSchema>;
 export type QqBindingClaimVerifyResponse = z.infer<typeof qqBindingClaimVerifyResponseSchema>;
 export type AdminBindingClaimDecisionRequest = z.infer<typeof adminBindingClaimDecisionRequestSchema>;
 export type AdminBindingClaimListResponse = z.infer<typeof adminBindingClaimListResponseSchema>;

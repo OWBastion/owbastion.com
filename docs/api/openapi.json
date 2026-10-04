@@ -57,6 +57,23 @@
     }
    }
   },
+  "/v1/qq/submissions": {
+   "post": {
+    "operationId": "submitQqScreenshot",
+    "description": "Service-authenticated QQ screenshot intake. QQBot sends one resolved QQ attachment URL with the command message identity; the platform resolves the bound Player, fetches the image while the URL is valid, stores it in private evidence storage, and continues through the normal OCR lifecycle. Requires Idempotency-Key derived from the QQ command message. The attachment URL is never persisted.",
+    "responses": {
+     "201": {
+      "$ref": "#/components/responses/Json"
+     },
+     "409": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
   "/v1/me": {
    "get": {
     "operationId": "getCurrentPlayer",

@@ -6,6 +6,7 @@ import { withPublicCache } from "./public-cache";
 
 const auth = async () => ({ actorType: "service" as const, subject: "qqbot", roles: ["channel:write"], provider: "test" });
 const services: PlatformServices = {
+  submitQqScreenshot: async () => ({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000010", status: "processing" }),
   recordVerifiedRun: async () => { throw new Error("VERIFIED_RUN_NOT_IMPLEMENTED"); },
   invalidateVerifiedRun: async () => { throw new Error("VERIFIED_RUN_NOT_IMPLEMENTED"); },
   restoreVerifiedRun: async () => { throw new Error("VERIFIED_RUN_NOT_IMPLEMENTED"); },
@@ -1839,6 +1840,37 @@ describe("API", () => {
     const response = await app.request("http://localhost/v1/qq/auth/verify", { method: "POST", headers: { authorization: "Bearer service", "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", provider: "qq", code: "ABC234", groupOpenId: "group-1", memberOpenId: "member-1", messageId: "message-1" }) }, env);
     expect(response.status).toBe(422);
     expect((await response.json() as { error: { code: string } }).error.code).toBe("IDEMPOTENCY_KEY_REQUIRED");
+  });
+
+  describe("POST /v1/qq/submissions", () => {
+    const body = JSON.stringify({ contractVersion: "1", commandMessageId: "message-1", groupOpenId: "group-1", memberOpenId: "member-1", attachment: { url: "https://gchat.qpic.cn/a.png", filename: "a.png", contentType: "image/png" } });
+    const post = (target: ReturnType<typeof createApp>, headers: Record<string, string> = { "idempotency-key": "k1" }, payload = body) => target.request("http://localhost/v1/qq/submissions", { method: "POST", headers: { authorization: "Bearer service", "content-type": "application/json", ...headers }, body: payload }, env);
+
+    it("requires the channel role and an idempotency key", async () => {
+      const unauthorized = createApp({ authenticate: async () => null, services: () => services });
+      expect((await post(unauthorized)).status).toBe(401);
+      const forbidden = createApp({ authenticate: async () => ({ actorType: "service", subject: "x", roles: [], provider: "test" }), services: () => services });
+      expect((await post(forbidden)).status).toBe(403);
+      const missing = await post(app, {});
+      expect(missing.status).toBe(422);
+      expect((await missing.json() as { error: { code: string } }).error.code).toBe("IDEMPOTENCY_KEY_REQUIRED");
+    });
+
+    it("rejects unknown fields so Challenge or map targets cannot be supplied", async () => {
+      expect((await post(app, { "idempotency-key": "k1" }, JSON.stringify({ ...JSON.parse(body), mapId: "map-1" }))).status).toBe(422);
+    });
+
+    it("accepts a screenshot and maps domain failures to channel-safe statuses", async () => {
+      const accepted = await post(app);
+      expect(accepted.status).toBe(201);
+      expect(await accepted.json()).toMatchObject({ status: "processing" });
+      for (const [code, status] of [["BINDING_NOT_FOUND", 422], ["PLAYER_BANNED", 422], ["SOURCE_ATTACHMENT_UNAVAILABLE", 422], ["IDEMPOTENCY_CONFLICT", 409], ["QQ_SUBMISSION_IN_PROGRESS", 409], ["OCR_NOT_CONFIGURED", 503]] as const) {
+        const failing = createApp({ authenticate: auth, services: () => ({ ...services, submitQqScreenshot: async () => { throw new Error(code); } }) });
+        const response = await post(failing);
+        expect(response.status).toBe(status);
+        expect((await response.json() as { error: { code: string } }).error.code).toBe(code);
+      }
+    });
   });
 
   it("returns the title grant summary from an approved review", async () => {

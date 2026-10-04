@@ -6,9 +6,10 @@ import { createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, p
 import { buildMasteryProfiles, calculateVerifiedRunXpV2, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, parseCanonicalChallengeConditions, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
 import type { AdminVerifiedRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, VerifiedRunDifficulty, VerifiedRunEventCounters, VerifiedRunEvidenceCompatibilityV1, MasteryMapProfile, VerifiedRunActor, VerifiedRunConflictField, VerifiedRunForProjection, VerifiedRunXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
-import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerSubmissionStatus, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, RandomEventVersion, ScreenshotSetStatus, Title } from "@owbastion/contracts";
+import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerSubmissionStatus, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, QqScreenshotSubmissionRequest, QqScreenshotSubmissionResponse, RandomEvent, RandomEventVersion, ScreenshotSetStatus, Title } from "@owbastion/contracts";
 import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, challengeCompletions, challengeSatisfies, challenges, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrAccuracyFeedback, ocrResults, passkeyChallenges, passkeyCredentials, passkeyRecoveryGrants, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, portalSessions, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, reviews, screenshotSetMembers, screenshotSets, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions, verifiedRunConflictResolutions, verifiedRunLifecycleEvents, verifiedRuns } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
+import { fetchQqAttachmentImage } from "./qq-attachment";
 import { matchOcrAgainstChallenges, type AutoMatchCandidate, type CanonicalOcrChallenge } from "./ocr-auto-match";
 import { assessChallengeOcrQuality, type OcrResponse } from "./ocr-response";
 import { resolvePortalSession } from "./portal-session";
@@ -17,6 +18,7 @@ import { createPlatformCache, instrumentDatabase } from "./platform-cache";
 const now = () => Date.now();
 const ocrRetryEnqueueingPrefix = "ocr-retry-enqueueing:";
 const playerUploadCompletionEnqueueingPrefix = "player-upload-completion-enqueueing:";
+const qqScreenshotEnqueueingPrefix = "qq-screenshot-enqueueing:";
 const formatCurrentGameVersion = (timestamp = now()) => new Date(timestamp).toISOString().slice(0, 10).replaceAll("-", ".");
 
 const normalizedOcrLabel = (value: unknown) => typeof value === "string" ? value.trim().toLocaleLowerCase() : "";
@@ -7154,6 +7156,70 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       return response;
     },
 
+
+    async submitQqScreenshot(input: QqScreenshotSubmissionRequest, auth, idempotencyKey, requestId) {
+      const operation = "qq.screenshot.submit";
+      const recordId = `${auth.subject}:${operation}:${idempotencyKey}`;
+      const requestHash = await hashRequest(input);
+      const settle = (record: { requestHash: string; responseJson: string }) => {
+        if (record.requestHash !== requestHash) throw new Error("IDEMPOTENCY_CONFLICT");
+        if (record.responseJson.startsWith(qqScreenshotEnqueueingPrefix)) throw new Error("QQ_SUBMISSION_IN_PROGRESS");
+        return JSON.parse(record.responseJson) as QqScreenshotSubmissionResponse;
+      };
+      const existing = await db.select().from(idempotencyKeys).where(eq(idempotencyKeys.id, recordId)).get();
+      if (existing) return settle(existing);
+      if (!evidenceBucket) throw new Error("EVIDENCE_BUCKET_UNAVAILABLE");
+      if (!ocrQueue) throw new Error("OCR_NOT_CONFIGURED");
+
+      const group = await db.select().from(qqGroupAccess).where(and(eq(qqGroupAccess.groupOpenId, input.groupOpenId), eq(qqGroupAccess.status, "active"))).get();
+      if (!group) throw new Error("LOGIN_GROUP_NOT_ALLOWED");
+      const binding = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.memberOpenId, input.memberOpenId), eq(bindings.status, "active"))).get();
+      if (!binding) throw new Error("BINDING_NOT_FOUND");
+      const account = await db.select().from(playerAccounts).where(eq(playerAccounts.id, binding.playerAccountId)).get();
+      if (!account || account.status === "banned") throw new Error("PLAYER_BANNED");
+
+      const image = await fetchQqAttachmentImage(input.attachment.url);
+      const sha256 = await digestHex(image.body);
+      const identity = (await hashRequest(`${operation}:${recordId}`)).slice(0, 32).split("");
+      identity[12] = "4"; identity[16] = "8";
+      const submissionId = `${identity.slice(0, 8).join("")}-${identity.slice(8, 12).join("")}-${identity.slice(12, 16).join("")}-${identity.slice(16, 20).join("")}-${identity.slice(20).join("")}`;
+      const objectKey = userEvidenceObjectKey(submissionId, sha256, image.extension);
+      await evidenceBucket.put(objectKey, image.body, { httpMetadata: { contentType: image.contentType } });
+
+      const timestamp = now();
+      const jobId = crypto.randomUUID();
+      const marker = `${qqScreenshotEnqueueingPrefix}${jobId}`;
+      const response: QqScreenshotSubmissionResponse = { contractVersion: "1", submissionId, status: "processing" };
+      await database.batch([
+        database.prepare("INSERT OR IGNORE INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(recordId, auth.subject, operation, requestHash, marker, timestamp),
+        database.prepare(`INSERT INTO submissions (id, player_account_id, binding_id, status, challenge_type, map_name, player_name, ocr_fail_count, source_provider, source_conversation_id, source_message_id, created_at, updated_at)
+          SELECT ?, ?, ?, 'ocr_pending', 'unknown', '成就挑战', ?, 0, 'qq', ?, ?, ?, ? WHERE changes() = 1`).bind(submissionId, account.id, binding.id, account.playerName, input.groupOpenId, input.commandMessageId, timestamp, timestamp),
+        database.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, byte_size, sha256, object_key, upload_status, created_at) SELECT ?, ?, 'qq', ?, ?, ?, ?, ?, 'stored', ? WHERE changes() = 1").bind(crypto.randomUUID(), submissionId, input.commandMessageId, image.contentType, image.body.byteLength, sha256, objectKey, timestamp),
+        database.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, created_at) SELECT ?, ?, 0, 'pending', ? WHERE changes() = 1").bind(jobId, submissionId, timestamp),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, ?, 'submission', ?, ?, ? WHERE changes() = 1").bind(crypto.randomUUID(), requestId ?? crypto.randomUUID(), auth.actorType, auth.subject, operation, submissionId, JSON.stringify({ provider: "qq" }), timestamp),
+      ]);
+      const claimed = await db.select().from(idempotencyKeys).where(eq(idempotencyKeys.id, recordId)).get();
+      if (!claimed) throw new Error("QQ_SUBMISSION_IN_PROGRESS");
+      if (claimed.responseJson !== marker) return settle(claimed);
+
+      try {
+        await ocrQueue.send({ version: 2, jobId, submissionId, objectKey, ...(requestId ? { requestId } : {}) });
+        logOcrEvent("job_enqueued", { submissionId, attempt: 0, manual: false, requestId: requestId ?? null });
+      } catch (error) {
+        logOcrEvent("job_enqueue_failed", { submissionId, attempt: 0, manual: false, requestId: requestId ?? null, ...errorDetails(error) });
+        await database.batch([
+          database.prepare("DELETE FROM ocr_results WHERE id = ?").bind(jobId),
+          database.prepare("DELETE FROM attachments WHERE submission_id = ?").bind(submissionId),
+          database.prepare("DELETE FROM audit_events WHERE entity_type = 'submission' AND entity_id = ? AND operation = ?").bind(submissionId, operation),
+          database.prepare("DELETE FROM submissions WHERE id = ?").bind(submissionId),
+          database.prepare("DELETE FROM idempotency_keys WHERE id = ? AND response_json = ?").bind(recordId, marker),
+        ]);
+        throw error;
+      }
+      const finalized = await database.prepare("UPDATE idempotency_keys SET response_json = ? WHERE id = ? AND response_json = ?").bind(JSON.stringify(response), recordId, marker).run();
+      if (Number(finalized.meta.changes) !== 1) throw new Error("QQ_SUBMISSION_IDEMPOTENCY_FINALIZE_FAILED");
+      return response;
+    },
 
     async createPasskeyLoginOptions(input) {
       const options = await createPasskeyAuthenticationOptions(input.rpId);
