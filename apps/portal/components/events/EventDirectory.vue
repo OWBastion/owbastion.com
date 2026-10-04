@@ -120,12 +120,12 @@ onMounted(() => { hydrated.value = true; });
         <UAccordion :items="[{ label: '概率统计', slot: 'probability' }]">
           <template #probability>
             <dl class="detail-grid">
-              <div class="detail-grid__row"><dt>类别概率</dt><dd>{{ formatProbability(probability(selected).categoryProbability) }}</dd></div>
+              <div class="detail-grid__row"><dt>候选池事件数</dt><dd>{{ probability(selected).poolSize }}</dd></div>
               <div class="detail-grid__row"><dt>单次失败率</dt><dd>{{ formatProbability(probability(selected).failureProbability) }}</dd></div>
               <div class="detail-grid__row"><dt>保底触发率</dt><dd>{{ formatProbability(probability(selected).guaranteeProbability) }}</dd></div>
-              <div class="detail-grid__row"><dt>最终出现概率</dt><dd>{{ formatProbability(probability(selected).appearanceProbability) }}</dd></div>
-              <div class="detail-grid__row"><dt>全局出现概率</dt><dd>{{ formatProbability(probability(selected).globalAppearanceProbability) }}</dd></div>
+              <div class="detail-grid__row"><dt>出现概率</dt><dd>{{ formatProbability(probability(selected).appearanceProbability) }}</dd></div>
             </dl>
+            <p class="cap">基础概率：按全部已实装事件的权重计算，未计入最近事件去重和特殊资格限制。</p>
           </template>
         </UAccordion>
         <div class="event-tags">
