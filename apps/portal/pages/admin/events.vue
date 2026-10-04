@@ -78,7 +78,7 @@ const eventColumns: TableColumn<RandomEvent>[] = [
   { accessorKey: "cooldownSeconds", header: "内置冷却", meta: { class: { th: "w-20", td: "!whitespace-nowrap" } } },
   { accessorKey: "durationSeconds", header: "持续时间（秒）", meta: { class: { th: "w-28", td: "!whitespace-nowrap" } } },
   { accessorKey: "weight", header: "权重", meta: { class: { th: "w-16", td: "!whitespace-nowrap" } } },
-  { accessorKey: "appearanceProbability", header: "最终出现概率", meta: { class: { th: "w-28", td: "!whitespace-nowrap" } } },
+  { accessorKey: "appearanceProbability", header: "出现概率", meta: { class: { th: "w-28", td: "!whitespace-nowrap" } } },
   { accessorKey: "gameVersion", header: "版本", meta: { class: { th: "w-16", td: "!whitespace-nowrap" } } },
   { accessorKey: "effectTags", header: "效果类型", meta: { class: { th: "w-44", td: "align-top" } } },
   { accessorKey: "releaseStatus", header: "状态", meta: { class: { th: "w-20", td: "!whitespace-nowrap" } } },
@@ -178,18 +178,16 @@ async function importEvents() { if (!importFile.value || !importPreview.value ||
 
           <section class="grid gap-4">
             <h3 class="text-base font-semibold">概率信息</h3>
-            <p class="text-sm text-muted">以下字段根据当前事件目录和运行时抽样规则即时计算，不会写入数据库。</p>
+            <p class="text-sm text-muted">以下字段按全部已实装事件的全局抽样规则即时计算，是基础概率，未计入最近事件去重和特殊资格限制，不会写入数据库。</p>
             <div class="grid gap-4 md:grid-cols-2">
               <template v-if="selectedEvent">
-                <UFormField label="类别概率"><UInput :model-value="formatProbability(probability(selectedEvent).categoryProbability)" readonly /></UFormField>
-                <UFormField label="组内总权重"><UInput :model-value="probability(selectedEvent).groupTotalWeight === null ? '暂无记录' : String(probability(selectedEvent).groupTotalWeight)" readonly /></UFormField>
-                <UFormField label="组内个数"><UInput :model-value="probability(selectedEvent).groupSize" readonly /></UFormField>
+                <UFormField label="候选池事件数"><UInput :model-value="probability(selectedEvent).poolSize" readonly /></UFormField>
+                <UFormField label="池内总权重"><UInput :model-value="probability(selectedEvent).poolTotalWeight === null ? '暂无记录' : String(probability(selectedEvent).poolTotalWeight)" readonly /></UFormField>
                 <UFormField label="单次失败率"><UInput :model-value="formatProbability(probability(selectedEvent).failureProbability)" readonly /></UFormField>
                 <UFormField label="保底触发率"><UInput :model-value="formatProbability(probability(selectedEvent).guaranteeProbability)" readonly /></UFormField>
-                <UFormField label="最终出现概率"><UInput :model-value="formatProbability(probability(selectedEvent).appearanceProbability)" readonly /></UFormField>
-                <UFormField label="全局出现概率"><UInput :model-value="formatProbability(probability(selectedEvent).globalAppearanceProbability)" readonly /></UFormField>
+                <UFormField label="出现概率"><UInput :model-value="formatProbability(probability(selectedEvent).appearanceProbability)" readonly /></UFormField>
               </template>
-              <p v-else class="text-sm text-muted md:col-span-2">保存事件后，根据目录中的同类事件计算概率。</p>
+              <p v-else class="text-sm text-muted md:col-span-2">保存事件后，根据全部已实装事件计算概率。</p>
             </div>
           </section>
 
