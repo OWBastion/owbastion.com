@@ -177,17 +177,47 @@ describe("QQ screenshot submission", () => {
     expect(count(sqlite, "submissions")).toBe(0);
   });
 
-  it("leaves no accepted Submission when the OCR queue is unavailable, so a retry starts clean", async () => {
+  it("keeps evidence and claim on queue failure so the next retry resumes the same Submission", async () => {
     let failing = true;
-    const { services, sqlite, queued } = setup({ queueFails: () => failing });
-    stubFetch(() => new Response(png()));
+    const { services, sqlite, stored, queued } = setup({ queueFails: () => failing });
+    const fetchMock = stubFetch(() => new Response(png()));
 
     await expect(services.submitQqScreenshot(request(), auth, "key-1")).rejects.toThrow("queue down");
-    expect(["submissions", "attachments", "ocr_results", "idempotency_keys"].map((table) => count(sqlite, table))).toEqual([0, 0, 0, 0]);
+    expect(count(sqlite, "submissions")).toBe(1);
+    expect(sqlite.prepare("SELECT status, error_code FROM ocr_results").get()).toEqual({ status: "error", error_code: "OCR_QUEUE_SEND_FAILED" });
+    expect(stored.size).toBe(1);
 
     failing = false;
-    await expect(services.submitQqScreenshot(request(), auth, "key-1")).resolves.toMatchObject({ status: "processing" });
+    const retried = await services.submitQqScreenshot(request(), auth, "key-1");
+    expect(retried).toMatchObject({ status: "processing" });
     expect(count(sqlite, "submissions")).toBe(1);
+    expect(count(sqlite, "attachments")).toBe(1);
     expect(queued).toHaveLength(1);
+    expect(queued[0]).toMatchObject({ submissionId: retried.submissionId, objectKey: [...stored.keys()][0] });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(stored.size).toBe(1);
+  });
+
+  it("rejects a live in-flight send marker and resumes a stale one", async () => {
+    const { services, sqlite, queued } = setup();
+    stubFetch(() => new Response(png()));
+    const accepted = await services.submitQqScreenshot(request(), auth, "key-1");
+
+    // Simulate a lost response: revert the finalized claim back to an enqueueing marker.
+    sqlite.prepare("UPDATE idempotency_keys SET response_json = ?, created_at = ? WHERE operation = 'qq.screenshot.submit'").run("qq-screenshot-enqueueing:send:live", Date.now());
+    await expect(services.submitQqScreenshot(request(), auth, "key-1")).rejects.toThrow("QQ_SUBMISSION_IN_PROGRESS");
+    expect(queued).toHaveLength(1);
+
+    // Once the marker is stale, a redelivery of the same command resumes it without
+    // fetching or storing again, and resolves to the same Submission.
+    sqlite.prepare("UPDATE idempotency_keys SET created_at = ? WHERE operation = 'qq.screenshot.submit'").run(Date.now() - 61_000);
+    const fetchMock = stubFetch(() => new Response(png()));
+    const resumed = await services.submitQqScreenshot(request(), auth, "key-1");
+    expect(resumed).toEqual(accepted);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(count(sqlite, "submissions")).toBe(1);
+    expect(queued).toHaveLength(2);
+    expect(queued[1]).toMatchObject({ submissionId: accepted.submissionId, jobId: queued[0]!.jobId });
+    expect(sqlite.prepare("SELECT response_json FROM idempotency_keys WHERE operation = 'qq.screenshot.submit'").get()).toEqual({ response_json: JSON.stringify(accepted) });
   });
 });

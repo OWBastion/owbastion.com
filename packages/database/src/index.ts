@@ -19,6 +19,7 @@ const now = () => Date.now();
 const ocrRetryEnqueueingPrefix = "ocr-retry-enqueueing:";
 const playerUploadCompletionEnqueueingPrefix = "player-upload-completion-enqueueing:";
 const qqScreenshotEnqueueingPrefix = "qq-screenshot-enqueueing:";
+const qqScreenshotResumeAfterMs = 60_000;
 const formatCurrentGameVersion = (timestamp = now()) => new Date(timestamp).toISOString().slice(0, 10).replaceAll("-", ".");
 
 const normalizedOcrLabel = (value: unknown) => typeof value === "string" ? value.trim().toLocaleLowerCase() : "";
@@ -7161,11 +7162,73 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const operation = "qq.screenshot.submit";
       const recordId = `${auth.subject}:${operation}:${idempotencyKey}`;
       const requestHash = await hashRequest(input);
-      const settle = (record: { requestHash: string; responseJson: string }) => {
+      const identity = (await hashRequest(`${operation}:${recordId}`)).slice(0, 32).split("");
+      identity[12] = "4"; identity[16] = "8";
+      const submissionId = `${identity.slice(0, 8).join("")}-${identity.slice(8, 12).join("")}-${identity.slice(12, 16).join("")}-${identity.slice(16, 20).join("")}-${identity.slice(20).join("")}`;
+      const response: QqScreenshotSubmissionResponse = { contractVersion: "1", submissionId, status: "processing" };
+
+      // A marker claims the operation while the queue send is unresolved. The
+      // `send:` form means the owner is inside (or died inside) the queue send and
+      // only goes stale after the resume window; the plain form can be taken over
+      // immediately because the owner is no longer between claim and send.
+      const markSending = `${qqScreenshotEnqueueingPrefix}send:`;
+      const settle = (record: { requestHash: string; responseJson: string; createdAt: number }): Promise<QqScreenshotSubmissionResponse> => {
         if (record.requestHash !== requestHash) throw new Error("IDEMPOTENCY_CONFLICT");
-        if (record.responseJson.startsWith(qqScreenshotEnqueueingPrefix)) throw new Error("QQ_SUBMISSION_IN_PROGRESS");
-        return JSON.parse(record.responseJson) as QqScreenshotSubmissionResponse;
+        if (!record.responseJson.startsWith(qqScreenshotEnqueueingPrefix)) return Promise.resolve(JSON.parse(record.responseJson) as QqScreenshotSubmissionResponse);
+        if (record.responseJson.startsWith(markSending) && record.createdAt + qqScreenshotResumeAfterMs > now()) throw new Error("QQ_SUBMISSION_IN_PROGRESS");
+        return resumeClaim(record.responseJson);
       };
+
+      const enqueueOcr = async (jobId: string, objectKey: string, marker: string): Promise<QqScreenshotSubmissionResponse> => {
+        const sendMarker = `${markSending}${jobId}`;
+        const armed = await database.prepare("UPDATE idempotency_keys SET response_json = ? WHERE id = ? AND response_json = ?").bind(sendMarker, recordId, marker).run();
+        if (Number(armed.meta.changes) !== 1) throw new Error("QQ_SUBMISSION_IN_PROGRESS");
+        try {
+          await ocrQueue!.send({ version: 2, jobId, submissionId, objectKey, ...(requestId ? { requestId } : {}) });
+          logOcrEvent("job_enqueued", { submissionId, attempt: 0, manual: false, requestId: requestId ?? null });
+        } catch (error) {
+          logOcrEvent("job_enqueue_failed", { submissionId, attempt: 0, manual: false, requestId: requestId ?? null, ...errorDetails(error) });
+          // Mark the OCR row so the admin OCR retry path recognizes the stuck
+          // Submission, then return the claim to the resumable marker for the next
+          // redelivery instead of leaving evidence without a record.
+          await database.batch([
+            database.prepare("UPDATE ocr_results SET status = 'error', error_code = 'OCR_QUEUE_SEND_FAILED' WHERE id = ? AND status = 'pending'").bind(jobId),
+            database.prepare("UPDATE idempotency_keys SET response_json = ? WHERE id = ? AND response_json = ?").bind(`${qqScreenshotEnqueueingPrefix}${jobId}`, recordId, sendMarker),
+          ]);
+          throw error;
+        }
+        const finalized = await database.prepare("UPDATE idempotency_keys SET response_json = ? WHERE id = ? AND response_json = ?").bind(JSON.stringify(response), recordId, sendMarker).run();
+        if (Number(finalized.meta.changes) === 1) return response;
+        const raced = await db.select().from(idempotencyKeys).where(eq(idempotencyKeys.id, recordId)).get();
+        if (!raced || raced.responseJson.startsWith(qqScreenshotEnqueueingPrefix)) throw new Error("QQ_SUBMISSION_IN_PROGRESS");
+        if (raced.requestHash !== requestHash) throw new Error("IDEMPOTENCY_CONFLICT");
+        return JSON.parse(raced.responseJson) as QqScreenshotSubmissionResponse;
+      };
+
+      const resumeClaim = async (markerText: string): Promise<QqScreenshotSubmissionResponse> => {
+        const resumedJobId = crypto.randomUUID();
+        const resumedMarker = `${qqScreenshotEnqueueingPrefix}${resumedJobId}`;
+        const takeover = await database.prepare("UPDATE idempotency_keys SET response_json = ? WHERE id = ? AND response_json = ?").bind(resumedMarker, recordId, markerText).run();
+        if (Number(takeover.meta.changes) !== 1) throw new Error("QQ_SUBMISSION_IN_PROGRESS");
+        const [submission, attachment] = await Promise.all([
+          db.select({ status: submissions.status }).from(submissions).where(eq(submissions.id, submissionId)).get(),
+          db.select({ objectKey: attachments.objectKey }).from(attachments).where(eq(attachments.submissionId, submissionId)).get(),
+        ]);
+        if (!submission || !attachment?.objectKey) {
+          await database.prepare("DELETE FROM idempotency_keys WHERE id = ? AND response_json = ?").bind(recordId, resumedMarker).run();
+          throw new Error("QQ_SUBMISSION_STALE_CLAIM");
+        }
+        if (submission.status !== "ocr_pending") {
+          await database.prepare("UPDATE idempotency_keys SET response_json = ? WHERE id = ? AND response_json = ?").bind(JSON.stringify(response), recordId, resumedMarker).run();
+          return response;
+        }
+        await database.prepare(`INSERT INTO ocr_results (id, submission_id, attempt, status, created_at) SELECT ?, ?, 0, 'pending', ?
+          WHERE NOT EXISTS (SELECT 1 FROM ocr_results WHERE submission_id = ? AND status = 'pending')`).bind(resumedJobId, submissionId, now(), submissionId).run();
+        const pending = await db.select({ id: ocrResults.id }).from(ocrResults).where(and(eq(ocrResults.submissionId, submissionId), eq(ocrResults.status, "pending"))).get();
+        if (!pending) throw new Error("QQ_SUBMISSION_IN_PROGRESS");
+        return enqueueOcr(pending.id, attachment.objectKey, resumedMarker);
+      };
+
       const existing = await db.select().from(idempotencyKeys).where(eq(idempotencyKeys.id, recordId)).get();
       if (existing) return settle(existing);
       if (!evidenceBucket) throw new Error("EVIDENCE_BUCKET_UNAVAILABLE");
@@ -7180,16 +7243,12 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
 
       const image = await fetchQqAttachmentImage(input.attachment.url);
       const sha256 = await digestHex(image.body);
-      const identity = (await hashRequest(`${operation}:${recordId}`)).slice(0, 32).split("");
-      identity[12] = "4"; identity[16] = "8";
-      const submissionId = `${identity.slice(0, 8).join("")}-${identity.slice(8, 12).join("")}-${identity.slice(12, 16).join("")}-${identity.slice(16, 20).join("")}-${identity.slice(20).join("")}`;
       const objectKey = userEvidenceObjectKey(submissionId, sha256, image.extension);
       await evidenceBucket.put(objectKey, image.body, { httpMetadata: { contentType: image.contentType } });
 
       const timestamp = now();
       const jobId = crypto.randomUUID();
       const marker = `${qqScreenshotEnqueueingPrefix}${jobId}`;
-      const response: QqScreenshotSubmissionResponse = { contractVersion: "1", submissionId, status: "processing" };
       await database.batch([
         database.prepare("INSERT OR IGNORE INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(recordId, auth.subject, operation, requestHash, marker, timestamp),
         database.prepare(`INSERT INTO submissions (id, player_account_id, binding_id, status, challenge_type, map_name, player_name, ocr_fail_count, source_provider, source_conversation_id, source_message_id, created_at, updated_at)
@@ -7201,24 +7260,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const claimed = await db.select().from(idempotencyKeys).where(eq(idempotencyKeys.id, recordId)).get();
       if (!claimed) throw new Error("QQ_SUBMISSION_IN_PROGRESS");
       if (claimed.responseJson !== marker) return settle(claimed);
-
-      try {
-        await ocrQueue.send({ version: 2, jobId, submissionId, objectKey, ...(requestId ? { requestId } : {}) });
-        logOcrEvent("job_enqueued", { submissionId, attempt: 0, manual: false, requestId: requestId ?? null });
-      } catch (error) {
-        logOcrEvent("job_enqueue_failed", { submissionId, attempt: 0, manual: false, requestId: requestId ?? null, ...errorDetails(error) });
-        await database.batch([
-          database.prepare("DELETE FROM ocr_results WHERE id = ?").bind(jobId),
-          database.prepare("DELETE FROM attachments WHERE submission_id = ?").bind(submissionId),
-          database.prepare("DELETE FROM audit_events WHERE entity_type = 'submission' AND entity_id = ? AND operation = ?").bind(submissionId, operation),
-          database.prepare("DELETE FROM submissions WHERE id = ?").bind(submissionId),
-          database.prepare("DELETE FROM idempotency_keys WHERE id = ? AND response_json = ?").bind(recordId, marker),
-        ]);
-        throw error;
-      }
-      const finalized = await database.prepare("UPDATE idempotency_keys SET response_json = ? WHERE id = ? AND response_json = ?").bind(JSON.stringify(response), recordId, marker).run();
-      if (Number(finalized.meta.changes) !== 1) throw new Error("QQ_SUBMISSION_IDEMPOTENCY_FINALIZE_FAILED");
-      return response;
+      return enqueueOcr(jobId, objectKey, marker);
     },
 
     async createPasskeyLoginOptions(input) {

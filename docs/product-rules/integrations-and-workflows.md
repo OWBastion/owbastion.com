@@ -623,8 +623,13 @@ attachment URL is never persisted in D1, audit payloads, queue messages, or logs
 
 The Submission ID is derived from the idempotency identity, so retries and
 concurrent duplicates resolve to one Submission. Reusing the key with a
-different payload is rejected with `IDEMPOTENCY_CONFLICT`. If the OCR queue is
-unavailable, the new rows are removed so a retry starts clean. Results are read
+different payload is rejected with `IDEMPOTENCY_CONFLICT`. The idempotency
+record first holds an enqueueing claim; a redelivery that finds a claim still
+inside the queue send is rejected as in progress, while an interrupted claim is
+taken over and resumed from the stored Submission/attachment without refetching
+or duplicating the operation. If the queue send fails, the claim returns to the
+resumable state and the OCR row is marked `OCR_QUEUE_SEND_FAILED`, which the
+existing admin OCR retry path also recognizes. Results are read
 through the Portal; QQ result notification is not part of this ingress.
 
 ## QQBot and login
