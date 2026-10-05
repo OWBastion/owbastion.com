@@ -7062,6 +7062,11 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       };
     },
 
+    async getPortalSessionIdentity(input) {
+      const access = await getCurrentPortalPlayer(input.sessionToken);
+      return access ? { player: { playerId: access.player.playerId, isAdmin: access.player.isAdmin === 1 } } : null;
+    },
+
     async getCurrentPlayer(input) {
       const access = await getCurrentPortalPlayer(input.sessionToken);
       if (!access) return null;
