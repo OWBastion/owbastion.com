@@ -5,6 +5,7 @@ import {
   qqBindingClaimVerifyRequestSchema,
   qqLoginAttemptRequestSchema,
   qqLoginVerifyRequestSchema,
+  qqScreenshotSubmissionRequestSchema,
   passkeyLoginOptionsRequestSchema,
   passkeyLoginVerifyRequestSchema,
   passkeyRegistrationVerifyRequestSchema,
@@ -759,6 +760,26 @@ export const createApp = (dependencies: AppDependencies) => {
       }
       if (["LOGIN_CODE_INVALID", "LOGIN_CODE_EXPIRED", "LOGIN_GROUP_NOT_ALLOWED", "LOGIN_BINDING_REQUIRED", "BINDING_CONFLICT", "PLAYER_BANNED"].includes(code)) return errorResponse(c, 422, code, "The login code cannot be used");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
+  });
+
+  app.post("/v1/qq/submissions", async (c) => {
+    const auth = await dependencies.authenticate(c.req.raw, c.env);
+    if (!auth) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
+    if (!auth.roles.includes("channel:write")) return errorResponse(c, 403, "FORBIDDEN", "The actor cannot write channel data");
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = qqScreenshotSubmissionRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try {
+      return c.json(await dependencies.services(c.env).submitQqScreenshot(parsed.data, auth, idempotencyKey, c.get("requestId")), 201);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "QQ_SUBMISSION_FAILED";
+      if (["LOGIN_GROUP_NOT_ALLOWED", "BINDING_NOT_FOUND", "PLAYER_BANNED", "SOURCE_ATTACHMENT_UNAVAILABLE", "UNSUPPORTED_ATTACHMENT_TYPE", "ATTACHMENT_SIZE_INVALID"].includes(code)) return errorResponse(c, 422, code, "The screenshot cannot be submitted");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      if (code === "QQ_SUBMISSION_IN_PROGRESS") return errorResponse(c, 409, code, "The submission is already being processed");
+      if (["OCR_NOT_CONFIGURED", "EVIDENCE_BUCKET_UNAVAILABLE"].includes(code)) return errorResponse(c, 503, code, "Screenshot intake is not configured");
       throw error;
     }
   });

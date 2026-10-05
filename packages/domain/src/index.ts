@@ -9,6 +9,8 @@ import type {
   QqLoginAttemptResponse,
   QqLoginStatusResponse,
   QqLoginVerifyRequest,
+  QqScreenshotSubmissionRequest,
+  QqScreenshotSubmissionResponse,
   PasskeyLoginOptionsResponse,
   PasskeyLoginVerifyRequest,
   PasskeyRegistrationVerifyRequest,
@@ -301,6 +303,7 @@ export type PlatformServices = {
   createQqLoginAttempt(input: QqLoginAttemptRequest): Promise<QqLoginAttemptResponse>;
   getQqLoginStatus(input: { attemptId: string; attemptToken: string }): Promise<QqLoginStatusResponse>;
   verifyQqLogin(input: QqLoginVerifyRequest, auth: AuthContext, idempotencyKey: string): Promise<QqBindingClaimVerifyResponse>;
+  submitQqScreenshot(input: QqScreenshotSubmissionRequest, auth: AuthContext, idempotencyKey: string, requestId?: string): Promise<QqScreenshotSubmissionResponse>;
   createPasskeyLoginOptions(input: { rpId: string }): Promise<PasskeyLoginOptionsResponse>;
   completePasskeyLogin(input: PasskeyLoginVerifyRequest & { origin: string; rpId: string }): Promise<{ sessionToken: string }>;
   createCurrentPlayerPasskeyRegistrationOptions(input: { sessionToken: string; name: string; rpId: string }): Promise<{ contractVersion: "1"; challengeId: string; options: Record<string, unknown> }>;
