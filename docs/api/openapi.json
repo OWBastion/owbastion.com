@@ -215,6 +215,20 @@
     }
    }
   },
+  "/v1/me/challenge-progress": {
+   "get": {
+    "operationId": "listCurrentPlayerChallengeProgress",
+    "description": "Authenticated current-player progress for aggregate Challenges derived from Verified Runs. Each item carries the challenge's required map set with per-map completion flags, the completed count, and the satisfied flag. It excludes submissions, evidence, OCR, audit, account, and identity internals.",
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
   "/v1/me/reviews/{targetType}/{targetId}": {
    "get": {
     "operationId": "getCurrentPlayerReview",

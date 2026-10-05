@@ -77,7 +77,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     id TEXT PRIMARY KEY NOT NULL, title_key TEXT NOT NULL, category_override TEXT, condition TEXT NOT NULL,
     evidence_rule TEXT NOT NULL, submission_mode TEXT NOT NULL, game_version TEXT NOT NULL, status TEXT NOT NULL,
     introduced_version TEXT NOT NULL, retired_version TEXT, starts_at INTEGER, ends_at INTEGER,
-    scope TEXT NOT NULL DEFAULT 'global', map_variant TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+    scope TEXT NOT NULL DEFAULT 'global', map_variant TEXT, progress_rule TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
   );
   CREATE TABLE achievement_challenge_maps (challenge_id TEXT NOT NULL, map_id TEXT NOT NULL, PRIMARY KEY (challenge_id, map_id));
   CREATE TABLE effect_glossary_terms (

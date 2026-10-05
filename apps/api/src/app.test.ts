@@ -18,6 +18,7 @@ const services: PlatformServices = {
   resolveAdminVerifiedRunConflict: async () => { throw new Error("VERIFIED_RUN_NOT_FOUND"); },
   getCurrentPlayerMastery: async ({ sessionToken, page, pageSize }) => sessionToken === "session-token" ? { contractVersion: "1" as const, profiles: [], runs: [], page, pageSize, total: 0, hasMore: false } : null,
   getCurrentPlayerActivity: async ({ sessionToken }) => sessionToken === "session-token" ? { days: [{ date: "2026-10-06", runCount: 2 }, { date: "2026-10-07", runCount: 1 }] } : null,
+  listCurrentPlayerChallengeProgress: async ({ sessionToken }) => sessionToken === "session-token" ? { contractVersion: "1" as const, items: [] } : null,
   listAgentEvents: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
   getAgentEvent: async () => null,
   listAgentMaps: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),

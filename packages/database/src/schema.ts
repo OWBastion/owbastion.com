@@ -326,6 +326,7 @@ export const titleChallenges = sqliteTable("title_challenges", {
   endsAt: integer("ends_at"),
   scope: text("scope").notNull().default("global"),
   mapVariant: text("map_variant"),
+  progressRule: text("progress_rule"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });

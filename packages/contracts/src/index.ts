@@ -219,6 +219,15 @@ export const mapChallengeSchema = z.object({
   retiredVersion: storedRetirementVersion.optional(),
 });
 
+// A progress Rule completes the Challenge from the player's authoritative
+// Verified Runs instead of a single screenshot's OCR evidence. It is mutually
+// exclusive with screenshot submission modes and with scope: "map" projection.
+export const achievementProgressRuleSchema = z.object({
+  type: z.literal("required_maps_completed"),
+  mapIds: z.array(externalId).min(1).max(256),
+  difficultyAtLeast: z.string().trim().min(1).max(64).optional(),
+}).strict();
+
 export const achievementChallengeSchema = z.object({
   challengeId: externalId,
   family: z.literal("achievement"),
@@ -240,6 +249,7 @@ export const achievementChallengeSchema = z.object({
   scope: z.enum(["global", "map"]).optional(),
   mapIds: z.array(externalId).max(256).optional(),
   mapVariant: z.literal("classic").optional(),
+  progressRule: achievementProgressRuleSchema.optional(),
 });
 
 export const challengeSchema = z.discriminatedUnion("family", [mapChallengeSchema, achievementChallengeSchema]);
@@ -861,12 +871,15 @@ const adminAchievementChallengeUpdateSchema = z.object({
   scope: z.enum(["global", "map"]).optional(),
   mapIds: z.array(externalId).max(256).optional(),
   mapVariant: z.literal("classic").optional(),
+  progressRule: achievementProgressRuleSchema.nullable().optional(),
 }).superRefine((value, ctx) => {
   if (value.status === "active" && value.retiredVersion !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "An active challenge cannot have a retired version" });
   if (value.status !== "scheduled" && value.gameVersion === null) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["gameVersion"], message: "Only scheduled future challenges may clear a game version" });
   if (value.startsAt !== undefined && value.endsAt !== undefined && value.endsAt <= value.startsAt) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endsAt"], message: "The end time must be after the start time" });
   if (value.status !== "scheduled" && (value.startsAt !== undefined || value.endsAt !== undefined)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["startsAt"], message: "Only scheduled challenges may have a time window" });
   if (value.scope === "global" && value.mapIds?.length) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["mapIds"], message: "Global challenges cannot target maps" });
+  if (value.progressRule && value.submissionMode !== "manual") ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["submissionMode"], message: "Progress challenges are not screenshot-evaluated" });
+  if (value.progressRule && value.scope === "map") ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["scope"], message: "Progress challenges cannot target maps through scope" });
 });
 export const adminChallengeUpdateRequestSchema = z.union([adminMapChallengeUpdateSchema, adminAchievementChallengeUpdateSchema]);
 
@@ -890,9 +903,12 @@ export const adminAchievementCreateRequestSchema = z.object({
   startsAt: optionalScheduleTimestamp,
   endsAt: optionalScheduleTimestamp,
   retiredVersion: optionalRetirementVersion,
+  progressRule: achievementProgressRuleSchema.optional(),
 }).superRefine((value, ctx) => {
   if (value.status !== "scheduled" && !value.gameVersion) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["gameVersion"], message: "Only scheduled future challenges may omit a game version" });
   if (value.scope === "global" && value.mapIds.length) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["mapIds"], message: "Global challenges cannot target maps" });
+  if (value.progressRule && value.submissionMode !== "manual") ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["submissionMode"], message: "Progress challenges are not screenshot-evaluated" });
+  if (value.progressRule && value.scope === "map") ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["scope"], message: "Progress challenges cannot target maps through scope" });
   if (value.startsAt !== undefined && value.endsAt !== undefined && value.endsAt <= value.startsAt) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endsAt"], message: "The end time must be after the start time" });
   if (value.status === "sunsetting" && value.retiredVersion === undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "Sunsetting challenges require a retired version" });
   if (value.status !== "scheduled" && (value.startsAt !== undefined || value.endsAt !== undefined)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["startsAt"], message: "Only scheduled challenges may have a time window" });
@@ -1535,6 +1551,25 @@ export const currentPlayerMasteryResponseSchema = z.object({
   hasMore: z.boolean(),
 }).strict();
 
+// Derived, privacy-safe per-player progress for aggregate Challenges. It
+// exposes only required-map completion flags evaluated from authoritative
+// Verified Runs — never Submission, OCR, or audit internals.
+export const playerChallengeProgressSchema = z.object({
+  challengeId: externalId,
+  titleKey: externalId,
+  titleName: z.string().trim().min(1).max(256),
+  icon: achievementIcon,
+  iconUrl: z.string().url().max(2048).nullable().optional(),
+  status: z.enum(["scheduled", "active", "sunsetting"]),
+  startsAt: scheduleTimestamp.optional(),
+  endsAt: scheduleTimestamp.optional(),
+  progressRule: achievementProgressRuleSchema,
+  maps: z.array(z.object({ mapId: externalId, completed: z.boolean() }).strict()).max(256),
+  completedMaps: z.number().int().nonnegative(),
+  satisfied: z.boolean(),
+}).strict();
+export const playerChallengeProgressListResponseSchema = z.object({ contractVersion, items: z.array(playerChallengeProgressSchema).max(256) });
+
 export const errorResponseSchema = z.object({
   contractVersion,
   error: z.object({
@@ -1606,6 +1641,9 @@ export type AdminScreenshotSetExclusion = z.infer<typeof adminScreenshotSetExclu
 export type AdminScreenshotSetDetailResponse = z.infer<typeof adminScreenshotSetDetailResponseSchema>;
 export type OcrkitScreenshotSetResponse = z.infer<typeof ocrkitScreenshotSetResponseSchema>;
 export type CurrentPlayerResponse = z.infer<typeof currentPlayerResponseSchema>;
+export type AchievementProgressRule = z.infer<typeof achievementProgressRuleSchema>;
+export type PlayerChallengeProgress = z.infer<typeof playerChallengeProgressSchema>;
+export type PlayerChallengeProgressListResponse = z.infer<typeof playerChallengeProgressListResponseSchema>;
 export type CurrentPlayerTitlesResponse = z.infer<typeof currentPlayerTitlesResponseSchema>;
 export type PlayerActivityDay = z.infer<typeof playerActivityDaySchema>;
 export type PlayerActivityResponse = z.infer<typeof playerActivityResponseSchema>;
