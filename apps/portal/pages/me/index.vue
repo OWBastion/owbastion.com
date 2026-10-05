@@ -135,6 +135,7 @@ onMounted(() => {
           <h1 id="dashboard-title" class="page-title">你好，{{ player.player.playerName }}</h1>
         </div>
         <div class="intro-actions">
+          <UButton to="/me/profile" icon="i-lucide-id-card" label="个人主页" color="neutral" variant="outline" size="lg" class="intro-action" />
           <UButton to="/me/settings" icon="i-lucide-sliders-horizontal" label="个人设置" color="neutral" variant="outline" size="lg" class="intro-action" />
           <UButton to="/submissions/new" icon="i-lucide-upload" label="提交截图" color="primary" size="lg" class="intro-action" />
         </div>
@@ -181,7 +182,7 @@ onMounted(() => {
           <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="masteryRetrying" @click="retryMastery" /></template>
         </UAlert>
         <div v-if="masteryLoading" class="mastery-loading" role="status" aria-label="读取地图进度…"><USkeleton /><USkeleton /></div>
-        <MapProgressOverview v-else-if="!masteryCatalogError" :maps="masteryMaps" :challenges="masteryChallenges" :titles="titles" :profiles="masteryProfiles" :title-progress-available="titlesReady" />
+        <PlayerMapProgressOverview v-else-if="!masteryCatalogError" :maps="masteryMaps" :challenges="masteryChallenges" :titles="titles" :profiles="masteryProfiles" :title-progress-available="titlesReady" />
       </section>
 
       <section class="section-block titles-section" aria-labelledby="titles-title">

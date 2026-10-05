@@ -17,6 +17,7 @@ const services: PlatformServices = {
   transitionAdminVerifiedRun: async () => { throw new Error("VERIFIED_RUN_NOT_FOUND"); },
   resolveAdminVerifiedRunConflict: async () => { throw new Error("VERIFIED_RUN_NOT_FOUND"); },
   getCurrentPlayerMastery: async ({ sessionToken, page, pageSize }) => sessionToken === "session-token" ? { contractVersion: "1" as const, profiles: [], runs: [], page, pageSize, total: 0, hasMore: false } : null,
+  getCurrentPlayerActivity: async ({ sessionToken }) => sessionToken === "session-token" ? { days: [{ date: "2026-10-06", runCount: 2 }, { date: "2026-10-07", runCount: 1 }] } : null,
   listAgentEvents: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
   getAgentEvent: async () => null,
   listAgentMaps: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
@@ -958,6 +959,16 @@ describe("API", () => {
     ]);
     expect((await masteryApp.request("http://localhost/v1/me/mastery?mapId=map.test&mapId=map.other", { headers: { cookie: "owb_session=session-token" } }, env)).status).toBe(422);
     expect((await masteryApp.request("http://localhost/v1/me/mastery?gameplayRevisionId=one&gameplayRevisionId=two", { headers: { cookie: "owb_session=session-token" } }, env)).status).toBe(422);
+  });
+
+  it("returns only the signed-in player's per-day activity counts", async () => {
+    expect((await app.request("http://localhost/v1/me/activity", {}, env)).status).toBe(401);
+    const response = await app.request("http://localhost/v1/me/activity", { headers: { cookie: "owb_session=session-token" } }, env);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    const body = await response.json() as Record<string, unknown>;
+    expect(body).toMatchObject({ contractVersion: "1", days: [{ date: "2026-10-06", runCount: 2 }, { date: "2026-10-07", runCount: 1 }] });
+    expect(JSON.stringify(body)).not.toMatch(/playerAccount|matchCode|submission|revision|runId|mapId|evidence|ocr|audit|risk|qq/i);
   });
 
   it("returns only the signed-in player's active title grants", async () => {

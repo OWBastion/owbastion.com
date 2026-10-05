@@ -396,3 +396,63 @@ describe("verified run ledger", () => {
     expect(selectable).toMatchObject({ profiles: [{ gameplayRevisionId: "revision:map.test:initial", gameplayRevisionLifecycle: "selectable", verifiedRunCount: 1 }], total: 1 });
   });
 });
+
+describe("player activity projection", () => {
+  const dayMs = 86_400_000;
+  const utc8OffsetMs = 8 * 3_600_000;
+  const dayStart = (timestamp: number) => Math.floor((timestamp + utc8OffsetMs) / dayMs) * dayMs - utc8OffsetMs;
+  const shanghaiDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" });
+  const dayKey = (timestamp: number) => shanghaiDate.format(timestamp);
+
+  it("returns the player's active runs as sorted UTC+8 day counts only", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seed(sqlite);
+    sqlite.exec(`INSERT INTO submissions (id, player_account_id, binding_id) VALUES
+      ('submission-6', 'account-1', 'binding-1'),
+      ('submission-7', 'account-1', 'binding-1'),
+      ('submission-8', 'account-1', 'binding-1')`);
+    const services = createPlatformServices(database);
+    const now = Date.now();
+    const yesterday = dayStart(now - dayMs);
+    const today = dayStart(now);
+
+    // Two runs on the previous UTC+8 day, one straddling its UTC+8 midnight.
+    await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-1", matchCode: "1234-5678-9001", acceptedAt: yesterday + 30 * 60_000 }));
+    await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-2", matchCode: "1234-5678-9002", acceptedAt: yesterday + 90 * 60_000 }));
+    await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-4", matchCode: "1234-5678-9003", acceptedAt: yesterday - 30 * 60_000 }));
+    await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-5", matchCode: "1234-5678-9004", acceptedAt: today }));
+    // Invalidated, expired-window, and other-player runs must not count.
+    const doomed = await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-6", matchCode: "1234-5678-9005", acceptedAt: today }));
+    if (doomed.outcome !== "created") throw new Error("fixture setup failed");
+    await services.invalidateVerifiedRun({ verifiedRunId: doomed.run.runId, reason: "evidence invalidated" }, { actorType: "user", actorId: "maintainer-1" });
+    await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-7", matchCode: "1234-5678-9006", acceptedAt: today - 370 * dayMs }));
+    await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-8", matchCode: "1234-5678-9007", acceptedAt: today - 371 * dayMs }));
+    await services.recordVerifiedRun(input({ playerAccountId: "account-2", sourceSubmissionId: "submission-3", matchCode: "1234-5678-9008", acceptedAt: today }));
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at) VALUES ('session-activity', 'account-1', ?, ?)")
+      .run(await hashRequest("activity-session"), now + 60_000);
+
+    const projection = await services.getCurrentPlayerActivity({ sessionToken: "activity-session" });
+    expect(projection).toEqual({
+      days: [
+        { date: dayKey(today - 370 * dayMs), runCount: 1 },
+        { date: dayKey(yesterday - 30 * 60_000), runCount: 1 },
+        { date: dayKey(yesterday + 30 * 60_000), runCount: 2 },
+        { date: dayKey(today), runCount: 1 },
+      ],
+    });
+    expect(JSON.stringify(projection)).not.toMatch(/playerAccount|matchCode|submission|revision|runId|evidence|audit|qq/i);
+  });
+
+  it("returns an empty day list without recorded runs and null without a session", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seed(sqlite);
+    const services = createPlatformServices(database);
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at) VALUES ('session-activity', 'account-1', ?, ?)")
+      .run(await hashRequest("activity-session"), Date.now() + 60_000);
+
+    expect(await services.getCurrentPlayerActivity({ sessionToken: "activity-session" })).toEqual({ days: [] });
+    expect(await services.getCurrentPlayerActivity({ sessionToken: "unknown-session" })).toBeNull();
+  });
+});

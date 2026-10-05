@@ -393,6 +393,7 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/me/passkeys/:passkeyId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/player-accounts/:playerAccountId/passkey-recovery", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/mastery", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/me/activity", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/titles", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/submissions/:submissionId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/submissions/:submissionId/ocr-feedback", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -818,6 +819,15 @@ export const createApp = (dependencies: AppDependencies) => {
     const mastery = await dependencies.services(c.env).getCurrentPlayerMastery({ sessionToken: access.sessionToken!, ...query });
     if (!mastery) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
     return c.json(mastery);
+  });
+
+  app.get("/v1/me/activity", async (c) => {
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    c.header("Cache-Control", "private, no-store");
+    const activity = await dependencies.services(c.env).getCurrentPlayerActivity({ sessionToken: access.sessionToken! });
+    if (!activity) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
+    return c.json({ contractVersion: "1", ...activity });
   });
 
   app.get("/v1/me/titles", async (c) => {

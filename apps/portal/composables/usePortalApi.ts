@@ -53,6 +53,10 @@ export type CurrentPlayerMasteryResponse = {
   hasMore: boolean;
 };
 
+export type PlayerActivityDay = { date: string; runCount: number };
+
+export type PlayerActivityResponse = { contractVersion: "1"; days: PlayerActivityDay[] };
+
 export type CurrentPlayer = {
   contractVersion: "1";
   player: { playerId: string; playerName: string; isAdmin: boolean };

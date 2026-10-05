@@ -7065,6 +7065,24 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       };
     },
 
+    async getCurrentPlayerActivity(input) {
+      const access = await getCurrentPortalPlayer(input.sessionToken);
+      if (!access) return null;
+      const utc8DayMs = 86_400_000;
+      const utc8OffsetMs = 8 * 3_600_000;
+      const todayStartMs = Math.floor((now() + utc8OffsetMs) / utc8DayMs) * utc8DayMs - utc8OffsetMs;
+      const windowStartMs = todayStartMs - 370 * utc8DayMs;
+      const rows = await db.select({ acceptedAt: verifiedRuns.acceptedAt }).from(verifiedRuns)
+        .where(and(eq(verifiedRuns.playerAccountId, access.player.id), eq(verifiedRuns.status, "active"), gte(verifiedRuns.acceptedAt, windowStartMs)));
+      const counts = new globalThis.Map<string, number>();
+      for (const { acceptedAt } of rows) {
+        // acceptedAt + 8h floored to the day boundary is 08:00 UTC on the run's UTC+8 calendar date.
+        const date = new Date(Math.floor((acceptedAt + utc8OffsetMs) / utc8DayMs) * utc8DayMs).toISOString().slice(0, 10);
+        counts.set(date, (counts.get(date) ?? 0) + 1);
+      }
+      return { days: [...counts.entries()].map(([date, runCount]) => ({ date, runCount })).sort((a, b) => a.date.localeCompare(b.date)) };
+    },
+
     async getPortalSessionIdentity(input) {
       const access = await getCurrentPortalPlayer(input.sessionToken);
       return access ? { player: { playerId: access.player.playerId, isAdmin: access.player.isAdmin === 1 } } : null;
