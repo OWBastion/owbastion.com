@@ -220,4 +220,74 @@ describe("QQ screenshot submission", () => {
     expect(queued[1]).toMatchObject({ submissionId: accepted.submissionId, jobId: queued[0]!.jobId });
     expect(sqlite.prepare("SELECT response_json FROM idempotency_keys WHERE operation = 'qq.screenshot.submit'").get()).toEqual({ response_json: JSON.stringify(accepted) });
   });
+
+  it("keeps a retaken claim intact when the displaced sender's send fails late", async () => {
+    const { services, sqlite, queued, queue } = setup({ queueFails: () => true });
+    stubFetch(() => new Response(png()));
+    await expect(services.submitQqScreenshot(request(), auth, "key-1")).rejects.toThrow("queue down");
+
+    // Retry A owns the claim but stays inside the queue send; once its send
+    // marker goes stale, retry B takes over, reuses the same pending job, and
+    // enqueues it.
+    let rejectSendA!: (error: Error) => void;
+    const send = vi.mocked(queue.send);
+    send.mockImplementationOnce(() => new Promise<never>((_resolve, reject) => { rejectSendA = reject; }));
+    send.mockImplementation(async (message) => { queued.push(message as Record<string, unknown>); });
+
+    const retryA = services.submitQqScreenshot(request(), auth, "key-1");
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+    sqlite.prepare("UPDATE idempotency_keys SET created_at = ? WHERE operation = 'qq.screenshot.submit'").run(Date.now() - 61_000);
+
+    const retryB = await services.submitQqScreenshot(request(), auth, "key-1");
+    expect(retryB).toMatchObject({ status: "processing" });
+    expect(queued).toHaveLength(1);
+    const job = sqlite.prepare("SELECT id FROM ocr_results WHERE status = 'pending'").get() as { id: string };
+    expect(queued[0]).toMatchObject({ jobId: job.id, submissionId: retryB.submissionId });
+
+    // The displaced sender's delayed failure must not flip the enqueued job to
+    // error or reopen the finalized claim.
+    rejectSendA(new Error("queue down"));
+    await expect(retryA).rejects.toThrow("queue down");
+
+    expect(sqlite.prepare("SELECT status FROM ocr_results WHERE status = 'pending'").all()).toHaveLength(1);
+    expect(sqlite.prepare("SELECT response_json FROM idempotency_keys WHERE operation = 'qq.screenshot.submit'").get()).toEqual({ response_json: JSON.stringify(retryB) });
+    await expect(services.submitQqScreenshot(request(), auth, "key-1")).resolves.toEqual(retryB);
+  });
+
+  it("does not let a displaced sender's guarded writes match a re-armed send marker", async () => {
+    const { services, sqlite, queued, queue } = setup({ queueFails: () => true });
+    stubFetch(() => new Response(png()));
+    await expect(services.submitQqScreenshot(request(), auth, "key-1")).rejects.toThrow("queue down");
+
+    // Retry B re-arms a send marker for the same pending job while retry A is
+    // still in flight; A's late failure must leave B's marker and job untouched.
+    let rejectSendA!: (error: Error) => void;
+    let resolveSendB!: () => void;
+    const send = vi.mocked(queue.send);
+    send.mockImplementationOnce(() => new Promise<never>((_resolve, reject) => { rejectSendA = reject; }));
+    send.mockImplementationOnce(async (message) => {
+      await new Promise<void>((resolve) => { resolveSendB = resolve; });
+      queued.push(message as Record<string, unknown>);
+    });
+    send.mockImplementation(async (message) => { queued.push(message as Record<string, unknown>); });
+
+    const retryA = services.submitQqScreenshot(request(), auth, "key-1");
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+    sqlite.prepare("UPDATE idempotency_keys SET created_at = ? WHERE operation = 'qq.screenshot.submit'").run(Date.now() - 61_000);
+
+    const retryB = services.submitQqScreenshot(request(), auth, "key-1");
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(3));
+
+    rejectSendA(new Error("queue down"));
+    await expect(retryA).rejects.toThrow("queue down");
+    const marker = sqlite.prepare("SELECT response_json FROM idempotency_keys WHERE operation = 'qq.screenshot.submit'").get() as { response_json: string };
+    expect(marker.response_json).toMatch(/^qq-screenshot-enqueueing:send:/);
+    expect(sqlite.prepare("SELECT status FROM ocr_results WHERE status = 'pending'").all()).toHaveLength(1);
+
+    resolveSendB();
+    const resolvedB = await retryB;
+    expect(resolvedB).toMatchObject({ status: "processing" });
+    expect(queued).toHaveLength(1);
+    expect(sqlite.prepare("SELECT response_json FROM idempotency_keys WHERE operation = 'qq.screenshot.submit'").get()).toEqual({ response_json: JSON.stringify(resolvedB) });
+  });
 });

@@ -7170,7 +7170,10 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       // A marker claims the operation while the queue send is unresolved. The
       // `send:` form means the owner is inside (or died inside) the queue send and
       // only goes stale after the resume window; the plain form can be taken over
-      // immediately because the owner is no longer between claim and send.
+      // immediately because the owner is no longer between claim and send. Every
+      // transition refreshes created_at so the window measures from the latest
+      // claim, and each send marker carries a unique nonce so a displaced
+      // sender's guarded writes can never match a re-armed marker.
       const markSending = `${qqScreenshotEnqueueingPrefix}send:`;
       const settle = (record: { requestHash: string; responseJson: string; createdAt: number }): Promise<QqScreenshotSubmissionResponse> => {
         if (record.requestHash !== requestHash) throw new Error("IDEMPOTENCY_CONFLICT");
@@ -7180,8 +7183,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       };
 
       const enqueueOcr = async (jobId: string, objectKey: string, marker: string): Promise<QqScreenshotSubmissionResponse> => {
-        const sendMarker = `${markSending}${jobId}`;
-        const armed = await database.prepare("UPDATE idempotency_keys SET response_json = ? WHERE id = ? AND response_json = ?").bind(sendMarker, recordId, marker).run();
+        const sendMarker = `${markSending}${jobId}:${crypto.randomUUID()}`;
+        const armed = await database.prepare("UPDATE idempotency_keys SET response_json = ?, created_at = ? WHERE id = ? AND response_json = ?").bind(sendMarker, now(), recordId, marker).run();
         if (Number(armed.meta.changes) !== 1) throw new Error("QQ_SUBMISSION_IN_PROGRESS");
         try {
           await ocrQueue!.send({ version: 2, jobId, submissionId, objectKey, ...(requestId ? { requestId } : {}) });
@@ -7190,10 +7193,13 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           logOcrEvent("job_enqueue_failed", { submissionId, attempt: 0, manual: false, requestId: requestId ?? null, ...errorDetails(error) });
           // Mark the OCR row so the admin OCR retry path recognizes the stuck
           // Submission, then return the claim to the resumable marker for the next
-          // redelivery instead of leaving evidence without a record.
+          // redelivery instead of leaving evidence without a record. Both writes
+          // stay conditional on this sender still holding the send marker, so a
+          // late failure after a takeover cannot corrupt the new owner's job.
           await database.batch([
-            database.prepare("UPDATE ocr_results SET status = 'error', error_code = 'OCR_QUEUE_SEND_FAILED' WHERE id = ? AND status = 'pending'").bind(jobId),
-            database.prepare("UPDATE idempotency_keys SET response_json = ? WHERE id = ? AND response_json = ?").bind(`${qqScreenshotEnqueueingPrefix}${jobId}`, recordId, sendMarker),
+            database.prepare(`UPDATE ocr_results SET status = 'error', error_code = 'OCR_QUEUE_SEND_FAILED' WHERE id = ? AND status = 'pending'
+              AND EXISTS (SELECT 1 FROM idempotency_keys WHERE id = ? AND response_json = ?)`).bind(jobId, recordId, sendMarker),
+            database.prepare("UPDATE idempotency_keys SET response_json = ?, created_at = ? WHERE id = ? AND response_json = ?").bind(`${qqScreenshotEnqueueingPrefix}${jobId}`, now(), recordId, sendMarker),
           ]);
           throw error;
         }
@@ -7208,7 +7214,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const resumeClaim = async (markerText: string): Promise<QqScreenshotSubmissionResponse> => {
         const resumedJobId = crypto.randomUUID();
         const resumedMarker = `${qqScreenshotEnqueueingPrefix}${resumedJobId}`;
-        const takeover = await database.prepare("UPDATE idempotency_keys SET response_json = ? WHERE id = ? AND response_json = ?").bind(resumedMarker, recordId, markerText).run();
+        const takeover = await database.prepare("UPDATE idempotency_keys SET response_json = ?, created_at = ? WHERE id = ? AND response_json = ?").bind(resumedMarker, now(), recordId, markerText).run();
         if (Number(takeover.meta.changes) !== 1) throw new Error("QQ_SUBMISSION_IN_PROGRESS");
         const [submission, attachment] = await Promise.all([
           db.select({ status: submissions.status }).from(submissions).where(eq(submissions.id, submissionId)).get(),
