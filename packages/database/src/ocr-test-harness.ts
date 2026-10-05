@@ -476,6 +476,14 @@ export const installSchema = (sqlite: DatabaseSync) => {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+    CREATE TABLE random_event_versions (
+      game_version TEXT PRIMARY KEY NOT NULL,
+      availability TEXT NOT NULL DEFAULT 'available' CHECK (availability IN ('available', 'suspended')),
+      suspended_at INTEGER,
+      suspended_by TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
     CREATE TABLE random_event_map_challenges (
       event_id TEXT NOT NULL REFERENCES random_events(id),
       challenge_id TEXT NOT NULL REFERENCES achievement_challenges(id),

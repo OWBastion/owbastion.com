@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createPlatformServices } from "./index";
+import { createPlatformServices } from "@owbastion/database";
 
 const createDatabase = () => {
   const statement = {

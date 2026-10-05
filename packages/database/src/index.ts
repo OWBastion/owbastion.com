@@ -1145,7 +1145,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     evidenceRule: assignment.evidenceRule ?? challenge.evidenceRule,
     submissionMode: (assignment.submissionMode ?? challenge.submissionMode) as "manual" | "automatic",
     difficulty: challenge.difficulty ?? undefined,
-    gameVersion: challenge.gameVersion,
+    gameVersion: revision.gameVersion,
     status: challenge.status as "active" | "sunsetting",
     retiredVersion: challenge.retiredVersion ?? undefined,
   });
@@ -1253,7 +1253,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     }
     return items;
   };
-  const loadMapTitleRuleChallenges = async (includeInactive = false, eligibilityAt = now(), includeHiddenTitles = false): Promise<Challenge[]> => {
+  const loadMapTitleRuleChallenges = async (includeInactive = false, eligibilityAt = now(), includeHiddenTitles = false, versionSource: "revision" | "definition" = "revision"): Promise<Challenge[]> => {
     const { rows, revisionRows, assignments, compat, exceptions } = await platformCache.cached("catalog", `rule-challenge-inputs:${includeInactive ? "all" : "open"}:${includeHiddenTitles ? "all" : "visible"}`, async () => {
       const [rows, revisionRows, assignments, compat, exceptions] = await Promise.all([
         db.select({ rule: mapTitleRules, title: titleCatalog }).from(mapTitleRules).innerJoin(titleCatalog, eq(mapTitleRules.titleKey, titleCatalog.key))
@@ -1290,7 +1290,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           evidenceRule: activeException?.evidenceRule ?? assignment.evidenceRule ?? rule.evidenceRule,
           submissionMode: (activeException?.submissionMode ?? assignment.submissionMode ?? rule.submissionMode) as "manual" | "automatic",
           mapTitleRule: { ruleId: rule.id, kind: rule.kind, displayKind: rule.displayKind as "fixed" | "map_pioneer" | "map_name_suffix", slot: slot as "pioneer" | "conqueror" | "dominator" | null, dynamic: true },
-          gameVersion: rule.introducedVersion,
+          gameVersion: versionSource === "definition" ? rule.introducedVersion : revision.gameVersion,
           status: rule.status as "active" | "sunsetting",
           retiredVersion: rule.retiredVersion ?? undefined,
         });
@@ -1298,7 +1298,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     }
     return items;
   };
-  const loadMapScopedTitleChallenges = async (eligibilityAt = now(), includeHiddenTitles = false): Promise<Challenge[]> => {
+  const loadMapScopedTitleChallenges = async (eligibilityAt = now(), includeHiddenTitles = false, versionSource: "revision" | "definition" = "revision"): Promise<Challenge[]> => {
     const { rows, compatIds } = await platformCache.cached("catalog", `map-scoped-title-rows:${includeHiddenTitles ? "all" : "visible"}`, async () => ({ rows: await db.select({ challenge: titleChallenges, title: titleCatalog, assignment: gameplayRevisionChallengeAssignments, revision: gameplayRevisions, map: maps })
       .from(gameplayRevisionChallengeAssignments)
       .innerJoin(titleChallenges, eq(gameplayRevisionChallengeAssignments.challengeId, titleChallenges.id))
@@ -1337,7 +1337,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         condition: assignment.condition ?? challenge.condition,
         evidenceRule: assignment.evidenceRule ?? challenge.evidenceRule,
         submissionMode: (assignment.submissionMode ?? challenge.submissionMode) as "manual" | "automatic",
-        gameVersion,
+        gameVersion: versionSource === "definition" ? gameVersion : revision.gameVersion,
         status: status as "active" | "sunsetting",
         retiredVersion: challenge.retiredVersion ?? undefined,
         ...(mapVariant ? { mapVariant } : {}),
@@ -4812,17 +4812,18 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           .orderBy(maps.name, achievementChallenges.name);
         items.push(...rows.map(({ challenge, map, assignment, revision }): AdminChallenge => ({
           ...toPublicMapChallenge(challenge, map, assignment, revision),
+          gameVersion: challenge.gameVersion,
           status: challenge.status === "inactive" ? "retired" : challenge.status as "active" | "sunsetting",
           introducedVersion: challenge.introducedVersion,
           retiredVersion: challenge.retiredVersion,
         })));
-        const ruleItems = await loadMapTitleRuleChallenges();
+        const ruleItems = await loadMapTitleRuleChallenges(false, now(), false, "definition");
         items.push(...ruleItems.filter((item) => !input.status || item.status === input.status).map((item) => ({
           ...item,
           condition: item.condition!, evidenceRule: item.evidenceRule!, submissionMode: item.submissionMode!,
           introducedVersion: item.gameVersion, retiredVersion: item.retiredVersion ?? null,
         }) as AdminChallenge));
-        const scopedTitleItems = await loadMapScopedTitleChallenges();
+        const scopedTitleItems = await loadMapScopedTitleChallenges(now(), false, "definition");
         items.push(...scopedTitleItems.filter((item) => !input.status || item.status === input.status).map((item) => ({
           ...item,
           condition: item.condition!, evidenceRule: item.evidenceRule!, submissionMode: item.submissionMode!,

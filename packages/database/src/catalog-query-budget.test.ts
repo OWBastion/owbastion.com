@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import { createPlatformServices } from "./index";
+import { createPlatformServices } from "@owbastion/database";
 
 /**
  * Minimal D1Database shim over node:sqlite for catalog query-budget tests.

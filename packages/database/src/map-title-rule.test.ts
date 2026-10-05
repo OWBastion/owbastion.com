@@ -3,7 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentSpatialConfig } from "@owbastion/contracts";
 import { createVerifiedRunEvidenceCompatibilityV1, legacyGameplayRevisionId } from "@owbastion/domain";
-import { assessVerifiedRunOcrEvidence, createPlatformServices } from "./index";
+import { assessVerifiedRunOcrEvidence, createPlatformServices } from "@owbastion/database";
 import { createD1, fakeEvidenceBucket, installSchema, seedMap, seedRevisionAssignment, seedTitle } from "./ocr-test-harness";
 
 const now = Date.now();
@@ -1372,7 +1372,7 @@ describe("map title rule model – locked invariants", () => {
       const portal = await services.listChallenges({ family: "map" });
       const admin = await services.listAdminChallenges({ family: "map" }, auth);
       const agents = await services.listAgentAchievements({ page: 1, pageSize: 20, mapId: "map.paris" });
-      const reworkProjection = (challengeId: string) => expect.objectContaining({ challengeId, mapId: "map.paris", gameplayRevisionId: reworkRevisionId });
+      const reworkProjection = (challengeId: string, gameVersion = "2026.08.10") => expect.objectContaining({ challengeId, mapId: "map.paris", gameplayRevisionId: reworkRevisionId, gameVersion });
 
       expect(portal).toEqual(expect.arrayContaining([
         reworkProjection("map.paris.conqueror"),
@@ -1380,9 +1380,9 @@ describe("map title rule model – locked invariants", () => {
         reworkProjection("title.paris.rework"),
       ]));
       expect(admin.items).toEqual(expect.arrayContaining([
-        reworkProjection("map.paris.conqueror"),
-        reworkProjection("challenge.paris.direct"),
-        reworkProjection("title.paris.rework"),
+        reworkProjection("map.paris.conqueror", "2026.07.15"),
+        reworkProjection("challenge.paris.direct", "2026.07.15"),
+        reworkProjection("title.paris.rework", "2026.07.15"),
       ]));
       expect(agents.items).toEqual(expect.arrayContaining([
         reworkProjection("map.paris.conqueror"),
