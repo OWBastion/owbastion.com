@@ -129,6 +129,7 @@ const services: PlatformServices = {
   restoreReviewComment: async () => { throw new Error("REVIEW_NOT_IMPLEMENTED"); },
   invalidateReview: async () => { throw new Error("REVIEW_NOT_IMPLEMENTED"); },
   restoreReview: async () => { throw new Error("REVIEW_NOT_IMPLEMENTED"); },
+  getPortalSessionIdentity: async ({ sessionToken }) => sessionToken === "session-token" ? { player: { playerId: "1234", isAdmin: false } } : null,
   getCurrentPlayer: async ({ sessionToken }) => sessionToken === "session-token" ? {
     contractVersion: "1",
     player: { playerId: "1234", playerName: "Player", isAdmin: false },
@@ -1915,7 +1916,7 @@ describe("API", () => {
   });
 
   it("protects administrative player data with the platform session", async () => {
-    const adminServices: PlatformServices = { ...services, getCurrentPlayer: async ({ sessionToken }) => sessionToken === "admin-session" ? { contractVersion: "1", player: { playerId: "1234", playerName: "Player", isAdmin: true }, recentSubmissions: [] } : null };
+    const adminServices: PlatformServices = { ...services, getPortalSessionIdentity: async ({ sessionToken }) => sessionToken === "admin-session" ? { player: { playerId: "1234", isAdmin: true } } : null };
     const adminApp = createApp({ authenticate: async () => null, services: () => adminServices });
     const denied = await adminApp.request("http://localhost/v1/admin/player-accounts", {}, env);
     expect(denied.status).toBe(401);
@@ -1981,6 +1982,7 @@ describe("API", () => {
       ...services,
       listLocalDevAccounts: async () => [{ accountId: "local-player-account", playerId: "local-player", playerName: "Local Player", isAdmin: false }],
       createLocalDevSession: async () => ({ sessionToken: "local-session" }),
+      getPortalSessionIdentity: async ({ sessionToken }) => sessionToken === "local-session" ? { player: { playerId: "local-player", isAdmin: false } } : null,
       getCurrentPlayer: async ({ sessionToken }) => sessionToken === "local-session" ? { contractVersion: "1", player: { playerId: "local-player", playerName: "Local Player", isAdmin: false }, recentSubmissions: [] } : null,
     };
     const localApp = createApp({ authenticate: async () => null, services: () => localServices });

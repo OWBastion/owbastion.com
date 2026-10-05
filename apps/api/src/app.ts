@@ -424,7 +424,7 @@ export const createApp = (dependencies: AppDependencies) => {
     let auth = await dependencies.authenticate(c.req.raw, c.env);
     if (!auth) {
       const sessionToken = portalSessionToken(c.req.raw);
-      const player = sessionToken ? await dependencies.services(c.env).getCurrentPlayer({ sessionToken }) : null;
+      const player = sessionToken ? await dependencies.services(c.env).getPortalSessionIdentity({ sessionToken }) : null;
       if (player?.player.isAdmin) auth = { actorType: "user", subject: player.player.playerId, roles: ["maintainer"], provider: "portal-session" };
       else if (player) return { error: errorResponse(c, 403, "FORBIDDEN", "The player cannot manage administrative data") };
     }
@@ -461,12 +461,12 @@ export const createApp = (dependencies: AppDependencies) => {
     c.header("Cache-Control", "private, no-store");
     const sessionToken = portalSessionToken(c.req.raw);
     if (!sessionToken) return { error: errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required") };
-    const player = await dependencies.services(c.env).getCurrentPlayer({ sessionToken });
+    const player = await dependencies.services(c.env).getPortalSessionIdentity({ sessionToken });
     if (!player) return { error: errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required") };
     return { sessionToken, player };
   };
 
-  const portalPlayerAuth = (player: NonNullable<Awaited<ReturnType<PlatformServices["getCurrentPlayer"]>>>) => ({
+  const portalPlayerAuth = (player: NonNullable<Awaited<ReturnType<PlatformServices["getPortalSessionIdentity"]>>>) => ({
     actorType: "user" as const,
     subject: player.player.playerId,
     roles: [] as const,
@@ -781,9 +781,11 @@ export const createApp = (dependencies: AppDependencies) => {
   });
 
   app.get("/v1/me", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
-    return c.json(access.player);
+    allowPortal(c);
+    c.header("Cache-Control", "private, no-store");
+    const sessionToken = portalSessionToken(c.req.raw);
+    const player = sessionToken ? await dependencies.services(c.env).getCurrentPlayer({ sessionToken }) : null;
+    return player ? c.json(player) : errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
   });
 
   app.get("/v1/me/mastery", async (c) => {
@@ -1280,7 +1282,7 @@ export const createApp = (dependencies: AppDependencies) => {
     let auth = await dependencies.authenticate(c.req.raw, c.env);
     if (!auth) {
       const sessionToken = portalSessionToken(c.req.raw);
-      const player = sessionToken ? await dependencies.services(c.env).getCurrentPlayer({ sessionToken }) : null;
+      const player = sessionToken ? await dependencies.services(c.env).getPortalSessionIdentity({ sessionToken }) : null;
       if (player?.player.isAdmin) auth = { actorType: "user", subject: player.player.playerId, roles: ["maintainer"], provider: "portal-session" };
     }
     if (!auth) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
