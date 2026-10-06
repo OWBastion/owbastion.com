@@ -43,8 +43,10 @@ const sortedTitles = computed(() => [...titles.value].sort((left, right) => righ
 const mapNameById = computed(() => new Map(maps.value.map((map) => [map.mapId, map.mapName])));
 const heroStats = computed(() => {
   const parts: string[] = [];
-  if (titlesReady.value) parts.push(`称号 ${titles.value.length} 个`);
-  if (challengeStats.value.total) parts.push(`地图成就 ${challengeStats.value.earned} / ${challengeStats.value.total}`);
+  if (titlesReady.value) {
+    parts.push(`称号 ${titles.value.length} 个`);
+    if (challengeStats.value.total) parts.push(`地图成就 ${challengeStats.value.earned} / ${challengeStats.value.total}`);
+  }
   return parts.join(" · ");
 });
 const titleMeta = (title: (typeof titles.value)[number]) => title.mapName ?? (title.scope === "global" ? title.category : "");
@@ -63,7 +65,9 @@ async function loadMastery() {
   try {
     const response = await api<CurrentPlayerMasteryResponse>("/v1/me/mastery?page=1&pageSize=10");
     profiles.value = response.profiles;
-    recentRuns.value = response.runs;
+    // 最近通关只展示当前默认版本的有效记录；历史/可选版本与已失效记录
+    // 不属于本页“当前进度”边界，全部交由地图详情页的完整历史承载。
+    recentRuns.value = response.runs.filter((run) => run.status === "active" && run.gameplayRevisionLifecycle === "default");
     masteryReady.value = true;
   } catch (cause) {
     masteryReady.value = false;

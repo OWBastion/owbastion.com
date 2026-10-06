@@ -13,6 +13,8 @@ export type VerifiedRunDifficulty = "简单" | "一般" | "困难" | "专家" | 
 export type PlayerVerifiedRun = {
   runId: string;
   mapId: string;
+  gameplayRevisionId?: string;
+  gameplayRevisionLifecycle?: "preparing" | "default" | "selectable" | "historical";
   mapVariant: "classic" | null;
   difficulty: VerifiedRunDifficulty;
   completionDurationSeconds: number;

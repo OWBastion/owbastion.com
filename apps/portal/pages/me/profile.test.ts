@@ -26,6 +26,22 @@ const title = (overrides: Partial<OwnedTitle>): OwnedTitle => ({
   ...overrides,
 });
 
+const run = (overrides: Partial<CurrentPlayerMasteryResponse["runs"][number]> = {}): CurrentPlayerMasteryResponse["runs"][number] => ({
+  runId: "run-1",
+  mapId: "map.one",
+  gameplayRevisionId: "rev.one",
+  gameplayRevisionLifecycle: "default",
+  mapVariant: null,
+  difficulty: "困难",
+  completionDurationSeconds: 500,
+  deaths: 0,
+  skips: 0,
+  awardedXp: 300,
+  acceptedAt: 1_750_000_000_000,
+  status: "active",
+  ...overrides,
+});
+
 const player = ref<Player | null>({ player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] });
 const titles = ref<OwnedTitle[]>([]);
 const status = ref<"unknown" | "loading" | "authenticated" | "anonymous">("authenticated");
@@ -149,8 +165,8 @@ describe("me profile page", () => {
 
   it("keeps map challenge completion distinct from repeatable mastery facts", async () => {
     reset({
-      profiles: [{ mapId: "map.one", gameplayRevisionId: "rev.one", gameplayRevisionLifecycle: "default", totalXp: 900, verifiedRunCount: 4, difficultyStats: [], lowestDeaths: 0, fewestSkips: 0, highestSingleRunXp: 300, highestCompletedDifficulty: "困难", recentRuns: [{ runId: "run-1", mapId: "map.one", mapVariant: null, difficulty: "困难", completionDurationSeconds: 500, deaths: 0, skips: 0, awardedXp: 300, acceptedAt: 1_750_000_000_000, status: "active" }] }],
-      runs: [{ runId: "run-1", mapId: "map.one", mapVariant: null, difficulty: "困难", completionDurationSeconds: 500, deaths: 0, skips: 0, awardedXp: 300, acceptedAt: 1_750_000_000_000, status: "active" }],
+      profiles: [{ mapId: "map.one", gameplayRevisionId: "rev.one", gameplayRevisionLifecycle: "default", totalXp: 900, verifiedRunCount: 4, difficultyStats: [], lowestDeaths: 0, fewestSkips: 0, highestSingleRunXp: 300, highestCompletedDifficulty: "困难", recentRuns: [run()] }],
+      runs: [run()],
     });
     titles.value = [title({ grantId: "g1", label: "地图一 开拓者", scope: "map", mapId: "map.one", gameplayRevisionId: "rev.one", mapName: "地图一", titleKey: "ONE_PIONEER" })];
 
@@ -160,10 +176,28 @@ describe("me profile page", () => {
     expect(overview.text()).toContain("900 XP");
     expect(overview.text()).toContain("4 次");
     expect(overview.findAll(".map-target-list li.earned")).toHaveLength(1);
-    const run = wrapper.get(".recent-run");
-    expect(run.text()).toContain("地图一 · 困难");
-    expect(run.text()).toContain("300 XP");
-    expect(run.attributes("href")).toBe("/maps?mapId=map.one");
+    const recentRun = wrapper.get(".recent-run");
+    expect(recentRun.text()).toContain("地图一 · 困难");
+    expect(recentRun.text()).toContain("300 XP");
+    expect(recentRun.attributes("href")).toBe("/maps?mapId=map.one");
+  });
+
+  it("limits 最近通关 to active runs on the current default revision", async () => {
+    reset({
+      runs: [
+        run({ runId: "run-current" }),
+        run({ runId: "run-invalidated", status: "invalidated", awardedXp: 999 }),
+        run({ runId: "run-selectable", gameplayRevisionId: "rev.one-old", gameplayRevisionLifecycle: "selectable", awardedXp: 999 }),
+        run({ runId: "run-historical", gameplayRevisionId: "rev.one-ancient", gameplayRevisionLifecycle: "historical", awardedXp: 999 }),
+      ],
+    });
+
+    const wrapper = await mountPage();
+    const runs = wrapper.findAll(".recent-run");
+    expect(runs).toHaveLength(1);
+    expect(runs[0]!.text()).toContain("地图一 · 困难");
+    expect(runs[0]!.text()).toContain("300 XP");
+    expect(wrapper.text()).not.toContain("999 XP");
   });
 
   it("does not leak unearned hidden goals or count off-revision grants", async () => {
@@ -180,13 +214,17 @@ describe("me profile page", () => {
   });
 
   it("keeps other sections usable when titles fail and supports retry", async () => {
-    reset({ runs: [{ runId: "run-1", mapId: "map.one", mapVariant: null, difficulty: "困难", completionDurationSeconds: 500, deaths: 0, skips: 0, awardedXp: 300, acceptedAt: 1_750_000_000_000, status: "active" }] });
+    reset({ runs: [run()] });
     refreshTitles.mockRejectedValueOnce(new Error("titles unavailable"));
 
     const wrapper = await mountPage();
     expect(wrapper.text()).toContain("无法读取称号");
     expect(wrapper.text()).toContain("地图一 · 困难");
     expect(wrapper.get(".map-progress-list").text()).toContain("称号进度暂不可用");
+    // 称号数据不可用时，hero 不得用空/过期列表伪造进度统计。
+    const hero = wrapper.get(".profile-hero");
+    expect(hero.text()).not.toContain("地图成就");
+    expect(hero.text()).not.toContain("称号 ");
 
     titles.value = [title({ grantId: "g1", label: "恢复的称号" })];
     refreshTitles.mockResolvedValueOnce(titles.value);
