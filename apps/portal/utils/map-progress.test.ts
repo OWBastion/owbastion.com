@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMapProgressRows } from "./map-progress";
+import { buildMapProgressRows, nextMapGoals } from "./map-progress";
 
 const maps = [
   { mapId: "map.unplayed", mapName: "未完成地图", defaultGameplayRevisionId: "revision:unplayed:default" },
@@ -58,5 +58,21 @@ describe("buildMapProgressRows", () => {
     });
 
     expect(rows[0]?.challenges).toHaveLength(0);
+  });
+});
+
+describe("nextMapGoals", () => {
+  const titles = [{ grantId: "grant-partial", titleKey: "PARTIAL_PIONEER", scope: "map" as const, mapId: "map.partial", gameplayRevisionId: "revision:partial:default" }];
+
+  it("names the next unearned goal on started, unfinished maps only", () => {
+    const rows = buildMapProgressRows({ maps, challenges, titles, profiles: [] });
+    expect(nextMapGoals(rows)).toEqual([{ mapId: "map.partial", mapName: "部分完成地图", next: challenges[2], earned: 1, total: 2 }]);
+  });
+
+  it("counts a verified run as started and orders by what is left", () => {
+    const profile = { mapId: "map.unplayed", gameplayRevisionId: "revision:unplayed:default", totalXp: 10, verifiedRunCount: 1, lowestDeaths: null, fewestSkips: null, highestCompletedDifficulty: null, recentRuns: [] };
+    const rows = buildMapProgressRows({ maps, challenges, titles, profiles: [profile] });
+    expect(nextMapGoals(rows).map((goal) => goal.mapId)).toEqual(["map.unplayed", "map.partial"]);
+    expect(nextMapGoals(rows, 1)).toHaveLength(1);
   });
 });

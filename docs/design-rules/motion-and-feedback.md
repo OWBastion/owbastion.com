@@ -24,6 +24,7 @@
 | Theme change | `--theme-transition` on background/text | Respect reduced motion |
 | Route change | Shared Nuxt `page` opacity transition only | No per-page slide/parallax |
 | Overlay enter/exit | Nuxt UI Modal / Drawer / Menu defaults | Symmetric open/close; focus restore |
+| Title icon tilt | `useIconTilt` + `PlayerTitleBadge` / inspect dialog | Follows a fine, hovering pointer only; ≤ 14° tilt with a pointer-following glare; returns on leave; never loops, never on touch or keyboard focus; off under reduced motion |
 | Sticky scroll edge | `scroll-edge` / `scroll-edge-sticky` | Soft mask, not decorative parallax |
 | Loading | Component `loading`, skeletons, disabled peers | Not shimmer-only without status text/semantics |
 

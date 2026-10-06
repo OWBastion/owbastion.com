@@ -76,3 +76,23 @@ export function buildMapProgressRows(input: {
   };
   return rows.sort((left, right) => rank(left) - rank(right) || left.map.mapName.localeCompare(right.map.mapName, "zh-CN") || left.map.mapId.localeCompare(right.map.mapId));
 }
+
+// A map is "started" once the player earned one of its titles or has a verified run on its default revision.
+export const isStartedMapRow = (row: MapProgressRow) => row.earnedChallenges.length > 0 || (row.profile?.verifiedRunCount ?? 0) > 0;
+
+export type MapGoal = { mapId: string; mapName: string; next: MapProgressChallenge; earned: number; total: number };
+
+// The unfinished goals the player is already working on, closest to complete first.
+export function nextMapGoals(rows: MapProgressRow[], limit = 3): MapGoal[] {
+  return rows
+    .filter((row) => isStartedMapRow(row) && row.challenges.length > row.earnedChallenges.length)
+    .map((row) => ({
+      mapId: row.map.mapId,
+      mapName: row.map.mapName,
+      next: row.challenges.find((challenge) => !row.earnedChallenges.includes(challenge))!,
+      earned: row.earnedChallenges.length,
+      total: row.challenges.length,
+    }))
+    .sort((left, right) => (left.total - left.earned) - (right.total - right.earned) || right.earned - left.earned || left.mapName.localeCompare(right.mapName, "zh-CN"))
+    .slice(0, limit);
+}

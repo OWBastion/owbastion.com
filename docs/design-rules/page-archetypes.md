@@ -17,11 +17,34 @@
 
 ## Player center
 
-- Identity and current-player facts first, then recent records and available
-  actions.
-- Use `PlayerIdentityCard`, `PageSectionHeader`, `TitleCollection`, and
-  `PlayerRecentSubmissions`.
-- Collapse to one column on narrow screens.
+- Answer "what should I do next": greeting and the primary upload action
+  first, a warning only when a submission needs the player (a rejection that
+  asks for a new upload), one summary row (`PlayerStatSheet`), the unfinished
+  map goals the player is already on (`PlayerNextGoals`), recent submissions,
+  recently earned titles, then map progress.
+- Map progress lists started maps and collapses the rest behind one control
+  (`PlayerMapProgressSection`); it never renders a wall of empty cards.
+- Use `PageSectionHeader`, `PlayerRecentSubmissions`, `PlayerTitleBadge`.
+- Collapse to one column on narrow screens; on a phone the primary action leads
+  and the secondary links share one row.
+
+## Player profile
+
+- The one player-facing page that may use a game-style presentation, still on
+  Portal tokens: a profile card (avatar, 战网 ID, 佩戴称号 as `PlayerTitleBadge`
+  slots, one summary row of four facts), then 战绩, then the 称号收藏 beside the
+  活跃日历 and 最近通关, then 地图进度.
+- Title tier is shown by frame intensity on the existing `slot`
+  (开拓者 < 征服者 < 主宰) in addition to the title text and the "槽位" line in
+  the detail dialog; there is no separate rank, level, or rarity.
+- Collections group by series, collapse long series, and open a detail dialog
+  per title. Only data the platform already returns is shown; a missing fact is
+  omitted or shown as "—", never invented.
+- Maps without a record are collapsed behind one control rather than listed as
+  empty cards.
+- Pointer tilt on title icons is the only decorative motion (see
+  [`motion-and-feedback.md`](motion-and-feedback.md)); there is no entrance,
+  floating, sweep, or pulse animation.
 
 ## Screenshot upload
 

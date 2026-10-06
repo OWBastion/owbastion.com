@@ -1,7 +1,7 @@
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises, type VueWrapper } from "@vue/test-utils";
 import { ref } from "vue";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import MePage from "./index.vue";
 
 type Player = { player: { playerId: string; playerName: string; isAdmin: boolean }; recentSubmissions: never[] };
@@ -23,13 +23,16 @@ const titles = ref<Title[]>(Array.from({ length: 4 }, (_, index) => ({
 const status = ref<"unknown" | "loading" | "authenticated" | "anonymous">("authenticated");
 const refreshPlayer = vi.fn(async () => player.value);
 const refreshTitles = vi.fn(async () => titles.value);
-const masteryProfiles = ref([]);
+const masteryProfiles = ref<unknown[]>([]);
 const masteryLoading = ref(false);
 const masteryError = ref("");
 const refreshMastery = vi.fn(async () => ({ contractVersion: "1" as const, profiles: masteryProfiles.value, runs: [], page: 1, pageSize: 1, total: 0, hasMore: false }));
 const passkeys = ref<unknown[]>([{ passkeyId: "passkey-1" }]);
+const catalogMaps = ref<unknown[]>([]);
+const catalogChallenges = ref<unknown[]>([]);
 const portalApi = vi.fn(async (path: string) => {
-  if (path === "/v1/maps" || path === "/v1/challenges?family=map") return { items: [] };
+  if (path === "/v1/maps") return { items: catalogMaps.value };
+  if (path === "/v1/challenges?family=map") return { items: catalogChallenges.value };
   if (path === "/v1/me/passkeys") return { contractVersion: "1", items: passkeys.value, qqBound: true };
   throw new Error(`Unexpected request: ${path}`);
 });
@@ -43,7 +46,6 @@ async function mountPage(options?: { attachTo?: HTMLElement }): Promise<VueWrapp
   refreshPlayer.mockClear();
   refreshTitles.mockClear();
   refreshMastery.mockClear();
-  masteryProfiles.value = [];
   masteryLoading.value = false;
   masteryError.value = "";
   const wrapper = await mountSuspended(MePage, {
@@ -73,6 +75,8 @@ async function mountPage(options?: { attachTo?: HTMLElement }): Promise<VueWrapp
 }
 
 describe("me page", () => {
+  beforeEach(() => { catalogMaps.value = []; catalogChallenges.value = []; masteryProfiles.value = []; });
+
   it("shows only the three most recently granted titles and links to achievements", async () => {
     player.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
     titles.value = [
@@ -174,6 +178,49 @@ describe("me page", () => {
     wrapper = await mountPage();
     expect(wrapper.text()).not.toContain("添加 Passkey，下次一键登录");
     vi.unstubAllGlobals();
+  });
+
+  const mapOf = (id: string, name: string) => ({ mapId: id, mapName: name, defaultGameplayRevisionId: `rev.${id}` });
+  const challengeOf = (map: string, key: string, name: string) => ({ challengeId: `c.${map}.${key}`, mapId: map, gameplayRevisionId: `rev.${map}`, titleKey: `${map}_${key}`, name, status: "active" });
+  const mapTitle = (map: string, key: string) => ({ grantId: `g.${map}.${key}`, titleKey: `${map}_${key}`, label: key, category: "地图称号", condition: "完成", scope: "map" as const, mapId: map, gameplayRevisionId: `rev.${map}`, mapName: map, grantedAt: 1 });
+  const profileOf = (map: string, xp: number, runs: number) => ({ mapId: map, gameplayRevisionId: `rev.${map}`, gameplayRevisionLifecycle: "default", totalXp: xp, verifiedRunCount: runs, difficultyStats: [], lowestDeaths: null, fewestSkips: null, highestSingleRunXp: null, highestCompletedDifficulty: null, recentRuns: [] });
+
+  it("lists the unfinished goals the player is already on, closest to done first, with summary facts", async () => {
+    player.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
+    catalogMaps.value = [mapOf("one", "地图一"), mapOf("two", "地图二"), mapOf("three", "地图三"), mapOf("four", "地图四")];
+    catalogChallenges.value = ["one", "two", "three", "four"].flatMap((map) => [challengeOf(map, "P", "开拓者"), challengeOf(map, "C", "征服者")]);
+    titles.value = [mapTitle("one", "P"), mapTitle("three", "P"), mapTitle("three", "C")];
+    masteryProfiles.value = [profileOf("one", 300, 2), profileOf("two", 120, 1)];
+    refreshPlayer.mockResolvedValue(player.value);
+    refreshTitles.mockResolvedValue(titles.value);
+
+    const wrapper = await mountPage();
+    const goals = wrapper.findAll(".next-goal");
+    // 地图一 needs one more, 地图二 two; 地图三 is complete and 地图四 is not started.
+    expect(goals.map((goal) => goal.find(".next-goal__map").text())).toEqual(["地图一", "地图二"]);
+    expect(goals[0]!.find(".next-goal__name").text()).toBe("征服者");
+    expect(goals[0]!.text()).toContain("还差 1 个");
+    const stat = (label: string) => wrapper.findAll(".stat-sheet__item").find((item) => item.get("dt").text() === label)!.get("dd").text();
+    expect(stat("称号")).toBe("3个");
+    expect(stat("精通 XP")).toBe("420");
+    expect(stat("已验证通关")).toBe("3次");
+  });
+
+  it("flags only a rejection that asks for a new upload", async () => {
+    const submission = (id: string, resubmissionRequired: boolean) => ({ submissionId: id, status: "rejected" as const, resubmissionRequired, mapName: "地图一", createdAt: 1, updatedAt: 2 });
+    status.value = "authenticated";
+    refreshTitles.mockResolvedValue(titles.value);
+
+    player.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [submission("s-final", false)] as never };
+    refreshPlayer.mockResolvedValue(player.value);
+    let wrapper = await mountPage();
+    expect(wrapper.text()).not.toContain("需要你处理");
+
+    player.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [submission("s-final", false), submission("s-again", true)] as never };
+    refreshPlayer.mockResolvedValue(player.value);
+    wrapper = await mountPage();
+    expect(wrapper.text()).toContain("1 次提交需要你处理");
+    expect(wrapper.get('a[href="/submissions/s-again"]').text()).toContain("去处理");
   });
 
   it("distinguishes a missing session from loading and read failure", async () => {
