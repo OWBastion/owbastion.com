@@ -23,6 +23,24 @@
   `PlayerRecentSubmissions`.
 - Collapse to one column on narrow screens.
 
+## Player profile
+
+- The one player-facing page that may use a game-style presentation, still on
+  Portal tokens: a profile card (avatar, 战网 ID, 佩戴称号 as `PlayerTitleBadge`
+  slots, one summary row of four facts), then 战绩, then the 称号收藏 beside the
+  活跃日历 and 最近通关, then 地图进度.
+- Title tier is shown by frame intensity on the existing `slot`
+  (开拓者 < 征服者 < 主宰) in addition to the title text and the "槽位" line in
+  the detail dialog; there is no separate rank, level, or rarity.
+- Collections group by series, collapse long series, and open a detail dialog
+  per title. Only data the platform already returns is shown; a missing fact is
+  omitted or shown as "—", never invented.
+- Maps without a record are collapsed behind one control rather than listed as
+  empty cards.
+- Pointer tilt on title icons is the only decorative motion (see
+  [`motion-and-feedback.md`](motion-and-feedback.md)); there is no entrance,
+  floating, sweep, or pulse animation.
+
 ## Screenshot upload
 
 - One primary upload action in a `UCard`.
