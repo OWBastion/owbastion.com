@@ -11,7 +11,9 @@
 1. **Domain components** already in `apps/portal/components/` (and domain
    subfolders): e.g. `AdminWorkspace`, `AdminDataTable`,
    `AdminResponsiveDialog`, `StatusBadge`, `SubmissionStatusBadge`,
-   `PageSectionHeader`, catalog and player identity components.
+   `PageSectionHeader`, catalog and player components (`PlayerProfileHero`, `PlayerStatSheet`,
+   `PlayerTitleBadge`, `PlayerNextGoals`, `PlayerMapProgressSection`, … — the
+   reference implementations of [`design-direction.md`](design-direction.md)).
 2. **Nuxt UI primitives** (`@nuxt/ui` v4): `UButton`, `UCard`, `UAlert`,
    `UEmpty`, `UForm` / `UFormField`, `UInput`, `USelect`, `UTextarea`,
    `UCheckbox`, `UTabs`, `UPagination`, `USkeleton`, `UFileUpload`, menus and

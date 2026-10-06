@@ -7,6 +7,7 @@
 | 文档 | 类型 | 状态 | 治理 / 相关代码 |
 | --- | --- | --- | --- |
 | [DESIGN.md](DESIGN.md) | 设计宪章与主题索引 | authoritative | 支柱路由、跨页原则、重构契约 |
+| [design-direction.md](design-direction.md) | 设计趋向与新旧共存 | authoritative | 设计方向、视觉语汇、共存规则、PR 方向清单 |
 | [visual-foundation.md](visual-foundation.md) | 视觉基础 | authoritative | 语义 token、颜色状态、字体、材料和深度 |
 | [layout-and-spacing.md](layout-and-spacing.md) | 布局与间距 | authoritative | 单位制、容器、栅格、定位、溢出、断点 |
 | [components-and-patterns.md](components-and-patterns.md) | 组件与模式 | authoritative | 选型顺序、Nuxt UI / Tailwind、控件模式 |
@@ -28,6 +29,10 @@
 无障碍基线和权限边界，不得覆盖主题文档的跨页面规则。
 
 一次性审计与整改记录保存在对应 Issue/PR 历史中，不作为当前设计规则索引。
+
+**方向高于旧写法。** 新建与被改动的区块以 [`design-direction.md`](design-direction.md)
+为准；旧实现不是先例。与其冲突的外观、风格、信息组织类条目在同一 PR 里改掉，基础规则
+（token、单位、可访问性、权限边界）不被覆盖。
 
 **规范优先于历史实现。** 代码中的固定 `px` 布局、页面级 fixed 操作条等若与
 主题文档冲突，后续重构以文档为准；见 [`DESIGN.md`](DESIGN.md) 的 Refactor

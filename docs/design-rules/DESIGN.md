@@ -8,10 +8,15 @@
 不得以复制旧页面为默认标准。大范围对齐规范应单独开重构任务，避免与无关
 功能 PR 混做。
 
+**旧实现不是先例，每次改动都向新设计前进。** 新旧设计会并存一段时间。设计方向、新旧共存
+规则和每个 PR 的自检清单见 [design-direction.md](design-direction.md)：新增和被改动的区块
+朝新语言写，旧实现不作为模板，也不得因此倒退。
+
 ## Design pillars
 
 | 支柱 | 文档 | 负责内容 |
 | --- | --- | --- |
+| 设计趋向 | [design-direction.md](design-direction.md) | 设计方向、视觉语汇、新旧共存规则、PR 自检清单 |
 | 视觉语言 | [visual-foundation.md](visual-foundation.md) | 语义 token、颜色状态、字体、材料、深度 |
 | 布局与间距 | [layout-and-spacing.md](layout-and-spacing.md) | 单位制、容器、栅格、sticky/fixed、溢出、断点 |
 | 组件与模式 | [components-and-patterns.md](components-and-patterns.md) | 选型顺序、Nuxt UI / Tailwind 边界、控件模式 |
@@ -45,11 +50,15 @@
 6. **Permission-aware UI.** Public / player / admin surfaces only render what
    the API allows; CSS is not an access-control layer.
 7. **Motion is optional.** Feedback is mandatory; spectacle is not.
+8. **Always move forward.** Every change to a surface moves it toward the
+   direction in [design-direction.md](design-direction.md); legacy code is
+   never a precedent and never an excuse to regress.
 
 ## Agent routing
 
 | 改动类型 | 必读 |
 | --- | --- |
+| 页面整体取向、信息层级、新旧页面如何演进 | design-direction |
 | 颜色、字体、材料、elevation | visual-foundation |
 | 栅格、间距单位、sticky/fixed、溢出 | layout-and-spacing |
 | 新组件、Nuxt UI、Tailwind 用法 | components-and-patterns、portal-ui-guidelines |
@@ -73,3 +82,5 @@
 2. 一次重构只对齐一个支柱或一个明确表面，保持 diff 可审。
 3. 发现规范缺口时先补文档再铺开改代码，避免 agents 各自发明规则。
 4. 行为与文案变更仍受 `docs/product-rules/` 与术语表约束。
+5. 每个触碰页面的 PR 按 [design-direction.md](design-direction.md) 的方向清单自检；
+   整页迁移独立成 PR，小修不得倒退。

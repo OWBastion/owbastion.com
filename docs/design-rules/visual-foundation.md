@@ -153,12 +153,15 @@ Radius is chosen by role, never per component. Four values:
 
 ## Density and chrome
 
-- Player-facing UI: restrained, editorial, low chrome noise.
+- Player-facing UI: a game-style presentation is welcome where it shows identity
+  and collection (profile card, tier frames, one accent glow), built only from
+  tokens; the rest stays low in chrome noise. See
+  [`design-direction.md`](design-direction.md).
 - Admin UI: higher information density is allowed, but still uses the same
   tokens, type scale, and materials — not a separate “admin theme.”
-- Decorative gradients, atmospheric blobs, and marketing flourishes are out of
-  scope for operational Portal surfaces unless a product page explicitly
-  requires them and still reuses tokens.
+- Decoration is token-only and capped: at most one accent radial gradient and one
+  glow class per page (the focal card, the top tier). Atmospheric blobs,
+  stacked gradients, raw colors, and marketing flourishes stay out.
 
 ## Anti-patterns
 

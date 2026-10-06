@@ -1,6 +1,7 @@
 # Page Archetypes
 
-本文档负责 Portal 页面级结构和主要工作区范式。组件选型、表单细节和实现
+本文档负责 Portal 页面级结构和主要工作区范式。整体取向、信息层级和新旧页面的演进见
+[`design-direction.md`](design-direction.md)；本文把其中已落地的方向写成可复用的页面范式。组件选型、表单细节和实现
 工作流见 [`portal-ui-guidelines.md`](portal-ui-guidelines.md)；布局单位与
 定位见 [`layout-and-spacing.md`](layout-and-spacing.md)；组件库边界见
 [`components-and-patterns.md`](components-and-patterns.md)。
@@ -30,7 +31,8 @@
 
 ## Player profile
 
-- The one player-facing page that may use a game-style presentation, still on
+- A player-facing page that shows identity and collection may use a game-style
+  presentation (see [`design-direction.md`](design-direction.md)), still on
   Portal tokens: a profile card (avatar, 战网 ID, 佩戴称号 as `PlayerTitleBadge`
   slots, one summary row of four facts), then 战绩, then the 称号收藏 beside the
   活跃日历 and 最近通关, then 地图进度.

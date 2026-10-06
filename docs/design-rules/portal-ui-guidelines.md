@@ -223,6 +223,9 @@ Before modifying Portal UI:
    `portal-copy-guidelines.md`, and neighboring pages/shared components.
 2. Treat design-rules docs as **normative over legacy code**. Do not copy fixed
    `px` layouts or fixed feature docks from old pages when the docs forbid them.
+   Read [`design-direction.md`](design-direction.md): new and changed blocks are
+   written in the new language, and a neighboring legacy page is never the
+   template.
 3. Identify whether the page is a public directory, player center, submission flow, or admin panel, and confirm its data/permission boundary.
 4. Search for reusable domain or Nuxt UI components. Do not start by creating a new CSS system.
 5. Preserve loading, failure, empty, in-progress, success, and permission-restricted states. If a state does not apply, explain why in the change description.
@@ -234,7 +237,9 @@ Before modifying Portal UI:
 
 Large visual/layout/component alignment to the design system is a **separate
 refactor task** (see DESIGN.md Refactor contract). Do not expand a bugfix into
-an unscoped restyle of unrelated pages.
+an unscoped restyle of unrelated pages — but a change must never regress a
+surface toward the legacy style either; see the direction checklist in
+[`design-direction.md`](design-direction.md).
 
 ## Completion checklist
 
@@ -249,5 +254,6 @@ an unscoped restyle of unrelated pages.
 - [ ] Admin UI follows scan → locate → judge → act and adds no decorative overview/summary layer that does not improve a decision.
 - [ ] Mobile, keyboard, focus, ARIA, and non-color state expression were checked.
 - [ ] Motion/press uses shared patterns; reduced-motion path remains valid.
+- [ ] The direction checklist in [`design-direction.md`](design-direction.md) was applied; any item not met is explained in the change description.
 - [ ] Evidence URLs appear only in the relevant submission details; QQ identifiers and internal fields remain behind their authorization boundaries.
 - [ ] Affected tests and Portal typecheck were run, and any unavailable validation is recorded.
