@@ -442,6 +442,7 @@ export const installSchema = (sqlite: DatabaseSync) => {
       ends_at INTEGER,
       scope TEXT NOT NULL DEFAULT 'global',
       map_variant TEXT,
+      progress_rule TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );

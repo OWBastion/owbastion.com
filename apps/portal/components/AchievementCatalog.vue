@@ -18,6 +18,7 @@ export type PublicAchievement = {
   endsAt?: number;
   retiredVersion?: string;
   submissionMode: "manual" | "automatic";
+  progressRule?: { type: "required_maps_completed"; mapIds: string[]; difficultyAtLeast?: string };
 };
 
 const props = defineProps<{ challenges: PublicAchievement[] }>();

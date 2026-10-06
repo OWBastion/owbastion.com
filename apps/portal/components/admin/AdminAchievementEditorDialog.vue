@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { AdminAchievement, AdminMap, CatalogTitle, MapAchievement, TitleAchievement } from "./admin-achievement-types";
-import { DEFAULT_EVIDENCE_RULE, isCatalog, isChallengeTitle, isMap, isTitle } from "./admin-achievement-types";
+import { DEFAULT_EVIDENCE_RULE, DIFFICULTY_OPTIONS, isCatalog, isChallengeTitle, isMap, isTitle } from "./admin-achievement-types";
 
 const props = defineProps<{
   open: boolean;
@@ -68,6 +68,29 @@ function setMapIds(value: string[]) {
 function setMapVariant(value: "classic" | undefined) {
   if (props.item && isChallengeTitle(props.item)) props.item.mapVariant = value;
 }
+function setProgressMode(value: "none" | "required_maps_completed") {
+  if (!props.item || !isChallengeTitle(props.item)) return;
+  if (value === "none") {
+    props.item.progressRule = null;
+    return;
+  }
+  props.item.progressRule = { type: "required_maps_completed", mapIds: props.item.progressRule?.mapIds ?? [] };
+  props.item.scope = "global";
+  props.item.submissionMode = "manual";
+  props.item.mapIds = [];
+  props.item.mapVariant = undefined;
+}
+function setProgressMapIds(value: string[]) {
+  if (!props.item || !isChallengeTitle(props.item) || !props.item.progressRule) return;
+  props.item.progressRule = { ...props.item.progressRule, mapIds: value };
+}
+function setProgressDifficulty(value: string | undefined) {
+  if (!props.item || !isChallengeTitle(props.item) || !props.item.progressRule) return;
+  const { difficultyAtLeast: _omitted, ...rest } = props.item.progressRule;
+  props.item.progressRule = value ? { ...rest, difficultyAtLeast: value } : { ...rest };
+}
+const progressModeItems = [{ label: "截图条件", value: "none" }, { label: "集齐指定地图", value: "required_maps_completed" }];
+const progressDifficultyItems = computed(() => [{ label: "不限难度", value: "" }, ...DIFFICULTY_OPTIONS.map((difficulty) => ({ label: `至少${difficulty}`, value: difficulty }))]);
 function setCatalogColor(value: string) {
   if (!props.item || !isCatalog(props.item)) return;
   props.item.color = value === "none" ? null : { kind: "palette", name: value as "orange" | "red" | "purple" | "gold" | "blue" };
@@ -142,7 +165,7 @@ function onIconFile(value: File | null | undefined) {
             <UTextarea class="editor-control" :model-value="(item as TitleAchievement | MapAchievement).evidenceRule ?? DEFAULT_EVIDENCE_RULE" required maxlength="2048" :disabled="saving" @update:model-value="setEvidenceRule" />
           </UFormField>
           <UFormField class="editor-field" label="提交方式">
-            <USelect class="editor-control" :model-value="(item as TitleAchievement | MapAchievement).submissionMode ?? 'manual'" :disabled="saving" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" :ui="{ base: 'w-full' }" @update:model-value="setSubmissionMode($event as 'manual' | 'automatic')" />
+            <USelect class="editor-control" :model-value="(item as TitleAchievement | MapAchievement).submissionMode ?? 'manual'" :disabled="saving || Boolean(asChallenge(item)?.progressRule)" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" :ui="{ base: 'w-full' }" @update:model-value="setSubmissionMode($event as 'manual' | 'automatic')" />
           </UFormField>
         </template>
 
@@ -151,8 +174,19 @@ function onIconFile(value: File | null | undefined) {
         </UFormField>
 
         <template v-if="asChallenge(item)">
+          <UFormField class="editor-field" label="完成规则" hint="集齐指定地图的进度型挑战以已验证通关为准，不走截图审核，必须保持全部地图与手动提交。">
+            <USelect class="editor-control" :model-value="asChallenge(item)!.progressRule ? 'required_maps_completed' : 'none'" :items="progressModeItems" :disabled="saving" @update:model-value="setProgressMode($event as 'none' | 'required_maps_completed')" />
+          </UFormField>
+          <template v-if="asChallenge(item)!.progressRule">
+            <UFormField class="editor-field editor-field--wide" label="要求地图" required hint="玩家在活动时间内于每张地图各留下至少一条有效已验证通关即完成。">
+              <USelect class="editor-control" :model-value="asChallenge(item)!.progressRule!.mapIds" multiple :items="maps.map((map) => ({ label: map.mapName, value: map.mapId }))" :disabled="saving" @update:model-value="setProgressMapIds($event as string[])" />
+            </UFormField>
+            <UFormField class="editor-field" label="最低难度">
+              <USelect class="editor-control" :model-value="asChallenge(item)!.progressRule!.difficultyAtLeast ?? ''" :items="progressDifficultyItems" :disabled="saving" @update:model-value="setProgressDifficulty(($event as string) || undefined)" />
+            </UFormField>
+          </template>
           <UFormField class="editor-field" label="称号适用范围">
-            <USelect class="editor-control" :model-value="asChallenge(item)!.scope ?? 'global'" :disabled="saving" :items="[{ label: '全部地图', value: 'global' }, { label: '指定地图', value: 'map' }]" @update:model-value="setScope($event as 'global' | 'map')" />
+            <USelect class="editor-control" :model-value="asChallenge(item)!.scope ?? 'global'" :disabled="saving || Boolean(asChallenge(item)!.progressRule)" :items="[{ label: '全部地图', value: 'global' }, { label: '指定地图', value: 'map' }]" @update:model-value="setScope($event as 'global' | 'map')" />
           </UFormField>
           <UFormField v-if="asChallenge(item)!.scope === 'map'" class="editor-field editor-field--wide" label="指定地图">
             <USelect class="editor-control" :model-value="asChallenge(item)!.mapIds ?? []" multiple :items="[{ label: '全部有效地图', value: '' }, ...maps.map((map) => ({ label: map.mapName, value: map.mapId }))]" :disabled="saving" @update:model-value="setMapIds(($event as string[]).filter(Boolean))" />

@@ -1,4 +1,4 @@
-import type { CanonicalChallengeConditions } from "@owbastion/domain";
+import { conditionFields, type CanonicalChallengeConditions } from "@owbastion/domain";
 
 export type OcrFieldEvidence = {
   confidence?: number;
@@ -91,13 +91,7 @@ export const assessChallengeOcrQuality = (
       ? conditionIndexes.flatMap((index) => conditions.conditions[index] ? [conditions.conditions[index]!] : [])
       : conditions.conditions
     : [];
-  const requiredFields = conditions ? [...new Set(selectedConditions.map(({ type }) => ({
-    achievement_title: "achievement_titles",
-    map: "map_name",
-    completed: "challenge_completed",
-    difficulty_at_least: "difficulty",
-    map_variant: "map_variant",
-  }[type])))].sort() : [];
+  const requiredFields = conditions ? [...new Set(selectedConditions.map(({ type }) => conditionFields[type]))].sort() : [];
   const reasons = [...assessSubmissionOcrResponseQuality(response, humanConfirmed).reasons];
   if (!conditions) reasons.push("unsupported_challenge_conditions");
 

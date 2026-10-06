@@ -45,6 +45,32 @@ export type PortalMap = {
   defaultGameplayRevisionId?: string | null;
 };
 
+export type AchievementProgressRule = {
+  type: "required_maps_completed";
+  mapIds: string[];
+  difficultyAtLeast?: string;
+};
+
+export type PlayerChallengeProgress = {
+  challengeId: string;
+  titleKey: string;
+  titleName: string;
+  icon: string;
+  iconUrl?: string | null;
+  status: "scheduled" | "active" | "sunsetting";
+  startsAt?: number;
+  endsAt?: number;
+  progressRule: AchievementProgressRule;
+  maps: Array<{ mapId: string; completed: boolean }>;
+  completedMaps: number;
+  satisfied: boolean;
+};
+
+export type PlayerChallengeProgressListResponse = {
+  contractVersion: "1";
+  items: PlayerChallengeProgress[];
+};
+
 export type CurrentPlayerMasteryResponse = {
   contractVersion: "1";
   profiles: PlayerMasteryMapProfile[];

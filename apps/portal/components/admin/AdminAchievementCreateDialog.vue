@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { DIFFICULTY_OPTIONS } from "./admin-achievement-types";
+
 type TargetMap = { mapId: string; mapName: string };
 type CreatePayload = {
   contractVersion: "1";
@@ -12,6 +14,7 @@ type CreatePayload = {
   scope: "global" | "map";
   mapIds: string[];
   mapVariant?: "classic";
+  progressRule?: { type: "required_maps_completed"; mapIds: string[]; difficultyAtLeast?: string };
   status: "scheduled" | "active" | "sunsetting" | "retired";
   gameVersion: string | null;
   categoryOverride: string | null;
@@ -39,6 +42,9 @@ const form = reactive({
   scope: "global" as "global" | "map",
   mapIds: [] as string[],
   mapVariant: undefined as "classic" | undefined,
+  progressMode: "none" as "none" | "required_maps_completed",
+  progressMapIds: [] as string[],
+  progressDifficultyAtLeast: "" as string,
   status: "active" as "scheduled" | "active" | "sunsetting" | "retired",
   gameVersion: "",
   categoryOverride: "",
@@ -49,7 +55,17 @@ const form = reactive({
 });
 
 const mapItems = computed(() => props.maps.map((map) => ({ label: map.mapName, value: map.mapId })));
-const canSubmit = computed(() => Boolean(form.titleKey.trim() && form.titleName.trim() && form.category.trim() && form.condition.trim() && form.evidenceRule.trim() && (form.status === "scheduled" || form.gameVersion.trim()) && (form.status !== "sunsetting" || form.retiredVersion.trim())));
+const progressModeItems = [{ label: "截图条件", value: "none" }, { label: "集齐指定地图", value: "required_maps_completed" }];
+const progressDifficultyItems = computed(() => [{ label: "不限难度", value: "" }, ...DIFFICULTY_OPTIONS.map((difficulty) => ({ label: `至少${difficulty}`, value: difficulty }))]);
+const progressMode = computed(() => form.progressMode === "required_maps_completed");
+watch(progressMode, (enabled) => {
+  if (!enabled) return;
+  form.submissionMode = "manual";
+  form.scope = "global";
+  form.mapIds = [];
+  form.mapVariant = undefined;
+});
+const canSubmit = computed(() => Boolean(form.titleKey.trim() && form.titleName.trim() && form.category.trim() && form.condition.trim() && form.evidenceRule.trim() && (form.status === "scheduled" || form.gameVersion.trim()) && (form.status !== "sunsetting" || form.retiredVersion.trim()) && (!progressMode.value || form.progressMapIds.length)));
 const setScheduleTime = (field: "startsAt" | "endsAt", value: number | null) => { form[field] = value; };
 
 function submit() {
@@ -66,6 +82,7 @@ function submit() {
     scope: form.scope,
     mapIds: form.scope === "map" ? [...form.mapIds] : [],
     ...(form.scope === "map" && form.mapVariant ? { mapVariant: form.mapVariant } : {}),
+    ...(progressMode.value ? { progressRule: { type: "required_maps_completed" as const, mapIds: [...form.progressMapIds], ...(form.progressDifficultyAtLeast ? { difficultyAtLeast: form.progressDifficultyAtLeast } : {}) } } : {}),
     status: form.status,
     gameVersion: form.gameVersion.trim() || null,
     categoryOverride: form.categoryOverride.trim() || null,
@@ -87,8 +104,13 @@ function submit() {
         <UFormField class="editor-field" label="系列" required><UInput v-model="form.category" class="editor-control" :disabled="props.saving" required /></UFormField>
         <UFormField class="editor-field editor-field--wide" label="完成条件" required><UTextarea v-model="form.condition" class="editor-control" :disabled="props.saving" required maxlength="1024" /></UFormField>
         <UFormField class="editor-field editor-field--wide" label="截图规则" required><UTextarea v-model="form.evidenceRule" class="editor-control" :disabled="props.saving" required maxlength="2048" /></UFormField>
-        <UFormField class="editor-field" label="提交方式"><USelect v-model="form.submissionMode" class="editor-control" :disabled="props.saving" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" /></UFormField>
-        <UFormField class="editor-field" label="称号适用范围"><USelect v-model="form.scope" class="editor-control" :disabled="props.saving" :items="[{ label: '全部地图', value: 'global' }, { label: '指定地图', value: 'map' }]" /></UFormField>
+        <UFormField class="editor-field" label="完成规则" hint="集齐指定地图的进度型挑战以已验证通关为准，不走截图审核，必须保持全部地图与手动提交。"><USelect v-model="form.progressMode" class="editor-control" :disabled="props.saving" :items="progressModeItems" /></UFormField>
+        <template v-if="progressMode">
+          <UFormField class="editor-field editor-field--wide" label="要求地图" required hint="玩家在活动时间内于每张地图各留下至少一条有效已验证通关即完成。"><USelect v-model="form.progressMapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
+          <UFormField class="editor-field" label="最低难度"><USelect v-model="form.progressDifficultyAtLeast" class="editor-control" :items="progressDifficultyItems" :disabled="props.saving" /></UFormField>
+        </template>
+        <UFormField class="editor-field" label="提交方式"><USelect v-model="form.submissionMode" class="editor-control" :disabled="props.saving || progressMode" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" /></UFormField>
+        <UFormField class="editor-field" label="称号适用范围"><USelect v-model="form.scope" class="editor-control" :disabled="props.saving || progressMode" :items="[{ label: '全部地图', value: 'global' }, { label: '指定地图', value: 'map' }]" /></UFormField>
         <template v-if="form.scope === 'map'">
           <UFormField class="editor-field editor-field--wide" label="指定地图" hint="留空作用于全部有效地图。"><USelect v-model="form.mapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
           <UFormField class="editor-field" label="地图版本"><USelect v-model="form.mapVariant" class="editor-control" :items="[{ label: '正式版', value: undefined }, { label: '经典版', value: 'classic' }]" :disabled="props.saving" /></UFormField>

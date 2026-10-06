@@ -3,7 +3,19 @@ export type ChallengeCondition =
   | { type: "map"; mapId: string }
   | { type: "completed" }
   | { type: "difficulty_at_least"; difficulty: string }
-  | { type: "map_variant"; variant: "classic" };
+  | { type: "map_variant"; variant: "classic" }
+  | { type: "required_maps_completed"; mapIds: string[]; difficultyAtLeast?: string };
+
+export type ChallengeProgressRule = Extract<ChallengeCondition, { type: "required_maps_completed" }>;
+
+export const parseChallengeProgressRule = (value: unknown): ChallengeProgressRule | null => {
+  let parsed = value;
+  if (typeof parsed === "string") {
+    try { parsed = JSON.parse(parsed) as unknown; } catch { return null; }
+  }
+  const condition = parseCondition(parsed);
+  return condition?.type === "required_maps_completed" ? { type: condition.type, mapIds: condition.mapIds, ...(condition.difficultyAtLeast ? { difficultyAtLeast: condition.difficultyAtLeast } : {}) } : null;
+};
 
 export type CanonicalChallengeConditions = {
   operator: "and" | "or";
@@ -37,6 +49,12 @@ const parseCondition = (value: unknown): ChallengeCondition | null => {
     case "completed": return { type: condition.type };
     case "difficulty_at_least": return typeof condition.difficulty === "string" && condition.difficulty.trim() ? { type: condition.type, difficulty: condition.difficulty } : null;
     case "map_variant": return condition.variant === "classic" ? { type: condition.type, variant: condition.variant } : null;
+    case "required_maps_completed": {
+      if (!Array.isArray(condition.mapIds)) return null;
+      const mapIds = [...new Set(condition.mapIds.filter((mapId): mapId is string => typeof mapId === "string" && Boolean(mapId.trim())))];
+      if (!mapIds.length) return null;
+      return { type: condition.type, mapIds, ...(typeof condition.difficultyAtLeast === "string" && condition.difficultyAtLeast.trim() ? { difficultyAtLeast: condition.difficultyAtLeast } : {}) };
+    }
     default: return null;
   }
 };
@@ -80,13 +98,16 @@ const matchesDifficulty = (actual: string | null | undefined, required: string) 
   return actualRank >= 0 && requiredRank >= 0 ? actualRank >= requiredRank : actualLabel !== "" && actualLabel === requiredLabel;
 };
 
-const conditionFields: Record<ChallengeCondition["type"], string> = {
+export const conditionFields: Record<ChallengeCondition["type"], string> = {
   achievement_title: "achievement_titles",
   map: "map_name",
   completed: "challenge_completed",
   difficulty_at_least: "difficulty",
   map_variant: "map_variant",
+  required_maps_completed: "verified_runs",
 };
+
+export const difficultyAtLeastSatisfied = matchesDifficulty;
 
 export const evaluateCanonicalChallengeConditions = (
   conditions: CanonicalChallengeConditions | null,
@@ -107,6 +128,7 @@ export const evaluateCanonicalChallengeConditions = (
       case "completed": return evidence.completed === true;
       case "difficulty_at_least": return matchesDifficulty(evidence.difficulty, condition.difficulty);
       case "map_variant": return evidence.mapVariant === condition.variant;
+      case "required_maps_completed": return false;
     }
   });
   return {

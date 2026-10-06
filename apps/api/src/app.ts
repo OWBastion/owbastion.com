@@ -394,6 +394,7 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/admin/player-accounts/:playerAccountId/passkey-recovery", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/mastery", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/activity", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/me/challenge-progress", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/titles", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/submissions/:submissionId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/submissions/:submissionId/ocr-feedback", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -828,6 +829,15 @@ export const createApp = (dependencies: AppDependencies) => {
     const activity = await dependencies.services(c.env).getCurrentPlayerActivity({ sessionToken: access.sessionToken! });
     if (!activity) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
     return c.json({ contractVersion: "1", ...activity });
+  });
+
+  app.get("/v1/me/challenge-progress", async (c) => {
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    c.header("Cache-Control", "private, no-store");
+    const progress = await dependencies.services(c.env).listCurrentPlayerChallengeProgress({ sessionToken: access.sessionToken! });
+    if (!progress) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
+    return c.json(progress);
   });
 
   app.get("/v1/me/titles", async (c) => {

@@ -9,6 +9,7 @@ useSeoMeta({ title: "成就 · 躲避堡垒 3", description: "查看已发布的
 
 const { player, refresh } = useCurrentPlayer();
 const { items: ownedTitles, allTitles, refresh: refreshTitles, replaceEquipped } = usePlayerTitles();
+const { items: challengeProgress, refresh: refreshChallengeProgress } = usePlayerChallengeProgress();
 const { data: catalog, pending: loading, error: catalogError } = await useAsyncData("public-achievement-directory", async () => {
   const [achievementResponse, mapResponse, mapChallengeResponse] = await Promise.all([
     usePublicCatalog<{ items: PublicAchievement[] }>("achievements"),
@@ -29,7 +30,7 @@ onMounted(async () => {
   try {
     const currentPlayer = await refresh();
     if (currentPlayer) {
-      await refreshTitles();
+      await Promise.all([refreshTitles(), refreshChallengeProgress()]);
     }
   } catch (cause) {
     playerError.value = portalErrorDetails(cause, "无法读取成就，请稍后重试。").description;
@@ -70,7 +71,7 @@ const updateEquipped = async (grantId: string) => {
       </div>
     </section>
     <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取成就" :description="error" />
-    <template v-else-if="player"><MyAchievementOverview :challenges="challenges" :titles="ownedTitles" :maps="maps" :map-challenges="mapChallenges" :saving-equip="savingEquip" :all-titles="allTitles" @toggle-equipped="updateEquipped" /><UAlert v-if="equipError" class="equip-error" color="error" variant="subtle" :description="equipError" /></template>
+    <template v-else-if="player"><MyAchievementOverview :challenges="challenges" :titles="ownedTitles" :maps="maps" :map-challenges="mapChallenges" :challenge-progress="challengeProgress" :saving-equip="savingEquip" :all-titles="allTitles" @toggle-equipped="updateEquipped" /><UAlert v-if="equipError" class="equip-error" color="error" variant="subtle" :description="equipError" /></template>
     <section v-else class="achievement-directory surface-card" aria-label="成就列表">
       <AchievementCatalog :challenges="challenges" />
     </section>

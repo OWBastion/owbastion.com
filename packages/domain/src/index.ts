@@ -29,6 +29,7 @@ import type {
   CurrentPlayerTitlesResponse,
   CurrentPlayerMasteryResponse,
   PlayerActivityResponse,
+  PlayerChallengeProgressListResponse,
   AdminSubmission,
   AdminSubmissionListResponse,
   AdminSubmissionReviewRequest,
@@ -300,6 +301,7 @@ export type PlatformServices = {
   restoreReview(input: { reviewId: string; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<ReviewRecord>;
   getCurrentPlayerMastery(input: { sessionToken: string; mapId?: string; gameplayRevisionId?: string; page: number; pageSize: number }): Promise<CurrentPlayerMasteryResponse | null>;
   getCurrentPlayerActivity(input: { sessionToken: string }): Promise<Omit<PlayerActivityResponse, "contractVersion"> | null>;
+  listCurrentPlayerChallengeProgress(input: { sessionToken: string }): Promise<PlayerChallengeProgressListResponse | null>;
   getPortalSessionIdentity(input: { sessionToken: string }): Promise<{ player: { playerId: string; isAdmin: boolean } } | null>;
   getCurrentPlayer(input: { sessionToken: string }): Promise<CurrentPlayerResponse | null>;
   createQqLoginAttempt(input: QqLoginAttemptRequest): Promise<QqLoginAttemptResponse>;

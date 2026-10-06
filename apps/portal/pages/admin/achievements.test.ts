@@ -87,7 +87,7 @@ describe("achievement admin page", () => {
     await wrapper.findAll("button").find((button) => button.text() === "新建挑战")!.trigger("click");
     await flushPromises();
     const form = wrapper.get("form#achievement-create-form");
-    await form.findAll("select")[1]!.setValue("map");
+    await form.findAll("select")[2]!.setValue("map");
     expect(form.text()).toContain("指定地图");
     expect(form.text()).toContain("留空作用于全部有效地图");
     wrapper.unmount();

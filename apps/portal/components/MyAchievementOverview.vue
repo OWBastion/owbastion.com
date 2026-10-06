@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { PublicAchievement } from "./AchievementCatalog.vue";
 import type { OwnedTitle } from "~/types/title";
-import type { PortalMap } from "~/composables/usePortalApi";
+import type { PlayerChallengeProgress, PortalMap } from "~/composables/usePortalApi";
 import type { MapProgressChallenge } from "~/utils/map-progress";
 
 type HistoricalTitleGroup = {
@@ -18,9 +18,10 @@ const props = withDefaults(defineProps<{
   titles: OwnedTitle[];
   maps?: PortalMap[];
   mapChallenges?: MapProgressChallenge[];
+  challengeProgress?: PlayerChallengeProgress[];
   savingEquip?: boolean;
   allTitles?: boolean;
-}>(), { maps: () => [], mapChallenges: () => [] });
+}>(), { maps: () => [], mapChallenges: () => [], challengeProgress: () => [] });
 const emit = defineEmits<{ toggleEquipped: [grantId: string] }>();
 const globalTitles = computed(() => props.titles.filter((title) => title.scope === "global"));
 const equippedCount = computed(() => globalTitles.value.filter((title) => title.equipped).length);
@@ -72,6 +73,10 @@ const groups = computed(() => {
     .sort((left, right) => left.category.localeCompare(right.category, "zh-CN"));
 });
 
+const progressByChallenge = computed(() => new Map(props.challengeProgress.map((item) => [item.challengeId, item])));
+const progressFor = (card: AchievementCard) => card.kind === "catalog" && card.challenge.progressRule ? progressByChallenge.value.get(card.challenge.challengeId) : undefined;
+const mapNameFor = (mapId: string) => props.maps.find((map) => map.mapId === mapId)?.mapName ?? mapId;
+
 const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(timestamp);
 </script>
 
@@ -93,6 +98,14 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
                   <StatusBadge v-if="card.kind === 'retired'" class="retired-status" label="不再发放" />
                 </div>
                 <span class="type-label-sm">{{ card.kind === 'catalog' ? card.challenge.condition : card.title.condition }}</span>
+                <div v-if="progressFor(card)" class="progress-block">
+                  <span class="progress-count">已完成 {{ progressFor(card)!.completedMaps }} / {{ progressFor(card)!.maps.length }}</span>
+                  <ul class="progress-maps">
+                    <li v-for="progressMap in progressFor(card)!.maps" :key="progressMap.mapId" class="progress-map" :class="{ done: progressMap.completed }">
+                      <UIcon :name="progressMap.completed ? 'i-lucide-circle-check' : 'i-lucide-circle'" aria-hidden="true" /><span>{{ mapNameFor(progressMap.mapId) }}</span>
+                    </li>
+                  </ul>
+                </div>
                 <span v-if="card.kind === 'catalog' && card.challenge.status === 'scheduled'" class="type-caption status">未开放</span>
                 <span v-else-if="card.kind === 'catalog' && card.challenge.status === 'sunsetting'" class="type-caption status">即将结束</span>
               </div>
@@ -164,6 +177,11 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
 .achievement-copy strong, .recent-item strong { overflow-wrap: anywhere; color: var(--text); }
 .achievement-copy > span:not(.earned-status-icon):not(.status), .recent-item span { color: var(--muted); }
 .earned-status-icon { display: inline-grid; width: fit-content; place-items: center; color: var(--success); font-size: 1rem; }
+.progress-block { display: grid; gap: var(--space-2); margin-top: var(--space-1); }
+.progress-count { color: var(--muted); font-size: var(--type-caption-size); font-weight: 600; }
+.progress-maps { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); margin: 0; padding: 0; list-style: none; }
+.progress-map { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--quiet); font-size: var(--type-caption-size); }
+.progress-map.done { color: var(--success); }
 .equip-action { grid-column: 2 / -1; justify-self: start; margin-top: var(--space-1); }
 .status { width: fit-content; color: var(--quiet); font-weight: 600; }
 .achievement-sidebar { display: grid; flex: 1 1 15.625rem; max-width: 100%; gap: var(--space-5); }

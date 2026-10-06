@@ -239,6 +239,7 @@ function titleUpdate(item: TitleAchievement, status: AchievementStatus = item.st
     iconUrl: item.iconUrl?.trim() || null,
     status,
     ...(item.scope ? { scope: item.scope, mapIds: item.scope === "map" ? item.mapIds ?? [] : [] } : {}),
+    ...(item.progressRule !== undefined ? { progressRule: item.progressRule ? { type: "required_maps_completed", mapIds: item.progressRule.mapIds, ...(item.progressRule.difficultyAtLeast ? { difficultyAtLeast: item.progressRule.difficultyAtLeast } : {}) } : null } : {}),
     gameVersion: item.gameVersion?.trim() || null,
     ...(item.scope === "map" ? { mapVariant: item.mapVariant } : {}),
     ...(status === "sunsetting" && (retiredVersion ?? item.retiredVersion)?.trim() ? { retiredVersion: (retiredVersion ?? item.retiredVersion)!.trim() } : {}),

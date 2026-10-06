@@ -1,5 +1,11 @@
 export type AchievementStatus = "scheduled" | "active" | "sunsetting" | "retired";
 
+export type AchievementProgressRule = {
+  type: "required_maps_completed";
+  mapIds: string[];
+  difficultyAtLeast?: string;
+};
+
 export type TitleAchievement = {
   challengeId: string;
   family: "achievement";
@@ -22,7 +28,10 @@ export type TitleAchievement = {
   scope?: "global" | "map";
   mapIds?: string[];
   mapVariant?: "classic";
+  progressRule?: AchievementProgressRule | null;
 };
+
+export const DIFFICULTY_OPTIONS = ["简单", "一般", "困难", "专家", "传奇", "地狱"] as const;
 
 export type MapAchievement = {
   challengeId: string;
