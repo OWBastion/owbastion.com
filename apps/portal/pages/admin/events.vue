@@ -39,7 +39,8 @@ const archiveOpen = shallowRef(false);
 const versionAvailabilityOpen = shallowRef(false);
 const versionTarget = shallowRef<{ version: EventVersion; availability: EventVersion["availability"] } | null>(null);
 const versionSaving = shallowRef(false);
-const form = reactive({ name: "", category: "", description: "", durationSeconds: null as number | null, cooldownSeconds: null as number | null, weight: null as number | null, gameVersion: "", effectTags: [] as string[], releaseStatus: "development" as RandomEvent["releaseStatus"], links: [] as Link[] });
+const form = reactive({ name: "", category: "", eventGroup: "", description: "", durationSeconds: null as number | null, cooldownSeconds: null as number | null, weight: null as number | null, gameVersion: "", effectTags: [] as string[], releaseStatus: "development" as RandomEvent["releaseStatus"], links: [] as Link[] });
+const eventGroupItems = computed(() => [...new Set(events.value.map((event) => event.eventGroup).filter((group): group is string => Boolean(group)))].sort((left, right) => left.localeCompare(right, "zh-CN")));
 const categoryItems = computed(() => [...new Set(events.value.map((event) => event.category))].sort());
 const effectTagItems = computed(() => [...new Set(events.value.flatMap((event) => event.effectTags))].sort());
 const derivedRarity = computed(() => randomEventRarityForWeight(form.weight ?? null) || "—");
@@ -52,6 +53,7 @@ const probability = (event: RandomEvent) => calculateEventProbabilities(event, e
 const eventSortingOptions = [
   { id: "name", label: "事件名称" },
   { id: "category", label: "事件类别" },
+  { id: "eventGroup", label: "事件组" },
   { id: "rarity", label: "稀有度级别" },
   { id: "cooldownSeconds", label: "内置冷却" },
   { id: "durationSeconds", label: "持续时间" },
@@ -60,6 +62,7 @@ const eventSortingOptions = [
   { id: "releaseStatus", label: "状态" },
 ];
 const eventGroupingOptions = [
+  { id: "eventGroup", label: "事件组" },
   { id: "category", label: "事件类别" },
   { id: "rarity", label: "稀有度级别" },
   { id: "gameVersion", label: "版本" },
@@ -74,6 +77,7 @@ const eventColumns: TableColumn<RandomEvent>[] = [
   { accessorKey: "name", header: "事件名称", size: 128, meta: { class: { th: "w-32", td: "!whitespace-nowrap" } } },
   { accessorKey: "description", header: "事件效果", meta: { class: { th: "w-80", td: "align-top" } } },
   { accessorKey: "category", header: "事件类别", meta: { class: { th: "w-20", td: "!whitespace-nowrap" } } },
+  { accessorKey: "eventGroup", header: "事件组", meta: { class: { th: "w-24", td: "!whitespace-nowrap" } } },
   { accessorKey: "rarity", header: "稀有度级别", meta: { class: { th: "w-24", td: "!whitespace-nowrap" } } },
   { accessorKey: "cooldownSeconds", header: "内置冷却", meta: { class: { th: "w-20", td: "!whitespace-nowrap" } } },
   { accessorKey: "durationSeconds", header: "持续时间（秒）", meta: { class: { th: "w-28", td: "!whitespace-nowrap" } } },
@@ -88,7 +92,7 @@ const eventColumns: TableColumn<RandomEvent>[] = [
 function number(value: number | string | null | undefined) { return value === "" || value === null || value === undefined ? null : Number(value); }
 const createEffectTag = (value: string) => { const tag = value.trim(); if (tag && !form.effectTags.includes(tag)) form.effectTags.push(tag); };
 function resetForm(event?: RandomEvent) {
-  Object.assign(form, event ? { name: event.name, category: event.category, description: event.description, durationSeconds: event.durationSeconds, cooldownSeconds: event.cooldownSeconds, weight: event.weight, gameVersion: event.gameVersion, effectTags: [...event.effectTags], releaseStatus: event.releaseStatus, links: event.challenges.map((challenge) => ({ family: challenge.family, challengeId: challenge.challengeId })) } : { name: "", category: "", description: "", durationSeconds: null, cooldownSeconds: null, weight: null, gameVersion: "", effectTags: [], releaseStatus: "development", links: [] });
+  Object.assign(form, event ? { name: event.name, category: event.category, eventGroup: event.eventGroup ?? "", description: event.description, durationSeconds: event.durationSeconds, cooldownSeconds: event.cooldownSeconds, weight: event.weight, gameVersion: event.gameVersion, effectTags: [...event.effectTags], releaseStatus: event.releaseStatus, links: event.challenges.map((challenge) => ({ family: challenge.family, challengeId: challenge.challengeId })) } : { name: "", category: "", eventGroup: "", description: "", durationSeconds: null, cooldownSeconds: null, weight: null, gameVersion: "", effectTags: [], releaseStatus: "development", links: [] });
 }
 function openCreate() { selectedEvent.value = null; resetForm(); editorOpen.value = true; }
 function openEvent(event: RandomEvent) { selectedEvent.value = event; resetForm(event); editorOpen.value = true; }
@@ -107,7 +111,7 @@ const adminData = useAdminAsyncData("events", async () => {
 const loading = adminData.loading;
 async function load() { error.value = ""; await adminData.refresh(); }
 async function loadAll() { await load(); }
-async function save() { saving.value = true; error.value = ""; const body = { contractVersion: "1" as const, name: form.name, category: form.category, description: form.description, durationSeconds: number(form.durationSeconds), cooldownSeconds: number(form.cooldownSeconds), weight: number(form.weight), gameVersion: form.gameVersion, effectTags: form.effectTags.map((value) => value.trim()).filter(Boolean), releaseStatus: form.releaseStatus, challengeLinks: form.links }; try { const saved = selectedEvent.value ? await api<RandomEvent>(`/v1/events/${encodeURIComponent(selectedEvent.value.eventId)}`, { method: "PUT", headers: { "Idempotency-Key": createRequestId() }, body }) : await api<RandomEvent>("/v1/events", { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body }); events.value = selectedEvent.value ? events.value.map((event) => event.eventId === saved.eventId ? saved : event) : [saved, ...events.value]; selectedEvent.value = saved; await loadAll(); editorOpen.value = false; toast.add({ title: "事件已保存", color: "success" }); } catch (cause) { error.value = portalErrorDetails(cause, "无法保存事件。").description; } finally { saving.value = false; } }
+async function save() { saving.value = true; error.value = ""; const body = { contractVersion: "1" as const, name: form.name, category: form.category, eventGroup: form.eventGroup.trim(), description: form.description, durationSeconds: number(form.durationSeconds), cooldownSeconds: number(form.cooldownSeconds), weight: number(form.weight), gameVersion: form.gameVersion, effectTags: form.effectTags.map((value) => value.trim()).filter(Boolean), releaseStatus: form.releaseStatus, challengeLinks: form.links }; try { const saved = selectedEvent.value ? await api<RandomEvent>(`/v1/events/${encodeURIComponent(selectedEvent.value.eventId)}`, { method: "PUT", headers: { "Idempotency-Key": createRequestId() }, body }) : await api<RandomEvent>("/v1/events", { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body }); events.value = selectedEvent.value ? events.value.map((event) => event.eventId === saved.eventId ? saved : event) : [saved, ...events.value]; selectedEvent.value = saved; await loadAll(); editorOpen.value = false; toast.add({ title: "事件已保存", color: "success" }); } catch (cause) { error.value = portalErrorDetails(cause, "无法保存事件。").description; } finally { saving.value = false; } }
 function requestArchive() { archiveOpen.value = true; }
 async function archive() { if (!selectedEvent.value) return; saving.value = true; try { const eventId = selectedEvent.value.eventId; await api(`/v1/events/${encodeURIComponent(eventId)}`, { method: "DELETE", headers: { "Idempotency-Key": createRequestId() } }); events.value = events.value.filter((event) => event.eventId !== eventId); await loadAll(); archiveOpen.value = false; editorOpen.value = false; selectedEvent.value = null; toast.add({ title: "事件已归档", color: "success" }); } catch (cause) { error.value = portalErrorDetails(cause, "无法归档事件。").description; } finally { saving.value = false; } }
 function requestVersionAvailability(version: EventVersion, availability: EventVersion["availability"]) { versionTarget.value = { version, availability }; versionAvailabilityOpen.value = true; }
@@ -142,12 +146,13 @@ async function importEvents() { if (!importFile.value || !importPreview.value ||
 
     <section aria-label="事件目录">
       <!-- The virtualized event catalog needs a stable bounded scroll element. -->
-      <AdminDataTable v-model:global-filter="query" v-model:sorting="sorting" v-model:grouping="grouping" v-model:column-pinning="columnPinning" :data="events" :columns="eventColumns" :mobile-columns="[{ id: 'name', priority: 'primary', order: 0 }, { id: 'category', priority: 'primary', order: 1 }, { id: 'releaseStatus', priority: 'primary', order: 2 }, { id: 'rarity', priority: 'detail', order: 3 }, { id: 'gameVersion', priority: 'detail', order: 4 }, { id: 'description', priority: 'hidden', order: 5 }, { id: 'cooldownSeconds', priority: 'hidden', order: 6 }, { id: 'durationSeconds', priority: 'hidden', order: 7 }, { id: 'weight', priority: 'hidden', order: 8 }, { id: 'appearanceProbability', priority: 'hidden', order: 9 }, { id: 'effectTags', priority: 'hidden', order: 10 }]" row-key="eventId" :loading="loading" :sorting-options="eventSortingOptions" :grouping-options="eventGroupingOptions" :default-sorting="defaultEventSorting" :table-grouping-options="tableGroupingOptions" sticky="header" scroll-height="clamp(14rem, calc(100dvh - 18rem), 42rem)" :virtualize="{ estimateSize: 65, overscan: 8 }" empty="暂无事件记录。" table-key="events" table-min-width="1180px" class="admin-table">
+      <AdminDataTable v-model:global-filter="query" v-model:sorting="sorting" v-model:grouping="grouping" v-model:column-pinning="columnPinning" :data="events" :columns="eventColumns" :mobile-columns="[{ id: 'name', priority: 'primary', order: 0 }, { id: 'category', priority: 'primary', order: 1 }, { id: 'releaseStatus', priority: 'primary', order: 2 }, { id: 'rarity', priority: 'detail', order: 3 }, { id: 'gameVersion', priority: 'detail', order: 4 }, { id: 'description', priority: 'hidden', order: 5 }, { id: 'cooldownSeconds', priority: 'hidden', order: 6 }, { id: 'durationSeconds', priority: 'hidden', order: 7 }, { id: 'weight', priority: 'hidden', order: 8 }, { id: 'appearanceProbability', priority: 'hidden', order: 9 }, { id: 'effectTags', priority: 'hidden', order: 10 }, { id: 'eventGroup', priority: 'detail', order: 11 }]" row-key="eventId" :loading="loading" :sorting-options="eventSortingOptions" :grouping-options="eventGroupingOptions" :default-sorting="defaultEventSorting" :table-grouping-options="tableGroupingOptions" sticky="header" scroll-height="clamp(14rem, calc(100dvh - 18rem), 42rem)" :virtualize="{ estimateSize: 65, overscan: 8 }" empty="暂无事件记录。" table-key="events" table-min-width="1180px" class="admin-table">
         <template #filters><div class="flex flex-1 flex-wrap items-center gap-2"><UInput v-model="query" class="min-w-56 flex-1" size="md" aria-label="搜索事件" placeholder="搜索名称、类别或稀有度" icon="i-lucide-search" /><UCheckbox v-model="showArchived" label="包含已归档" /><UButton label="新建事件" icon="i-lucide-plus" @click="openCreate" /><UButton label="导入 CSV" color="neutral" variant="outline" icon="i-lucide-upload" @click="importOpen = !importOpen" /></div></template>
         <template #mobile-primary><UInput v-model="query" class="w-full" size="md" aria-label="搜索事件" placeholder="搜索名称、类别或稀有度" icon="i-lucide-search" /><UButton label="新建事件" icon="i-lucide-plus" @click="openCreate" /></template>
         <template #mobile-secondary><UCheckbox v-model="showArchived" label="包含已归档" /><UButton label="导入 CSV" color="neutral" variant="outline" icon="i-lucide-upload" @click="importOpen = !importOpen" /></template>
         <template #name-cell="{ row }"><div v-if="row.getIsGrouped()" class="flex items-center gap-2"><UButton class="hit-target-lg" size="sm" color="neutral" variant="ghost" square :icon="row.getIsExpanded() ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'" :aria-label="row.getIsExpanded() ? '收起分组' : '展开分组'" @click="row.toggleExpanded()" /><strong>{{ groupLabel(row.groupingColumnId ?? "", row.getValue(row.groupingColumnId ?? "")) }}</strong><span class="text-sm text-muted">{{ row.subRows.length }} 条</span></div><strong v-else class="block truncate" :title="row.original.name">{{ row.original.name }}</strong></template>
         <template #description-cell="{ row }"><span v-if="!row.getIsGrouped()" class="line-clamp-2 block" :title="row.original.description">{{ row.original.description }}</span></template>
+        <template #eventGroup-cell="{ row }"><span v-if="!row.getIsGrouped()">{{ row.original.eventGroup ?? "—" }}</span></template>
         <template #category-cell="{ row }"><UBadge v-if="!row.getIsGrouped()" :label="row.original.category" :color="categoryColor(row.original.category)" variant="subtle" /></template>
         <template #rarity-cell="{ row }"><span v-if="!row.getIsGrouped()">{{ row.original.rarity || "—" }}</span></template>
         <template #cooldownSeconds-cell="{ row }"><span v-if="!row.getIsGrouped()">{{ row.original.cooldownSeconds ?? "—" }}</span></template>
@@ -168,6 +173,7 @@ async function importEvents() { if (!importFile.value || !importPreview.value ||
             <div class="grid gap-4 md:grid-cols-2">
               <UFormField label="名称"><UInput v-model="form.name" required /></UFormField>
               <UFormField label="类别"><UInputMenu v-model="form.category" :items="categoryItems" create-item placeholder="选择或输入类别" :disabled="saving" required class="w-full" @create="form.category = $event.trim()" /></UFormField>
+              <UFormField label="事件组"><UInputMenu v-model="form.eventGroup" :items="eventGroupItems" create-item clear placeholder="选择或输入事件组" :disabled="saving" class="w-full" @create="form.eventGroup = $event.trim()" @clear="form.eventGroup = ''" /></UFormField>
               <UFormField label="版本"><UInput v-model="form.gameVersion" required /></UFormField>
               <UFormField label="权重" :hint="`稀有度：${derivedRarity}`"><UInputNumber v-model="form.weight" :min="0" :step="0.01" class="w-full" /></UFormField>
               <UFormField label="内置冷却（秒）"><UInputNumber v-model="form.cooldownSeconds" :min="0" class="w-full" /></UFormField>

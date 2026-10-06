@@ -13,6 +13,7 @@ const testEvent = {
   cooldownSeconds: 10,
   weight: 1,
   gameVersion: "2026.07.18",
+  eventGroup: "赌徒",
   effectTags: ["测试"],
   effectAnnotations: [],
   releaseStatus: "implemented",
@@ -82,7 +83,8 @@ describe("admin events page", () => {
     expect(saved).toBeTruthy();
     const body = saved![1]!.body!;
     expect(body).not.toHaveProperty("rarity");
-    expect(body).toMatchObject({ name: "测试事件", category: "增益", weight: 1, effectTags: ["测试"], gameVersion: "2026.07.18" });
+    expect(body).toMatchObject({ name: "测试事件", category: "增益", eventGroup: "赌徒", weight: 1, effectTags: ["测试"], gameVersion: "2026.07.18" });
+    expect(form.find('input[placeholder="选择或输入事件组"]').element).toHaveProperty("value", "赌徒");
   });
 
   it("commits created category and effect tag values into the save body", async () => {

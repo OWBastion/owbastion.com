@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { createPlatformServices } from "./index";
@@ -29,9 +30,10 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   CREATE TABLE random_events (
     id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, category TEXT NOT NULL, rarity TEXT NOT NULL,
     description TEXT NOT NULL, duration_seconds INTEGER, cooldown_seconds REAL, weight REAL,
-    game_version TEXT NOT NULL, effect_tags_json TEXT NOT NULL DEFAULT '[]', release_status TEXT NOT NULL,
+    game_version TEXT NOT NULL, event_group TEXT, effect_tags_json TEXT NOT NULL DEFAULT '[]', release_status TEXT NOT NULL,
     archived_at INTEGER, archived_by TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
   );
+  CREATE TABLE random_event_versions (game_version TEXT PRIMARY KEY NOT NULL, availability TEXT NOT NULL DEFAULT 'available', suspended_at INTEGER, suspended_by TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
   CREATE TABLE random_event_imports (
     id TEXT PRIMARY KEY NOT NULL, source_hash TEXT NOT NULL, file_name TEXT NOT NULL,
     row_count INTEGER NOT NULL, imported_by TEXT NOT NULL, imported_at INTEGER NOT NULL
@@ -133,5 +135,66 @@ describe("random-event rarity derivation", () => {
     const result = await services.importAdminRandomEvents({ contractVersion: "1", fileName: "events.csv", csv }, auth, "import-1");
     expect(result.importedCount).toBe(1);
     expect(sqlite.prepare("SELECT rarity, weight FROM random_events WHERE name = ?").get("导入事件")).toEqual({ rarity: "N", weight: 1.5 });
+  });
+
+  it("stores the event group, keeps it when an update omits it, and clears it with null", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    const services = createPlatformServices(database);
+
+    const created = await services.createAdminRandomEvent(writeInput({ eventGroup: "赌徒" }), auth, "group-create");
+    expect(created.eventGroup).toBe("赌徒");
+    expect(sqlite.prepare("SELECT event_group FROM random_events WHERE id = ?").get(created.eventId)).toEqual({ event_group: "赌徒" });
+
+    const kept = await services.updateAdminRandomEvent({ ...writeInput({ name: "改名" }), eventId: created.eventId }, auth, "group-keep");
+    expect(kept.eventGroup).toBe("赌徒");
+
+    const cleared = await services.updateAdminRandomEvent({ ...writeInput({ eventGroup: null }), eventId: created.eventId }, auth, "group-clear");
+    expect(cleared.eventGroup).toBeNull();
+
+    const plain = await services.createAdminRandomEvent(writeInput({ name: "无组事件" }), auth, "group-none");
+    expect(plain.eventGroup).toBeNull();
+  });
+
+  it("matches events by group name in search", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    const services = createPlatformServices(database);
+    await services.createAdminRandomEvent(writeInput({ name: "梭哈", eventGroup: "赌徒" }), auth, "search-a");
+    await services.createAdminRandomEvent(writeInput({ name: "先知" }), auth, "search-b");
+
+    const result = await services.listAgentEvents({ query: "赌徒", page: 1, pageSize: 20 });
+    expect(result.items.map((event) => event.name)).toEqual(["梭哈"]);
+    expect(result.items[0]?.eventGroup).toBe("赌徒");
+  });
+
+  it("imports an optional trailing 事件组 column", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    const services = createPlatformServices(database);
+
+    const csv = [`${csvHeaders},事件组`, "梭哈,效果说明,机制,,,0.5,30,1.5,,,,,,,5.0,心之钢,已实装,赌徒", "先知,效果说明,机制,,,0.5,30,1.5,,,,,,,5.0,心之钢,已实装,"].join("\n");
+    expect((await services.previewAdminRandomEventImport({ contractVersion: "1", fileName: "events.csv", csv })).errors).toEqual([]);
+    await services.importAdminRandomEvents({ contractVersion: "1", fileName: "events.csv", csv }, auth, "import-group");
+    expect(sqlite.prepare("SELECT name, event_group FROM random_events ORDER BY name").all()).toEqual([{ name: "先知", event_group: null }, { name: "梭哈", event_group: "赌徒" }]);
+  });
+});
+
+describe("random-event group migration", () => {
+  it("backfills only prefixes shared by at least two events", () => {
+    const { sqlite } = createD1();
+    sqlite.exec("CREATE TABLE random_events (id TEXT PRIMARY KEY, name TEXT NOT NULL)");
+    const insert = sqlite.prepare("INSERT INTO random_events (id, name) VALUES (?, ?)");
+    ["赌徒：梭哈", "赌徒：心之钢", "作弊：先知", "任务：有福同享", "任务：同行链", "没有前缀", "：空前缀"].forEach((name, index) => insert.run(`e${index}`, name));
+    sqlite.exec(readFileSync(new URL("../../../migrations/0095_random_event_group.sql", import.meta.url), "utf8"));
+    expect(sqlite.prepare("SELECT name, event_group FROM random_events ORDER BY id").all()).toEqual([
+      { name: "赌徒：梭哈", event_group: "赌徒" },
+      { name: "赌徒：心之钢", event_group: "赌徒" },
+      { name: "作弊：先知", event_group: null },
+      { name: "任务：有福同享", event_group: "任务" },
+      { name: "任务：同行链", event_group: "任务" },
+      { name: "没有前缀", event_group: null },
+      { name: "：空前缀", event_group: null },
+    ]);
   });
 });

@@ -986,7 +986,7 @@
   "/v1/agents/events": {
    "get": {
     "operationId": "listAgentEvents",
-    "description": "Read-only Bastion build projection. Events belonging to a suspended game version are omitted entirely; the projection does not expose the operational availability state. Without status, the projection covers implemented and removed events; an explicit status selects that single releaseStatus, including development events outside the default projection.",
+    "description": "Read-only Bastion build projection. Each event carries an optional eventGroup label (null when unset); it is display metadata and does not affect Bastion eligibility. Events belonging to a suspended game version are omitted entirely; the projection does not expose the operational availability state. Without status, the projection covers implemented and removed events; an explicit status selects that single releaseStatus, including development events outside the default projection.",
     "parameters": [
      {
       "$ref": "#/components/parameters/agentPage"

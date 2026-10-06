@@ -24,7 +24,16 @@ describe("v1 platform contracts", () => {
     expect(adminRandomEventUpdateRequestSchema.safeParse(input).success).toBe(true);
     expect(adminRandomEventUpdateRequestSchema.safeParse({ ...input, rarity: "SSR" }).success).toBe(false);
     expect(adminRandomEventUpdateRequestSchema.safeParse({ ...input, appearanceProbability: 0.1 }).success).toBe(false);
-    expect(randomEventSchema.safeParse({ eventId: "event.test", ...input, rarity: "SR", effectAnnotations: [], archived: false, challenges: [] }).success).toBe(true);
+    expect(randomEventSchema.safeParse({ eventId: "event.test", ...input, eventGroup: "赌徒", rarity: "SR", effectAnnotations: [], archived: false, challenges: [] }).success).toBe(true);
+  });
+  it("treats the event group as an optional, trimmed write field that clears when empty", () => {
+    const input = { contractVersion: "1", name: "事件", category: "机制", description: "说明", durationSeconds: null, cooldownSeconds: null, weight: null, gameVersion: "5.0", effectTags: [], releaseStatus: "implemented", challengeLinks: [] };
+    expect(adminRandomEventUpdateRequestSchema.parse(input).eventGroup).toBeUndefined();
+    expect(adminRandomEventUpdateRequestSchema.parse({ ...input, eventGroup: "  赌徒  " }).eventGroup).toBe("赌徒");
+    expect(adminRandomEventUpdateRequestSchema.parse({ ...input, eventGroup: "   " }).eventGroup).toBeNull();
+    expect(adminRandomEventUpdateRequestSchema.parse({ ...input, eventGroup: null }).eventGroup).toBeNull();
+    expect(adminRandomEventUpdateRequestSchema.safeParse({ ...input, eventGroup: "x".repeat(65) }).success).toBe(false);
+    expect(randomEventSchema.safeParse({ eventId: "event.test", ...input, rarity: "", effectAnnotations: [], archived: false, challenges: [] }).success).toBe(false);
   });
   it("validates version-level random-event availability", () => {
     expect(adminRandomEventVersionAvailabilityRequestSchema.safeParse({ contractVersion: "1", availability: "suspended" }).success).toBe(true);

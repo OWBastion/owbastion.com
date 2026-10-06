@@ -495,6 +495,12 @@ idempotent operational state. Suspension leaves event lifecycle, balancing
 metadata, and admin visibility unchanged, but omits that version's events from
 the Bastion-facing `/v1/agents/events` projection. It takes effect on the next
 Bastion sync/build/release; the platform does not trigger those operations.
+Each event carries an optional `eventGroup`, a maintainer-set label for
+grouping and search in the Portal. It is display metadata only: it does not
+affect eligibility or probability, and it is separate from the Bastion-side
+eligibility event groups. Maintainers set it in the editor or through an
+optional trailing `事件组` CSV column; leaving it out of an update keeps the
+stored value.
 The default projection covers implemented and removed events. An explicit
 `status` query parameter selects a single `releaseStatus` — `development`,
 `implemented`, or `removed` — so agents can inspect events still under
