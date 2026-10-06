@@ -2,13 +2,10 @@ import { authenticateQqBot } from "@owbastion/auth";
 import { createVerifiedRunEvidenceCompatibilityV1 } from "@owbastion/domain";
 import { createPlatformServices } from "@owbastion/database";
 import { createApp, type RuntimeEnv } from "./app";
+import { OCR_PENDING_RECOVERY_AGE_MS, OCR_QUEUE_MAX_DELIVERIES } from "./ocr-queue-policy";
 
 type OcrQueueMessage = { version: number; jobId: string; submissionId: string; objectKey: string; manual?: boolean; requestId?: string };
 type QqPolicyQueueMessage = { version: 1; eventId: string };
-// Keep this aligned with `max_retries` for the OCR consumers in wrangler.toml and wrangler.local.toml.
-export const OCR_QUEUE_MAX_RETRIES = 3;
-export const OCR_QUEUE_MAX_DELIVERIES = OCR_QUEUE_MAX_RETRIES + 1;
-export const OCR_PENDING_RECOVERY_AGE_MS = 15 * 60_000;
 const OCR_DEAD_LETTER_QUEUES = new Set(["owbastion-ocr-dlq", "owbastion-ocr-local-dlq"]);
 const ocrThreshold = (env: RuntimeEnv) => { const parsed = Number(env.OCR_MANUAL_REVIEW_THRESHOLD); return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1; };
 const ocrSampleRate = (env: RuntimeEnv) => { const parsed = Number(env.OCR_AUTO_REVIEW_SAMPLE_RATE); return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : 0; };

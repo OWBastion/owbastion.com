@@ -2,7 +2,8 @@
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlatformServices } from "@owbastion/domain";
-import worker, { OCR_PENDING_RECOVERY_AGE_MS, OCR_QUEUE_MAX_DELIVERIES, OCR_QUEUE_MAX_RETRIES } from "./worker";
+import worker from "./worker";
+import { OCR_PENDING_RECOVERY_AGE_MS, OCR_QUEUE_MAX_DELIVERIES, OCR_QUEUE_MAX_RETRIES } from "./ocr-queue-policy";
 
 const createPlatformServices = vi.hoisted(() => vi.fn());
 
