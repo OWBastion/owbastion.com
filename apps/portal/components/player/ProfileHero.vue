@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { OwnedTitle } from "~/types/title";
-
-export type ProfileStat = { label: string; value: string; unit?: string };
+import type { ProfileStat } from "./StatSheet.vue";
 
 defineProps<{ playerName: string; playerId: string; equippedTitles: OwnedTitle[]; titlesReady: boolean; stats: ProfileStat[] }>();
 const emit = defineEmits<{ inspect: [title: OwnedTitle] }>();
@@ -17,12 +16,7 @@ const emit = defineEmits<{ inspect: [title: OwnedTitle] }>();
       </ul>
       <p v-else-if="titlesReady" class="profile-hero__empty">还没有佩戴称号。<NuxtLink to="/achievements">去佩戴</NuxtLink></p>
     </div>
-    <dl class="profile-hero__stats">
-      <div v-for="stat in stats" :key="stat.label" class="profile-hero__stat">
-        <dt>{{ stat.label }}</dt>
-        <dd class="num">{{ stat.value }}<small v-if="stat.unit">{{ stat.unit }}</small></dd>
-      </div>
-    </dl>
+    <PlayerStatSheet :stats="stats" />
   </section>
 </template>
 
@@ -35,18 +29,9 @@ const emit = defineEmits<{ inspect: [title: OwnedTitle] }>();
 .profile-hero__titles > li { min-width: 0; max-width: 100%; }
 .profile-hero__empty { grid-area: titles; margin: 0; color: var(--muted); font-size: var(--type-body-sm-size); }
 .profile-hero__empty a { color: var(--accent); font-weight: 600; }
-.profile-hero__stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--line); }
-.profile-hero__stat { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); background: var(--surface); }
-.profile-hero__stat dd { margin: 0; color: var(--text); font-size: var(--type-headline-size); font-weight: 700; line-height: 1.1; }
-.profile-hero__stat small { margin-left: var(--space-1); color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; }
-.profile-hero__stat dt { color: var(--muted); font-size: var(--type-label-sm-size); }
-.profile-hero__stat { grid-template-areas: "value" "label"; }
-.profile-hero__stat dd { grid-area: value; }
-.profile-hero__stat dt { grid-area: label; }
 @container (max-width: 35.99rem) {
-  .profile-hero__main { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "avatar name" "titles titles"; }
+  .profile-hero__main { grid-template-areas: "avatar name" "titles titles"; }
   .profile-hero__avatar { width: 3.5rem; height: 3.5rem; align-self: center; font-size: 1.4rem; }
-  .profile-hero__stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@media (prefers-contrast: more) { .profile-hero__avatar, .profile-hero__stats { border-color: var(--text); } }
+@media (prefers-contrast: more) { .profile-hero__avatar { border-color: var(--text); } }
 </style>

@@ -51,13 +51,6 @@ const heroStats = computed(() => [
   { label: "精通 XP", value: masteryReady.value ? String(totalXp.value) : "—" },
   { label: "近一年通关", value: activityReady.value ? String(yearRuns.value) : "—", unit: activityReady.value ? "次" : undefined },
 ]);
-const startedMapIds = computed(() => new Set([
-  ...progressRows.value.filter((row) => row.earnedChallenges.length).map((row) => row.map.mapId),
-  ...currentProfiles.value.filter((profile) => profile.verifiedRunCount > 0).map((profile) => profile.mapId),
-]));
-const startedMaps = computed(() => maps.value.filter((map) => startedMapIds.value.has(map.mapId)));
-const untouchedMaps = computed(() => maps.value.filter((map) => !startedMapIds.value.has(map.mapId)));
-const showUntouched = shallowRef(false);
 const inspected = shallowRef<OwnedTitle | null>(null);
 const inspectOpen = shallowRef(false);
 function inspectTitle(title: OwnedTitle) { inspected.value = title; inspectOpen.value = true; }
@@ -232,34 +225,16 @@ onMounted(() => {
           <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="masteryRetrying" @click="retryMastery" /></template>
         </UAlert>
         <div v-if="masteryPending" class="mastery-loading" role="status" aria-label="读取地图进度…"><USkeleton /><USkeleton /></div>
-        <template v-else-if="!catalogError">
-          <PlayerMapProgressOverview
-            v-if="startedMaps.length"
-            :maps="startedMaps"
-            :challenges="challenges"
-            :titles="titles"
-            :profiles="profiles"
-            show-targets
-            :show-mastery-facts="!masteryError"
-            :title-progress-available="titlesReady"
-          />
-          <UEmpty v-else-if="!untouchedMaps.length" title="暂无地图" variant="naked" />
-          <UCollapsible v-if="untouchedMaps.length" v-model:open="showUntouched" class="untouched">
-            <UButton :label="startedMaps.length ? `还有 ${untouchedMaps.length} 张地图没有记录` : `${untouchedMaps.length} 张地图还没有记录`" color="neutral" variant="outline" trailing-icon="i-lucide-chevron-down" block />
-            <template #content>
-              <PlayerMapProgressOverview
-                class="untouched-list"
-                :maps="untouchedMaps"
-                :challenges="challenges"
-                :titles="titles"
-                :profiles="profiles"
-                show-targets
-                :show-mastery-facts="!masteryError"
-                :title-progress-available="titlesReady"
-              />
-            </template>
-          </UCollapsible>
-        </template>
+        <PlayerMapProgressSection
+          v-else-if="!catalogError"
+          :maps="maps"
+          :challenges="challenges"
+          :titles="titles"
+          :profiles="profiles"
+          show-targets
+          :show-mastery-facts="!masteryError"
+          :title-progress-available="titlesReady"
+        />
       </section>
 
       <PlayerTitleInspectDialog v-model:open="inspectOpen" :title="inspected" />
@@ -299,8 +274,6 @@ onMounted(() => {
 .section-block { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
 .profile-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 var(--space-8); align-items: start; }
 .profile-side { display: grid; min-width: 0; }
-.untouched { margin-top: var(--space-4); }
-.untouched-list { margin-top: var(--space-4); }
 .heatmap-loading > * { min-height: 9.5rem; border-radius: var(--radius-card); }
 .title-loading { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
 .title-loading-card { min-height: 5.5rem; border-radius: var(--radius-card); }

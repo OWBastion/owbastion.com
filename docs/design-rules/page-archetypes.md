@@ -17,11 +17,16 @@
 
 ## Player center
 
-- Identity and current-player facts first, then recent records and available
-  actions.
-- Use `PlayerIdentityCard`, `PageSectionHeader`, `TitleCollection`, and
-  `PlayerRecentSubmissions`.
-- Collapse to one column on narrow screens.
+- Answer "what should I do next": greeting and the primary upload action
+  first, a warning only when a submission needs the player (a rejection that
+  asks for a new upload), one summary row (`PlayerStatSheet`), the unfinished
+  map goals the player is already on (`PlayerNextGoals`), recent submissions,
+  recently earned titles, then map progress.
+- Map progress lists started maps and collapses the rest behind one control
+  (`PlayerMapProgressSection`); it never renders a wall of empty cards.
+- Use `PageSectionHeader`, `PlayerRecentSubmissions`, `PlayerTitleBadge`.
+- Collapse to one column on narrow screens; on a phone the primary action leads
+  and the secondary links share one row.
 
 ## Player profile
 

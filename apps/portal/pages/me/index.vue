@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { portalErrorDetails } from "~/utils/portal-error";
+import { playerSubmissionStatusLabel } from "~/utils/submissionStatus";
 import type { PortalMap } from "~/composables/usePortalApi";
-import type { MapProgressChallenge } from "~/utils/map-progress";
+import { buildMapProgressRows, nextMapGoals, type MapProgressChallenge } from "~/utils/map-progress";
+import type { OwnedTitle } from "~/types/title";
 
 definePageMeta({ middleware: "auth" });
 useSeoMeta({ title: "玩家中心 · 躲避堡垒 3" });
@@ -23,9 +25,29 @@ const masteryMaps = shallowRef<PortalMap[]>([]);
 const masteryChallenges = shallowRef<MapProgressChallenge[]>([]);
 const masteryCatalogError = shallowRef("");
 const recentTitles = computed(() => [...titles.value].sort((left, right) => right.grantedAt - left.grantedAt).slice(0, 3));
+const inspected = shallowRef<OwnedTitle | null>(null);
+const inspectOpen = shallowRef(false);
+function inspectTitle(title: OwnedTitle) { inspected.value = title; inspectOpen.value = true; }
 const formatTitleDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(timestamp);
 const titleMeta = (title: (typeof titles.value)[number]) => title.mapName ?? (title.scope === "global" ? title.category : "");
 
+const progressRows = computed(() => buildMapProgressRows({ maps: masteryMaps.value, challenges: masteryChallenges.value, titles: titles.value, profiles: masteryProfiles.value }));
+const currentProfiles = computed(() => masteryProfiles.value.filter((profile) => profile.gameplayRevisionLifecycle === "default"));
+const catalogReady = computed(() => titlesReady.value && !masteryCatalogError.value && masteryMaps.value.length > 0);
+const goals = computed(() => catalogReady.value ? nextMapGoals(progressRows.value) : []);
+const stats = computed(() => {
+  const earned = progressRows.value.reduce((sum, row) => sum + row.earnedChallenges.length, 0);
+  const total = progressRows.value.reduce((sum, row) => sum + row.challenges.length, 0);
+  const masteryReady = !masteryLoading.value && !masteryError.value;
+  return [
+    { label: "称号", value: titlesReady.value ? String(titles.value.length) : "—", unit: titlesReady.value ? "个" : undefined },
+    { label: "地图成就", value: catalogReady.value && total ? String(earned) : "—", unit: catalogReady.value && total ? `/ ${total}` : undefined },
+    { label: "精通 XP", value: masteryReady ? String(currentProfiles.value.reduce((sum, profile) => sum + profile.totalXp, 0)) : "—" },
+    { label: "已验证通关", value: masteryReady ? String(currentProfiles.value.reduce((sum, profile) => sum + profile.verifiedRunCount, 0)) : "—", unit: masteryReady ? "次" : undefined },
+  ];
+});
+// Only a rejection that asks for a new upload needs the player; a final rejection stays in the list.
+const needsAttention = computed(() => (player.value?.recentSubmissions ?? []).filter((submission) => submission.status === "rejected" && submission.resubmissionRequired));
 const showSkeleton = computed(() => loading.value && !player.value);
 const sessionUnavailable = computed(() => !loading.value && !player.value && !playerError.value && status.value === "anonymous");
 const playerLoadFailed = computed(() => !loading.value && !player.value && Boolean(playerError.value));
@@ -166,23 +188,30 @@ onMounted(() => {
         </template>
       </UAlert>
 
-      <section class="section-block section-block--first" aria-labelledby="submissions-title">
-        <PageSectionHeader title="最近提交" heading-id="submissions-title" />
-        <PlayerRecentSubmissions :submissions="player.recentSubmissions" />
-      </section>
+      <UAlert
+        v-if="needsAttention.length"
+        color="warning"
+        variant="subtle"
+        icon="i-lucide-triangle-alert"
+        :title="`${needsAttention.length} 次提交需要你处理`"
+        :description="`${needsAttention[0]!.mapName}：${playerSubmissionStatusLabel(needsAttention[0]!.status, needsAttention[0]!.resubmissionRequired)}`"
+        class="me-alert"
+      >
+        <template #actions><UButton :to="`/submissions/${needsAttention[0]!.submissionId}`" label="去处理" color="neutral" variant="outline" size="sm" /></template>
+      </UAlert>
 
-      <section class="section-block mastery-section" aria-labelledby="mastery-title">
-        <PageSectionHeader title="地图进度" heading-id="mastery-title">
+      <PlayerStatSheet :stats="stats" class="me-stats" />
+
+      <section v-if="goals.length" class="section-block" aria-labelledby="goals-title">
+        <PageSectionHeader title="继续挑战" heading-id="goals-title">
           <template #actions><UButton to="/maps" label="查看地图" color="neutral" variant="outline" /></template>
         </PageSectionHeader>
-        <UAlert v-if="masteryError" color="error" variant="subtle" title="无法读取精通记录" :description="masteryError" class="me-alert">
-          <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="masteryRetrying" @click="retryMastery" /></template>
-        </UAlert>
-        <UAlert v-if="masteryCatalogError" color="error" variant="subtle" title="无法读取地图" :description="masteryCatalogError" class="me-alert">
-          <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="masteryRetrying" @click="retryMastery" /></template>
-        </UAlert>
-        <div v-if="masteryLoading" class="mastery-loading" role="status" aria-label="读取地图进度…"><USkeleton /><USkeleton /></div>
-        <PlayerMapProgressOverview v-else-if="!masteryCatalogError" :maps="masteryMaps" :challenges="masteryChallenges" :titles="titles" :profiles="masteryProfiles" :title-progress-available="titlesReady" />
+        <PlayerNextGoals :goals="goals" />
+      </section>
+
+      <section class="section-block" aria-labelledby="submissions-title">
+        <PageSectionHeader title="最近提交" heading-id="submissions-title" />
+        <PlayerRecentSubmissions :submissions="player.recentSubmissions" />
       </section>
 
       <section class="section-block titles-section" aria-labelledby="titles-title">
@@ -204,10 +233,7 @@ onMounted(() => {
           </template>
         </UAlert>
         <ul v-else-if="titlesReady && recentTitles.length" class="recent-titles">
-          <li v-for="title in recentTitles" :key="title.grantId" class="recent-title">
-            <strong>{{ title.label }}</strong>
-            <span>{{ formatTitleDate(title.grantedAt) }}<template v-if="titleMeta(title)"> · {{ titleMeta(title) }}</template></span>
-          </li>
+          <li v-for="title in recentTitles" :key="title.grantId"><PlayerTitleBadge :title="title" @inspect="inspectTitle" /></li>
         </ul>
         <UEmpty v-else-if="titlesReady" title="暂无称号" variant="naked" />
         <div v-else-if="loading" class="titles-loading" role="status" aria-label="读取中…">
@@ -217,6 +243,21 @@ onMounted(() => {
         </div>
       </section>
 
+      <section class="section-block mastery-section" aria-labelledby="mastery-title">
+        <PageSectionHeader title="地图进度" heading-id="mastery-title">
+          <template #actions><UButton to="/maps" label="查看地图" color="neutral" variant="outline" /></template>
+        </PageSectionHeader>
+        <UAlert v-if="masteryError" color="error" variant="subtle" title="无法读取精通记录" :description="masteryError" class="me-alert">
+          <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="masteryRetrying" @click="retryMastery" /></template>
+        </UAlert>
+        <UAlert v-if="masteryCatalogError" color="error" variant="subtle" title="无法读取地图" :description="masteryCatalogError" class="me-alert">
+          <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="masteryRetrying" @click="retryMastery" /></template>
+        </UAlert>
+        <div v-if="masteryLoading" class="mastery-loading" role="status" aria-label="读取地图进度…"><USkeleton /><USkeleton /></div>
+        <PlayerMapProgressSection v-else-if="!masteryCatalogError" :maps="masteryMaps" :challenges="masteryChallenges" :titles="titles" :profiles="masteryProfiles" :title-progress-available="titlesReady" />
+      </section>
+
+      <PlayerTitleInspectDialog v-model:open="inspectOpen" :title="inspected" />
     </template>
 
     <div v-else-if="showSkeleton" class="me-skeleton" role="status" aria-label="读取中…">
@@ -295,12 +336,10 @@ onMounted(() => {
 .passkey-nudge-copy span { color: var(--muted); font-size: .86rem; line-height: 1.5; }
 .passkey-nudge-actions { display: flex; flex: 0 0 auto; align-items: center; gap: var(--space-2); }
 .section-block { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
-.section-block--first { margin-top: 0; }
 .titles-section { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
-.recent-titles { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
-.recent-title { display: grid; gap: var(--space-1); min-width: 0; padding: var(--space-4) var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
-.recent-title strong { overflow-wrap: anywhere; font-weight: 600; letter-spacing: var(--type-headline-tracking); }
-.recent-title span { color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; }
+.recent-titles { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.recent-titles > li { min-width: 0; max-width: 100%; }
+.me-stats { margin-bottom: var(--space-2); }
 .titles-loading { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
 .titles-loading-card { min-height: 112px; border-radius: var(--radius-card); }
 .mastery-loading { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
@@ -352,8 +391,9 @@ onMounted(() => {
 @media (max-width: 47.99rem) {
   .titles-loading, .mastery-loading, .me-skeleton-mastery-grid { grid-template-columns: 1fr; }
   .intro { align-items: stretch; flex-direction: column; gap: var(--space-5); }
-  .intro-actions { width: 100%; flex-direction: column; align-items: stretch; }
+  .intro-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
   .intro-action { width: 100%; justify-content: center; }
+  .intro-action:last-child { grid-column: 1 / -1; order: -1; }
   .passkey-nudge { align-items: stretch; flex-direction: column; }
   .passkey-nudge-actions { justify-content: flex-end; }
   .me-skeleton-intro { align-items: stretch; flex-direction: column; gap: var(--space-5); margin-bottom: var(--space-5); }

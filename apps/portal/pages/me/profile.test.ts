@@ -100,7 +100,7 @@ async function mountPage(): Promise<VueWrapper> {
   return wrapper;
 }
 
-const stat = (wrapper: VueWrapper, label: string) => wrapper.findAll(".profile-hero__stat").find((item) => item.get("dt").text() === label)!.get("dd").text().replace(/\s+/g, " ");
+const stat = (wrapper: VueWrapper, label: string) => wrapper.findAll(".stat-sheet__item").find((item) => item.get("dt").text() === label)!.get("dd").text().replace(/\s+/g, " ");
 const openUntouched = async (wrapper: VueWrapper) => {
   await wrapper.findAll("button").find((button) => button.text().includes("没有记录"))!.trigger("click");
   await flushPromises();
