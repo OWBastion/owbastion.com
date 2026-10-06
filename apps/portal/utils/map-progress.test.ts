@@ -69,10 +69,11 @@ describe("nextMapGoals", () => {
     expect(nextMapGoals(rows)).toEqual([{ mapId: "map.partial", mapName: "部分完成地图", next: challenges[2], earned: 1, total: 2 }]);
   });
 
-  it("counts a verified run as started and orders by what is left", () => {
+  it("counts a verified run as started and orders by what is left, then by what is earned", () => {
     const profile = { mapId: "map.unplayed", gameplayRevisionId: "revision:unplayed:default", totalXp: 10, verifiedRunCount: 1, lowestDeaths: null, fewestSkips: null, highestCompletedDifficulty: null, recentRuns: [] };
     const rows = buildMapProgressRows({ maps, challenges, titles, profiles: [profile] });
-    expect(nextMapGoals(rows).map((goal) => goal.mapId)).toEqual(["map.unplayed", "map.partial"]);
+    // Both have one goal left; the map with more already earned comes first.
+    expect(nextMapGoals(rows).map((goal) => goal.mapId)).toEqual(["map.partial", "map.unplayed"]);
     expect(nextMapGoals(rows, 1)).toHaveLength(1);
   });
 });
