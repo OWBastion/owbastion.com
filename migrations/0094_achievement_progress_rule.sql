@@ -32,11 +32,4 @@ CREATE UNIQUE INDEX challenge_completions_source_idx
   ON challenge_completions(source_type, source_id, challenge_id);
 CREATE INDEX challenge_completions_player_idx ON challenge_completions(player_account_id, completed_at DESC);
 
--- Grant dedup must be per player: existing source ids are already
--- player-scoped, so widening the key preserves their dedup while allowing
--- per-player grants that share one Challenge source id.
-DROP INDEX player_title_grants_source_idx;
-CREATE UNIQUE INDEX player_title_grants_source_idx
-  ON player_title_grants(source_type, source_id, title_key, player_account_id);
-
 PRAGMA foreign_keys=ON;

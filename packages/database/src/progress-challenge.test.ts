@@ -143,7 +143,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     granted_by TEXT NOT NULL, granted_at INTEGER NOT NULL, revoked_by TEXT, revoked_at INTEGER, revoke_reason TEXT,
     completion_id TEXT, revocation_type TEXT
   );
-  CREATE UNIQUE INDEX player_title_grants_source_idx ON player_title_grants(source_type, source_id, title_key, player_account_id);
+  CREATE UNIQUE INDEX player_title_grants_source_idx ON player_title_grants(source_type, source_id, title_key);
   CREATE UNIQUE INDEX player_title_grants_active_identity_idx ON player_title_grants(player_account_id, title_key, COALESCE(map_id, ''), COALESCE(gameplay_revision_id, '')) WHERE status = 'active';
   CREATE UNIQUE INDEX player_title_grants_completion_idx ON player_title_grants(completion_id) WHERE completion_id IS NOT NULL;
   CREATE TABLE mastery_runs (
@@ -291,7 +291,7 @@ describe("verified-run progress challenges", () => {
     expect(completions[0]).toMatchObject({ status: "active", source_type: "verified_run_progress", source_id: "account-1", gameplay_revision_id: null });
     const grants = progressGrants(sqlite);
     expect(grants).toHaveLength(1);
-    expect(grants[0]).toMatchObject({ status: "active", source_type: "automatic", source_id: "title.ANNIVERSARY_TOUR", granted_by: "system:verified_run_progress", completion_id: completions[0]!.id });
+    expect(grants[0]).toMatchObject({ status: "active", source_type: "automatic", source_id: "title.ANNIVERSARY_TOUR:account-1", granted_by: "system:verified_run_progress", completion_id: completions[0]!.id });
     expect(canonicalChallengeIds(sqlite)).toHaveLength(1);
     expect(JSON.parse(canonicalChallengeIds(sqlite)[0]!.conditions_json)).toEqual({ operator: "and", conditions: [{ type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"] }] });
   });
@@ -459,7 +459,7 @@ describe("verified-run progress challenges", () => {
     expect(completions.filter((completion) => completion.status === "active")).toHaveLength(1);
     const grants = progressGrants(sqlite);
     expect(grants).toHaveLength(1);
-    expect(grants[0]).toMatchObject({ status: "active", source_id: "title.ANNIVERSARY_TOUR", completion_id: completions.find((completion) => completion.status === "active")!.id });
+    expect(grants[0]).toMatchObject({ status: "active", source_id: "title.ANNIVERSARY_TOUR:account-1", completion_id: completions.find((completion) => completion.status === "active")!.id });
 
     // Removing the rule turns it back into a screenshot challenge and clears
     // the derived mirror: the completion is invalidated and the grant revoked.
