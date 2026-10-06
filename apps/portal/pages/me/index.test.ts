@@ -52,7 +52,7 @@ async function mountPage(options?: { attachTo?: HTMLElement }): Promise<VueWrapp
       stubs: {
         StatusBadge: true,
         PlayerRecentSubmissions: { template: "<div>近期提交内容</div>" },
-        MapProgressOverview: { template: "<div>地图进度内容</div>" },
+        PlayerMapProgressOverview: { template: "<div>地图进度内容</div>" },
         PageSectionHeader: { props: ["title", "eyebrow"], template: "<header><p v-if=\"eyebrow\">{{ eyebrow }}</p><h2>{{ title }}</h2><slot name=\"actions\" /></header>" },
         UButton: {
           props: ["to", "label", "loading"],

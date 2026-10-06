@@ -655,6 +655,8 @@ export const adminPlayerEquippedTitlesRequestSchema = z.object({ contractVersion
   if (new Set(value.grantIds).size !== value.grantIds.length) context.addIssue({ code: "custom", message: "Grant IDs must be unique" });
 });
 export const currentPlayerTitlesResponseSchema = z.object({ contractVersion, items: z.array(ownedTitleSchema), allTitles: z.boolean() });
+export const playerActivityDaySchema = z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), runCount: z.number().int().nonnegative() });
+export const playerActivityResponseSchema = z.object({ contractVersion, days: z.array(playerActivityDaySchema) });
 export const historicalTitleGrantSchema = ownedTitleSchema.extend({ grantId: historicalTitleGrantId, holderName: z.string(), playerAccountId: z.string().uuid().optional(), playerName: z.string().optional(), playerId: playerId.optional(), status: z.enum(["unclaimed", "active", "revoked"]), revokeReason: z.string().optional() });
 export const adminTitleGrantStatsSchema = z.object({ pendingHolderCount: z.number().int().nonnegative(), unclaimedGrantCount: z.number().int().nonnegative(), migratedGrantCount: z.number().int().nonnegative() });
 export const adminHistoricalTitleHolderFilterSchema = z.enum(["all", "pending", "completed"]);
@@ -1605,6 +1607,8 @@ export type AdminScreenshotSetDetailResponse = z.infer<typeof adminScreenshotSet
 export type OcrkitScreenshotSetResponse = z.infer<typeof ocrkitScreenshotSetResponseSchema>;
 export type CurrentPlayerResponse = z.infer<typeof currentPlayerResponseSchema>;
 export type CurrentPlayerTitlesResponse = z.infer<typeof currentPlayerTitlesResponseSchema>;
+export type PlayerActivityDay = z.infer<typeof playerActivityDaySchema>;
+export type PlayerActivityResponse = z.infer<typeof playerActivityResponseSchema>;
 export type VerifiedRunDifficulty = z.infer<typeof verifiedRunDifficultySchema>;
 export type PlayerVerifiedRun = z.infer<typeof playerVerifiedRunSchema>;
 export type PlayerMasteryMapProfile = z.infer<typeof playerMasteryMapProfileSchema>;

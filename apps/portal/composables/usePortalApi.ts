@@ -13,6 +13,8 @@ export type VerifiedRunDifficulty = "简单" | "一般" | "困难" | "专家" | 
 export type PlayerVerifiedRun = {
   runId: string;
   mapId: string;
+  gameplayRevisionId: string;
+  gameplayRevisionLifecycle: "preparing" | "default" | "selectable" | "historical";
   mapVariant: "classic" | null;
   difficulty: VerifiedRunDifficulty;
   completionDurationSeconds: number;
@@ -25,8 +27,8 @@ export type PlayerVerifiedRun = {
 
 export type PlayerMasteryMapProfile = {
   mapId: string;
-  gameplayRevisionId?: string;
-  gameplayRevisionLifecycle?: "preparing" | "default" | "selectable" | "historical";
+  gameplayRevisionId: string;
+  gameplayRevisionLifecycle: "preparing" | "default" | "selectable" | "historical";
   totalXp: number;
   verifiedRunCount: number;
   difficultyStats: Array<{ difficulty: VerifiedRunDifficulty; verifiedRunCount: number; fastestCompletionSeconds: number }>;
@@ -52,6 +54,10 @@ export type CurrentPlayerMasteryResponse = {
   total: number;
   hasMore: boolean;
 };
+
+export type PlayerActivityDay = { date: string; runCount: number };
+
+export type PlayerActivityResponse = { contractVersion: "1"; days: PlayerActivityDay[] };
 
 export type CurrentPlayer = {
   contractVersion: "1";

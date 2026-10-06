@@ -201,6 +201,20 @@
     }
    }
   },
+  "/v1/me/activity": {
+   "get": {
+    "operationId": "getCurrentPlayerActivity",
+    "description": "Authenticated current-player per-day Verified Run counts bucketed by UTC+8 calendar date over a bounded 371-day window, derived from the active Verified Run ledger. Each day carries only a date and a run count; no run IDs, match codes, maps, revisions, submissions, evidence, OCR, audit, account, or identity internals.",
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
   "/v1/me/reviews/{targetType}/{targetId}": {
    "get": {
     "operationId": "getCurrentPlayerReview",

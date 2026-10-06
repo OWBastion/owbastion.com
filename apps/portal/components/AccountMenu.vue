@@ -8,6 +8,7 @@ const emit = defineEmits<{ logout: [] }>();
 const items = computed<DropdownMenuItem[][]>(() => {
   const links: DropdownMenuItem[] = [
     { label: "我的", icon: "i-lucide-user", to: "/me", exactHash: true },
+    { label: "个人主页", icon: "i-lucide-id-card", to: "/me/profile" },
     { label: "个人设置", icon: "i-lucide-sliders-horizontal", to: "/me/settings" },
   ];
   if (props.player.isAdmin) {
