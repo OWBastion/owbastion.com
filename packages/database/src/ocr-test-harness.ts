@@ -207,7 +207,7 @@ export const installSchema = (sqlite: DatabaseSync) => {
       revocation_type TEXT
     );
     CREATE UNIQUE INDEX player_title_grants_source_idx
-      ON player_title_grants (source_type, source_id, title_key);
+      ON player_title_grants (source_type, source_id, title_key, player_account_id);
     CREATE TABLE challenges (
       id TEXT PRIMARY KEY NOT NULL,
       source_family TEXT NOT NULL,

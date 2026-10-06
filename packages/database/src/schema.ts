@@ -302,7 +302,7 @@ export const playerTitleGrants = sqliteTable("player_title_grants", {
   completionId: text("completion_id"),
   revocationType: text("revocation_type"),
 }, (table) => ({
-  sourceIdx: uniqueIndex("player_title_grants_source_idx").on(table.sourceType, table.sourceId, table.titleKey),
+  sourceIdx: uniqueIndex("player_title_grants_source_idx").on(table.sourceType, table.sourceId, table.titleKey, table.playerAccountId),
 }));
 
 export const playerEquippedTitles = sqliteTable("player_equipped_titles", {

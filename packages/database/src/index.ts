@@ -2066,7 +2066,12 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     if (!actor.actorId.trim()) throw new Error("VERIFIED_RUN_ACTOR_INVALID");
     const row = await db.select().from(verifiedRuns).where(eq(verifiedRuns.id, runId)).get();
     if (!row) throw new Error("VERIFIED_RUN_NOT_FOUND");
-    if (row.status === nextStatus) return asVerifiedRun(row);
+    if (row.status === nextStatus) {
+      // A same-state retry can be the first chance to repair the derived
+      // progress mirror after a previous post-commit reconciliation failure.
+      await reconcileVerifiedRunProgressChallenges({ verifiedRunIds: [row.id], actorId: actor.actorId, reason: input.reason });
+      return asVerifiedRun(row);
+    }
     if (nextStatus === "active") {
       const activeDuplicate = await db.select({ id: verifiedRuns.id }).from(verifiedRuns).where(and(
         eq(verifiedRuns.playerAccountId, row.playerAccountId),
@@ -2791,6 +2796,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       && JSON.stringify(before.eventCounters) === JSON.stringify(corrected.eventCounters);
     const oldScope = { playerAccountId: previous.playerAccountId, mapId: previous.mapId, gameplayRevisionId: previous.gameplayRevisionId };
     const nextScope = { playerAccountId: previous.playerAccountId, mapId: corrected.mapId, gameplayRevisionId: corrected.gameplayRevisionId };
+    const reason = input.reason?.trim() || null;
 
     if (!sameFacts) {
       const duplicate = await db.select({ id: verifiedRuns.id }).from(verifiedRuns).where(and(
@@ -2809,7 +2815,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const after = verifiedRunCorrectionSnapshot(afterRun);
       const correctionId = crypto.randomUUID();
       const timestamp = now();
-      const reason = input.reason?.trim() || null;
       const result = await database.batch([
         database.prepare("UPDATE mastery_runs SET map_id = ?, gameplay_revision_id = ?, map_variant = ?, difficulty = ?, game_version = ?, run_code = ?, completion_duration_seconds = ?, deaths = ?, skips = ?, event_counters_json = ?, xp_rule_version = ?, xp_input_snapshot_json = ?, awarded_xp = ? WHERE id = ? AND map_id = ? AND gameplay_revision_id = ? AND map_variant IS ? AND difficulty = ? AND game_version = ? AND run_code = ? AND completion_duration_seconds = ? AND deaths IS ? AND skips IS ? AND event_counters_json = ? AND xp_rule_version = ? AND xp_input_snapshot_json = ? AND awarded_xp = ?")
           .bind(corrected.mapId, corrected.gameplayRevisionId, corrected.mapVariant, corrected.difficulty, corrected.gameVersion, corrected.matchCode, corrected.completionDurationSeconds, corrected.deaths, corrected.skips, JSON.stringify(corrected.eventCounters), award.snapshot.ruleVersion, JSON.stringify(award.snapshot), award.awardedXp, previous.runId, previous.mapId, previous.gameplayRevisionId, previous.mapVariant, previous.difficulty, previous.gameVersion, previous.matchCode, previous.completionDurationSeconds, previous.deaths, previous.skips, loaded.row.run.eventCountersJson, loaded.row.run.xpRuleVersion, loaded.row.run.xpInputSnapshotJson, loaded.row.run.awardedXp),
@@ -2818,8 +2823,10 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       ]);
       const updated = Number(result[0]?.meta?.changes ?? 0);
       if (updated !== 1) throw new Error("VERIFIED_RUN_CORRECTION_CONFLICT");
-      await reconcileVerifiedRunProgressChallenges({ verifiedRunIds: [previous.runId], actorId: auth.subject, reason });
     }
+    // Reconcile outside the fact-change gate so a no-change retry can still
+    // repair the derived mirror after a previous post-commit failure.
+    await reconcileVerifiedRunProgressChallenges({ verifiedRunIds: [previous.runId], actorId: auth.subject, reason });
 
     const detail = await loadAdminVerifiedRunDetail(previous.runId);
     if (!detail) throw new Error("VERIFIED_RUN_NOT_FOUND");
@@ -2959,8 +2966,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       if (!administrativelyRevoked && !keepGrant) {
         const grantId = crypto.randomUUID();
         statements.push(
-          database.prepare("UPDATE player_title_grants SET status = 'active', revocation_type = NULL, revoked_by = NULL, revoked_at = NULL, revoke_reason = NULL, completion_id = ? WHERE status = 'revoked' AND revocation_type = 'evidence' AND source_type = 'automatic' AND source_id = ? AND title_key = ? AND NOT EXISTS (SELECT 1 FROM player_title_grants active WHERE active.player_account_id = player_title_grants.player_account_id AND active.title_key = player_title_grants.title_key AND active.map_id IS player_title_grants.map_id AND active.gameplay_revision_id IS player_title_grants.gameplay_revision_id AND active.status = 'active')").bind(completionId, challenge.id, challenge.titleKey),
-          database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, 'service', ?, 'verified_run_progress.grant', 'player_title_grant', id, ?, ? FROM player_title_grants WHERE source_id = ? AND status = 'active' AND changes() = 1").bind(crypto.randomUUID(), crypto.randomUUID(), actorId, payload("restored"), timestamp, challenge.id),
+          database.prepare("UPDATE player_title_grants SET status = 'active', revocation_type = NULL, revoked_by = NULL, revoked_at = NULL, revoke_reason = NULL, completion_id = ? WHERE status = 'revoked' AND revocation_type = 'evidence' AND source_type = 'automatic' AND source_id = ? AND title_key = ? AND player_account_id = ? AND NOT EXISTS (SELECT 1 FROM player_title_grants active WHERE active.player_account_id = player_title_grants.player_account_id AND active.title_key = player_title_grants.title_key AND active.map_id IS player_title_grants.map_id AND active.gameplay_revision_id IS player_title_grants.gameplay_revision_id AND active.status = 'active')").bind(completionId, challenge.id, challenge.titleKey, playerAccountId),
+          database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, 'service', ?, 'verified_run_progress.grant', 'player_title_grant', id, ?, ? FROM player_title_grants WHERE player_account_id = ? AND source_id = ? AND title_key = ? AND status = 'active' AND changes() = 1").bind(crypto.randomUUID(), crypto.randomUUID(), actorId, payload("restored"), timestamp, playerAccountId, challenge.id, challenge.titleKey),
           database.prepare("INSERT OR IGNORE INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at, completion_id) VALUES (?, ?, ?, NULL, NULL, NULL, 'active', 'automatic', ?, 'system:verified_run_progress', ?, ?)").bind(grantId, playerAccountId, challenge.titleKey, challenge.id, timestamp, completionId),
           database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, 'service', ?, 'verified_run_progress.grant', 'player_title_grant', ?, ?, ? WHERE changes() = 1").bind(crypto.randomUUID(), crypto.randomUUID(), actorId, grantId, payload("granted"), timestamp),
         );
@@ -2975,8 +2982,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     }
     if (activeCompletions.length) {
       statements.push(
-        database.prepare("UPDATE player_title_grants SET status = 'revoked', revocation_type = 'evidence', revoked_by = ?, revoked_at = ?, revoke_reason = ? WHERE status = 'active' AND source_type = 'automatic' AND source_id = ? AND title_key = ?").bind(actorId, timestamp, reason, challenge.id, challenge.titleKey),
-        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, 'service', ?, 'title_grant.revoke', 'player_title_grant', id, ?, ? FROM player_title_grants WHERE source_id = ? AND status = 'revoked' AND changes() = 1").bind(crypto.randomUUID(), crypto.randomUUID(), actorId, payload("revoked"), timestamp, challenge.id),
+        database.prepare("UPDATE player_title_grants SET status = 'revoked', revocation_type = 'evidence', revoked_by = ?, revoked_at = ?, revoke_reason = ? WHERE status = 'active' AND source_type = 'automatic' AND source_id = ? AND title_key = ? AND player_account_id = ?").bind(actorId, timestamp, reason, challenge.id, challenge.titleKey, playerAccountId),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, 'service', ?, 'title_grant.revoke', 'player_title_grant', id, ?, ? FROM player_title_grants WHERE player_account_id = ? AND source_id = ? AND title_key = ? AND status = 'revoked' AND revoked_at = ? AND changes() = 1").bind(crypto.randomUUID(), crypto.randomUUID(), actorId, payload("revoked"), timestamp, playerAccountId, challenge.id, challenge.titleKey, timestamp),
       );
     }
   };
@@ -3072,6 +3079,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     const loaded = await loadAdminVerifiedRun(input.verifiedRunId);
     if (!loaded) throw new Error("VERIFIED_RUN_NOT_FOUND");
     const nextStatus = input.action === "invalidate" ? "invalidated" : "active";
+    const reason = input.reason?.trim() || null;
     if (loaded.row.run.status !== nextStatus) {
       if (nextStatus === "active") {
         const activeDuplicate = await db.select({ id: verifiedRuns.id }).from(verifiedRuns).where(and(
@@ -3083,7 +3091,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         if (activeDuplicate) throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
       }
       const timestamp = now();
-      const reason = input.reason?.trim() || null;
       await database.batch([
         database.prepare("UPDATE mastery_runs SET status = ?, invalidated_at = ?, invalidated_by = ?, invalidation_reason = ? WHERE id = ?").bind(nextStatus, nextStatus === "invalidated" ? timestamp : null, nextStatus === "invalidated" ? auth.subject : null, nextStatus === "invalidated" ? reason : null, loaded.row.run.id),
         database.prepare("INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), loaded.row.run.id, nextStatus === "invalidated" ? "invalidated" : "restored", auth.actorType, auth.subject, reason, timestamp),
@@ -3091,8 +3098,10 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         ...challengeEvidenceLifecycleStatements({ sourceSubmissionId: loaded.row.run.sourceSubmissionId, actorId: auth.subject, timestamp, reason, action: nextStatus === "invalidated" ? "invalidate" : "restore" }),
         database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, 'verified_run', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, loaded.row.run.id, JSON.stringify({ playerAccountId: loaded.row.run.playerAccountId, sourceSubmissionId: loaded.row.run.sourceSubmissionId, previousStatus: loaded.row.run.status, status: nextStatus, reason }), timestamp),
       ]);
-      await reconcileVerifiedRunProgressChallenges({ verifiedRunIds: [loaded.row.run.id], actorId: auth.subject, reason });
     }
+    // Reconcile outside the status-change gate so a same-state retry can still
+    // repair the derived mirror after a previous post-commit failure.
+    await reconcileVerifiedRunProgressChallenges({ verifiedRunIds: [loaded.row.run.id], actorId: auth.subject, reason });
     const updated = await loadAdminVerifiedRun(input.verifiedRunId);
     if (!updated) throw new Error("VERIFIED_RUN_NOT_FOUND");
     const response: AdminVerifiedRunStateResponse = {
@@ -4346,7 +4355,12 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
 
   const recordVerifiedRun = async (input: VerifiedRunInput): Promise<RecordVerifiedRunResult> => {
     const planned = await planVerifiedRunRecord(input);
-    if (!planned.statements.length) return planned.result;
+    if (!planned.statements.length) {
+      // A fully persisted record can still need the derived mirror repaired:
+      // this retry may follow a previous post-commit reconciliation failure.
+      await reconcileVerifiedRunProgressChallenges({ verifiedRunIds: [planned.result.run.runId], actorId: input.acceptanceSource });
+      return planned.result;
+    }
     await database.batch(planned.statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
     const persistedBySource = await db.select().from(verifiedRuns).where(eq(verifiedRuns.sourceSubmissionId, planned.candidate.sourceSubmissionId)).get();
     const persisted = persistedBySource ?? await db.select().from(verifiedRuns).where(and(
@@ -5238,7 +5252,18 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
 
     async createAdminAchievement(input: AdminAchievementCreateRequest, auth, idempotencyKey) {
       const replay = await replayOrConflict<AdminChallenge>(db, auth.subject, "admin.achievement.create", idempotencyKey, input);
-      if (replay) return replay;
+      if (replay) {
+        // Create persists its idempotency response in the same batch as the
+        // challenge, so a replay is the only retry that can rerun the
+        // post-commit progress backfill after a failed first attempt. The
+        // stored rule (not the request) decides what to reconcile.
+        const created = await db.select().from(titleChallenges).where(eq(titleChallenges.id, `title.${input.titleKey}`)).get();
+        const rule = created ? parseChallengeProgressRule(created.progressRule) : null;
+        if (created && rule && ["scheduled", "active", "sunsetting"].includes(created.status)) {
+          await reconcileProgressChallengePlayers({ challenge: created, rule, actorId: auth.subject });
+        }
+        return replay;
+      }
       if (input.status !== "scheduled" && !input.gameVersion?.trim()) throw new Error("ACHIEVEMENT_GAME_VERSION_REQUIRED");
       const existing = await db.select({ key: titleCatalog.key, category: titleCatalog.category }).from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
       if (existing) throw new Error("TITLE_KEY_CONFLICT");
@@ -6296,7 +6321,15 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
 
     async resolveAdminSubmissionSpotCheck(input, auth, idempotencyKey): Promise<AdminSubmissionSpotCheckResponse> {
       const replay = await replayOrConflict<AdminSubmissionSpotCheckResponse>(db, auth.subject, "submission.spot_check.resolve", idempotencyKey, input);
-      if (replay) return replay;
+      if (replay) {
+        // The resolution batch already persisted idempotency, so a replay is
+        // the only retry that can rerun the post-commit reconciliation after
+        // a failed first attempt.
+        if (input.decision === "revoked" && replay.verifiedRunId) {
+          await reconcileVerifiedRunProgressChallenges({ verifiedRunIds: [replay.verifiedRunId], actorId: auth.subject, reason: input.reason });
+        }
+        return replay;
+      }
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
       const spotCheck = await db.select().from(submissionSpotChecks).where(eq(submissionSpotChecks.submissionId, row.id)).get();

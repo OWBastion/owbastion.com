@@ -143,7 +143,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     granted_by TEXT NOT NULL, granted_at INTEGER NOT NULL, revoked_by TEXT, revoked_at INTEGER, revoke_reason TEXT,
     completion_id TEXT, revocation_type TEXT
   );
-  CREATE UNIQUE INDEX player_title_grants_source_idx ON player_title_grants(source_type, source_id, title_key);
+  CREATE UNIQUE INDEX player_title_grants_source_idx ON player_title_grants(source_type, source_id, title_key, player_account_id);
   CREATE UNIQUE INDEX player_title_grants_active_identity_idx ON player_title_grants(player_account_id, title_key, COALESCE(map_id, ''), COALESCE(gameplay_revision_id, '')) WHERE status = 'active';
   CREATE UNIQUE INDEX player_title_grants_completion_idx ON player_title_grants(completion_id) WHERE completion_id IS NOT NULL;
   CREATE TABLE mastery_runs (
@@ -261,7 +261,7 @@ const progressCompletion = (sqlite: DatabaseSync) =>
   sqlite.prepare("SELECT id, status, source_type, source_id, gameplay_revision_id, invalidation_reason FROM challenge_completions WHERE source_type = 'verified_run_progress'").all() as { id: string; status: string; source_type: string; source_id: string; gameplay_revision_id: string | null; invalidation_reason: string | null }[];
 
 const progressGrants = (sqlite: DatabaseSync) =>
-  sqlite.prepare("SELECT id, status, source_type, source_id, granted_by, completion_id, revocation_type FROM player_title_grants WHERE granted_by = 'system:verified_run_progress' OR source_id IN (SELECT id FROM challenge_completions WHERE source_type = 'verified_run_progress')").all() as { id: string; status: string; source_type: string; source_id: string; granted_by: string; completion_id: string | null; revocation_type: string | null }[];
+  sqlite.prepare("SELECT id, player_account_id, status, source_type, source_id, granted_by, completion_id, revocation_type FROM player_title_grants WHERE granted_by = 'system:verified_run_progress' OR source_id IN (SELECT id FROM challenge_completions WHERE source_type = 'verified_run_progress')").all() as { id: string; player_account_id: string; status: string; source_type: string; source_id: string; granted_by: string; completion_id: string | null; revocation_type: string | null }[];
 
 const canonicalChallengeIds = (sqlite: DatabaseSync) =>
   (sqlite.prepare("SELECT id, rule_version, conditions_json FROM challenges WHERE source_family = 'title_challenge' AND source_id = 'title.ANNIVERSARY_TOUR'").all() as { id: string; rule_version: string; conditions_json: string }[]);
@@ -496,6 +496,118 @@ describe("verified-run progress challenges", () => {
     expect(Object.keys(response!.items[0]!).sort()).toEqual(["challengeId", "completedMaps", "endsAt", "icon", "maps", "progressRule", "satisfied", "startsAt", "status", "titleKey", "titleName"].sort());
 
     expect(await services.listCurrentPlayerChallengeProgress({ sessionToken: "unknown-token" })).toBeNull();
+  });
+
+  it("scopes grant mutations to the reconciled player", async () => {
+    const { sqlite, services } = setup();
+    sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding-2', 'identity-2', 'account-2', 'qq', 'group-1', 'member-2', 'active', 1)").run();
+    await services.createAdminAchievement(achievementInput(), admin, "create.1");
+    insertSubmission(sqlite, "submission-1", "account-1", 500);
+    insertSubmission(sqlite, "submission-2", "account-1", 600);
+    insertSubmission(sqlite, "submission-3", "account-2", 500);
+    insertSubmission(sqlite, "submission-4", "account-2", 600);
+    await services.recordVerifiedRun(runInput({ sourceSubmissionId: "submission-1" }));
+    await services.recordVerifiedRun(runInput({ mapId: "map.beta", gameplayRevisionId: "revision:map.beta", sourceSubmissionId: "submission-2", matchCode: "2345-6789-1234" }));
+    await services.recordVerifiedRun(runInput({ playerAccountId: "account-2", sourceSubmissionId: "submission-3", matchCode: "3456-7890-1234" }));
+    const betaRun2 = await services.recordVerifiedRun(runInput({ playerAccountId: "account-2", mapId: "map.beta", gameplayRevisionId: "revision:map.beta", sourceSubmissionId: "submission-4", matchCode: "4567-8901-2345" }));
+
+    const grants = progressGrants(sqlite);
+    expect(grants).toHaveLength(2);
+    expect(grants.map(({ player_account_id }) => player_account_id).sort()).toEqual(["account-1", "account-2"]);
+
+    await services.invalidateVerifiedRun({ verifiedRunId: betaRun2.run.runId, reason: "evidence invalidated" }, { actorType: "user", actorId: "maintainer-1" });
+    expect(progressGrants(sqlite)).toMatchObject([
+      { player_account_id: "account-1", status: "active" },
+      { player_account_id: "account-2", status: "revoked", revocation_type: "evidence" },
+    ]);
+    const completions = progressCompletion(sqlite);
+    expect(completions.filter((completion) => completion.status === "active")).toHaveLength(1);
+    expect(completions.filter((completion) => completion.status === "invalidated")).toHaveLength(1);
+
+    await services.transitionAdminVerifiedRun({ contractVersion: "1", verifiedRunId: betaRun2.run.runId, action: "restore" }, admin, "restore.1");
+    expect(progressGrants(sqlite)).toMatchObject([
+      { player_account_id: "account-1", status: "active" },
+      { player_account_id: "account-2", status: "active", revocation_type: null },
+    ]);
+  });
+
+  it("repairs the derived mirror on same-state Verified Run retries", async () => {
+    const { sqlite, services } = setup();
+    await services.createAdminAchievement(achievementInput(), admin, "create.1");
+    insertSubmission(sqlite, "submission-1", "account-1", 500);
+    insertSubmission(sqlite, "submission-2", "account-1", 600);
+    await services.recordVerifiedRun(runInput({ sourceSubmissionId: "submission-1" }));
+    const betaRun = await services.recordVerifiedRun(runInput({ mapId: "map.beta", gameplayRevisionId: "revision:map.beta", sourceSubmissionId: "submission-2", matchCode: "2345-6789-1234" }));
+    expect(progressCompletion(sqlite)).toMatchObject([{ status: "active" }]);
+
+    // The authoritative run mutation committed while the derived
+    // reconciliation did not: the mirror stays active on an invalidated run.
+    sqlite.prepare("UPDATE mastery_runs SET status = 'invalidated' WHERE id = ?").run(betaRun.run.runId);
+    const breakMirror = () => {
+      sqlite.prepare("UPDATE challenge_completions SET status = 'active', invalidated_by = NULL, invalidated_at = NULL, invalidation_reason = NULL WHERE source_type = 'verified_run_progress'").run();
+      sqlite.prepare("UPDATE player_title_grants SET status = 'active', revoked_by = NULL, revoked_at = NULL, revoke_reason = NULL, revocation_type = NULL WHERE granted_by = 'system:verified_run_progress'").run();
+    };
+    const expectRepaired = () => {
+      expect(progressCompletion(sqlite)).toMatchObject([{ status: "invalidated" }]);
+      expect(progressGrants(sqlite)).toMatchObject([{ status: "revoked" }]);
+    };
+
+    await services.invalidateVerifiedRun({ verifiedRunId: betaRun.run.runId, reason: "evidence invalidated" }, { actorType: "user", actorId: "maintainer-1" });
+    expectRepaired();
+
+    breakMirror();
+    await services.transitionAdminVerifiedRun({ contractVersion: "1", verifiedRunId: betaRun.run.runId, action: "invalidate" }, admin, "noop.invalidate");
+    expectRepaired();
+
+    breakMirror();
+    await services.correctAdminVerifiedRun({ contractVersion: "1", verifiedRunId: betaRun.run.runId, changes: { difficulty: "困难" } }, admin, "noop.correct");
+    expectRepaired();
+
+    breakMirror();
+    await services.recordVerifiedRun(runInput({ mapId: "map.beta", gameplayRevisionId: "revision:map.beta", sourceSubmissionId: "submission-2", matchCode: "2345-6789-1234" }));
+    expectRepaired();
+  });
+
+  it("re-runs the create backfill on a replayed request", async () => {
+    const { sqlite, services } = setup();
+    insertSubmission(sqlite, "submission-1", "account-1", 500);
+    insertSubmission(sqlite, "submission-2", "account-1", 600);
+    await services.recordVerifiedRun(runInput({ sourceSubmissionId: "submission-1" }));
+    await services.recordVerifiedRun(runInput({ mapId: "map.beta", gameplayRevisionId: "revision:map.beta", sourceSubmissionId: "submission-2", matchCode: "2345-6789-1234" }));
+    expect(progressCompletion(sqlite)).toEqual([]);
+
+    const input = achievementInput();
+    await services.createAdminAchievement(input, admin, "create.1");
+    expect(progressCompletion(sqlite)).toMatchObject([{ status: "active" }]);
+
+    // The create batch committed but the backfill mirror never landed.
+    sqlite.prepare("DELETE FROM challenge_completions WHERE source_type = 'verified_run_progress'").run();
+    sqlite.prepare("DELETE FROM player_title_grants WHERE granted_by = 'system:verified_run_progress'").run();
+    await services.createAdminAchievement(input, admin, "create.1");
+    expect(progressCompletion(sqlite)).toMatchObject([{ status: "active" }]);
+    expect(progressGrants(sqlite)).toMatchObject([{ status: "active" }]);
+  });
+
+  it("re-runs reconciliation on a replayed spot-check revocation", async () => {
+    const { sqlite, services } = setup();
+    await services.createAdminAchievement(achievementInput(), admin, "create.1");
+    insertSubmission(sqlite, "submission-1", "account-1", 500);
+    insertSubmission(sqlite, "submission-2", "account-1", 600);
+    await services.recordVerifiedRun(runInput({ sourceSubmissionId: "submission-1" }));
+    const betaRun = await services.recordVerifiedRun(runInput({ mapId: "map.beta", gameplayRevisionId: "revision:map.beta", sourceSubmissionId: "submission-2", matchCode: "2345-6789-1234" }));
+    sqlite.prepare("INSERT INTO submission_outcomes (id, submission_id, outcome_key, outcome_type, status, entity_id, awarded_xp, details_json, created_at, updated_at) VALUES ('outcome-1', 'submission-2', 'verified_run', 'verified_run', 'created', ?, 0, '{}', 1, 1)").run(betaRun.run.runId);
+    sqlite.prepare("INSERT INTO submission_spot_checks (id, submission_id, status, policy_json, sampled_at) VALUES ('spot-1', 'submission-2', 'pending', '{}', 1)").run();
+
+    await services.resolveAdminSubmissionSpotCheck({ submissionId: "submission-2", contractVersion: "1", decision: "revoked" }, admin, "spot.1");
+    expect(progressCompletion(sqlite)).toMatchObject([{ status: "invalidated" }]);
+    expect(progressGrants(sqlite)).toMatchObject([{ status: "revoked" }]);
+
+    // The revocation batch committed while the derived reconciliation did not.
+    sqlite.prepare("UPDATE challenge_completions SET status = 'active', invalidated_by = NULL, invalidated_at = NULL, invalidation_reason = NULL WHERE source_type = 'verified_run_progress'").run();
+    sqlite.prepare("UPDATE player_title_grants SET status = 'active', revoked_by = NULL, revoked_at = NULL, revoke_reason = NULL, revocation_type = NULL WHERE granted_by = 'system:verified_run_progress'").run();
+    await services.resolveAdminSubmissionSpotCheck({ submissionId: "submission-2", contractVersion: "1", decision: "revoked" }, admin, "spot.1");
+    expect(progressCompletion(sqlite)).toMatchObject([{ status: "invalidated" }]);
+    expect(progressGrants(sqlite)).toMatchObject([{ status: "revoked" }]);
   });
 
   it("keeps aggregate conditions out of screenshot evidence evaluation", async () => {
