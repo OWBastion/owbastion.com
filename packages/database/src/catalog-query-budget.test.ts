@@ -247,7 +247,7 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       cooldown_seconds REAL,
       weight REAL,
       game_version TEXT NOT NULL,
-      effect_tags_json TEXT NOT NULL DEFAULT '[]',
+      event_group TEXT, effect_tags_json TEXT NOT NULL DEFAULT '[]',
       release_status TEXT NOT NULL,
       archived_at INTEGER,
       archived_by TEXT,

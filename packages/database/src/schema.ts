@@ -122,7 +122,7 @@ export const mapMetadata = sqliteTable("map_metadata", {
 export const randomEvents = sqliteTable("random_events", {
   id: text("id").primaryKey(), name: text("name").notNull(), category: text("category").notNull(), rarity: text("rarity").notNull(),
   description: text("description").notNull(), durationSeconds: integer("duration_seconds"), cooldownSeconds: real("cooldown_seconds"), weight: real("weight"),
-  gameVersion: text("game_version").notNull(), effectTagsJson: text("effect_tags_json").notNull().default("[]"),
+  gameVersion: text("game_version").notNull(), effectTagsJson: text("effect_tags_json").notNull().default("[]"), eventGroup: text("event_group"),
   releaseStatus: text("release_status").notNull(), archivedAt: integer("archived_at"), archivedBy: text("archived_by"), createdAt: integer("created_at").notNull(), updatedAt: integer("updated_at").notNull(),
 });
 export const randomEventVersions = sqliteTable("random_event_versions", {

@@ -454,10 +454,12 @@ const randomEventEffectAnnotationSchema = z.object({ tag: z.string().trim().min(
 export const randomEventSchema = z.object({
   eventId: externalId, name: z.string().trim().min(1).max(256), category: z.string().trim().min(1).max(64), rarity: z.string().trim().max(32), description: z.string().trim().min(1).max(4096),
   durationSeconds: z.number().int().nonnegative().nullable(), cooldownSeconds: z.number().nonnegative().nullable(), weight: z.number().nonnegative().nullable(),
-  gameVersion: z.string().trim().min(1).max(64), effectTags: z.array(z.string().trim().min(1).max(64)).max(16), effectAnnotations: z.array(randomEventEffectAnnotationSchema).max(16), releaseStatus: randomEventStatus, archived: z.boolean(), challenges: z.array(challengeSchema),
+  gameVersion: z.string().trim().min(1).max(64), eventGroup: z.string().max(64).nullable(), effectTags: z.array(z.string().trim().min(1).max(64)).max(16), effectAnnotations: z.array(randomEventEffectAnnotationSchema).max(16), releaseStatus: randomEventStatus, archived: z.boolean(), challenges: z.array(challengeSchema),
 });
 export const randomEventListResponseSchema = z.object({ contractVersion, items: z.array(randomEventSchema) });
-const randomEventWriteFields = z.object({ name: z.string().trim().min(1).max(256), category: z.string().trim().min(1).max(64), description: z.string().trim().min(1).max(4096), durationSeconds: z.number().int().nonnegative().nullable(), cooldownSeconds: z.number().nonnegative().nullable(), weight: z.number().nonnegative().nullable(), gameVersion: z.string().trim().min(1).max(64), effectTags: z.array(z.string().trim().min(1).max(64)).max(16), releaseStatus: randomEventStatus, challengeLinks: z.array(randomEventLinkSchema).max(64) }).strict();
+// Optional on write: omitting it leaves the group unchanged; an empty string clears it.
+const randomEventGroupInput = z.string().trim().max(64).transform((value) => value || null).nullable().optional();
+const randomEventWriteFields = z.object({ name: z.string().trim().min(1).max(256), category: z.string().trim().min(1).max(64), description: z.string().trim().min(1).max(4096), durationSeconds: z.number().int().nonnegative().nullable(), cooldownSeconds: z.number().nonnegative().nullable(), weight: z.number().nonnegative().nullable(), gameVersion: z.string().trim().min(1).max(64), eventGroup: randomEventGroupInput, effectTags: z.array(z.string().trim().min(1).max(64)).max(16), releaseStatus: randomEventStatus, challengeLinks: z.array(randomEventLinkSchema).max(64) }).strict();
 export const adminRandomEventCreateRequestSchema = z.object({ contractVersion }).merge(randomEventWriteFields);
 export const adminRandomEventUpdateRequestSchema = z.object({ contractVersion }).merge(randomEventWriteFields);
 export const adminRandomEventImportRequestSchema = z.object({ contractVersion, fileName: z.string().trim().min(1).max(256), csv: z.string().min(1).max(512 * 1024) }).strict();

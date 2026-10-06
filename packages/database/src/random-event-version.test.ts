@@ -29,7 +29,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   CREATE TABLE random_events (
     id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, category TEXT NOT NULL, rarity TEXT NOT NULL,
     description TEXT NOT NULL, duration_seconds INTEGER, cooldown_seconds REAL, weight REAL,
-    game_version TEXT NOT NULL, effect_tags_json TEXT NOT NULL DEFAULT '[]', release_status TEXT NOT NULL,
+    game_version TEXT NOT NULL, event_group TEXT, effect_tags_json TEXT NOT NULL DEFAULT '[]', release_status TEXT NOT NULL,
     archived_at INTEGER, archived_by TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
   );
   CREATE TABLE random_event_versions (
