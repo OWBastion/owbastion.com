@@ -1207,6 +1207,37 @@ describe("map title rule model – locked invariants", () => {
       expect(beyond.prepare("SELECT status FROM submissions WHERE id = 'submission.weights'").get()).toEqual({ status: "ocr_review_required" });
     });
 
+    it("holds a screenshot whose mode label matches no configured mode for maintainer review", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.rialto");
+      seedTitle(sqlite, "DOMINATOR");
+      seedRule(sqlite, "rule.dominator", "DOMINATOR", "dominator", { slot: "dominator" });
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.garbled', 'garbled-1', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.garbled', 'identity.garbled', 'player.garbled', 'qq', 'group.garbled', 'member.garbled', 'active', ?)").run(now);
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.garbled', 'binding.garbled', 'ocr_pending', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'garbled.1', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, byte_size, sha256, object_key, upload_status, created_at) VALUES ('attachment.garbled', 'submission.garbled', 'portal', 'external.garbled', 'image/png', 1, 'hash', 'evidence/garbled.png', 'stored', ?)").run(now);
+
+      // A regular clear whose 随机事件 label OCR misread: neither regular nor any configured standalone mode.
+      const ocrResponse = {
+        schema_version: "1",
+        ok: true,
+        layout_version: "1280x720-v7",
+        fields: Object.fromEntries(["challenge_completed", "map_name", "difficulty"].map((field) => [field, { status: "ok", confidence: 0.99 }])),
+        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.rialto", difficulty: "地狱", mode: "随机事仵5.0" },
+      };
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
+      try {
+        const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token");
+        await deliverOcrFixture(services, sqlite, { submissionId: "submission.garbled", objectKey: "evidence/garbled.png", attempt: 1, requestId: "request.garbled" });
+      } finally {
+        vi.unstubAllGlobals();
+      }
+
+      expect(sqlite.prepare("SELECT status, review_reason, ocr_fail_count FROM submissions WHERE id = 'submission.garbled'").get()).toEqual({ status: "ocr_review_required", review_reason: "无法识别截图所在的游戏模式，请人工核对", ocr_fail_count: 0 });
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE player_account_id = 'player.garbled'").get()).toEqual({ count: 0 });
+    });
+
     it("records a standalone-mode clear on that mode's revision and settles only the checked limited title", async () => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);
