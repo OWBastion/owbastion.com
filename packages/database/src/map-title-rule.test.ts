@@ -2064,7 +2064,8 @@ describe("maintainer Challenge confirmation during submission review", () => {
     const unconfirmed = await services.previewSubmissionReview({ submissionId: "submission.confirm" }, auth);
     const pioneer = unconfirmed.candidates.find((candidate) => candidate.titleName === "称号 PIONEER");
     expect(pioneer).toMatchObject({ family: "map", evidence: "needs_confirmation", missingFields: ["challenge_completed"], selectedBy: null });
-    expect(unconfirmed).toMatchObject({ evidenceOutcome: "review", titles: [], completions: [], approvable: false, blockingCode: "SUBMISSION_OUTCOME_NOT_CONFIGURED" });
+    // A missing completion marker cannot be proven from the screenshot, so evidence alone asks for resubmission.
+    expect(unconfirmed).toMatchObject({ evidenceOutcome: "resubmit", titles: [], completions: [], approvable: false, blockingCode: "SUBMISSION_OUTCOME_NOT_CONFIGURED" });
     expect(JSON.stringify(unconfirmed)).not.toContain("achievement_evidence");
 
     const confirmed = await services.previewSubmissionReview({ submissionId: "submission.confirm", confirmedChallengeIds: [pioneer!.challengeId] }, auth);

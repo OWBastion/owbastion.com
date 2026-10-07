@@ -74,11 +74,14 @@ export const matchOcrAgainstChallenges = (
       || (candidate.conditions?.operator === "or"
         ? matchingIndexes.length > 0 || uncertainIndexes.length > 0
         : !knownAndMismatch && (conditionMatches.some(Boolean) || conditionHasEvidence.some(Boolean)));
-    return { ...candidate, evaluation, quality, plausible, grantable: Boolean(candidate.challenge.titleKey) };
+    // An AND Challenge with a required value absent from the screenshot stays a reviewer suggestion,
+    // but it cannot be proven by this evidence and so must not hold the other matches for review.
+    const blocksAutomatic = plausible && (candidate.conditions?.operator !== "and" || conditionHasEvidence.every(Boolean));
+    return { ...candidate, evaluation, quality, plausible, blocksAutomatic, grantable: Boolean(candidate.challenge.titleKey) };
   });
   const exact = candidates.filter((candidate) => candidate.evaluation.supported && candidate.evaluation.matched);
   const lowConfidence = candidates.filter((candidate) => !candidate.quality.accepted && candidate.plausible);
-  const outcome = !assessSubmissionOcrResponseQuality(response, humanConfirmed).accepted || lowConfidence.length > 0
+  const outcome = !assessSubmissionOcrResponseQuality(response, humanConfirmed).accepted || lowConfidence.some((candidate) => candidate.blocksAutomatic)
     ? "review"
     : exact.length > 0
       ? "automatic"

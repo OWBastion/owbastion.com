@@ -98,6 +98,25 @@ describe("canonical OCR Challenge matching", () => {
     expect(result.lowConfidence).toEqual([]);
   });
 
+  it("grants a checked achievement when a same-map Challenge lacks the completion marker", () => {
+    const achievement: Challenge = {
+      challengeId: "title.prophet", family: "achievement", type: "title_achievement", kind: "title_achievement",
+      titleKey: "PROPHET", titleName: "麦迪文", icon: "legacy", category: "挑战", condition: "触发 10 次先知", evidenceRule: "勾选",
+      gameVersion: "1", status: "active", submissionMode: "manual",
+    };
+    const { challenge_completed: _field, ...fields } = response.fields;
+    const { challenge_completed: _value, ...data } = response.data;
+    const result = matchOcrAgainstChallenges([
+      candidate(mapChallenge("map.samoa.conqueror"), mapConditions("传奇")),
+      candidate(achievement, { operator: "and", conditions: [{ type: "achievement_title", titleKey: "PROPHET" }] }),
+    ], { ...response, fields, data: { ...data, achievement_titles: ["麦迪文"] } }, mapIdsByName, new Map([["PROPHET", "麦迪文"]]));
+
+    expect(result.outcome).toBe("automatic");
+    expect(result.exact.map(({ challenge }) => challenge.challengeId)).toEqual(["title.prophet"]);
+    // The map Challenge stays a reviewer suggestion for its missing completion marker.
+    expect(result.lowConfidence.map(({ challenge }) => challenge.challengeId)).toEqual(["map.samoa.conqueror"]);
+  });
+
   it("routes an unsupported OCR response to review even when no Challenge is a candidate", () => {
     const result = matchOcrAgainstChallenges([], { ...response, layout_version: "future-layout" }, mapIdsByName, new Map());
 
