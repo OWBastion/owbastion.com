@@ -66,6 +66,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     map_id TEXT NOT NULL REFERENCES maps(id),
     lifecycle TEXT NOT NULL,
     legacy_map_variant TEXT,
+    mode TEXT,
     copied_from_revision_id TEXT,
     reset_reason TEXT,
     game_version TEXT NOT NULL,

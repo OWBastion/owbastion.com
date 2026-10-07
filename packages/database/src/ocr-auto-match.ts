@@ -74,11 +74,17 @@ export const matchOcrAgainstChallenges = (
       || (candidate.conditions?.operator === "or"
         ? matchingIndexes.length > 0 || uncertainIndexes.length > 0
         : !knownAndMismatch && (conditionMatches.some(Boolean) || conditionHasEvidence.some(Boolean)));
-    return { ...candidate, evaluation, quality, plausible, grantable: Boolean(candidate.challenge.titleKey) };
+    // OCRKit reports challenge_completed only when it reads 挑战完成, so an absent marker means the
+    // run was not finished: such an AND Challenge stays a reviewer suggestion but must not hold the
+    // other matches for review. Any other absent value may be a misread and still goes to review.
+    const completionAbsent = candidate.conditions?.operator === "and"
+      && candidate.conditions.conditions.some((condition, index) => condition.type === "completed" && !conditionHasEvidence[index]);
+    const blocksAutomatic = plausible && !completionAbsent;
+    return { ...candidate, evaluation, quality, plausible, blocksAutomatic, grantable: Boolean(candidate.challenge.titleKey) };
   });
   const exact = candidates.filter((candidate) => candidate.evaluation.supported && candidate.evaluation.matched);
   const lowConfidence = candidates.filter((candidate) => !candidate.quality.accepted && candidate.plausible);
-  const outcome = !assessSubmissionOcrResponseQuality(response, humanConfirmed).accepted || lowConfidence.length > 0
+  const outcome = !assessSubmissionOcrResponseQuality(response, humanConfirmed).accepted || lowConfidence.some((candidate) => candidate.blocksAutomatic)
     ? "review"
     : exact.length > 0
       ? "automatic"

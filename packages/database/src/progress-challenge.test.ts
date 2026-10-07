@@ -69,6 +69,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     map_id TEXT NOT NULL REFERENCES maps(id),
     lifecycle TEXT NOT NULL,
     legacy_map_variant TEXT,
+    mode TEXT,
     copied_from_revision_id TEXT,
     reset_reason TEXT,
     game_version TEXT NOT NULL,
@@ -294,6 +295,49 @@ describe("verified-run progress challenges", () => {
     expect(grants[0]).toMatchObject({ status: "active", source_type: "automatic", source_id: "title.ANNIVERSARY_TOUR:account-1", granted_by: "system:verified_run_progress", completion_id: completions[0]!.id });
     expect(canonicalChallengeIds(sqlite)).toHaveLength(1);
     expect(JSON.parse(canonicalChallengeIds(sqlite)[0]!.conditions_json)).toEqual({ operator: "and", conditions: [{ type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"] }] });
+  });
+
+  it("counts only runs on the rule's standalone-mode revisions", async () => {
+    const { sqlite, services } = setup();
+    sqlite.exec(`
+      INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, mode, copied_from_revision_id, reset_reason, game_version, created_at, updated_at) VALUES
+        ('revision:map.alpha:mirror', 'map.alpha', 'selectable', NULL, '2026镜中回响', NULL, NULL, '26.1001.1', 1, 1),
+        ('revision:map.beta:mirror', 'map.beta', 'selectable', NULL, '2026镜中回响', NULL, NULL, '26.1001.1', 1, 1);
+    `);
+    await services.createAdminAchievement(achievementInput({ progressRule: { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"], mode: "2026 镜中回响" } }), admin, "create.mode");
+    insertSubmission(sqlite, "submission-1", "account-1", 500);
+    insertSubmission(sqlite, "submission-2", "account-1", 600);
+    await services.recordVerifiedRun(runInput({ mapId: "map.alpha", gameplayRevisionId: "revision:map.alpha", sourceSubmissionId: "submission-1" }));
+    await services.recordVerifiedRun(runInput({ mapId: "map.beta", gameplayRevisionId: "revision:map.beta", sourceSubmissionId: "submission-2", matchCode: "2345-6789-1234" }));
+    expect(progressCompletion(sqlite)).toEqual([]);
+
+    insertSubmission(sqlite, "submission-3", "account-1", 700);
+    insertSubmission(sqlite, "submission-4", "account-1", 800);
+    await services.recordVerifiedRun(runInput({ mapId: "map.alpha", gameplayRevisionId: "revision:map.alpha:mirror", sourceSubmissionId: "submission-3", matchCode: "3456-7890-1234" }));
+    await services.recordVerifiedRun(runInput({ mapId: "map.beta", gameplayRevisionId: "revision:map.beta:mirror", sourceSubmissionId: "submission-4", matchCode: "4567-8901-2345" }));
+    expect(progressCompletion(sqlite)).toMatchObject([{ status: "active" }]);
+    expect(progressGrants(sqlite)).toMatchObject([{ status: "active" }]);
+    expect(JSON.parse(canonicalChallengeIds(sqlite)[0]!.conditions_json).conditions[0]).toMatchObject({ mode: "2026镜中回响" });
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at) VALUES ('session-1', 'account-1', ?, ?)").run(await hashRequest("session-token"), Date.now() + 60_000);
+    expect((await services.listCurrentPlayerChallengeProgress({ sessionToken: "session-token" }))!.items[0]).toMatchObject({
+      progressRule: { mode: "2026镜中回响" },
+      satisfied: true,
+    });
+  });
+
+  it("keeps standalone-mode runs out of a regular progress rule", async () => {
+    const { sqlite, services } = setup();
+    sqlite.exec(`
+      INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, mode, copied_from_revision_id, reset_reason, game_version, created_at, updated_at) VALUES
+        ('revision:map.alpha:mirror', 'map.alpha', 'selectable', NULL, '2026镜中回响', NULL, NULL, '26.1001.1', 1, 1),
+        ('revision:map.beta:mirror', 'map.beta', 'selectable', NULL, '2026镜中回响', NULL, NULL, '26.1001.1', 1, 1);
+    `);
+    await services.createAdminAchievement(achievementInput(), admin, "create.regular");
+    insertSubmission(sqlite, "submission-1", "account-1", 500);
+    insertSubmission(sqlite, "submission-2", "account-1", 600);
+    await services.recordVerifiedRun(runInput({ mapId: "map.alpha", gameplayRevisionId: "revision:map.alpha:mirror", sourceSubmissionId: "submission-1" }));
+    await services.recordVerifiedRun(runInput({ mapId: "map.beta", gameplayRevisionId: "revision:map.beta:mirror", sourceSubmissionId: "submission-2", matchCode: "2345-6789-1234" }));
+    expect(progressCompletion(sqlite)).toEqual([]);
   });
 
   it("keeps progress open for another player and counts only their own runs", async () => {

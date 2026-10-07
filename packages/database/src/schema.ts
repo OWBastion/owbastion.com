@@ -75,6 +75,7 @@ export const gameplayRevisions = sqliteTable("gameplay_revisions", {
   mapId: text("map_id").notNull().references(() => maps.id),
   lifecycle: text("lifecycle").notNull(),
   legacyMapVariant: text("legacy_map_variant"),
+  mode: text("mode"),
   copiedFromRevisionId: text("copied_from_revision_id").references((): AnySQLiteColumn => gameplayRevisions.id),
   resetReason: text("reset_reason"),
   gameVersion: text("game_version").notNull(),
@@ -85,6 +86,7 @@ export const gameplayRevisions = sqliteTable("gameplay_revisions", {
   mapLifecycleIdx: index("gameplay_revisions_map_lifecycle_idx").on(table.mapId, table.lifecycle),
   oneDefault: uniqueIndex("gameplay_revisions_one_default_idx").on(table.mapId).where(sql`${table.lifecycle} = 'default'`),
   legacyVariant: uniqueIndex("gameplay_revisions_legacy_variant_idx").on(table.mapId, table.legacyMapVariant).where(sql`${table.legacyMapVariant} IS NOT NULL`),
+  mode: uniqueIndex("gameplay_revisions_mode_idx").on(table.mapId, table.mode).where(sql`${table.mode} IS NOT NULL`),
 }));
 
 // This is the revision-aware applicability layer over reusable map-title rules,

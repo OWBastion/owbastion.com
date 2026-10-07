@@ -1,4 +1,4 @@
-import { conditionFields, type CanonicalChallengeConditions } from "@owbastion/domain";
+import { conditionFields, normalizeGameMode, type CanonicalChallengeConditions } from "@owbastion/domain";
 
 export type OcrFieldEvidence = {
   confidence?: number;
@@ -54,6 +54,14 @@ export const submissionOcrQualityPolicy = {
   supportedLayoutVersions: ["1280x720-v7", "1280x800-v2"],
   minimumFieldConfidence: 0.85,
 } as const;
+
+// A standalone mode such as 2026镜中回响 reuses regular map names, so its runs resolve to that
+// mode's own Gameplay Revision instead of the regular one. Null means the regular 随机事件
+// mode, including evidence that predates the mode readout.
+export const standaloneOcrMode = (response: OcrResponse) => {
+  const mode = normalizeGameMode(response.data?.mode);
+  return !mode || mode.includes("随机事件") ? null : mode;
+};
 
 const challengeEvidenceValueExists = (response: OcrResponse, field: string) => {
   const data = response.data ?? {};

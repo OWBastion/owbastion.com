@@ -14,7 +14,7 @@ type CreatePayload = {
   scope: "global" | "map";
   mapIds: string[];
   mapVariant?: "classic";
-  progressRule?: { type: "required_maps_completed"; mapIds: string[]; difficultyAtLeast?: string };
+  progressRule?: { type: "required_maps_completed"; mapIds: string[]; difficultyAtLeast?: string; mode?: string };
   status: "scheduled" | "active" | "sunsetting" | "retired";
   gameVersion: string | null;
   categoryOverride: string | null;
@@ -45,6 +45,7 @@ const form = reactive({
   progressMode: "none" as "none" | "required_maps_completed",
   progressMapIds: [] as string[],
   progressDifficultyAtLeast: "" as string,
+  progressGameMode: "" as string,
   status: "active" as "scheduled" | "active" | "sunsetting" | "retired",
   gameVersion: "",
   categoryOverride: "",
@@ -82,7 +83,7 @@ function submit() {
     scope: form.scope,
     mapIds: form.scope === "map" ? [...form.mapIds] : [],
     ...(form.scope === "map" && form.mapVariant ? { mapVariant: form.mapVariant } : {}),
-    ...(progressMode.value ? { progressRule: { type: "required_maps_completed" as const, mapIds: [...form.progressMapIds], ...(form.progressDifficultyAtLeast ? { difficultyAtLeast: form.progressDifficultyAtLeast } : {}) } } : {}),
+    ...(progressMode.value ? { progressRule: { type: "required_maps_completed" as const, mapIds: [...form.progressMapIds], ...(form.progressDifficultyAtLeast ? { difficultyAtLeast: form.progressDifficultyAtLeast } : {}), ...(form.progressGameMode.trim() ? { mode: form.progressGameMode.trim() } : {}) } } : {}),
     status: form.status,
     gameVersion: form.gameVersion.trim() || null,
     categoryOverride: form.categoryOverride.trim() || null,
@@ -108,6 +109,7 @@ function submit() {
         <template v-if="progressMode">
           <UFormField class="editor-field editor-field--wide" label="要求地图" required hint="玩家在活动时间内于每张地图各留下至少一条有效已验证通关即完成。"><USelect v-model="form.progressMapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
           <UFormField class="editor-field" label="最低难度"><USelect v-model="form.progressDifficultyAtLeast" class="editor-control" :items="progressDifficultyItems" :disabled="props.saving" /></UFormField>
+          <UFormField class="editor-field" label="独立模式" hint="只统计该模式（如 2026镜中回响）的通关；留空只统计常规模式。"><UInput v-model="form.progressGameMode" class="editor-control" :disabled="props.saving" /></UFormField>
         </template>
         <UFormField class="editor-field" label="提交方式"><USelect v-model="form.submissionMode" class="editor-control" :disabled="props.saving || progressMode" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" /></UFormField>
         <UFormField class="editor-field" label="称号适用范围"><USelect v-model="form.scope" class="editor-control" :disabled="props.saving || progressMode" :items="[{ label: '全部地图', value: 'global' }, { label: '指定地图', value: 'map' }]" /></UFormField>

@@ -4,6 +4,7 @@ export type AchievementProgressRule = {
   type: "required_maps_completed";
   mapIds: string[];
   difficultyAtLeast?: string;
+  mode?: string;
 };
 
 export type TitleAchievement = {

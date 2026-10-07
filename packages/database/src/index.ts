@@ -3,7 +3,7 @@ import { count, desc, eq, and, gt, gte, like, or, inArray, isNull, isNotNull, ne
 import { drizzle } from "drizzle-orm/d1";
 import { alias } from "drizzle-orm/sqlite-core";
 import { createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, passkeyUserHandleMatches, verifyPasskeyAuthentication, verifyPasskeyRegistration } from "@owbastion/auth";
-import { buildMasteryProfiles, calculateVerifiedRunXpV2, difficultyAtLeastSatisfied, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, parseCanonicalChallengeConditions, parseChallengeProgressRule, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
+import { buildMasteryProfiles, calculateVerifiedRunXpV2, difficultyAtLeastSatisfied, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, normalizeGameMode, parseCanonicalChallengeConditions, parseChallengeProgressRule, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
 import type { AdminVerifiedRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, ChallengeCondition, ChallengeProgressRule, VerifiedRunDifficulty, VerifiedRunEventCounters, VerifiedRunEvidenceCompatibilityV1, MasteryMapProfile, VerifiedRunActor, VerifiedRunConflictField, VerifiedRunForProjection, VerifiedRunXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
 import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerChallengeProgressListResponse, PlayerSubmissionStatus, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, QqScreenshotSubmissionRequest, QqScreenshotSubmissionResponse, RandomEvent, RandomEventVersion, ScreenshotSetStatus, Title } from "@owbastion/contracts";
@@ -11,7 +11,7 @@ import { achievementChallengeMaps, achievementChallenges, attachments, auditEven
 import { userEvidenceObjectKey } from "./object-key";
 import { fetchQqAttachmentImage } from "./qq-attachment";
 import { matchOcrAgainstChallenges, type AutoMatchCandidate, type CanonicalOcrChallenge } from "./ocr-auto-match";
-import { assessChallengeOcrQuality, type OcrResponse } from "./ocr-response";
+import { assessChallengeOcrQuality, standaloneOcrMode, type OcrResponse } from "./ocr-response";
 import { resolvePortalSession } from "./portal-session";
 import { createPlatformCache, instrumentDatabase } from "./platform-cache";
 
@@ -41,6 +41,7 @@ export type VerifiedRunOcrEvidenceAssessment =
     outcome: "eligible";
     mapName: string;
     mapVariant: "classic" | null;
+    mode: string | null;
     difficulty: VerifiedRunDifficulty;
     gameVersion: string;
     matchCode: string;
@@ -98,6 +99,7 @@ export const assessVerifiedRunOcrEvidence = (response: OcrResponse, compatibilit
     outcome: "eligible",
     mapName,
     mapVariant: rawVariant === "classic" ? "classic" : null,
+    mode: standaloneOcrMode(response),
     difficulty: difficulty as VerifiedRunDifficulty,
     gameVersion,
     matchCode,
@@ -1412,6 +1414,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       mapId: row.mapId,
       lifecycle: row.lifecycle as AdminMapRevision["lifecycle"],
       mapVariant: row.legacyMapVariant as "classic" | null,
+      mode: row.mode,
       copiedFromRevisionId: row.copiedFromRevisionId,
       resetReason: nullableEditorText(row.resetReason),
       gameVersion: row.gameVersion,
@@ -1550,6 +1553,17 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     if (!allowed[current]?.includes(next)) throw new Error("INVALID_REVISION_TRANSITION");
   };
 
+  // A standalone-mode revision is a selectable alternative layout and never the map's default
+  // or its classic variant; each map has at most one revision per mode.
+  const assertRevisionMode = async (mapId: string, revisionId: string | null, lifecycle: string, mapVariant: "classic" | null, mode: string | null) => {
+    if (!mode) return;
+    if (lifecycle === "default") throw new Error("DEFAULT_REVISION_CANNOT_USE_MODE");
+    if (mapVariant !== null) throw new Error("MODE_REVISION_CANNOT_USE_CLASSIC_VARIANT");
+    const other = await db.select({ id: gameplayRevisions.id }).from(gameplayRevisions)
+      .where(and(eq(gameplayRevisions.mapId, mapId), eq(gameplayRevisions.mode, mode), revisionId ? ne(gameplayRevisions.id, revisionId) : undefined)).get();
+    if (other) throw new Error("MODE_REVISION_CONFLICT");
+  };
+
   const assertRevisionConfiguration = (lifecycle: AdminMapRevisionUpdateRequest["lifecycle"], mapVariant: "classic" | null, spatialConfig: AdminMapRevisionUpdateRequest["spatialConfig"]) => {
     if (lifecycle === "default" && mapVariant !== null) throw new Error("DEFAULT_REVISION_CANNOT_USE_CLASSIC_VARIANT");
     if ((lifecycle === "default" || lifecycle === "selectable") && !spatialConfig) throw new Error("INVALID_SPATIAL_CONFIG");
@@ -1603,7 +1617,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       "r.legacy_map_variant, r.game_version AS revision_game_version, r.spatial_config_json",
       "FROM maps m",
       "LEFT JOIN map_metadata md ON md.map_id = m.id",
-      "LEFT JOIN gameplay_revisions r ON r.map_id = m.id AND r.lifecycle IN ('default', 'selectable')",
+      // Standalone-mode revisions are not compile-time selectable in the regular Bastion build.
+      "LEFT JOIN gameplay_revisions r ON r.map_id = m.id AND r.lifecycle IN ('default', 'selectable') AND r.mode IS NULL",
       "WHERE m.status = 'active'" + mapFilter,
       "ORDER BY m.name, m.id, CASE r.lifecycle WHEN 'default' THEN 0 WHEN 'selectable' THEN 1 ELSE 2 END, r.id",
     ].join(" ")).bind(...(input.mapId ? [input.mapId] : [])).all<AgentMapProjectionRow>();
@@ -1639,7 +1654,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       "  WHERE c.legacy_challenge_id = a.challenge_id AND c.map_id = a.map_id LIMIT 1",
       ") ELSE NULL END AS compat_rule_id",
       "FROM gameplay_revision_challenge_assignments a",
-      "INNER JOIN gameplay_revisions r ON r.id = a.gameplay_revision_id AND r.lifecycle IN ('default', 'selectable')",
+      "INNER JOIN gameplay_revisions r ON r.id = a.gameplay_revision_id AND r.lifecycle IN ('default', 'selectable') AND r.mode IS NULL",
       "INNER JOIN maps m ON m.id = r.map_id AND m.status = 'active'",
       "WHERE a.enabled = 1",
       "AND NOT (a.challenge_family = 'map_title_rule' AND EXISTS (",
@@ -1767,6 +1782,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           else throw new Error("SUBMISSION_CORRECTION_INVALID");
           break;
         }
+        case "mode": data.mode = value; break;
         case "version": data.version = value; break;
         case "run_code": data.run_code = value; break;
         case "duration_seconds":
@@ -2198,12 +2214,21 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     }
   };
 
-  const resolveMasteryGameplayRevision = async (input: { mapId: string; mapVariant: "classic" | null; gameplayRevisionId: string | null }) => {
+  const resolveMasteryGameplayRevision = async (input: { mapId: string; mapVariant: "classic" | null; mode: string | null; gameplayRevisionId: string | null }) => {
     if (input.gameplayRevisionId) {
       const revision = await db.select().from(gameplayRevisions).where(eq(gameplayRevisions.id, input.gameplayRevisionId)).get();
       if (!revision || revision.mapId !== input.mapId) return null;
-      if ((revision.legacyMapVariant ?? null) !== input.mapVariant) return null;
+      if ((revision.legacyMapVariant ?? null) !== input.mapVariant || (revision.mode ?? null) !== input.mode) return null;
       return revision;
+    }
+    if (input.mode) {
+      return input.mapVariant === null
+        ? await db.select().from(gameplayRevisions).where(and(
+          eq(gameplayRevisions.mapId, input.mapId),
+          eq(gameplayRevisions.mode, input.mode),
+          eq(gameplayRevisions.lifecycle, "selectable"),
+        )).get()
+        : undefined;
     }
     return input.mapVariant === "classic"
       ? await db.select().from(gameplayRevisions).where(and(
@@ -2347,6 +2372,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     const revision = await resolveMasteryGameplayRevision({
       mapId: matchingMaps[0].id,
       mapVariant: evidence.mapVariant,
+      mode: evidence.mode,
       gameplayRevisionId: snapshotGameplayRevisionId(row),
     });
     if (!revision) return plan({ status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: "gameplay_revision_not_found", conflictFields: [] });
@@ -2440,6 +2466,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     const revision = await resolveMasteryGameplayRevision({
       mapId: matchingMaps[0]!.id,
       mapVariant,
+      mode: standaloneOcrMode(response),
       gameplayRevisionId: snapshotGameplayRevisionId(row),
     });
     return revision?.id ?? null;
@@ -2854,7 +2881,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     ];
 
   // Aggregate progress Challenges complete from authoritative Verified Runs:
-  // a run counts when it is active, on a required map, at the required
+  // a run counts when it is active, on a required map in the rule's mode (its
+  // Gameplay Revision's mode; regular revisions when the rule names none), at the required
   // difficulty, and its source Submission was created inside the Challenge
   // eligibility window (Submission timestamps carry the event-time fact;
   // review may complete after the window closes). Screenshot/OCR evidence is
@@ -2864,10 +2892,12 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     const rows = await db.select({ mapId: verifiedRuns.mapId, difficulty: verifiedRuns.difficulty })
       .from(verifiedRuns)
       .innerJoin(submissions, eq(verifiedRuns.sourceSubmissionId, submissions.id))
+      .innerJoin(gameplayRevisions, eq(verifiedRuns.gameplayRevisionId, gameplayRevisions.id))
       .where(and(
         eq(verifiedRuns.playerAccountId, input.playerAccountId),
         eq(verifiedRuns.status, "active"),
         inArray(verifiedRuns.mapId, requiredMapIds),
+        input.rule.mode ? eq(gameplayRevisions.mode, input.rule.mode) : isNull(gameplayRevisions.mode),
         input.startsAt !== null ? gte(submissions.createdAt, input.startsAt) : undefined,
         input.endsAt !== null ? lt(submissions.createdAt, input.endsAt) : undefined,
       ));
@@ -3427,7 +3457,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     if (family === "title_challenge") {
       // Aggregate progress Challenges carry a single canonical condition; the
       // required map set is part of the rule identity, never a snapshot mapId.
-      if (progressRule) conditions.push({ type: "required_maps_completed", mapIds: progressRule.mapIds, ...(progressRule.difficultyAtLeast ? { difficultyAtLeast: progressRule.difficultyAtLeast } : {}) });
+      if (progressRule) conditions.push(progressRule);
       else {
         conditions.push({ type: "achievement_title", titleKey: input.titleKey });
         if (input.mapId) conditions.push({ type: "map", mapId: input.mapId });
@@ -3562,7 +3592,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const progressRule = parseChallengeProgressRule(legacyTitleChallenge?.progressRule);
       const conditions: ChallengeCondition[] = [];
       if (family === "title_challenge") {
-        if (progressRule) conditions.push({ type: "required_maps_completed", mapIds: progressRule.mapIds, ...(progressRule.difficultyAtLeast ? { difficultyAtLeast: progressRule.difficultyAtLeast } : {}) });
+        if (progressRule) conditions.push(progressRule);
         else {
           conditions.push({ type: "achievement_title", titleKey: input.titleKey });
           if (input.mapId) conditions.push({ type: "map", mapId: input.mapId });
@@ -4207,12 +4237,23 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
   };
 
+  // A non-regular mode label is trusted only when an administrator has configured that mode;
+  // anything else is most likely a misread of the regular label and needs a maintainer.
+  const isKnownStandaloneMode = async (mode: string) => Boolean(await db.select({ id: gameplayRevisions.id }).from(gameplayRevisions).where(eq(gameplayRevisions.mode, mode)).get());
+
   const completeOcrResult = async (row: typeof submissions.$inferSelect, result: OcrResponse, input: { attempt: number; manual: boolean; requestId: string }) => {
     const ocrRequestId = input.requestId;
     const startedAt = Date.now();
     const context = { submissionId: row.id, ...input };
     let stage = "load_submission";
     try {
+      stage = "check_game_mode";
+      const mode = standaloneOcrMode(result);
+      if (mode && !await isKnownStandaloneMode(mode)) {
+        await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ unknownMode: mode }), nextStatus: "ocr_review_required", reviewReason: "无法识别截图所在的游戏模式，请人工核对", incrementFailCount: false });
+        logOcrEvent("job_completed", { ...context, outcome: "unknown_mode", mode, durationMs: Date.now() - startedAt });
+        return;
+      }
       stage = "resolve_auto_candidates";
       const preparedCanonicalCandidates = await preparePlayerAutoMatchChallenges(row, result);
       const canonicalDecision = matchOcrAgainstChallenges(preparedCanonicalCandidates.candidates, result, preparedCanonicalCandidates.mapIdsByName, preparedCanonicalCandidates.titleNamesByKey);
@@ -4809,11 +4850,13 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         const existingClassic = await db.select({ id: gameplayRevisions.id }).from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.legacyMapVariant, "classic"))).get();
         if (existingClassic) throw new Error("LEGACY_VARIANT_CONFLICT");
       }
+      const mode = normalizeGameMode(input.mode);
+      await assertRevisionMode(input.mapId, null, "preparing", input.mapVariant, mode);
 
       const timestamp = now();
       const revisionId = `revision:${input.mapId}:${crypto.randomUUID()}`;
-      const statements = [database.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, spatial_config_json, created_at, updated_at) VALUES (?, ?, 'preparing', ?, ?, ?, ?, ?, ?, ?)").bind(
-        revisionId, input.mapId, input.mapVariant, source?.id ?? input.sourceRevisionId ?? null, resetReason, gameVersion, spatialConfig ? JSON.stringify(spatialConfig) : null, timestamp, timestamp,
+      const statements = [database.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, mode, copied_from_revision_id, reset_reason, game_version, spatial_config_json, created_at, updated_at) VALUES (?, ?, 'preparing', ?, ?, ?, ?, ?, ?, ?, ?)").bind(
+        revisionId, input.mapId, input.mapVariant, mode, source?.id ?? input.sourceRevisionId ?? null, resetReason, gameVersion, spatialConfig ? JSON.stringify(spatialConfig) : null, timestamp, timestamp,
       )];
       for (const assignment of assignments) {
         statements.push(database.prepare("INSERT INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, condition, evidence_rule, submission_mode, slot, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(
@@ -4851,6 +4894,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         const otherClassic = await db.select({ id: gameplayRevisions.id }).from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.legacyMapVariant, "classic"), ne(gameplayRevisions.id, input.revisionId))).get();
         if (otherClassic) throw new Error("LEGACY_VARIANT_CONFLICT");
       }
+      const mode = input.mode === undefined ? current.mode : normalizeGameMode(input.mode);
+      await assertRevisionMode(input.mapId, input.revisionId, input.lifecycle, input.mapVariant, mode);
 
       const becomesClassicMapRevision = input.lifecycle === "selectable" && input.mapVariant === "classic";
       const activeMap = becomesClassicMapRevision
@@ -4866,8 +4911,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
 
       const timestamp = now();
       const statements = [
-        database.prepare("UPDATE gameplay_revisions SET lifecycle = ?, legacy_map_variant = ?, game_version = ?, spatial_config_json = ?, updated_at = ? WHERE id = ? AND map_id = ?").bind(
-          input.lifecycle, input.mapVariant, input.gameVersion, spatialConfig ? JSON.stringify(spatialConfig) : null, timestamp, input.revisionId, input.mapId,
+        database.prepare("UPDATE gameplay_revisions SET lifecycle = ?, legacy_map_variant = ?, mode = ?, game_version = ?, spatial_config_json = ?, updated_at = ? WHERE id = ? AND map_id = ?").bind(
+          input.lifecycle, input.mapVariant, mode, input.gameVersion, spatialConfig ? JSON.stringify(spatialConfig) : null, timestamp, input.revisionId, input.mapId,
         ),
         database.prepare("DELETE FROM gameplay_revision_challenge_assignments WHERE gameplay_revision_id = ?").bind(input.revisionId),
       ];
@@ -4909,6 +4954,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       if (!current) throw new Error("REVISION_NOT_FOUND");
       if (!["preparing", "selectable", "default"].includes(current.lifecycle)) throw new Error("REVISION_NOT_PROMOTABLE");
       if (current.legacyMapVariant !== null) throw new Error("DEFAULT_REVISION_CANNOT_USE_CLASSIC_VARIANT");
+      if (current.mode !== null) throw new Error("DEFAULT_REVISION_CANNOT_USE_MODE");
       const map = await db.select().from(maps).where(and(eq(maps.id, input.mapId), eq(maps.status, "active"))).get();
       if (!map) throw new Error("MAP_NOT_FOUND");
       const spatialConfig = current.spatialConfigJson ? parseSpatialConfig(JSON.parse(current.spatialConfigJson)) : null;
@@ -7437,7 +7483,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           status: status as "scheduled" | "active" | "sunsetting",
           ...(challenge.startsAt !== null ? { startsAt: challenge.startsAt } : {}),
           ...(challenge.endsAt !== null ? { endsAt: challenge.endsAt } : {}),
-          progressRule: { type: "required_maps_completed", mapIds: rule.mapIds, ...(rule.difficultyAtLeast ? { difficultyAtLeast: rule.difficultyAtLeast } : {}) },
+          progressRule: rule,
           maps: rule.mapIds.map((mapId) => ({ mapId, completed: eligibility.completed.has(mapId) })),
           completedMaps: eligibility.completed.size,
           satisfied: eligibility.satisfied,
