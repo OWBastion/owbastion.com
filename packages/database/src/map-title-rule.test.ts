@@ -275,6 +275,8 @@ describe("Agents map projection readiness", () => {
       challengeAssignments: [],
     }, auth, "mode-selectable");
     expect(selectable).toMatchObject({ lifecycle: "selectable", mode: "2026镜中回响" });
+    // Bastion's regular build cannot select a standalone-mode layout, so the Agents projection omits it.
+    expect((await services.getAgentMap({ mapId: "map.mode" }))!.gameplayRevisions.map((revision) => revision.gameplayRevisionId)).toEqual(["revision:map.mode:initial"]);
     await expect(services.promoteAdminMapRevision({
       contractVersion: "1",
       mapId: "map.mode",

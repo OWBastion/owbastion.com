@@ -1617,7 +1617,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       "r.legacy_map_variant, r.game_version AS revision_game_version, r.spatial_config_json",
       "FROM maps m",
       "LEFT JOIN map_metadata md ON md.map_id = m.id",
-      "LEFT JOIN gameplay_revisions r ON r.map_id = m.id AND r.lifecycle IN ('default', 'selectable')",
+      // Standalone-mode revisions are not compile-time selectable in the regular Bastion build.
+      "LEFT JOIN gameplay_revisions r ON r.map_id = m.id AND r.lifecycle IN ('default', 'selectable') AND r.mode IS NULL",
       "WHERE m.status = 'active'" + mapFilter,
       "ORDER BY m.name, m.id, CASE r.lifecycle WHEN 'default' THEN 0 WHEN 'selectable' THEN 1 ELSE 2 END, r.id",
     ].join(" ")).bind(...(input.mapId ? [input.mapId] : [])).all<AgentMapProjectionRow>();
@@ -1653,7 +1654,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       "  WHERE c.legacy_challenge_id = a.challenge_id AND c.map_id = a.map_id LIMIT 1",
       ") ELSE NULL END AS compat_rule_id",
       "FROM gameplay_revision_challenge_assignments a",
-      "INNER JOIN gameplay_revisions r ON r.id = a.gameplay_revision_id AND r.lifecycle IN ('default', 'selectable')",
+      "INNER JOIN gameplay_revisions r ON r.id = a.gameplay_revision_id AND r.lifecycle IN ('default', 'selectable') AND r.mode IS NULL",
       "INNER JOIN maps m ON m.id = r.map_id AND m.status = 'active'",
       "WHERE a.enabled = 1",
       "AND NOT (a.challenge_family = 'map_title_rule' AND EXISTS (",
