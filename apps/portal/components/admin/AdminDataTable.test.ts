@@ -103,6 +103,22 @@ describe("AdminDataTable mobile presentation", () => {
     expect(wrapper.text()).toContain("待处理");
   });
 
+  it("selects records with checkboxes on the mobile list and reports their keys", async () => {
+    const wrapper = mountTable({ selectable: true, selectedKeys: [], "onUpdate:selectedKeys": (keys: string[]) => wrapper.setProps({ selectedKeys: keys }) });
+    const boxes = wrapper.findAll('[aria-label="选择此记录"]');
+    expect(boxes).toHaveLength(2);
+
+    await boxes[1]!.trigger("click");
+    expect(wrapper.emitted("update:selectedKeys")?.at(-1)).toEqual([["record-b"]]);
+  });
+
+  it("hides desktop row clicks from the mobile action when the table is in master mode", async () => {
+    const picked: string[] = [];
+    const wrapper = mountTable({ activeRowKey: null, mobileRowAction: (row: { id: string }) => picked.push(row.id) });
+    await wrapper.findAll(".admin-data-table__mobile-primary-link")[0]!.trigger("click");
+    expect(picked).toEqual(["record-a"]);
+  });
+
   it("shows the secondary-control entry point when sorting is available", async () => {
     const wrapper = mountTable();
     await nextTick();

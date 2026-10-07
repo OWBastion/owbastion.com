@@ -124,9 +124,25 @@
 
 ## Admin master and detail
 
-- Keep the selectable list and selected detail in a wide workspace.
-- Use `AdminResponsiveDialog` for overlays and collapse the columns rather than
-  shrinking data below operable sizes.
+- Keep the selectable list and selected detail in a wide workspace. The master
+  may be an `AdminDataTable` (`active-row-key`, `@row-select`): when the work is
+  comparing numbers across records, keep the matrix and dock the detail beside
+  it instead of replacing the matrix with a list. Long-text columns the detail
+  already shows start hidden (`default-hidden-columns`).
+- The docked detail sits from the wide page breakpoint (`64rem`); below it the
+  same editor opens in `AdminResponsiveDialog` and collapses the columns rather
+  than shrinking data below operable sizes.
+- Editing is explicit: a save action that is enabled only when something changed.
+  Never save as the user types — every write is audited and replaces the whole
+  record. Selecting another record while the editor has unsaved changes asks
+  before dropping them; a refresh of the same record never discards typing.
+- A change that affects a derived value shows the result before saving (for
+  example the event probability with the weight being typed).
+- After a reversible write, a toast offers "撤销" (see motion and feedback);
+  an irreversible one (archive) keeps its confirmation.
+- Filters that combine are `FilterChip`s with counts, the same toggle the player
+  directories use; rarely used actions sit behind one "更多" control that shows
+  a badge when something inside needs attention.
 
 ## Admin review workspace
 

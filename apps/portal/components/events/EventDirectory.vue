@@ -90,28 +90,20 @@ onMounted(() => { hydrated.value = true; });
     <div v-if="groupOptions.length || tagOptions.length" class="quick-filters">
       <div v-if="groupOptions.length" class="chip-row" role="group" aria-label="事件组">
         <span class="chip-row__label type-label-sm">事件组</span>
-        <UButton v-for="value in groupOptions" :key="value" :label="value" size="md" :color="isOn('groups', value) ? 'primary' : 'neutral'" :variant="isOn('groups', value) ? 'soft' : 'outline'" :aria-pressed="isOn('groups', value)" :disabled="!isOn('groups', value) && !countFor('groups', value)" @click="toggle('groups', value)">
-          <template #trailing><span class="chip-count num">{{ countFor("groups", value) }}</span></template>
-        </UButton>
+        <FilterChip v-for="value in groupOptions" :key="value" :label="value" :count="countFor('groups', value)" :pressed="isOn('groups', value)" :disabled="!isOn('groups', value) && !countFor('groups', value)" @toggle="toggle('groups', value)" />
       </div>
       <div v-if="tagOptions.length" class="chip-row" role="group" aria-label="常见效果">
         <span class="chip-row__label type-label-sm">常见效果</span>
-        <UButton v-for="value in tagOptions" :key="value" :label="value" size="md" :color="isOn('tags', value) ? 'primary' : 'neutral'" :variant="isOn('tags', value) ? 'soft' : 'outline'" :aria-pressed="isOn('tags', value)" :disabled="!isOn('tags', value) && !countFor('tags', value)" @click="toggle('tags', value)">
-          <template #trailing><span class="chip-count num">{{ countFor("tags", value) }}</span></template>
-        </UButton>
+        <FilterChip v-for="value in tagOptions" :key="value" :label="value" :count="countFor('tags', value)" :pressed="isOn('tags', value)" :disabled="!isOn('tags', value) && !countFor('tags', value)" @toggle="toggle('tags', value)" />
       </div>
     </div>
 
     <div class="refine-filters">
       <div v-if="categoryOptions.length" class="chip-row" role="group" aria-label="类别">
-        <UButton v-for="value in categoryOptions" :key="value" :label="value" size="md" :color="isOn('categories', value) ? 'primary' : 'neutral'" :variant="isOn('categories', value) ? 'soft' : 'outline'" :aria-pressed="isOn('categories', value)" :disabled="!isOn('categories', value) && !countFor('categories', value)" @click="toggle('categories', value)">
-          <template #trailing><span class="chip-count num">{{ countFor("categories", value) }}</span></template>
-        </UButton>
+        <FilterChip v-for="value in categoryOptions" :key="value" :label="value" :count="countFor('categories', value)" :pressed="isOn('categories', value)" :disabled="!isOn('categories', value) && !countFor('categories', value)" @toggle="toggle('categories', value)" />
       </div>
       <div v-if="rarityOptions.length" class="chip-row" role="group" aria-label="稀有度">
-        <UButton v-for="value in rarityOptions" :key="value" :label="value" size="md" :color="isOn('rarities', value) ? 'primary' : 'neutral'" :variant="isOn('rarities', value) ? 'soft' : 'outline'" :aria-pressed="isOn('rarities', value)" :disabled="!isOn('rarities', value) && !countFor('rarities', value)" @click="toggle('rarities', value)">
-          <template #trailing><span class="chip-count num">{{ countFor("rarities", value) }}</span></template>
-        </UButton>
+        <FilterChip v-for="value in rarityOptions" :key="value" :label="value" :count="countFor('rarities', value)" :pressed="isOn('rarities', value)" :disabled="!isOn('rarities', value) && !countFor('rarities', value)" @toggle="toggle('rarities', value)" />
       </div>
       <USelect v-model="filters.version" size="md" :items="[{ label: '全部版本', value: 'all' }, ...versionOptions.map((value) => ({ label: value, value }))]" aria-label="筛选事件版本" />
       <USelect v-model="filters.status" size="md" :items="[{ label: '已实装事件', value: 'implemented' }, { label: '全部状态', value: 'all' }, { label: '已移除事件', value: 'removed' }]" aria-label="筛选事件状态" />
@@ -273,7 +265,6 @@ onMounted(() => { hydrated.value = true; });
 .refine-filters > :deep([data-slot="base"]) { min-width: 9rem; }
 .chip-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
 .chip-row__label { min-width: 4.5rem; color: var(--muted); }
-.chip-count { color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; }
 .result-summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
 .event-groups { display: grid; gap: var(--space-8); }
 .event-group { display: grid; gap: var(--space-3); }
