@@ -16,6 +16,22 @@
   required next action (see [`content-and-state.md`](content-and-state.md)).
 - Use the directory components and `UEmpty`.
 
+## Event directory
+
+- Search, then combinable chips with live counts: 事件组 and 常见效果 first (effects
+  are the most common ones and must all match; groups are any-of), then 类别 and
+  稀有度, with 版本 and 状态 as selects. Active conditions and the result count sit
+  above the list with one "清除条件".
+- Order and grouping are the player's choice (latest version, name, or
+  probability; none, by 事件组, version, or category); the default is no
+  grouping. A group heading appears only when a grouping is chosen.
+- A card carries the group, category, rarity and version, the description, a
+  probability bar relative to the most likely event, the facts (duration,
+  cooldown, weight), and effects. Status is shown only when it is not
+  "已实装". The detail leads with the probability and what it means in draws.
+- On narrow screens everything except search folds behind one "筛选与排序" control
+  that shows how many conditions are active.
+
 ## Player center
 
 - Answer "what should I do next": greeting and the primary upload action

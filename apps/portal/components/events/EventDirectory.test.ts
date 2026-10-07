@@ -19,6 +19,7 @@ const event = (overrides: Partial<RandomEvent> = {}) => ({
   cooldownSeconds: null,
   weight: null,
   gameVersion: "26.0718.1",
+  eventGroup: null,
   effectTags: [],
   effectAnnotations: [],
   releaseStatus: "implemented" as const,
@@ -46,7 +47,7 @@ const global = {
 };
 
 describe("EventDirectory", () => {
-  it("hides removed events by default, groups by version, and sorts names", async () => {
+  it("hides removed events by default, lists the newest version first without forced grouping", async () => {
     const wrapper = await mountSuspended(EventDirectory, {
       props: {
         events: [
@@ -60,8 +61,8 @@ describe("EventDirectory", () => {
       global,
     });
 
-    expect(wrapper.text()).toContain("26.0718.1");
-    expect(wrapper.text()).toContain("26.0717.1");
+    expect(wrapper.findAll("h2")).toHaveLength(0);
+    expect(wrapper.text()).toContain("3 项事件");
     expect(wrapper.findAll("h3").map((heading) => heading.text())).not.toContain("已移除事件");
     expect(wrapper.findAll("h3").map((heading) => heading.text())).toEqual(["Alpha 事件", "Zeta 事件", "旧版本事件"]);
     expect(portalApi.mock.calls.filter(([path]) => path.startsWith("/v1/public/reviews/summaries?")).length).toBe(1);
@@ -97,8 +98,7 @@ describe("EventDirectory", () => {
       global,
     });
 
-    const rarityFilter = wrapper.get('select[aria-label="筛选事件稀有度"]');
-    expect(rarityFilter.findAll("option").map((option) => option.text())).toEqual(["全部稀有度"]);
+    expect(wrapper.find('[aria-label="稀有度"]').exists()).toBe(false);
     expect(wrapper.find(".event-rarity").exists()).toBe(false);
 
     await wrapper.findAll("button").find((button) => button.text().includes("无权重事件"))!.trigger("click");
@@ -131,5 +131,53 @@ describe("EventDirectory", () => {
     expect(links[1]?.attributes("href") ?? links[1]?.attributes("to")).toContain("/achievements");
     expect(links[1]?.text()).toContain("查看成就");
     expect(wrapper.text()).not.toContain("查看成就 →");
+  });
+
+  const chipButton = (wrapper: Awaited<ReturnType<typeof mountSuspended>>, group: string, label: string) => wrapper.findAll(`[aria-label="${group}"] button`).find((button) => button.text().startsWith(label))!;
+  const names = (wrapper: Awaited<ReturnType<typeof mountSuspended>>) => wrapper.findAll("h3").map((heading) => heading.text());
+  const groupedEvents = [
+    event({ eventId: "event.a", name: "梭哈", eventGroup: "赌徒", effectTags: ["心之钢", "永久"], weight: 1 }),
+    event({ eventId: "event.b", name: "心之钢", eventGroup: "赌徒", effectTags: ["心之钢"], weight: 0.5 }),
+    event({ eventId: "event.c", name: "先知", eventGroup: "作弊", effectTags: ["永久"], weight: 2 }),
+    event({ eventId: "event.d", name: "无组事件", weight: 1 }),
+  ];
+
+  it("filters by event group and common effect chips with live counts", async () => {
+    const wrapper = await mountSuspended(EventDirectory, { props: { events: groupedEvents, authenticated: false }, global });
+
+    expect(chipButton(wrapper, "事件组", "赌徒").text()).toContain("2");
+    await chipButton(wrapper, "事件组", "赌徒").trigger("click");
+    expect(names(wrapper).sort()).toEqual(["心之钢", "梭哈"]);
+    expect(chipButton(wrapper, "事件组", "赌徒").attributes("aria-pressed")).toBe("true");
+    // The effect chip now counts only inside the selected group.
+    expect(chipButton(wrapper, "常见效果", "永久").text()).toContain("1");
+
+    await chipButton(wrapper, "常见效果", "永久").trigger("click");
+    expect(names(wrapper)).toEqual(["梭哈"]);
+    expect(wrapper.text()).toContain("1 项事件");
+
+    await wrapper.findAll("button").find((button) => button.text() === "清除条件")!.trigger("click");
+    expect(names(wrapper)).toHaveLength(4);
+  });
+
+  it("groups by event group with the ungrouped events last", async () => {
+    const wrapper = await mountSuspended(EventDirectory, { props: { events: groupedEvents, authenticated: false }, global });
+
+    await wrapper.get('select[aria-label="分组方式"]').setValue("group");
+    expect(wrapper.findAll("h2").map((heading) => heading.text())).toEqual(["赌徒", "作弊", "未分组"]);
+  });
+
+  it("shows relative probability on cards, sorts by it, and explains it in the detail", async () => {
+    const wrapper = await mountSuspended(EventDirectory, { props: { events: groupedEvents, authenticated: false }, global });
+
+    expect(wrapper.findAll(".probability-meter")).toHaveLength(4);
+    await wrapper.get('select[aria-label="排序方式"]').setValue("probability");
+    expect(names(wrapper)[0]).toBe("先知");
+
+    await wrapper.findAll("button").find((button) => button.text().includes("先知"))!.trigger("click");
+    await wrapper.vm.$nextTick();
+    const detail = wrapper.get('[role="dialog"] .detail-probability');
+    expect(detail.text()).toContain("次事件抽取出现 1 次");
+    expect(detail.text()).toContain("第 1 / 4 位");
   });
 });
