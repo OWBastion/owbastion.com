@@ -6,9 +6,8 @@ function isColumnVisibility(value: unknown): value is ColumnVisibility {
   return typeof value === "object" && value !== null && Object.values(value).every((entry) => typeof entry === "boolean");
 }
 
-// `defaults` lists columns that start hidden until the viewer picks their own set.
-export function useTableColumnVisibility(tableKey: string, defaultHidden: string[] = []) {
-  const visibility = ref<ColumnVisibility>(Object.fromEntries(defaultHidden.map((id) => [id, false])));
+export function useTableColumnVisibility(tableKey: string) {
+  const visibility = ref<ColumnVisibility>({});
   const storageKey = `${storagePrefix}${tableKey}`;
 
   onMounted(() => {

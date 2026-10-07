@@ -54,7 +54,7 @@ import type {
   AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapRevisionPromotionRequest,
   AdminCatalogTitleUpdateRequest,
   AdminMapTitleRule, AdminMapTitleRuleListResponse, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleInheritanceResponse, AdminMapTitleRuleExceptionUpsertRequest,
-  RandomEvent, RandomEventListResponse, AdminRandomEventCreateRequest, AdminRandomEventUpdateRequest, AdminRandomEventImportRequest, RandomEventVersion, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse,
+  RandomEvent, RandomEventListResponse, AdminRandomEventCreateRequest, AdminRandomEventUpdateRequest, AdminRandomEventBatchRequest, AdminRandomEventImportRequest, RandomEventVersion, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse,
   PlayerUploadSessionRequest,
   PlayerUploadSessionResponse,
   OcrAccuracyFeedbackRequest,
@@ -203,6 +203,7 @@ export type PlatformServices = {
   getRandomEvent(input: { eventId: string; status?: RandomEvent["releaseStatus"]; includeArchived?: boolean }): Promise<RandomEvent | null>;
   createAdminRandomEvent(input: AdminRandomEventCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<RandomEvent>;
   updateAdminRandomEvent(input: AdminRandomEventUpdateRequest & { eventId: string }, auth: AuthContext, idempotencyKey: string): Promise<RandomEvent>;
+  batchUpdateAdminRandomEvents(input: AdminRandomEventBatchRequest, auth: AuthContext, idempotencyKey: string): Promise<RandomEvent[]>;
   archiveAdminRandomEvent(input: { eventId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   previewAdminRandomEventImport(input: AdminRandomEventImportRequest, auth: AuthContext): Promise<{ sourceHash: string; validRowCount: number; errors: Array<{ row: number; message: string }>; rows: Array<{ name: string; category: string; releaseStatus: "development" | "implemented" | "removed" }> }>;
   importAdminRandomEvents(input: AdminRandomEventImportRequest, auth: AuthContext, idempotencyKey: string): Promise<{ importedCount: number }>;

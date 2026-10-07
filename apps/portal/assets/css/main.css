@@ -838,3 +838,8 @@ a[data-slot="base"]:active:not([aria-disabled="true"]) {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
   gap: var(--space-4);
 }
+
+/* Native select and number controls that sit inside dense admin tables and bars. */
+.native-field { min-height: var(--control-md); padding: 0 var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); color: var(--text); font: inherit; font-size: var(--type-body-sm-size); }
+.native-field:hover { border-color: var(--line-strong); }
+.native-field:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

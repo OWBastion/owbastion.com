@@ -44,12 +44,6 @@ type Props = {
   resetScrollKey?: string | number;
   sticky?: boolean | "header" | "footer";
   virtualize?: boolean | TableVirtualizeOptions;
-  /** Master mode: passing a key (or null) makes desktop rows selectable and highlights the active record. */
-  activeRowKey?: string | null;
-  /** Adds a checkbox column (and mobile checkboxes) bound to `selectedKeys`. */
-  selectable?: boolean;
-  /** Columns that start hidden until the viewer chooses their own set. */
-  defaultHiddenColumns?: string[];
 };
 
 const props = withDefaults(defineProps<Props>(), {
@@ -67,11 +61,7 @@ const props = withDefaults(defineProps<Props>(), {
   mobileRowAction: undefined,
   sticky: "header",
   virtualize: false,
-  activeRowKey: undefined,
-  selectable: false,
-  defaultHiddenColumns: () => [],
 });
-const emit = defineEmits<{ rowSelect: [row: TData] }>();
 const defaultScrollHeight = "clamp(14rem, calc(100dvh - 18rem), 42rem)";
 const boundedScroll = computed(() => Boolean(props.scrollHeight || props.virtualize));
 const tableScrollHeight = computed(() => props.scrollHeight ?? (props.virtualize ? defaultScrollHeight : undefined));
@@ -84,8 +74,7 @@ const columnFilters = defineModel<Array<{ id: string; value: unknown }>>("column
 const sorting = defineModel<SortingState>("sorting", { default: () => [] });
 const grouping = defineModel<GroupingState>("grouping", { default: () => [] });
 const columnPinning = defineModel<ColumnPinningState>("columnPinning", { default: () => ({ left: [], right: [] }) });
-const selectedKeys = defineModel<string[]>("selectedKeys", { default: () => [] });
-const columnVisibility = useTableColumnVisibility(props.tableKey, props.defaultHiddenColumns);
+const columnVisibility = useTableColumnVisibility(props.tableKey);
 type TableHandle = { tableApi: { getRowModel: () => { rows: Array<{ original: TData }> } } };
 const tableRoot = useTemplateRef<HTMLElement>("tableRoot");
 const table = useTemplateRef<TableHandle>("table");
@@ -97,8 +86,7 @@ const tableSlots = Object.fromEntries(Object.entries(slots).filter(([name]) => !
 const tableUi = { root: "overflow-visible", thead: "after:content-none" };
 const tableColumns = computed(() => {
   const allowHeaderSorting = props.sortingOptions.length > 0;
-  const selectColumn = props.selectable ? [{ id: "select", header: "", size: 36, enableSorting: false, enableHiding: false, meta: { class: { th: "w-10", td: "w-10" } } } as AdminTableColumn<TData>] : [];
-  return [...selectColumn, ...props.columns].map((column) => {
+  return props.columns.map((column) => {
     const hasAccessor = "accessorKey" in column || "accessorFn" in column;
     return {
       ...column,
@@ -165,25 +153,9 @@ const rowIdentity = (row: TData) => {
   if (typeof value !== "string" && typeof value !== "number") throw new Error(`AdminDataTable row key must resolve to a string or number for ${props.tableKey}`);
   return String(value);
 };
-const masterMode = computed(() => props.activeRowKey !== undefined);
-const rowSelection = computed({
-  get: () => Object.fromEntries(selectedKeys.value.map((key) => [key, true])),
-  set: (value: Record<string, boolean> | undefined) => { selectedKeys.value = Object.entries(value ?? {}).filter(([, on]) => on).map(([key]) => key); },
-});
-type TableRowLike = { original?: TData; getIsGrouped?: () => boolean };
-const rowMeta = computed(() => ({
-  class: { tr: (row: TableRowLike) => !row.getIsGrouped?.() && row.original && masterMode.value && rowIdentity(row.original) === props.activeRowKey ? "admin-data-table__row--active" : "" },
-}));
-const onRowSelect = (_event: Event, row: TableRowLike) => { if (!row.getIsGrouped?.() && row.original) emit("rowSelect", row.original); };
-const isMobileSelected = (row: TData) => selectedKeys.value.includes(rowIdentity(row));
-const toggleMobileSelected = (row: TData, on: boolean | "indeterminate") => {
-  const key = rowIdentity(row);
-  selectedKeys.value = on === true ? [...new Set([...selectedKeys.value, key])] : selectedKeys.value.filter((item) => item !== key);
-};
 const interactiveRowSelector = "a, button, input, select, textarea, label, [role='button'], [role='switch'], [role='menuitem'], [role='checkbox']";
 function rowFromTableEvent(event: Event): TData | undefined {
-  // In master mode the table itself reports row selection; the mobile action only serves the record list.
-  if (masterMode.value || (!props.mobileRowLink && !props.mobileRowAction)) return;
+  if (!props.mobileRowLink && !props.mobileRowAction) return;
   const target = event.target;
   if (!(target instanceof Element)) return;
   if (target.closest(interactiveRowSelector)) return;
@@ -317,7 +289,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="tableRoot" class="admin-data-table" :class="{ 'admin-data-table--row-link': Boolean(props.mobileRowLink || props.mobileRowAction || masterMode), 'admin-data-table--master': masterMode }" :style="props.tableMinWidth ? { '--admin-table-min-width': props.tableMinWidth } : undefined">
+  <div ref="tableRoot" class="admin-data-table" :class="{ 'admin-data-table--row-link': Boolean(props.mobileRowLink || props.mobileRowAction) }" :style="props.tableMinWidth ? { '--admin-table-min-width': props.tableMinWidth } : undefined">
     <div ref="scrollContainer" class="admin-data-table__scroll" :class="{ 'admin-data-table__scroll--bounded': boundedScroll }" :style="boundedScroll && tableScrollHeight ? { height: tableScrollHeight } : undefined">
       <div ref="controls" class="admin-data-table__controls scroll-edge-sticky">
         <div v-if="$slots.filters" class="admin-data-table__filters admin-data-table__filters--desktop"><slot name="filters" /></div>
@@ -367,20 +339,10 @@ onBeforeUnmount(() => {
           :grouping-options="props.tableGroupingOptions"
           :ui="tableUi"
           :sticky="props.sticky"
-          v-model:row-selection="rowSelection"
-          :get-row-id="rowIdentity"
-          :meta="rowMeta"
-          :on-select="masterMode ? onRowSelect : undefined"
           :virtualize="tableVirtualize"
         >
           <template v-for="(_, name) in tableSlots" :key="name" #[name]="slotProps">
             <slot :name="name" v-bind="slotProps" />
-          </template>
-          <template v-if="selectable" #select-header="{ table: tableApi }">
-            <UCheckbox :model-value="tableApi.getIsSomeRowsSelected() ? 'indeterminate' : tableApi.getIsAllRowsSelected()" aria-label="选择全部记录" @update:model-value="tableApi.toggleAllRowsSelected(Boolean($event))" />
-          </template>
-          <template v-if="selectable" #select-cell="{ row }">
-            <UCheckbox v-if="!row.getIsGrouped()" :model-value="row.getIsSelected()" aria-label="选择此记录" @update:model-value="row.toggleSelected(Boolean($event))" />
           </template>
         </UTable>
       </div>
@@ -389,7 +351,6 @@ onBeforeUnmount(() => {
         <p v-else-if="!mobileData.length" class="admin-data-table__mobile-empty">{{ empty }}</p>
         <ul v-else class="admin-data-table__mobile-records">
           <li v-for="item in mobileData" :key="rowIdentity(item)" class="admin-data-table__mobile-record">
-            <UCheckbox v-if="selectable" class="admin-data-table__mobile-select" :model-value="isMobileSelected(item)" aria-label="选择此记录" @update:model-value="toggleMobileSelected(item, $event)" />
             <NuxtLink v-if="props.mobileRowLink" class="admin-data-table__mobile-primary-link pressable-soft" :to="props.mobileRowLink(item)">
               <div class="admin-data-table__mobile-primary">
                 <div v-for="field in mobilePrimaryColumns" :key="field.id" class="admin-data-table__mobile-field">
@@ -448,16 +409,10 @@ onBeforeUnmount(() => {
 /* overflow:visible so sticky controls/thead can anchor to the document (clip
    would create a containing block that kills page-level sticky). */
 .admin-data-table { container-type: inline-size; overflow: visible; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); scroll-margin-top: var(--sticky-chrome-top, 0px); }
-.admin-data-table :deep(tbody tr.admin-data-table__row--active) { background: var(--accent-surface); box-shadow: inset 0.1875rem 0 0 var(--accent); }
-.admin-data-table__mobile-select { padding: var(--space-3) var(--space-3) 0; }
 .admin-data-table--row-link :deep(tbody tr) { cursor: pointer; transition: background-color 120ms ease-out; }
 .admin-data-table--row-link :deep(tbody tr:hover),
 .admin-data-table--row-link :deep(tbody tr:focus-within) { background: color-mix(in oklch, var(--surface-raised) 72%, transparent); }
 .admin-data-table--row-link :deep(tbody tr:active) { background: color-mix(in oklch, var(--surface-raised) 88%, transparent); }
-/* Master mode lays the toolbar on one grid: filters left, view controls right on the same line, any extra filter row beneath both. */
-.admin-data-table--master .admin-data-table__controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-2) var(--space-3); }
-.admin-data-table--master .admin-data-table__filters { display: contents; }
-.admin-data-table--master .admin-data-table__secondary-controls--desktop { grid-column: 2; grid-row: 1; }
 .admin-data-table__controls { position: sticky; z-index: 3; top: var(--sticky-chrome-top, 0px); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: var(--radius-card) var(--radius-card) 0 0; background: var(--surface); }
 .admin-data-table__loading-bar {
   position: absolute;
