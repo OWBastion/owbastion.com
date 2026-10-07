@@ -1,6 +1,6 @@
 ALTER TABLE title_challenges ADD COLUMN progress_rule TEXT;
 
-PRAGMA foreign_keys=OFF;
+PRAGMA defer_foreign_keys=ON;
 
 CREATE TABLE challenge_completions_next (
   id TEXT PRIMARY KEY NOT NULL,
@@ -32,4 +32,4 @@ CREATE UNIQUE INDEX challenge_completions_source_idx
   ON challenge_completions(source_type, source_id, challenge_id);
 CREATE INDEX challenge_completions_player_idx ON challenge_completions(player_account_id, completed_at DESC);
 
-PRAGMA foreign_keys=ON;
+PRAGMA defer_foreign_keys=OFF;
