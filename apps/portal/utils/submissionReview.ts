@@ -69,7 +69,6 @@ const verifiedRunReasonLabels: Record<string, string> = {
   submission_revision_mismatch: "地图玩法版本与提交记录不一致",
   mastery_run_invalidated: "该 Verified Run 已被作废",
   same_player_run_code: "该玩家已有相同对局码的记录",
-  unsupported_mode: "该模式不计入常规地图通关",
   completion_not_confirmed: "通关标记不是已完成",
   missing_map: "缺少地图",
   canonical_map_not_found: "地图不在平台地图列表中",

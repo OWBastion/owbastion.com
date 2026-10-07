@@ -1654,6 +1654,7 @@ describe("API", () => {
       mapId: "map.samoa",
       lifecycle: "preparing" as const,
       mapVariant: null,
+      mode: null,
       copiedFromRevisionId: "revision:map.samoa:initial",
       resetReason: "geometry rework",
       gameVersion: "2026.08.12",

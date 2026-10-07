@@ -47,7 +47,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     cover_url TEXT, background_url TEXT, updated_at INTEGER NOT NULL, updated_by TEXT NOT NULL
   );
   CREATE TABLE gameplay_revisions (
-    id TEXT PRIMARY KEY NOT NULL, map_id TEXT NOT NULL, lifecycle TEXT NOT NULL, legacy_map_variant TEXT,
+    id TEXT PRIMARY KEY NOT NULL, map_id TEXT NOT NULL, lifecycle TEXT NOT NULL, legacy_map_variant TEXT, mode TEXT,
     copied_from_revision_id TEXT, reset_reason TEXT, game_version TEXT NOT NULL, spatial_config_json TEXT,
     created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
   );

@@ -89,6 +89,11 @@ function setProgressDifficulty(value: string | undefined) {
   const { difficultyAtLeast: _omitted, ...rest } = props.item.progressRule;
   props.item.progressRule = value ? { ...rest, difficultyAtLeast: value } : { ...rest };
 }
+function setProgressGameMode(value: string) {
+  if (!props.item || !isChallengeTitle(props.item) || !props.item.progressRule) return;
+  const { mode: _omitted, ...rest } = props.item.progressRule;
+  props.item.progressRule = value.trim() ? { ...rest, mode: value.trim() } : { ...rest };
+}
 const progressModeItems = [{ label: "截图条件", value: "none" }, { label: "集齐指定地图", value: "required_maps_completed" }];
 const progressDifficultyItems = computed(() => [{ label: "不限难度", value: "" }, ...DIFFICULTY_OPTIONS.map((difficulty) => ({ label: `至少${difficulty}`, value: difficulty }))]);
 function setCatalogColor(value: string) {
@@ -183,6 +188,9 @@ function onIconFile(value: File | null | undefined) {
             </UFormField>
             <UFormField class="editor-field" label="最低难度">
               <USelect class="editor-control" :model-value="asChallenge(item)!.progressRule!.difficultyAtLeast ?? ''" :items="progressDifficultyItems" :disabled="saving" @update:model-value="setProgressDifficulty(($event as string) || undefined)" />
+            </UFormField>
+            <UFormField class="editor-field" label="独立模式" hint="只统计该模式（如 2026镜中回响）的通关；留空只统计常规模式。">
+              <UInput class="editor-control" :model-value="asChallenge(item)!.progressRule!.mode ?? ''" :disabled="saving" @update:model-value="setProgressGameMode(String($event))" />
             </UFormField>
           </template>
           <UFormField class="editor-field" label="称号适用范围">

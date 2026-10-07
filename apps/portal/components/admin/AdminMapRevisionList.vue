@@ -40,7 +40,7 @@ const dateLabel = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { date
           </span>
           <span class="revision-card__meta">
             <span>{{ revision.gameVersion }}</span>
-            <span>{{ revision.mapVariant === "classic" ? "经典版" : "正式版" }}</span>
+            <span>{{ revision.mode ?? (revision.mapVariant === "classic" ? "经典版" : "正式版") }}</span>
             <span>{{ revision.challengeAssignments.length }} 项分配</span>
           </span>
           <span class="revision-card__date">更新于 {{ dateLabel(revision.updatedAt) }}</span>

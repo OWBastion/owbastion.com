@@ -241,6 +241,48 @@ describe("Agents map projection readiness", () => {
     }, auth, "promote-legacy-composite")).rejects.toThrow("INVALID_SPATIAL_CONFIG");
   });
 
+  it("keeps a standalone-mode revision selectable, unique per map, and off the classic variant", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.mode");
+    seedAgentSpatialConfig(sqlite, "revision:map.mode:initial");
+    const services = createPlatformServices(database);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
+    const create = (mode: string, mapVariant: "classic" | null, key: string) => services.createAdminMapRevision({
+      contractVersion: "1",
+      mapId: "map.mode",
+      gameVersion: "2026.10.01",
+      mapVariant,
+      mode,
+      copyConfiguration: false,
+      spatialConfig: sharedCompositeSpatialConfig(),
+      challengeAssignments: [],
+    }, auth, key);
+
+    const mirror = await create("2026 镜中回响", null, "mode-create");
+    expect(mirror).toMatchObject({ lifecycle: "preparing", mode: "2026镜中回响", mapVariant: null });
+    await expect(create("2026镜中回响", null, "mode-duplicate")).rejects.toThrow("MODE_REVISION_CONFLICT");
+    await expect(create("其他模式", "classic", "mode-classic")).rejects.toThrow("MODE_REVISION_CANNOT_USE_CLASSIC_VARIANT");
+
+    const selectable = await services.updateAdminMapRevision({
+      contractVersion: "1",
+      mapId: "map.mode",
+      revisionId: mirror.revisionId,
+      lifecycle: "selectable",
+      gameVersion: "2026.10.01",
+      mapVariant: null,
+      spatialConfig: sharedCompositeSpatialConfig(),
+      challengeAssignments: [],
+    }, auth, "mode-selectable");
+    expect(selectable).toMatchObject({ lifecycle: "selectable", mode: "2026镜中回响" });
+    await expect(services.promoteAdminMapRevision({
+      contractVersion: "1",
+      mapId: "map.mode",
+      revisionId: mirror.revisionId,
+      replacedDefaultLifecycle: "selectable",
+    }, auth, "mode-promote")).rejects.toThrow("DEFAULT_REVISION_CANNOT_USE_MODE");
+  });
+
   it("keeps preparing composite revisions out of the Agents projection", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
@@ -1104,10 +1146,11 @@ describe("map title rule model – locked invariants", () => {
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM challenge_completions WHERE player_account_id = 'player.auto' AND status = 'active'").get()).toEqual({ count: 2 });
     });
 
-    it("settles only the checked limited title from a standalone-mode clear of a regular map", async () => {
+    it("records a standalone-mode clear on that mode's revision and settles only the checked limited title", async () => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);
       seedMap(sqlite, "map.rialto");
+      sqlite.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, mode, game_version, created_at, updated_at) VALUES ('revision:map.rialto:mirror', 'map.rialto', 'selectable', NULL, '2026镜中回响', '99.0101.1', ?, ?)").run(now, now);
       seedTitle(sqlite, "CONQUEROR");
       seedTitle(sqlite, "DOMINATOR");
       seedTitle(sqlite, "PROPHET");
@@ -1123,17 +1166,12 @@ describe("map title rule model – locked invariants", () => {
         schema_version: "1",
         ok: true,
         layout_version: "1280x720-v7",
-        fields: {
-          challenge_completed: { status: "ok", confidence: 0.99 },
-          map_name: { status: "ok", confidence: 0.99 },
-          difficulty: { status: "ok", confidence: 0.99 },
-          achievement_titles: { status: "ok", confidence: 0.99 },
-        },
-        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.rialto", difficulty: "地狱", mode: "2026镜中回响", achievement_titles: ["称号 PROPHET"] },
+        fields: Object.fromEntries(["challenge_completed", "map_name", "difficulty", "achievement_titles", "version", "run_code", "duration_seconds", "deaths", "skips"].map((field) => [field, { status: "ok", confidence: 0.99 }])),
+        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.rialto", difficulty: "地狱", mode: "2026镜中回响", achievement_titles: ["称号 PROPHET"], version: "99.0101.1", run_code: "1234-5678-9012", duration_seconds: 600, deaths: 0, skips: 0 },
       };
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
       try {
-        const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token");
+        const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
         await deliverOcrFixture(services, sqlite, { submissionId: "submission.mirror", objectKey: "evidence/mirror.png", attempt: 1, requestId: "request.mirror" });
       } finally {
         vi.unstubAllGlobals();
@@ -1142,6 +1180,9 @@ describe("map title rule model – locked invariants", () => {
       expect(sqlite.prepare("SELECT status FROM submissions WHERE id = 'submission.mirror'").get()).toEqual({ status: "approved" });
       expect(sqlite.prepare("SELECT title_key, source_type FROM player_title_grants WHERE player_account_id = 'player.mirror' AND status = 'active'").all()).toEqual([
         { title_key: "PROPHET", source_type: "automatic" },
+      ]);
+      expect(sqlite.prepare("SELECT gameplay_revision_id, status FROM mastery_runs WHERE player_account_id = 'player.mirror'").all()).toEqual([
+        { gameplay_revision_id: "revision:map.rialto:mirror", status: "active" },
       ]);
     });
 
@@ -2054,6 +2095,19 @@ describe("maintainer Challenge confirmation during submission review", () => {
     sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.add', 'submission.add', 1, 'review_required', ?, ?)").run(JSON.stringify({ schema_version: "1", ok: true, layout_version: "1280x720-v7", data: { achievement_titles: titles } }), now);
   };
 
+  it("brings regular map Challenges back when the reviewer corrects a misread mode", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedIncompleteMapEvidence(sqlite);
+    sqlite.prepare("UPDATE ocr_results SET response_json = ? WHERE id = 'ocr.confirm'").run(JSON.stringify({ schema_version: "1", ok: true, layout_version: "1280x720-v7", data: { map_name: "地图 map.paris", difficulty: "地狱", mode: "随机事仵5.0" } }));
+    const services = createPlatformServices(database);
+
+    const misread = await services.previewSubmissionReview({ submissionId: "submission.confirm" }, auth);
+    expect(misread.candidates.some((candidate) => candidate.titleName === "称号 PIONEER")).toBe(false);
+    const corrected = await services.previewSubmissionReview({ submissionId: "submission.confirm", fieldCorrections: [{ fieldKey: "mode", reviewedValue: "随机事件5.0" }] }, auth);
+    expect(corrected.candidates.some((candidate) => candidate.titleName === "称号 PIONEER")).toBe(true);
+  });
+
   it("previews and approves a displayed Challenge that the maintainer confirms from the screenshot", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
@@ -2290,8 +2344,8 @@ describe("submission mastery outcomes", () => {
     expect(assessVerifiedRunOcrEvidence(masteryOcr({ layoutVersion: "test-layout-v0" }), localVerifiedRunEvidenceCompatibility)).toEqual({ outcome: "ineligible", reason: "unsupported_layout" });
     expect(assessVerifiedRunOcrEvidence(masteryOcr({ version: "99.0100.9" }), localVerifiedRunEvidenceCompatibility)).toEqual({ outcome: "ineligible", reason: "unsupported_game_version" });
     const regularMode = masteryOcr();
-    expect(assessVerifiedRunOcrEvidence({ ...regularMode, data: { ...regularMode.data, mode: "随机事件5.0" } }, localVerifiedRunEvidenceCompatibility)).toMatchObject({ outcome: "eligible" });
-    expect(assessVerifiedRunOcrEvidence({ ...regularMode, data: { ...regularMode.data, mode: "2026镜中回响" } }, localVerifiedRunEvidenceCompatibility)).toEqual({ outcome: "ineligible", reason: "unsupported_mode" });
+    expect(assessVerifiedRunOcrEvidence({ ...regularMode, data: { ...regularMode.data, mode: "随机事件5.0" } }, localVerifiedRunEvidenceCompatibility)).toMatchObject({ outcome: "eligible", mode: null });
+    expect(assessVerifiedRunOcrEvidence({ ...regularMode, data: { ...regularMode.data, mode: "2026 镜中回响" } }, localVerifiedRunEvidenceCompatibility)).toMatchObject({ outcome: "eligible", mode: "2026镜中回响" });
     const weakRunCode = masteryOcr();
     weakRunCode.fields.run_code = { status: "low_confidence", confidence: 0.89 };
     expect(assessVerifiedRunOcrEvidence(weakRunCode, localVerifiedRunEvidenceCompatibility)).toEqual({ outcome: "ineligible", reason: "unreliable_run_code" });

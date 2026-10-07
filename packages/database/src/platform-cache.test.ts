@@ -96,6 +96,7 @@ const installSchema = (sqlite: DatabaseSync) => {
       map_id TEXT NOT NULL REFERENCES maps(id),
       lifecycle TEXT NOT NULL,
       legacy_map_variant TEXT,
+      mode TEXT,
       game_version TEXT NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL

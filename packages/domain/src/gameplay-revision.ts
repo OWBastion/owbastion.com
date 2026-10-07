@@ -9,6 +9,10 @@ export const isGameplayRevisionBastionEnabled = (lifecycle: GameplayRevisionLife
 export const isGameplayRevisionDefault = (lifecycle: GameplayRevisionLifecycle) =>
   lifecycle === "default";
 
+// A standalone game mode such as 2026镜中回响 is played on its own selectable Gameplay
+// Revisions. Labels compare without whitespace, which the HUD and OCR disagree about.
+export const normalizeGameMode = (value: string | null | undefined) => value?.replace(/\s+/gu, "") || null;
+
 export const initialGameplayRevisionId = (mapId: string) => `revision:${mapId}:initial`;
 
 // Legacy compatibility remains represented by legacyMapVariant. The revision

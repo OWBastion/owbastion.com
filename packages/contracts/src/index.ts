@@ -226,6 +226,9 @@ export const achievementProgressRuleSchema = z.object({
   type: z.literal("required_maps_completed"),
   mapIds: z.array(externalId).min(1).max(256),
   difficultyAtLeast: z.string().trim().min(1).max(64).optional(),
+  // Counts only runs on Gameplay Revisions of this standalone mode (e.g. 2026镜中回响);
+  // without it only regular-mode runs count.
+  mode: z.string().trim().min(1).max(64).optional(),
 }).strict();
 
 export const achievementChallengeSchema = z.object({
@@ -590,6 +593,7 @@ export const adminMapRevisionCreateRequestSchema = z.object({
   resetReason: z.string().trim().max(512).transform((value) => value || null).nullable().optional(),
   gameVersion: z.string().trim().min(1).max(64).optional(),
   mapVariant: z.literal("classic").nullable(),
+  mode: z.string().trim().min(1).max(64).nullable().optional(),
   copyConfiguration: z.boolean(),
   spatialConfig: agentSpatialConfigSchema.nullable().optional(),
   challengeAssignments: z.array(adminMapRevisionChallengeAssignmentInputSchema).max(256).optional(),
@@ -599,6 +603,7 @@ export const adminMapRevisionUpdateRequestSchema = z.object({
   lifecycle: adminMapRevisionLifecycle,
   gameVersion: z.string().trim().min(1).max(64),
   mapVariant: z.literal("classic").nullable(),
+  mode: z.string().trim().min(1).max(64).nullable().optional(),
   spatialConfig: agentSpatialConfigSchema.nullable(),
   challengeAssignments: z.array(adminMapRevisionChallengeAssignmentInputSchema).max(256),
 }).strict();
@@ -765,6 +770,7 @@ export const adminMapRevisionSchema = z.object({
   mapId: externalId,
   lifecycle: adminMapRevisionLifecycle,
   mapVariant: z.literal("classic").nullable(),
+  mode: z.string().nullable(),
   copiedFromRevisionId: externalId.nullable(),
   resetReason: z.string().trim().max(512).nullable(),
   gameVersion: z.string().trim().min(1).max(64),
@@ -997,7 +1003,7 @@ export const adminSubmissionSchema = z.object({
 
 export const adminSubmissionListResponseSchema = z.object({ contractVersion, items: z.array(adminSubmissionSchema), page: z.number().int().positive(), pageSize: z.number().int().positive(), total: z.number().int().nonnegative(), hasMore: z.boolean() });
 const submissionReviewFieldCorrectionsSchema = z.array(z.object({
-  fieldKey: z.enum(["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "achievement_titles", "version", "run_code", "duration_seconds", "deaths", "skips"]),
+  fieldKey: z.enum(["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "mode", "achievement_titles", "version", "run_code", "duration_seconds", "deaths", "skips"]),
   reviewedValue: z.string().trim().min(1).max(2048),
 }).strict()).max(11).superRefine((corrections, ctx) => {
   if (new Set(corrections.map(({ fieldKey }) => fieldKey)).size !== corrections.length) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Each OCR field may be confirmed only once" });

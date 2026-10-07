@@ -7,6 +7,7 @@ const revision = {
   mapId: "map.test",
   lifecycle: "preparing" as const,
   mapVariant: null,
+  mode: null,
   copiedFromRevisionId: "revision:map.test:initial",
   resetReason: null,
   gameVersion: "26.0812.1",
@@ -82,6 +83,7 @@ describe("AdminMapRevisionEditor", () => {
         lifecycle: "preparing",
         gameVersion: "2026.08.13",
         mapVariant: null,
+        mode: null,
         spatialConfig: null,
         challengeAssignments: [{
           challengeFamily: "map_title_rule",

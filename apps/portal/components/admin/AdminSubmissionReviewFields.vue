@@ -15,6 +15,7 @@ const annotatableFields = [
   { key: "viewer_player", label: "玩家名称" },
   { key: "challenge_completed", label: "通关标记" },
   { key: "map_variant", label: "地图版本" },
+  { key: "mode", label: "模式" },
   { key: "achievement_titles", label: "左侧成就面板" },
   { key: "version", label: "游戏版本" },
   { key: "run_code", label: "对局码" },
@@ -22,7 +23,7 @@ const annotatableFields = [
   { key: "deaths", label: "死亡次数" },
   { key: "skips", label: "跳过次数" },
 ] as const;
-const typedFieldPlaceholder: Record<string, string> = { version: "例如 2026.0928.1", run_code: "输入截图中的对局码", duration_seconds: "整数秒", deaths: "整数", skips: "整数" };
+const typedFieldPlaceholder: Record<string, string> = { mode: "截图右上角方括号内，如 随机事件5.0 或 2026镜中回响", version: "例如 2026.0928.1", run_code: "输入截图中的对局码", duration_seconds: "整数秒", deaths: "整数", skips: "整数" };
 const ocrPayload = computed(() => props.submission.ocr as OcrPayload | null);
 const modelVersion = computed(() => typeof ocrPayload.value?.model_version === "string" && ocrPayload.value.model_version ? ocrPayload.value.model_version : null);
 const checkedTitles = computed(() => Array.isArray(ocrPayload.value?.data?.achievement_titles) ? ocrPayload.value?.data?.achievement_titles.filter((value): value is string => typeof value === "string" && value.trim().length > 0) : []);
