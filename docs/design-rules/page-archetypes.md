@@ -140,9 +140,11 @@
   example the event probability with the weight being typed).
 - After a reversible write, a toast offers "撤销" (see motion and feedback);
   an irreversible one (archive) keeps its confirmation.
-- Filters that combine are `FilterChip`s with counts, the same toggle the player
-  directories use; rarely used actions sit behind one "更多" control that shows
-  a badge when something inside needs attention.
+- Page-level actions (新建, and rarely used ones behind one "更多" control that shows
+  a badge when something inside needs attention) sit on the title row. The table
+  toolbar is one aligned line, search on the left and the view controls (sort,
+  group, columns) on the right, with combinable `FilterChip`s (the same toggle
+  the player directories use) on a row beneath both.
 
 ## Admin review workspace
 

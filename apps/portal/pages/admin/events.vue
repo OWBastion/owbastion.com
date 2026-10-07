@@ -245,9 +245,24 @@ async function importEvents() {
 
 <template>
   <AdminWorkspace title="事件管理" :count="loading ? '读取中…' : `${events.length} 条`">
+    <template #actions>
+      <UPopover :content="{ align: 'end' }">
+        <UButton icon="i-lucide-ellipsis" color="neutral" :variant="suspendedVersionCount ? 'soft' : 'outline'" :aria-label="suspendedVersionCount ? `更多，${suspendedVersionCount} 个版本已挂起` : '更多'">
+          <template v-if="suspendedVersionCount" #trailing><UBadge :label="`${suspendedVersionCount} 已挂起`" color="warning" variant="subtle" size="sm" /></template>
+        </UButton>
+        <template #content>
+          <div class="events-more">
+            <UCheckbox v-model="showArchived" label="包含已归档" />
+            <AdminEventVersionSwitches :versions="versions" :saving="versionSaving" @toggle="setVersionAvailability" />
+            <UButton label="导入 CSV" color="neutral" variant="outline" icon="i-lucide-upload" block @click="importOpen = !importOpen" />
+          </div>
+        </template>
+      </UPopover>
+      <UButton label="新建事件" icon="i-lucide-plus" @click="openCreate" />
+    </template>
     <template #messages><UAlert v-if="error" color="error" variant="subtle" :description="error" /></template>
     <DefineGroupChips>
-      <div v-if="groupOptions.length > 1" class="events-toolbar__row" role="group" aria-label="事件组">
+      <div v-if="groupOptions.length > 1" class="events-chips" role="group" aria-label="事件组">
         <FilterChip v-for="[value, count] in groupOptions" :key="value" :label="value || '未分组'" :count="count" :pressed="groupFilter.includes(value)" @toggle="toggleGroup(value)" />
       </div>
     </DefineGroupChips>
@@ -280,25 +295,8 @@ async function importEvents() {
           @row-select="(row: RandomEvent) => select(row.eventId)"
         >
           <template #filters>
-            <div class="events-toolbar">
-              <div class="events-toolbar__row">
-                <UInput v-model="query" class="min-w-32 flex-1" size="md" aria-label="搜索事件" placeholder="搜索事件" icon="i-lucide-search" />
-                <UButton label="新建" icon="i-lucide-plus" aria-label="新建事件" @click="openCreate" />
-                <UPopover :content="{ align: 'end' }">
-                  <UButton icon="i-lucide-ellipsis" color="neutral" :variant="suspendedVersionCount ? 'soft' : 'outline'" :aria-label="suspendedVersionCount ? `更多，${suspendedVersionCount} 个版本已挂起` : '更多'">
-                    <template v-if="suspendedVersionCount" #trailing><UBadge :label="`${suspendedVersionCount} 已挂起`" color="warning" variant="subtle" size="sm" /></template>
-                  </UButton>
-                  <template #content>
-                    <div class="events-more">
-                      <UCheckbox v-model="showArchived" label="包含已归档" />
-                      <AdminEventVersionSwitches :versions="versions" :saving="versionSaving" @toggle="setVersionAvailability" />
-                      <UButton label="导入 CSV" color="neutral" variant="outline" icon="i-lucide-upload" block @click="importOpen = !importOpen" />
-                    </div>
-                  </template>
-                </UPopover>
-              </div>
-              <ReuseGroupChips />
-            </div>
+            <UInput v-model="query" size="md" aria-label="搜索事件" placeholder="搜索名称、类别或稀有度" icon="i-lucide-search" />
+            <ReuseGroupChips />
           </template>
           <template #mobile-primary><UInput v-model="query" class="w-full" size="md" aria-label="搜索事件" placeholder="搜索名称、类别或稀有度" icon="i-lucide-search" /><UButton label="新建事件" icon="i-lucide-plus" @click="openCreate" /></template>
           <template #mobile-secondary>
@@ -357,8 +355,7 @@ async function importEvents() {
 
 <style scoped>
 .events-workspace { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-items: start; }
-.events-toolbar { display: grid; flex: 1; gap: var(--space-2); min-width: 0; }
-.events-toolbar__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.events-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); grid-column: 1 / -1; }
 .events-more { display: grid; gap: var(--space-3); width: 18rem; padding: var(--space-3); }
 .events-pane { display: grid; gap: var(--space-4); min-width: 0; padding: var(--space-4); }
 .events-pane__header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }

@@ -317,7 +317,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="tableRoot" class="admin-data-table" :class="{ 'admin-data-table--row-link': Boolean(props.mobileRowLink || props.mobileRowAction || masterMode) }" :style="props.tableMinWidth ? { '--admin-table-min-width': props.tableMinWidth } : undefined">
+  <div ref="tableRoot" class="admin-data-table" :class="{ 'admin-data-table--row-link': Boolean(props.mobileRowLink || props.mobileRowAction || masterMode), 'admin-data-table--master': masterMode }" :style="props.tableMinWidth ? { '--admin-table-min-width': props.tableMinWidth } : undefined">
     <div ref="scrollContainer" class="admin-data-table__scroll" :class="{ 'admin-data-table__scroll--bounded': boundedScroll }" :style="boundedScroll && tableScrollHeight ? { height: tableScrollHeight } : undefined">
       <div ref="controls" class="admin-data-table__controls scroll-edge-sticky">
         <div v-if="$slots.filters" class="admin-data-table__filters admin-data-table__filters--desktop"><slot name="filters" /></div>
@@ -454,6 +454,10 @@ onBeforeUnmount(() => {
 .admin-data-table--row-link :deep(tbody tr:hover),
 .admin-data-table--row-link :deep(tbody tr:focus-within) { background: color-mix(in oklch, var(--surface-raised) 72%, transparent); }
 .admin-data-table--row-link :deep(tbody tr:active) { background: color-mix(in oklch, var(--surface-raised) 88%, transparent); }
+/* Master mode lays the toolbar on one grid: filters left, view controls right on the same line, any extra filter row beneath both. */
+.admin-data-table--master .admin-data-table__controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-2) var(--space-3); }
+.admin-data-table--master .admin-data-table__filters { display: contents; }
+.admin-data-table--master .admin-data-table__secondary-controls--desktop { grid-column: 2; grid-row: 1; }
 .admin-data-table__controls { position: sticky; z-index: 3; top: var(--sticky-chrome-top, 0px); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: var(--radius-card) var(--radius-card) 0 0; background: var(--surface); }
 .admin-data-table__loading-bar {
   position: absolute;
