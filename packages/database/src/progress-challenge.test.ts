@@ -318,6 +318,11 @@ describe("verified-run progress challenges", () => {
     expect(progressCompletion(sqlite)).toMatchObject([{ status: "active" }]);
     expect(progressGrants(sqlite)).toMatchObject([{ status: "active" }]);
     expect(JSON.parse(canonicalChallengeIds(sqlite)[0]!.conditions_json).conditions[0]).toMatchObject({ mode: "2026镜中回响" });
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at) VALUES ('session-1', 'account-1', ?, ?)").run(await hashRequest("session-token"), Date.now() + 60_000);
+    expect((await services.listCurrentPlayerChallengeProgress({ sessionToken: "session-token" }))!.items[0]).toMatchObject({
+      progressRule: { mode: "2026镜中回响" },
+      satisfied: true,
+    });
   });
 
   it("keeps standalone-mode runs out of a regular progress rule", async () => {

@@ -7472,7 +7472,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           status: status as "scheduled" | "active" | "sunsetting",
           ...(challenge.startsAt !== null ? { startsAt: challenge.startsAt } : {}),
           ...(challenge.endsAt !== null ? { endsAt: challenge.endsAt } : {}),
-          progressRule: { type: "required_maps_completed", mapIds: rule.mapIds, ...(rule.difficultyAtLeast ? { difficultyAtLeast: rule.difficultyAtLeast } : {}) },
+          progressRule: rule,
           maps: rule.mapIds.map((mapId) => ({ mapId, completed: eligibility.completed.has(mapId) })),
           completedMaps: eligibility.completed.size,
           satisfied: eligibility.satisfied,
