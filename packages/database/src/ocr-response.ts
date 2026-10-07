@@ -55,6 +55,14 @@ export const submissionOcrQualityPolicy = {
   minimumFieldConfidence: 0.85,
 } as const;
 
+// Map titles and Verified Runs are earned only in the regular 随机事件 mode; standalone modes
+// such as 2026镜中回响 reuse map names but settle only their own limited challenges.
+// Evidence without a mode label predates the mode readout and stays regular.
+export const isRegularModeOcrResponse = (response: OcrResponse) => {
+  const mode = response.data?.mode?.trim();
+  return !mode || mode.includes("随机事件");
+};
+
 const challengeEvidenceValueExists = (response: OcrResponse, field: string) => {
   const data = response.data ?? {};
   switch (field) {

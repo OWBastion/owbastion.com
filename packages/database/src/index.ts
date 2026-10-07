@@ -11,7 +11,7 @@ import { achievementChallengeMaps, achievementChallenges, attachments, auditEven
 import { userEvidenceObjectKey } from "./object-key";
 import { fetchQqAttachmentImage } from "./qq-attachment";
 import { matchOcrAgainstChallenges, type AutoMatchCandidate, type CanonicalOcrChallenge } from "./ocr-auto-match";
-import { assessChallengeOcrQuality, type OcrResponse } from "./ocr-response";
+import { assessChallengeOcrQuality, isRegularModeOcrResponse, type OcrResponse } from "./ocr-response";
 import { resolvePortalSession } from "./portal-session";
 import { createPlatformCache, instrumentDatabase } from "./platform-cache";
 
@@ -67,6 +67,7 @@ export const assessVerifiedRunOcrEvidence = (response: OcrResponse, compatibilit
   }
 
   const data = response.data ?? {};
+  if (!isRegularModeOcrResponse(response)) return ineligibleMasteryEvidence("unsupported_mode");
   if (data.challenge_completed !== true) return ineligibleMasteryEvidence("completion_not_confirmed");
   const mapName = typeof data.map_name === "string" ? data.map_name.trim() : "";
   if (!mapName) return ineligibleMasteryEvidence("missing_map");
@@ -2432,7 +2433,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   const resolveAutoMatchGameplayRevisionId = async (row: typeof submissions.$inferSelect, response: OcrResponse) => {
     const mapName = typeof response.data?.map_name === "string" ? response.data.map_name.trim() : "";
     const rawMapVariant = typeof response.data?.map_variant === "string" ? response.data.map_variant.trim() : "";
-    if (!mapName || (rawMapVariant && rawMapVariant !== "classic")) return null;
+    if (!mapName || (rawMapVariant && rawMapVariant !== "classic") || !isRegularModeOcrResponse(response)) return null;
     const matchingMaps = (await loadActiveMaps())
       .filter((map) => normalizedOcrLabel(map.name) === normalizedOcrLabel(mapName));
     if (matchingMaps.length !== 1 || (row.targetMapId && row.targetMapId !== matchingMaps[0]?.id)) return null;
