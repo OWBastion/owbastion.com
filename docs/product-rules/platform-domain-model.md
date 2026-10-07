@@ -453,6 +453,8 @@ played on its own selectable revision per map, identified by the mode label the
 settlement HUD shows. Screenshot evidence carrying that mode resolves to that
 revision, so its Verified Runs and Challenges never fall into the regular
 revision's scope. A mode revision is never the default or a classic variant.
+A mode label that matches no configured mode is treated as unrecognized
+evidence and goes to maintainer review rather than being guessed.
 
 Applicability is derived from the revision lifecycle:
 

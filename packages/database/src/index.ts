@@ -4237,12 +4237,23 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
   };
 
+  // A non-regular mode label is trusted only when an administrator has configured that mode;
+  // anything else is most likely a misread of the regular label and needs a maintainer.
+  const isKnownStandaloneMode = async (mode: string) => Boolean(await db.select({ id: gameplayRevisions.id }).from(gameplayRevisions).where(eq(gameplayRevisions.mode, mode)).get());
+
   const completeOcrResult = async (row: typeof submissions.$inferSelect, result: OcrResponse, input: { attempt: number; manual: boolean; requestId: string }) => {
     const ocrRequestId = input.requestId;
     const startedAt = Date.now();
     const context = { submissionId: row.id, ...input };
     let stage = "load_submission";
     try {
+      stage = "check_game_mode";
+      const mode = standaloneOcrMode(result);
+      if (mode && !await isKnownStandaloneMode(mode)) {
+        await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ unknownMode: mode }), nextStatus: "ocr_review_required", reviewReason: "无法识别截图所在的游戏模式，请人工核对", incrementFailCount: false });
+        logOcrEvent("job_completed", { ...context, outcome: "unknown_mode", mode, durationMs: Date.now() - startedAt });
+        return;
+      }
       stage = "resolve_auto_candidates";
       const preparedCanonicalCandidates = await preparePlayerAutoMatchChallenges(row, result);
       const canonicalDecision = matchOcrAgainstChallenges(preparedCanonicalCandidates.candidates, result, preparedCanonicalCandidates.mapIdsByName, preparedCanonicalCandidates.titleNamesByKey);
