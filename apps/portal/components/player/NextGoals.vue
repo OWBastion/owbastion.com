@@ -20,7 +20,7 @@ defineProps<{ goals: MapGoal[] }>();
 </template>
 
 <style scoped>
-.next-goals { container-type: inline-size; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.next-goals { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
 .next-goals > li { min-width: 0; }
 .next-goal { display: grid; gap: var(--space-2); min-width: 0; padding: var(--space-4); color: inherit; text-decoration: none; }
 .next-goal__map { color: var(--muted); font-size: var(--type-label-sm-size); }
