@@ -21,7 +21,7 @@ const emit = defineEmits<{ inspect: [title: OwnedTitle] }>();
 </template>
 
 <style scoped>
-.profile-hero { container-type: inline-size; display: grid; gap: var(--space-6); padding: clamp(var(--space-5), 4vw, var(--space-8)); background: radial-gradient(120% 140% at 0% 0%, color-mix(in oklch, var(--accent) 16%, transparent), transparent 58%), var(--surface); }
+.profile-hero { container-type: inline-size; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-6); padding: clamp(var(--space-5), 4vw, var(--space-8)); background: radial-gradient(120% 140% at 0% 0%, color-mix(in oklch, var(--accent) 16%, transparent), transparent 58%), var(--surface); }
 .profile-hero__main { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "avatar name" "avatar titles"; align-items: center; gap: var(--space-3) var(--space-5); min-width: 0; }
 .profile-hero__avatar { grid-area: avatar; align-self: start; display: grid; flex: 0 0 auto; width: 5rem; height: 5rem; place-items: center; border: 2px solid var(--accent); border-radius: 50%; color: var(--accent); background: var(--accent-surface); box-shadow: 0 0 1.5rem color-mix(in oklch, var(--accent) 30%, transparent); font-size: 2rem; font-weight: 700; }
 .profile-hero__name { grid-area: name; min-width: 0; margin: 0; font-size: var(--type-title-size); font-weight: 700; letter-spacing: var(--type-title-tracking); line-height: var(--type-title-leading); }

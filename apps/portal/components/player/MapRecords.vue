@@ -35,7 +35,7 @@ const records = computed(() => props.profiles
 </template>
 
 <style scoped>
-.map-records { container-type: inline-size; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr)); gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.map-records { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr)); gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
 .map-records > li { min-width: 0; }
 .map-record { display: grid; gap: var(--space-4); min-width: 0; padding: var(--space-4); color: inherit; text-decoration: none; }
 .map-record__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-width: 0; }
