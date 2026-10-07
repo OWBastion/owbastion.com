@@ -12,7 +12,7 @@ useSeoMeta({ title: "事件管理 · 躲避堡垒 3" });
 
 type Link = { family: "map" | "achievement"; challengeId: string };
 type ImportPreview = { sourceHash: string; validRowCount: number; errors: Array<{ row: number; message: string }>; rows: Array<{ name: string; category: string; releaseStatus: string }> };
-type EventVersion = { gameVersion: string; availability: "available" | "suspended"; eventCount: number };
+type EventVersion = { gameVersion: string; availability: "available" | "suspended"; mode: string | null; eventCount: number };
 const defaultEventSorting: SortingState = [
   { id: "gameVersion", desc: true },
   { id: "name", desc: false },
@@ -39,6 +39,9 @@ const archiveOpen = shallowRef(false);
 const versionAvailabilityOpen = shallowRef(false);
 const versionTarget = shallowRef<{ version: EventVersion; availability: EventVersion["availability"] } | null>(null);
 const versionSaving = shallowRef(false);
+const versionModeTarget = shallowRef<EventVersion | null>(null);
+const versionModeInput = shallowRef("");
+const versionModeOpen = shallowRef(false);
 const form = reactive({ name: "", category: "", eventGroup: "", description: "", durationSeconds: null as number | null, cooldownSeconds: null as number | null, weight: null as number | null, gameVersion: "", effectTags: [] as string[], releaseStatus: "development" as RandomEvent["releaseStatus"], links: [] as Link[] });
 const eventGroupItems = computed(() => [...new Set(events.value.map((event) => event.eventGroup).filter((group): group is string => Boolean(group)))].sort((left, right) => left.localeCompare(right, "zh-CN")));
 const categoryItems = computed(() => [...new Set(events.value.map((event) => event.category))].sort());
@@ -115,6 +118,8 @@ async function save() { saving.value = true; error.value = ""; const body = { co
 function requestArchive() { archiveOpen.value = true; }
 async function archive() { if (!selectedEvent.value) return; saving.value = true; try { const eventId = selectedEvent.value.eventId; await api(`/v1/events/${encodeURIComponent(eventId)}`, { method: "DELETE", headers: { "Idempotency-Key": createRequestId() } }); events.value = events.value.filter((event) => event.eventId !== eventId); await loadAll(); archiveOpen.value = false; editorOpen.value = false; selectedEvent.value = null; toast.add({ title: "事件已归档", color: "success" }); } catch (cause) { error.value = portalErrorDetails(cause, "无法归档事件。").description; } finally { saving.value = false; } }
 function requestVersionAvailability(version: EventVersion, availability: EventVersion["availability"]) { versionTarget.value = { version, availability }; versionAvailabilityOpen.value = true; }
+function requestVersionMode(version: EventVersion) { versionModeTarget.value = version; versionModeInput.value = version.mode ?? ""; versionModeOpen.value = true; }
+async function updateVersionMode() { const version = versionModeTarget.value; if (!version) return; versionSaving.value = true; error.value = ""; try { const updated = await api<EventVersion>(`/v1/event-versions/${encodeURIComponent(version.gameVersion)}/availability`, { method: "PUT", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", availability: version.availability, mode: versionModeInput.value.trim() || null } }); versions.value = versions.value.map((item) => item.gameVersion === updated.gameVersion ? updated : item); versionModeOpen.value = false; versionModeTarget.value = null; toast.add({ title: "事件池模式已更新", color: "success" }); } catch (cause) { error.value = portalErrorDetails(cause, "无法更新事件池模式。").description; } finally { versionSaving.value = false; } }
 const versionAvailabilityLabel = (availability: EventVersion["availability"]) => availability === "suspended" ? "已挂起" : "可用";
 async function updateVersionAvailability() { if (!versionTarget.value) return; versionSaving.value = true; error.value = ""; const { version, availability } = versionTarget.value; try { const updated = await api<EventVersion>(`/v1/event-versions/${encodeURIComponent(version.gameVersion)}/availability`, { method: "PUT", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", availability } }); versions.value = versions.value.map((item) => item.gameVersion === updated.gameVersion ? updated : item); await loadAll(); versionAvailabilityOpen.value = false; versionTarget.value = null; toast.add({ title: availability === "suspended" ? "事件版本已挂起" : "事件版本已恢复", color: "success" }); } catch (cause) { error.value = portalErrorDetails(cause, "无法更新事件版本状态。").description; } finally { versionSaving.value = false; } }
 async function previewImport() { if (!importFile.value) return; importing.value = true; error.value = ""; try { importPreview.value = await api<ImportPreview>("/v1/events/imports/preview", { method: "POST", body: { contractVersion: "1", fileName: importFile.value.name, csv: await importFile.value.text() } }); } catch (cause) { error.value = portalErrorDetails(cause, "无法预检文件。").description; } finally { importing.value = false; } }
@@ -136,7 +141,8 @@ async function importEvents() { if (!importFile.value || !importPreview.value ||
         <template #header><div><h2 id="event-version-availability-title" class="text-base font-semibold">版本可用性</h2><p class="text-sm text-muted">挂起仅影响下一次 Bastion 同步、构建或发布；平台不会主动触发这些操作。</p></div></template>
         <ul v-if="versions.length" class="grid gap-2" aria-label="事件版本列表">
           <li v-for="version in versions" :key="version.gameVersion" class="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[var(--line)] px-3 py-2">
-            <div class="flex min-w-0 items-center gap-3"><strong>{{ version.gameVersion }}</strong><span class="text-sm text-muted">{{ version.eventCount }} 条事件</span><StatusBadge :label="versionAvailabilityLabel(version.availability)" :tone="version.availability === 'suspended' ? 'warning' : 'success'" /></div>
+            <div class="flex min-w-0 items-center gap-3"><strong>{{ version.gameVersion }}</strong><span class="text-sm text-muted">{{ version.eventCount }} 条事件</span><StatusBadge :label="versionAvailabilityLabel(version.availability)" :tone="version.availability === 'suspended' ? 'warning' : 'success'" /><StatusBadge :label="version.mode ? `仅 ${version.mode}` : '常规'" :tone="version.mode ? 'info' : 'default'" /></div>
+            <UButton label="设置模式" color="neutral" variant="ghost" size="sm" @click="requestVersionMode(version)" />
             <UButton v-if="version.availability === 'available'" label="挂起版本" color="error" variant="outline" size="sm" @click="requestVersionAvailability(version, 'suspended')" /><UButton v-else label="恢复版本" color="neutral" variant="outline" size="sm" @click="requestVersionAvailability(version, 'available')" />
           </li>
         </ul>
@@ -217,6 +223,10 @@ async function importEvents() { if (!importFile.value || !importPreview.value ||
     <AdminResponsiveDialog v-model:open="archiveOpen" title="归档事件" :description="selectedEvent?.name" size="sm" :dismissible="!saving">
       <template #body><p class="text-sm text-muted">归档后，事件不会出现在默认目录中。</p></template>
       <template #footer><UButton label="确认归档" color="error" variant="soft" :loading="saving" @click="archive" /><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="archiveOpen = false" /></template>
+    </AdminResponsiveDialog>
+    <AdminResponsiveDialog v-model:open="versionModeOpen" title="事件池所属模式" :description="versionModeTarget?.gameVersion" size="sm" :dismissible="!versionSaving">
+      <template #body><UFormField label="独立模式" hint="只属于某个独立模式构建的事件池（如周年池）填写该模式名，如 2026镜中回响；常规事件池留空。对局码的事件权重按「常规池 + 截图所在模式的池」校验。"><UInput v-model="versionModeInput" :disabled="versionSaving" /></UFormField></template>
+      <template #footer><UButton label="保存" :loading="versionSaving" @click="updateVersionMode" /><UButton label="取消" color="neutral" variant="outline" :disabled="versionSaving" @click="versionModeOpen = false" /></template>
     </AdminResponsiveDialog>
     <AdminResponsiveDialog v-model:open="versionAvailabilityOpen" :title="versionTarget?.availability === 'suspended' ? '挂起事件版本' : '恢复事件版本'" :description="versionTarget?.version.gameVersion" size="sm" :dismissible="!versionSaving">
       <template #body><p class="text-sm text-muted">{{ versionTarget?.availability === 'suspended' ? '该版本的事件将从 Bastion 下一次构建输入中全部移除，平台管理目录和事件元数据保持不变。' : '该版本的事件将在 Bastion 下一次构建输入中恢复，原有事件元数据保持不变。' }}</p></template>

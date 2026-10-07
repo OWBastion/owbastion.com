@@ -41,15 +41,18 @@ export const verifiedRunEvidenceCompatibilityV1 = createVerifiedRunEvidenceCompa
 export const isVerifiedRunEvidenceCompatibilityEnabled = (compatibility: VerifiedRunEvidenceCompatibilityV1 = verifiedRunEvidenceCompatibilityV1) =>
   compatibility.minimumGameVersion !== null && compatibility.supportedOcrLayoutVersions.length > 0;
 
-export const isVerifiedRunGameVersionSupported = (value: string, compatibility: VerifiedRunEvidenceCompatibilityV1 = verifiedRunEvidenceCompatibilityV1) => {
+const isGameVersionAtLeast = (value: string, minimumVersion: string | null) => {
   const candidate = versionParts(value);
-  const minimum = compatibility.minimumGameVersion ? versionParts(compatibility.minimumGameVersion) : null;
+  const minimum = minimumVersion ? versionParts(minimumVersion) : null;
   if (!candidate || !minimum) return false;
   for (let index = 0; index < candidate.length; index += 1) {
     if (candidate[index] !== minimum[index]) return candidate[index]! > minimum[index]!;
   }
   return true;
 };
+
+export const isVerifiedRunGameVersionSupported = (value: string, compatibility: VerifiedRunEvidenceCompatibilityV1 = verifiedRunEvidenceCompatibilityV1) =>
+  isGameVersionAtLeast(value, compatibility.minimumGameVersion);
 
 export const isVerifiedRunOcrLayoutSupported = (value: string | null | undefined, compatibility: VerifiedRunEvidenceCompatibilityV1 = verifiedRunEvidenceCompatibilityV1) =>
   typeof value === "string" && compatibility.supportedOcrLayoutVersions.includes(value.trim());
@@ -111,6 +114,21 @@ export const normalizeMatchCode = (value: string) => {
   if (!/^[1-9]\d{3}(?:-[1-9]\d{3}){2}$/.test(normalized)) throw new Error("MATCH_CODE_INVALID");
   return normalized;
 };
+
+// From Bastion 26.1004.6 the run code carries round(room event-weight total × 100) in four fixed
+// digits: group 1 digits 2-3, group 2 digit 3, group 3 digit 4 (Bastion's settlement HUD contract).
+export const runCodeEventWeightMinimumGameVersion = "26.1004.6";
+
+/** The embedded event-weight total × 100, or null when the build predates the embedding. */
+export const runCodeEventWeightTotal = (matchCode: string, gameVersion: string) => {
+  if (!isGameVersionAtLeast(gameVersion, runCodeEventWeightMinimumGameVersion)) return null;
+  const [first, second, third] = normalizeMatchCode(matchCode).split("-") as [string, string, string];
+  return Number(`${first[1]}${first[2]}${second[2]}${third[3]}`);
+};
+
+/** Mirrors how Bastion folds the catalog weight total into four run-code digits. */
+export const eventWeightTotalCode = (weights: readonly number[]) =>
+  Math.round(weights.reduce((sum, weight) => sum + weight, 0) * 100) % 10_000;
 
 export const calculateVerifiedRunXpV1 = (input: VerifiedRunXpInput): { awardedXp: number; snapshot: VerifiedRunXpSnapshotV1 } => {
   if (!Object.hasOwn(verifiedRunXpRuleV1.baseDifficultyXp, input.difficulty)) throw new Error("VERIFIED_RUN_DIFFICULTY_INVALID");

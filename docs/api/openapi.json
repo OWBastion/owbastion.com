@@ -1768,7 +1768,7 @@
   "/v1/admin/event-versions/{gameVersion}/availability": {
    "put": {
     "operationId": "updateAdminRandomEventVersionAvailability",
-    "description": "Atomically suspends or restores every random event in a game version. The change takes effect for the next Bastion sync/build/release; the platform does not trigger those operations.",
+    "description": "Atomically suspends or restores every random event in a game version. The change takes effect for the next Bastion sync/build/release; the platform does not trigger those operations. An optional mode assigns the version's event pool to a standalone mode (e.g. 2026镜中回响), whose build adds it on top of the regular pools when checking run-code event weights; null clears it and omitting it keeps the current assignment.",
     "parameters": [
      {
       "name": "gameVersion",

@@ -466,9 +466,10 @@ const randomEventWriteFields = z.object({ name: z.string().trim().min(1).max(256
 export const adminRandomEventCreateRequestSchema = z.object({ contractVersion }).merge(randomEventWriteFields);
 export const adminRandomEventUpdateRequestSchema = z.object({ contractVersion }).merge(randomEventWriteFields);
 export const adminRandomEventImportRequestSchema = z.object({ contractVersion, fileName: z.string().trim().min(1).max(256), csv: z.string().min(1).max(512 * 1024) }).strict();
-export const randomEventVersionSchema = z.object({ gameVersion: z.string().trim().min(1).max(64), availability: randomEventVersionAvailability, eventCount: z.number().int().nonnegative() }).strict();
+// mode marks a pool that only a standalone mode's build (e.g. 2026镜中回响) adds on top of the regular pools.
+export const randomEventVersionSchema = z.object({ gameVersion: z.string().trim().min(1).max(64), availability: randomEventVersionAvailability, mode: z.string().nullable(), eventCount: z.number().int().nonnegative() }).strict();
 export const adminRandomEventVersionListResponseSchema = z.object({ contractVersion, items: z.array(randomEventVersionSchema) }).strict();
-export const adminRandomEventVersionAvailabilityRequestSchema = z.object({ contractVersion, availability: randomEventVersionAvailability }).strict();
+export const adminRandomEventVersionAvailabilityRequestSchema = z.object({ contractVersion, availability: randomEventVersionAvailability, mode: z.string().trim().min(1).max(64).nullable().optional() }).strict();
 
 export const reviewTargetTypeSchema = z.enum(["event", "map"]);
 export const reviewTargetSchema = z.discriminatedUnion("targetType", [

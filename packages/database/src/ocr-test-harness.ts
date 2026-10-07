@@ -481,6 +481,7 @@ export const installSchema = (sqlite: DatabaseSync) => {
     CREATE TABLE random_event_versions (
       game_version TEXT PRIMARY KEY NOT NULL,
       availability TEXT NOT NULL DEFAULT 'available' CHECK (availability IN ('available', 'suspended')),
+      mode TEXT,
       suspended_at INTEGER,
       suspended_by TEXT,
       created_at INTEGER NOT NULL,

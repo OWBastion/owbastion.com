@@ -3,7 +3,7 @@ import { count, desc, eq, and, gt, gte, like, or, inArray, isNull, isNotNull, ne
 import { drizzle } from "drizzle-orm/d1";
 import { alias } from "drizzle-orm/sqlite-core";
 import { createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, passkeyUserHandleMatches, verifyPasskeyAuthentication, verifyPasskeyRegistration } from "@owbastion/auth";
-import { buildMasteryProfiles, calculateVerifiedRunXpV2, difficultyAtLeastSatisfied, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, normalizeGameMode, parseCanonicalChallengeConditions, parseChallengeProgressRule, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
+import { buildMasteryProfiles, calculateVerifiedRunXpV2, difficultyAtLeastSatisfied, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, normalizeGameMode, eventWeightTotalCode, runCodeEventWeightTotal, parseCanonicalChallengeConditions, parseChallengeProgressRule, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
 import type { AdminVerifiedRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, ChallengeCondition, ChallengeProgressRule, VerifiedRunDifficulty, VerifiedRunEventCounters, VerifiedRunEvidenceCompatibilityV1, MasteryMapProfile, VerifiedRunActor, VerifiedRunConflictField, VerifiedRunForProjection, VerifiedRunXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
 import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerChallengeProgressListResponse, PlayerSubmissionStatus, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, QqScreenshotSubmissionRequest, QqScreenshotSubmissionResponse, RandomEvent, RandomEventVersion, ScreenshotSetStatus, Title } from "@owbastion/contracts";
@@ -4237,12 +4237,47 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
   };
 
+  // Bastion builds the room's event catalog from the platform's implemented, unsuspended event
+  // pools: the regular pools, plus a standalone mode's own pool in that mode's build. Null when the
+  // catalog is empty or a weight is unset, because Bastion then keeps its own default.
+  const expectedRunCodeEventWeight = async (mode: string | null) => {
+    const rows = await db.select({ weight: randomEvents.weight, poolMode: randomEventVersions.mode, availability: randomEventVersions.availability })
+      .from(randomEvents)
+      .leftJoin(randomEventVersions, eq(randomEventVersions.gameVersion, randomEvents.gameVersion))
+      .where(and(eq(randomEvents.releaseStatus, "implemented"), isNull(randomEvents.archivedAt)));
+    const pool = rows.filter((row) => row.availability !== "suspended" && (row.poolMode === null || row.poolMode === mode));
+    return !pool.length || pool.some((row) => row.weight === null) ? null : eventWeightTotalCode(pool.map((row) => row.weight!));
+  };
+
+  // A run code whose embedded event-weight total differs from the build's pools means the room's
+  // weights were changed. Unreadable codes, builds before the embedding, and unset weights are not checked.
+  const assessRunCodeEventWeight = async (response: OcrResponse) => {
+    if (!hasReliableMasteryField(response, "run_code", masteryEvidenceCompatibility) || !hasReliableMasteryField(response, "version", masteryEvidenceCompatibility)) return null;
+    let read: number | null;
+    try {
+      read = runCodeEventWeightTotal(String(response.data?.run_code ?? ""), String(response.data?.version ?? ""));
+    } catch {
+      return null;
+    }
+    if (read === null) return null;
+    const expected = await expectedRunCodeEventWeight(standaloneOcrMode(response));
+    return expected === null ? null : { read, expected };
+  };
+
   const completeOcrResult = async (row: typeof submissions.$inferSelect, result: OcrResponse, input: { attempt: number; manual: boolean; requestId: string }) => {
     const ocrRequestId = input.requestId;
     const startedAt = Date.now();
     const context = { submissionId: row.id, ...input };
     let stage = "load_submission";
     try {
+      stage = "check_run_code_event_weight";
+      const runCodeEventWeight = await assessRunCodeEventWeight(result);
+      if (runCodeEventWeight && runCodeEventWeight.read !== runCodeEventWeight.expected) {
+        // Nothing is granted or recorded from a run whose weights were changed; a maintainer decides.
+        await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ runCodeEventWeight }), nextStatus: "ocr_review_required", reviewReason: `无法通过成就挑战校验：对局码中的事件权重 ${(runCodeEventWeight.read / 100).toFixed(2)} 与本版本期望 ${(runCodeEventWeight.expected / 100).toFixed(2)} 不符`, incrementFailCount: false });
+        logOcrEvent("job_completed", { ...context, outcome: "run_code_event_weight_mismatch", ...runCodeEventWeight, durationMs: Date.now() - startedAt });
+        return;
+      }
       stage = "resolve_auto_candidates";
       const preparedCanonicalCandidates = await preparePlayerAutoMatchChallenges(row, result);
       const canonicalDecision = matchOcrAgainstChallenges(preparedCanonicalCandidates.candidates, result, preparedCanonicalCandidates.mapIdsByName, preparedCanonicalCandidates.titleNamesByKey);
@@ -4704,10 +4739,11 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         gameVersion: randomEvents.gameVersion,
         eventCount: count(randomEvents.id),
         availability: sql<string>`coalesce(${randomEventVersions.availability}, 'available')`,
+        mode: randomEventVersions.mode,
       }).from(randomEvents).leftJoin(randomEventVersions, eq(randomEventVersions.gameVersion, randomEvents.gameVersion))
-        .groupBy(randomEvents.gameVersion, randomEventVersions.availability)
+        .groupBy(randomEvents.gameVersion, randomEventVersions.availability, randomEventVersions.mode)
         .orderBy(desc(randomEvents.gameVersion));
-      return { contractVersion: "1", items: rows.map((row) => ({ gameVersion: row.gameVersion, availability: row.availability as RandomEventVersion["availability"], eventCount: Number(row.eventCount) })) };
+      return { contractVersion: "1", items: rows.map((row) => ({ gameVersion: row.gameVersion, availability: row.availability as RandomEventVersion["availability"], mode: row.mode ?? null, eventCount: Number(row.eventCount) })) };
     },
     async updateAdminRandomEventVersion(input, auth, idempotencyKey): Promise<RandomEventVersion> {
       const operation = "admin.random-event-version.availability";
@@ -4717,12 +4753,13 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       if (!eventCount) throw new Error("EVENT_VERSION_NOT_FOUND");
       const previous = await db.select().from(randomEventVersions).where(eq(randomEventVersions.gameVersion, input.gameVersion)).get();
       const timestamp = now();
-      const response: RandomEventVersion = { gameVersion: input.gameVersion, availability: input.availability, eventCount };
+      const mode = input.mode === undefined ? previous?.mode ?? null : normalizeGameMode(input.mode);
+      const response: RandomEventVersion = { gameVersion: input.gameVersion, availability: input.availability, mode, eventCount };
       const requestHash = await hashRequest(input);
       await database.batch([
-        database.prepare("INSERT INTO random_event_versions (game_version, availability, suspended_at, suspended_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(game_version) DO UPDATE SET availability = excluded.availability, suspended_at = excluded.suspended_at, suspended_by = excluded.suspended_by, updated_at = excluded.updated_at").bind(input.gameVersion, input.availability, input.availability === "suspended" ? timestamp : null, input.availability === "suspended" ? auth.subject : null, timestamp, timestamp),
+        database.prepare("INSERT INTO random_event_versions (game_version, availability, mode, suspended_at, suspended_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(game_version) DO UPDATE SET availability = excluded.availability, mode = excluded.mode, suspended_at = excluded.suspended_at, suspended_by = excluded.suspended_by, updated_at = excluded.updated_at").bind(input.gameVersion, input.availability, mode, input.availability === "suspended" ? timestamp : null, input.availability === "suspended" ? auth.subject : null, timestamp, timestamp),
         database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(`${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, requestHash, JSON.stringify(response), timestamp),
-        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, "random_event_version", input.gameVersion, JSON.stringify({ previousAvailability: previous?.availability ?? "available", availability: input.availability, eventCount }), timestamp),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, "random_event_version", input.gameVersion, JSON.stringify({ previousAvailability: previous?.availability ?? "available", availability: input.availability, previousMode: previous?.mode ?? null, mode, eventCount }), timestamp),
       ]);
       return response;
     },

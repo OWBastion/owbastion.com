@@ -130,6 +130,7 @@ export const randomEvents = sqliteTable("random_events", {
 export const randomEventVersions = sqliteTable("random_event_versions", {
   gameVersion: text("game_version").primaryKey(),
   availability: text("availability").notNull().default("available"),
+  mode: text("mode"),
   suspendedAt: integer("suspended_at"),
   suspendedBy: text("suspended_by"),
   createdAt: integer("created_at").notNull(),

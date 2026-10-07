@@ -257,7 +257,8 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
     );
     CREATE TABLE random_event_versions (
       game_version TEXT PRIMARY KEY NOT NULL,
-      availability TEXT NOT NULL DEFAULT 'available'
+      availability TEXT NOT NULL DEFAULT 'available',
+      mode TEXT
     );
     CREATE TABLE random_event_map_challenges (
       event_id TEXT NOT NULL REFERENCES random_events(id),

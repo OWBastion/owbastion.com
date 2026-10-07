@@ -979,6 +979,18 @@ const seedRule = (
   }
 };
 
+// Regular pools total 62.70; the 2026镜中回响 build adds its own pool for 69.50. A removed event and a
+// suspended pool stay out of both totals.
+const seedEventPools = (sqlite: DatabaseSync) => {
+  const insert = sqlite.prepare("INSERT INTO random_events (id, name, category, rarity, description, weight, game_version, release_status, created_at, updated_at) VALUES (?, ?, '增益', 'N', '描述', ?, ?, ?, ?, ?)");
+  insert.run("event.regular.a", "常规甲", 60, "5.0", "implemented", now, now);
+  insert.run("event.regular.b", "常规乙", 2.7, "4.0", "implemented", now, now);
+  insert.run("event.regular.removed", "已移除", 5, "4.0", "removed", now, now);
+  insert.run("event.suspended", "挂起池", 3, "3.0", "implemented", now, now);
+  insert.run("event.anniversary", "周年事件", 6.8, "2026周年", "implemented", now, now);
+  sqlite.prepare("INSERT INTO random_event_versions (game_version, availability, mode, created_at, updated_at) VALUES ('2026周年', 'available', '2026镜中回响', ?, ?), ('3.0', 'suspended', NULL, ?, ?)").run(now, now, now, now);
+};
+
 const seedMapTitleChallenge = (sqlite: DatabaseSync, challengeId: string, titleKey: string, mapId: string) => {
   sqlite.prepare(
     "INSERT INTO title_challenges (id, title_key, condition, evidence_rule, submission_mode, game_version, status, introduced_version, scope, created_at, updated_at) VALUES (?, ?, '完成经典版地图', '上传截图', 'manual', '2026.07.15', 'active', '2026.07.15', 'map', ?, ?)",
@@ -1148,11 +1160,48 @@ describe("map title rule model – locked invariants", () => {
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM challenge_completions WHERE player_account_id = 'player.auto' AND status = 'active'").get()).toEqual({ count: 2 });
     });
 
+    it("holds a run whose run code carries changed event weights for maintainer review", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.rialto");
+      seedTitle(sqlite, "DOMINATOR");
+      seedRule(sqlite, "rule.dominator", "DOMINATOR", "dominator", { slot: "dominator" });
+      seedEventPools(sqlite);
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.weights', 'weights-1', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.weights', 'identity.weights', 'player.weights', 'qq', 'group.weights', 'member.weights', 'active', ?)").run(now);
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.weights', 'binding.weights', 'ocr_pending', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'weights.1', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, byte_size, sha256, object_key, upload_status, created_at) VALUES ('attachment.weights', 'submission.weights', 'portal', 'external.weights', 'image/png', 1, 'hash', 'evidence/weights.png', 'stored', ?)").run(now);
+
+      // A regular-mode clear whose code carries 69.50, the anniversary build's total, instead of the regular 62.70.
+      const ocrResponse = {
+        schema_version: "1",
+        ok: true,
+        layout_version: "1280x720-v7",
+        fields: Object.fromEntries(["challenge_completed", "map_name", "difficulty", "version", "run_code", "duration_seconds", "deaths", "skips"].map((field) => [field, { status: "ok", confidence: 0.99 }])),
+        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.rialto", difficulty: "地狱", mode: "随机事件5.0", version: "99.0101.1", run_code: "9695-1153-2370", duration_seconds: 600, deaths: 0, skips: 0 },
+      };
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
+      try {
+        const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
+        await deliverOcrFixture(services, sqlite, { submissionId: "submission.weights", objectKey: "evidence/weights.png", attempt: 1, requestId: "request.weights" });
+      } finally {
+        vi.unstubAllGlobals();
+      }
+
+      expect(sqlite.prepare("SELECT status, review_reason FROM submissions WHERE id = 'submission.weights'").get()).toEqual({
+        status: "ocr_review_required",
+        review_reason: "无法通过成就挑战校验：对局码中的事件权重 69.50 与本版本期望 62.70 不符",
+      });
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE player_account_id = 'player.weights'").get()).toEqual({ count: 0 });
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs WHERE player_account_id = 'player.weights'").get()).toEqual({ count: 0 });
+    });
+
     it("records a standalone-mode clear on that mode's revision and settles only the checked limited title", async () => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);
       seedMap(sqlite, "map.rialto");
       sqlite.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, mode, game_version, created_at, updated_at) VALUES ('revision:map.rialto:mirror', 'map.rialto', 'selectable', NULL, '2026镜中回响', '99.0101.1', ?, ?)").run(now, now);
+      seedEventPools(sqlite);
       seedTitle(sqlite, "CONQUEROR");
       seedTitle(sqlite, "DOMINATOR");
       seedTitle(sqlite, "PROPHET");
@@ -1169,7 +1218,7 @@ describe("map title rule model – locked invariants", () => {
         ok: true,
         layout_version: "1280x720-v7",
         fields: Object.fromEntries(["challenge_completed", "map_name", "difficulty", "achievement_titles", "version", "run_code", "duration_seconds", "deaths", "skips"].map((field) => [field, { status: "ok", confidence: 0.99 }])),
-        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.rialto", difficulty: "地狱", mode: "2026镜中回响", achievement_titles: ["称号 PROPHET"], version: "99.0101.1", run_code: "1234-5678-9012", duration_seconds: 600, deaths: 0, skips: 0 },
+        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.rialto", difficulty: "地狱", mode: "2026镜中回响", achievement_titles: ["称号 PROPHET"], version: "99.0101.1", run_code: "9695-1153-2370", duration_seconds: 600, deaths: 0, skips: 0 },
       };
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
       try {
