@@ -4249,8 +4249,11 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     return !pool.length || pool.some((row) => row.weight === null) ? null : eventWeightTotalCode(pool.map((row) => row.weight!));
   };
 
-  // A run code whose embedded event-weight total differs from the build's pools means the room's
-  // weights were changed. Unreadable codes, builds before the embedding, and unset weights are not checked.
+  // A run code whose embedded event-weight total differs from the build's pools by more than the
+  // tolerance means the room's weights were changed; the tolerance absorbs small drift between platform
+  // weights and the deployed build. Unreadable codes, builds before the embedding, and unset weights are
+  // not checked.
+  const runCodeEventWeightTolerance = 50; // ±0.50 of total event weight, in run-code units
   const assessRunCodeEventWeight = async (response: OcrResponse) => {
     if (!hasReliableMasteryField(response, "run_code", masteryEvidenceCompatibility) || !hasReliableMasteryField(response, "version", masteryEvidenceCompatibility)) return null;
     let read: number | null;
@@ -4272,9 +4275,10 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     try {
       stage = "check_run_code_event_weight";
       const runCodeEventWeight = await assessRunCodeEventWeight(result);
-      if (runCodeEventWeight && runCodeEventWeight.read !== runCodeEventWeight.expected) {
+      if (runCodeEventWeight && Math.abs(runCodeEventWeight.read - runCodeEventWeight.expected) > runCodeEventWeightTolerance) {
         // Nothing is granted or recorded from a run whose weights were changed; a maintainer decides.
-        await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ runCodeEventWeight }), nextStatus: "ocr_review_required", reviewReason: `无法通过成就挑战校验：对局码中的事件权重 ${(runCodeEventWeight.read / 100).toFixed(2)} 与本版本期望 ${(runCodeEventWeight.expected / 100).toFixed(2)} 不符`, incrementFailCount: false });
+        // The player-visible reason stays generic; the values stay in maintainer-only match evidence.
+        await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ runCodeEventWeight }), nextStatus: "ocr_review_required", reviewReason: "无法通过成就挑战校验", incrementFailCount: false });
         logOcrEvent("job_completed", { ...context, outcome: "run_code_event_weight_mismatch", ...runCodeEventWeight, durationMs: Date.now() - startedAt });
         return;
       }

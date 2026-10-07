@@ -1160,7 +1160,7 @@ describe("map title rule model – locked invariants", () => {
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM challenge_completions WHERE player_account_id = 'player.auto' AND status = 'active'").get()).toEqual({ count: 2 });
     });
 
-    it("holds a run whose run code carries changed event weights for maintainer review", async () => {
+    const deliverRegularClear = async (runCode: string) => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);
       seedMap(sqlite, "map.rialto");
@@ -1171,14 +1171,12 @@ describe("map title rule model – locked invariants", () => {
       sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.weights', 'identity.weights', 'player.weights', 'qq', 'group.weights', 'member.weights', 'active', ?)").run(now);
       sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.weights', 'binding.weights', 'ocr_pending', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'weights.1', ?, ?)").run(now, now);
       sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, byte_size, sha256, object_key, upload_status, created_at) VALUES ('attachment.weights', 'submission.weights', 'portal', 'external.weights', 'image/png', 1, 'hash', 'evidence/weights.png', 'stored', ?)").run(now);
-
-      // A regular-mode clear whose code carries 69.50, the anniversary build's total, instead of the regular 62.70.
       const ocrResponse = {
         schema_version: "1",
         ok: true,
         layout_version: "1280x720-v7",
         fields: Object.fromEntries(["challenge_completed", "map_name", "difficulty", "version", "run_code", "duration_seconds", "deaths", "skips"].map((field) => [field, { status: "ok", confidence: 0.99 }])),
-        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.rialto", difficulty: "地狱", mode: "随机事件5.0", version: "99.0101.1", run_code: "9695-1153-2370", duration_seconds: 600, deaths: 0, skips: 0 },
+        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.rialto", difficulty: "地狱", mode: "随机事件5.0", version: "99.0101.1", run_code: runCode, duration_seconds: 600, deaths: 0, skips: 0 },
       };
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
       try {
@@ -1187,13 +1185,26 @@ describe("map title rule model – locked invariants", () => {
       } finally {
         vi.unstubAllGlobals();
       }
+      return sqlite;
+    };
 
-      expect(sqlite.prepare("SELECT status, review_reason FROM submissions WHERE id = 'submission.weights'").get()).toEqual({
-        status: "ocr_review_required",
-        review_reason: "无法通过成就挑战校验：对局码中的事件权重 69.50 与本版本期望 62.70 不符",
-      });
+    it("holds a run whose run code carries changed event weights for maintainer review", async () => {
+      // A regular-mode clear whose code carries 69.50, the anniversary build's total, instead of the regular 62.70.
+      const sqlite = await deliverRegularClear("9695-1153-2370");
+
+      // Players see only the generic reason; the values stay in maintainer-only match evidence.
+      expect(sqlite.prepare("SELECT status, review_reason FROM submissions WHERE id = 'submission.weights'").get()).toEqual({ status: "ocr_review_required", review_reason: "无法通过成就挑战校验" });
+      expect(JSON.parse((sqlite.prepare("SELECT match_json FROM ocr_results WHERE submission_id = 'submission.weights'").get() as { match_json: string }).match_json)).toEqual({ runCodeEventWeight: { read: 6950, expected: 6270 } });
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE player_account_id = 'player.weights'").get()).toEqual({ count: 0 });
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs WHERE player_account_id = 'player.weights'").get()).toEqual({ count: 0 });
+    });
+
+    it("tolerates small drift between platform weights and the deployed build", async () => {
+      // 63.00 is within ±0.50 of the expected 62.70; 63.30 is not.
+      const within = await deliverRegularClear("1631-2408-5670");
+      expect(within.prepare("SELECT status FROM submissions WHERE id = 'submission.weights'").get()).toEqual({ status: "approved" });
+      const beyond = await deliverRegularClear("1631-2438-5670");
+      expect(beyond.prepare("SELECT status FROM submissions WHERE id = 'submission.weights'").get()).toEqual({ status: "ocr_review_required" });
     });
 
     it("records a standalone-mode clear on that mode's revision and settles only the checked limited title", async () => {
