@@ -10,13 +10,26 @@ const createD1 = () => {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec("PRAGMA foreign_keys = ON;");
   let pendingBatch: Promise<void> = Promise.resolve();
+  let statementCount = 0;
+  let progressResultRows = 0;
+  let readStatements: Array<{ sql: string; parameters: unknown[] }> = [];
+  const countRows = (statementSql: string, rows: number) => {
+    if (statementSql.includes("mastery_runs")) progressResultRows += rows;
+  };
   const wrapStatement = (statementSql: string) => {
     let bound: unknown[] = [];
     const statement = {
       bind(...params: unknown[]) { bound = params; return statement; },
-      async first<T>() { return (sqlite.prepare(statementSql).get(...bound) as T | undefined) ?? null; },
+      async first<T>() {
+        readStatements.push({ sql: statementSql, parameters: [...bound] });
+        const result = (sqlite.prepare(statementSql).get(...bound) as T | undefined) ?? null;
+        countRows(statementSql, result ? 1 : 0);
+        return result;
+      },
       async all<T>() {
+        readStatements.push({ sql: statementSql, parameters: [...bound] });
         const results = sqlite.prepare(statementSql).all(...bound) as T[];
+        countRows(statementSql, results.length);
         return { results, success: true, meta: { changes: 0, duration: 0, size_after: 0, rows_read: results.length, rows_written: 0, last_row_id: 0, changed_db: false } };
       },
       async run() {
@@ -24,15 +37,18 @@ const createD1 = () => {
         return { success: true, meta: { changes: Number(info.changes ?? 0), duration: 0, size_after: 0, rows_read: 0, rows_written: Number(info.rows_written ?? info.changes ?? 0), last_row_id: Number(info.lastInsertRowid ?? 0), changed_db: true } };
       },
       async raw<T extends unknown[] = unknown[]>() {
+        readStatements.push({ sql: statementSql, parameters: [...bound] });
         const prepared = sqlite.prepare(statementSql);
         prepared.setReturnArrays(true);
-        return prepared.all(...bound) as T[];
+        const results = prepared.all(...bound) as T[];
+        countRows(statementSql, results.length);
+        return results;
       },
     };
     return statement;
   };
   const database = {
-    prepare(statementSql: string) { return wrapStatement(statementSql); },
+    prepare(statementSql: string) { statementCount += 1; return wrapStatement(statementSql); },
     batch(statements: Array<ReturnType<typeof wrapStatement>>) {
       const apply = async () => {
         sqlite.exec("BEGIN;");
@@ -53,7 +69,12 @@ const createD1 = () => {
     async exec(statementSql: string) { sqlite.exec(statementSql); return []; },
     withSession() { return database; },
   } as unknown as D1Database;
-  return { database, sqlite };
+  return {
+    database, sqlite,
+    resetQueryMetrics: () => { statementCount = 0; progressResultRows = 0; readStatements = []; },
+    queryMetrics: () => ({ statementCount, progressResultRows }),
+    capturedReadStatements: () => readStatements,
+  };
 };
 
 const hashRequest = async (value: unknown) => {
@@ -268,14 +289,122 @@ const canonicalChallengeIds = (sqlite: DatabaseSync) =>
   (sqlite.prepare("SELECT id, rule_version, conditions_json FROM challenges WHERE source_family = 'title_challenge' AND source_id = 'title.ANNIVERSARY_TOUR'").all() as { id: string; rule_version: string; conditions_json: string }[]);
 
 const setup = () => {
-  const { database, sqlite } = createD1();
+  const harness = createD1();
+  const { database, sqlite } = harness;
   installSchema(sqlite);
   seed(sqlite);
   const services = createPlatformServices(database);
-  return { database, sqlite, services };
+  return { ...harness, services };
+};
+
+const seedProgressReadRule = (sqlite: DatabaseSync, input: {
+  id: string;
+  rule?: AdminAchievementCreateRequest["progressRule"];
+  startsAt?: number;
+  endsAt?: number;
+  status?: string;
+  visibility?: number;
+  lifecycle?: string;
+}) => {
+  sqlite.prepare("INSERT INTO title_catalog (key,label,category,condition,public_visibility,lifecycle) VALUES (?, ?, 'read-fixture', 'Complete required maps', ?, ?)")
+    .run(input.id, input.id, input.visibility ?? 1, input.lifecycle ?? "active");
+  sqlite.prepare("INSERT INTO title_challenges (id,title_key,condition,evidence_rule,submission_mode,status,progress_rule,starts_at,ends_at,game_version,created_at,updated_at) VALUES (?, ?, 'Complete required maps', 'Verified Runs', 'manual', ?, ?, ?, ?, '26.0810.1', 1, 1)")
+    .run(input.id, input.id, input.status ?? "active", JSON.stringify(input.rule ?? { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"] }), input.startsAt ?? null, input.endsAt ?? null);
+};
+
+const seedProgressReadRun = (sqlite: DatabaseSync, input: {
+  id: string; createdAt: number; player?: string; map?: string; revision?: string;
+  difficulty?: string; status?: string;
+}) => {
+  const player = input.player ?? "account-1";
+  const map = input.map ?? "map.alpha";
+  sqlite.prepare("INSERT INTO submissions (id,player_account_id,created_at,updated_at) VALUES (?, ?, ?, ?)")
+    .run(`submission:${input.id}`, player, input.createdAt, input.createdAt);
+  sqlite.prepare(`INSERT INTO mastery_runs
+    (id,player_account_id,source_submission_id,map_id,gameplay_revision_id,difficulty,game_version,run_code,
+     completion_duration_seconds,event_counters_json,acceptance_source,accepted_at,status,invalidated_at,
+     invalidated_by,xp_rule_version,xp_input_snapshot_json,awarded_xp,created_at)
+    VALUES (?, ?, ?, ?, ?, ?, '26.0810.1', ?, 60, '{}', 'submission_review', 1, ?, ?, ?, 'fixture', '{}', 1, 1)`)
+    .run(input.id, player, `submission:${input.id}`, map, input.revision ?? `revision:${map}`, input.difficulty ?? "困难", input.id,
+      input.status ?? "active", input.status === "invalidated" ? 2 : null, input.status === "invalidated" ? "admin.1" : null);
+};
+
+const seedProgressReadSession = async (sqlite: DatabaseSync) => {
+  sqlite.prepare("INSERT INTO portal_sessions (id,player_account_id,token_hash,expires_at) VALUES ('read-session', 'account-1', ?, ?)")
+    .run(await hashRequest("read-token"), Date.now() + 60_000);
 };
 
 describe("verified-run progress challenges", () => {
+  it("keeps each public rule's mode, difficulty and submission window independent in one progress read", async () => {
+    const { sqlite, services } = setup();
+    const start = Date.now() - 50_000;
+    const end = start + 100_000;
+    sqlite.exec(`INSERT INTO gameplay_revisions (id,map_id,lifecycle,mode,game_version,created_at,updated_at) VALUES
+      ('revision:map.alpha:mirror', 'map.alpha', 'selectable', '2026镜中回响', '26.0810.1', 1, 1),
+      ('revision:map.beta:mirror', 'map.beta', 'selectable', '2026镜中回响', '26.0810.1', 1, 1);`);
+    seedProgressReadRule(sqlite, { id: "regular", startsAt: start, endsAt: end, rule: { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"], difficultyAtLeast: "困难" } });
+    seedProgressReadRule(sqlite, { id: "expert", startsAt: start, endsAt: end, rule: { type: "required_maps_completed", mapIds: ["map.alpha"], difficultyAtLeast: "专家" } });
+    seedProgressReadRule(sqlite, { id: "earlier", startsAt: start - 1_000, endsAt: end, rule: { type: "required_maps_completed", mapIds: ["map.alpha"], difficultyAtLeast: "专家" } });
+    seedProgressReadRule(sqlite, { id: "later", startsAt: start + 1, endsAt: end, rule: { type: "required_maps_completed", mapIds: ["map.alpha"] } });
+    seedProgressReadRule(sqlite, { id: "mirror", startsAt: start, endsAt: end, rule: { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"], mode: "2026 镜中回响", difficultyAtLeast: "专家" } });
+    seedProgressReadRule(sqlite, { id: "private", visibility: 0 });
+    seedProgressReadRule(sqlite, { id: "retired-challenge", status: "retired" });
+    seedProgressReadRule(sqlite, { id: "retired-title", lifecycle: "retired" });
+    seedProgressReadRule(sqlite, { id: "future", status: "scheduled", startsAt: end, rule: { type: "required_maps_completed", mapIds: ["map.alpha"] } });
+    seedProgressReadRun(sqlite, { id: "at-start", createdAt: start });
+    seedProgressReadRun(sqlite, { id: "before-start", createdAt: start - 1, difficulty: "专家" });
+    seedProgressReadRun(sqlite, { id: "at-end", createdAt: end, map: "map.beta", difficulty: "专家" });
+    seedProgressReadRun(sqlite, { id: "invalidated", createdAt: start + 1, map: "map.beta", status: "invalidated" });
+    seedProgressReadRun(sqlite, { id: "another-player", createdAt: start + 1, map: "map.beta", player: "account-2", difficulty: "专家" });
+    seedProgressReadRun(sqlite, { id: "mirror-alpha", createdAt: start + 1, revision: "revision:map.alpha:mirror", difficulty: "传奇" });
+    seedProgressReadRun(sqlite, { id: "mirror-beta-at-end", createdAt: end, map: "map.beta", revision: "revision:map.beta:mirror", difficulty: "专家" });
+    seedProgressReadRun(sqlite, { id: "unrelated-map", createdAt: start + 1, map: "map.gamma", difficulty: "地狱" });
+    await seedProgressReadSession(sqlite);
+    const response = await services.listCurrentPlayerChallengeProgress({ sessionToken: "read-token" });
+    expect(response!.items.map(({ challengeId, completedMaps, satisfied, maps }) => ({ challengeId, completedMaps, satisfied, maps }))).toEqual([
+      { challengeId: "earlier", completedMaps: 1, satisfied: true, maps: [{ mapId: "map.alpha", completed: true }] },
+      { challengeId: "expert", completedMaps: 0, satisfied: false, maps: [{ mapId: "map.alpha", completed: false }] },
+      { challengeId: "future", completedMaps: 0, satisfied: false, maps: [{ mapId: "map.alpha", completed: false }] },
+      { challengeId: "later", completedMaps: 0, satisfied: false, maps: [{ mapId: "map.alpha", completed: false }] },
+      { challengeId: "mirror", completedMaps: 1, satisfied: false, maps: [{ mapId: "map.alpha", completed: true }, { mapId: "map.beta", completed: false }] },
+      { challengeId: "regular", completedMaps: 1, satisfied: false, maps: [{ mapId: "map.alpha", completed: true }, { mapId: "map.beta", completed: false }] },
+    ]);
+    expect(response!.items.find((item) => item.challengeId === "future")!.status).toBe("scheduled");
+  });
+
+  it("uses a fixed query budget as progress challenges grow and transfers no duplicate run history", async () => {
+    const { sqlite, services, resetQueryMetrics, queryMetrics, capturedReadStatements } = setup();
+    sqlite.exec(`
+      CREATE INDEX mastery_runs_active_player_map_accepted_idx
+        ON mastery_runs(player_account_id, map_id, accepted_at DESC) WHERE status = 'active';
+      CREATE INDEX mastery_runs_active_player_map_revision_accepted_idx
+        ON mastery_runs(player_account_id, map_id, gameplay_revision_id, accepted_at DESC) WHERE status = 'active';
+      CREATE INDEX mastery_runs_player_accepted_idx
+        ON mastery_runs(player_account_id, accepted_at DESC, id DESC);
+    `);
+    seedProgressReadRule(sqlite, { id: "scale-0" });
+    seedProgressReadRun(sqlite, { id: "original", createdAt: 100 });
+    await seedProgressReadSession(sqlite);
+    resetQueryMetrics();
+    const initial = await services.listCurrentPlayerChallengeProgress({ sessionToken: "read-token" });
+    const initialMetrics = queryMetrics();
+    for (let index = 1; index < 40; index += 1) seedProgressReadRule(sqlite, { id: `scale-${index}` });
+    resetQueryMetrics();
+    const grown = await services.listCurrentPlayerChallengeProgress({ sessionToken: "read-token" });
+    const grownMetrics = queryMetrics();
+    expect(initial!.items).toHaveLength(1);
+    expect(grown!.items).toHaveLength(40);
+    expect(grownMetrics.statementCount).toBe(initialMetrics.statementCount);
+    for (let index = 0; index < 200; index += 1) seedProgressReadRun(sqlite, { id: `duplicate-${index}`, createdAt: 100 });
+    resetQueryMetrics();
+    expect(await services.listCurrentPlayerChallengeProgress({ sessionToken: "read-token" })).toEqual(grown);
+    expect(queryMetrics()).toEqual(grownMetrics);
+    expect(grownMetrics.progressResultRows).toBeLessThanOrEqual(40);
+    const lookupPlans = capturedReadStatements().flatMap(({ sql, parameters }) =>
+      sqlite.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...parameters) as Array<{ detail: string }>);
+    expect(lookupPlans.some(({ detail }) => /SEARCH .* USING INDEX .*\(player_account_id=\? AND map_id=\?\)/.test(detail))).toBe(true);
+  });
+
   it("completes and grants only after every required map has an eligible active run", async () => {
     const { sqlite, services } = setup();
     await services.createAdminAchievement(achievementInput(), admin, "create.1");

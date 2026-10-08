@@ -2495,11 +2495,23 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       mapChallengeIds.length ? db.select({ challenge: achievementChallenges, map: maps }).from(achievementChallenges).innerJoin(maps, eq(achievementChallenges.mapId, maps.id)).where(inArray(achievementChallenges.id, mapChallengeIds)) : [],
       titleChallengeIds.length ? db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(inArray(titleChallenges.id, titleChallengeIds)) : [],
       snapshotTitleKeys.length ? db.select().from(titleCatalog).where(inArray(titleCatalog.key, snapshotTitleKeys)) : [],
-      submissionIds.length ? db.select().from(ocrResults).where(inArray(ocrResults.submissionId, submissionIds)).orderBy(desc(ocrResults.createdAt)) : [],
+      // The existing submission/created index traverses timestamp ties by
+      // descending rowid. Keep that winner when fetching one payload per item.
+      submissionIds.length ? db.select().from(ocrResults).where(sql`${ocrResults.id} IN (
+        SELECT (SELECT latest.id FROM ocr_results AS latest
+          WHERE latest.submission_id = requested_submission.value
+          ORDER BY latest.created_at DESC, latest.rowid DESC LIMIT 1)
+        FROM json_each(${JSON.stringify(submissionIds)}) AS requested_submission
+      )`) : [],
       submissionIds.length ? db.select().from(submissionSpotChecks).where(inArray(submissionSpotChecks.submissionId, submissionIds)) : [],
       playerAccountIds.length ? db.select({ id: playerAccounts.id }).from(playerAccounts).where(inArray(playerAccounts.id, playerAccountIds)) : [],
       loadVerifiedRunSubmissionOutcomes(submissionIds),
-      submissionIds.length ? db.select().from(submissionReviews).where(inArray(submissionReviews.submissionId, submissionIds)).orderBy(submissionReviews.createdAt, sql`rowid`) : [],
+      submissionIds.length ? db.select().from(submissionReviews).where(sql`${submissionReviews.id} IN (
+        SELECT (SELECT latest.id FROM submission_reviews AS latest
+          WHERE latest.submission_id = requested_submission.value
+          ORDER BY latest.created_at DESC, latest.rowid DESC LIMIT 1)
+        FROM json_each(${JSON.stringify(submissionIds)}) AS requested_submission
+      )`) : [],
       submissionIds.length ? db.select({ submissionId: playerTitleGrants.sourceId, grantId: playerTitleGrants.id, titleKey: playerTitleGrants.titleKey, titleName: titleCatalog.label }).from(playerTitleGrants).innerJoin(titleCatalog, eq(titleCatalog.key, playerTitleGrants.titleKey)).where(and(inArray(playerTitleGrants.sourceType, ["automatic", "submission"]), inArray(playerTitleGrants.sourceId, submissionIds), eq(playerTitleGrants.status, "active"))).orderBy(playerTitleGrants.grantedAt, playerTitleGrants.id) : [],
       submissionIds.length ? db.select().from(ocrAccuracyFeedback).where(inArray(ocrAccuracyFeedback.submissionId, submissionIds)) : [],
     ]);
@@ -7503,13 +7515,37 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           eq(titleCatalog.publicVisibility, 1),
         ))
         .orderBy(titleCatalog.category, titleCatalog.label);
-      const items: PlayerChallengeProgressListResponse["items"] = [];
-      for (const { challenge, title } of rows) {
+      const visibleChallenges = rows.flatMap(({ challenge, title }) => {
         const rule = parseChallengeProgressRule(challenge.progressRule);
         const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, timestamp, challenge.gameVersion);
-        if (!rule || !status) continue;
-        const eligibility = await loadEligibleProgressRunMaps({ playerAccountId: access.player.id, rule, startsAt: challenge.startsAt, endsAt: challenge.endsAt });
-        items.push({
+        return rule && status ? [{ challenge, title, rule, status }] : [];
+      });
+      // CROSS JOIN keeps the small rule/map inputs ahead of the indexed run
+      // lookup, instead of scanning all of a player's runs for each rule.
+      const eligibleRunMaps = visibleChallenges.length ? (await database.prepare(`
+        SELECT DISTINCT json_extract(rule.value, '$.challengeId') AS challengeId, run.map_id AS mapId, run.difficulty
+        FROM json_each(?) AS rule
+        CROSS JOIN json_each(rule.value, '$.mapIds') AS required_map
+        CROSS JOIN mastery_runs AS run ON run.player_account_id = ? AND run.status = 'active' AND run.map_id = required_map.value
+        JOIN submissions AS submission ON submission.id = run.source_submission_id
+        JOIN gameplay_revisions AS revision ON revision.id = run.gameplay_revision_id
+        WHERE revision.mode IS json_extract(rule.value, '$.mode')
+          AND (json_extract(rule.value, '$.startsAt') IS NULL OR submission.created_at >= json_extract(rule.value, '$.startsAt'))
+          AND (json_extract(rule.value, '$.endsAt') IS NULL OR submission.created_at < json_extract(rule.value, '$.endsAt'))
+      `).bind(JSON.stringify(visibleChallenges.map(({ challenge, rule }) => ({
+        challengeId: challenge.id, mapIds: rule.mapIds, mode: rule.mode ?? null, startsAt: challenge.startsAt, endsAt: challenge.endsAt,
+      }))), access.player.id).all<{ challengeId: string; mapId: string; difficulty: string }>()).results : [];
+      const runsByChallenge = new Map<string, Array<{ mapId: string; difficulty: string }>>();
+      for (const run of eligibleRunMaps) {
+        const runs = runsByChallenge.get(run.challengeId) ?? [];
+        runs.push(run);
+        runsByChallenge.set(run.challengeId, runs);
+      }
+      const items: PlayerChallengeProgressListResponse["items"] = visibleChallenges.map(({ challenge, title, rule, status }) => {
+        const completed = new Set((runsByChallenge.get(challenge.id) ?? [])
+          .filter((run) => !rule.difficultyAtLeast || difficultyAtLeastSatisfied(run.difficulty, rule.difficultyAtLeast))
+          .map((run) => run.mapId));
+        return {
           challengeId: challenge.id,
           titleKey: title.key,
           titleName: title.label,
@@ -7519,11 +7555,11 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           ...(challenge.startsAt !== null ? { startsAt: challenge.startsAt } : {}),
           ...(challenge.endsAt !== null ? { endsAt: challenge.endsAt } : {}),
           progressRule: rule,
-          maps: rule.mapIds.map((mapId) => ({ mapId, completed: eligibility.completed.has(mapId) })),
-          completedMaps: eligibility.completed.size,
-          satisfied: eligibility.satisfied,
-        });
-      }
+          maps: rule.mapIds.map((mapId) => ({ mapId, completed: completed.has(mapId) })),
+          completedMaps: completed.size,
+          satisfied: rule.mapIds.every((mapId) => completed.has(mapId)),
+        };
+      });
       return { contractVersion: "1" as const, items };
     },
 
