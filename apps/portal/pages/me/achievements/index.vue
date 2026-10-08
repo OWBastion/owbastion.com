@@ -1,17 +1,61 @@
 <script setup lang="ts">
 import type { PublicAchievement } from "~/components/AchievementCatalog.vue";
+import MyAchievementOverview from "~/components/MyAchievementOverview.vue";
+import type { PortalMap } from "~/composables/usePortalApi";
+import type { MapProgressChallenge } from "~/utils/map-progress";
 import { portalErrorDetails } from "~/utils/portal-error";
 
-useSeoMeta({ title: "成就 · 躲避堡垒 3", description: "查看已发布的成就挑战与完成条件。" });
+definePageMeta({ middleware: "auth" });
+useSeoMeta({ title: "我的成就 · 躲避堡垒 3" });
 
-const { data: catalog, pending: loading, error: catalogError } = await useAsyncData("public-achievement-directory", () => usePublicCatalog<{ items: PublicAchievement[] }>("achievements"));
-const challenges = computed(() => catalog.value?.items ?? []);
-const error = computed(() => catalogError.value ? portalErrorDetails(catalogError.value, "无法读取成就，请稍后重试。").description : "");
+const { player, refresh } = useCurrentPlayer();
+const { items: ownedTitles, allTitles, refresh: refreshTitles, replaceEquipped } = usePlayerTitles();
+const { items: challengeProgress, refresh: refreshChallengeProgress } = usePlayerChallengeProgress();
+const { data: catalog, pending: loading, error: catalogError } = await useAsyncData("public-achievement-directory", async () => {
+  const [achievementResponse, mapResponse, mapChallengeResponse] = await Promise.all([
+    usePublicCatalog<{ items: PublicAchievement[] }>("achievements"),
+    usePublicCatalog<{ items: PortalMap[] }>("maps"),
+    usePublicCatalog<{ items: MapProgressChallenge[] }>("mapChallenges"),
+  ]);
+  return { challenges: achievementResponse.items, maps: mapResponse.items, mapChallenges: mapChallengeResponse.items };
+});
+const challenges = computed(() => catalog.value?.challenges ?? []);
+const maps = computed(() => catalog.value?.maps ?? []);
+const mapChallenges = computed(() => catalog.value?.mapChallenges ?? []);
+const playerError = shallowRef("");
+const error = computed(() => catalogError.value
+  ? portalErrorDetails(catalogError.value, "无法读取成就，请稍后重试。").description
+  : playerError.value);
+
+onMounted(async () => {
+  try {
+    const currentPlayer = await refresh();
+    if (currentPlayer) {
+      await Promise.all([refreshTitles(), refreshChallengeProgress()]);
+    }
+  } catch (cause) {
+    playerError.value = portalErrorDetails(cause, "无法读取成就，请稍后重试。").description;
+  }
+});
+const equipError = shallowRef("");
+const savingEquip = shallowRef(false);
+const updateEquipped = async (grantId: string) => {
+  const prior = ownedTitles.value;
+  const title = prior.find((item) => item.grantId === grantId);
+  if (!title) return;
+  const next = title.equipped ? prior.filter((item) => item.equipped && item.grantId !== grantId) : [...prior.filter((item) => item.equipped), title];
+  if (next.length > 10) { equipError.value = "最多佩戴 10 个称号"; return; }
+  ownedTitles.value = prior.map((item) => item.grantId === grantId ? { ...item, equipped: !item.equipped } : item);
+  savingEquip.value = true; equipError.value = "";
+  try { await replaceEquipped(next.map((item) => item.grantId)); }
+  catch (cause) { ownedTitles.value = prior; equipError.value = portalErrorDetails(cause, "无法保存佩戴称号，请稍后重试。").description; }
+  finally { savingEquip.value = false; }
+};
 </script>
 
 <template>
   <main class="achievements-page directory-page page-shell">
-    <section class="page-intro" aria-labelledby="achievements-title"><h1 id="achievements-title" class="page-title">成就</h1></section>
+    <section class="page-intro" aria-labelledby="achievements-title"><h1 id="achievements-title" class="page-title">我的成就</h1></section>
     <section v-if="loading" class="achievement-directory surface-card" aria-label="读取中…" role="status">
       <div class="achievement-skeleton-groups" aria-hidden="true">
         <section v-for="group in 2" :key="group" class="achievement-skeleton-section">
@@ -28,15 +72,14 @@ const error = computed(() => catalogError.value ? portalErrorDetails(catalogErro
       </div>
     </section>
     <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取成就" :description="error" />
-    <section v-else class="achievement-directory surface-card" aria-label="成就列表">
-      <AchievementCatalog :challenges="challenges" />
-    </section>
+    <template v-else-if="player"><MyAchievementOverview :challenges="challenges" :titles="ownedTitles" :maps="maps" :map-challenges="mapChallenges" :challenge-progress="challengeProgress" :saving-equip="savingEquip" :all-titles="allTitles" @toggle-equipped="updateEquipped" /><UAlert v-if="equipError" class="equip-error" color="error" variant="subtle" :description="equipError" /></template>
   </main>
 </template>
 
 <style scoped>
 .page-intro { margin-bottom: var(--space-8); }
 .achievement-directory { padding: clamp(var(--space-5), 4vw, var(--space-8)); }
+.equip-error { margin-top: var(--space-4); }
 .achievement-skeleton-groups, .achievement-skeleton-section { display: grid; gap: var(--space-4); }
 .achievement-skeleton-section + .achievement-skeleton-section { margin-top: var(--space-8); }
 .achievement-skeleton-heading { display: flex; align-items: end; justify-content: space-between; gap: var(--space-4); }

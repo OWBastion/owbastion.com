@@ -2,23 +2,15 @@
 import { createReusableTemplate, useMediaQuery, usePreferredReducedMotion } from "@vueuse/core";
 import type { Map, MapChallenge } from "~/types/challenge";
 import PlayerReviewPanel from "../reviews/PlayerReviewPanel.vue";
-import MapMasteryProfile from "./MapMasteryProfile.vue";
-import type { CurrentPlayerMasteryResponse, PlayerMasteryMapProfile } from "~/composables/usePortalApi";
 
 const props = defineProps<{
   map: Map | null;
   challenges: MapChallenge[];
   authenticated: boolean;
-  masteryProfile: PlayerMasteryMapProfile | null;
-  masteryLoading: boolean;
-  masteryError: string;
-  masteryHistory: CurrentPlayerMasteryResponse | null;
-  masteryHistoryLoading: boolean;
-  masteryHistoryError: string;
 }>();
 
 const open = defineModel<boolean>("open", { required: true });
-const emit = defineEmits<{ "review-changed": []; "retry-mastery": []; "history-page": [page: number]; "retry-history": [] }>();
+const emit = defineEmits<{ "review-changed": [] }>();
 const difficultyRank = ["简单", "一般", "困难", "专家", "传奇", "地狱"] as const;
 const mapChallenges = computed(() => {
   if (!props.map) return [];
@@ -61,7 +53,6 @@ onMounted(() => { hydrated.value = true; });
           </ul>
           <div v-if="map.mechanics?.length" class="mechanics-row"><span>特殊机制</span><div class="mechanics"><UBadge v-for="mechanic in map.mechanics" :key="mechanic" :label="mechanic" color="neutral" variant="subtle" /></div></div>
         </section>
-        <MapMasteryProfile :map-name="map.mapName" :authenticated="authenticated" :profile="masteryProfile" :loading="masteryLoading" :error="masteryError" :history="masteryHistory" :history-loading="masteryHistoryLoading" :history-error="masteryHistoryError" @retry="emit('retry-mastery')" @history-page="emit('history-page', $event)" @retry-history="emit('retry-history')" />
         <PlayerReviewPanel v-if="map" target-type="map" :target-id="map.mapId" :gameplay-revision-id="map.defaultGameplayRevisionId ?? null" :authenticated="authenticated" @review-changed="emit('review-changed')" />
       </div>
     </div>

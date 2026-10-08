@@ -7,7 +7,7 @@ defineProps<{ goals: MapGoal[] }>();
 <template>
   <ul class="next-goals">
     <li v-for="goal in goals" :key="goal.mapId">
-      <NuxtLink :to="`/maps?mapId=${encodeURIComponent(goal.mapId)}`" class="next-goal surface-card interactive-card pressable-soft">
+      <NuxtLink :to="`/me/achievements/maps/${encodeURIComponent(goal.mapId)}`" class="next-goal surface-card interactive-card pressable-soft">
         <span class="next-goal__map">{{ goal.mapName }}</span>
         <strong class="next-goal__name card-heading">{{ goal.next.name }}</strong>
         <span class="next-goal__bar" role="img" :aria-label="`已获得 ${goal.earned} / ${goal.total}`">
