@@ -6,6 +6,12 @@
  * changes within one KV propagation window instead of a fixed TTL. The entry
  * TTL only reclaims keys abandoned by version bumps and bounds staleness for
  * writes that bypass the Worker entirely (migrations, wrangler d1 execute).
+ *
+ * Platform services are created per request (often several times), so the
+ * isolate keeps a small shared state per KV namespace: the version token is
+ * reused for VERSION_MEMO_MS, and entries — immutable once keyed by a version
+ * token — are kept in a bounded in-memory copy. Only plain data is shared
+ * across requests; in-flight promises stay per instance.
  */
 export type PlatformCacheScope = "catalog" | "grants";
 
@@ -14,6 +20,13 @@ const VERSION_KEYS: Record<PlatformCacheScope, string> = {
   grants: "owb:v1:ver:grants",
 };
 const ENTRY_TTL_SECONDS = 6 * 60 * 60;
+// Bounded well inside KV's own cross-location propagation window, so it adds
+// no new class of staleness; a writer's isolate sees its bump immediately.
+const VERSION_MEMO_MS = 10_000;
+// After a KV failure (e.g. a daily quota block) skip KV briefly instead of
+// spending further operations that are likely to fail.
+const KV_BYPASS_MS = 30_000;
+const ENTRY_MEMORY_MAX_BYTES = 8 * 1024 * 1024;
 
 const logCacheEvent = (event: string, fields: Record<string, unknown>) => {
   try {
@@ -30,30 +43,91 @@ export type PlatformCache = {
   invalidate: (scope: PlatformCacheScope) => Promise<void>;
 };
 
+type IsolateCacheState = {
+  versions: Map<PlatformCacheScope, { token: string; readAt: number }>;
+  entries: Map<string, string>;
+  entryBytes: number;
+  bypassUntil: number;
+};
+
+const isolateStates = new WeakMap<KVNamespace, IsolateCacheState>();
+
+const isolateStateFor = (kv: KVNamespace): IsolateCacheState => {
+  let state = isolateStates.get(kv);
+  if (!state) {
+    state = { versions: new Map(), entries: new Map(), entryBytes: 0, bypassUntil: 0 };
+    isolateStates.set(kv, state);
+  }
+  return state;
+};
+
+const rememberEntry = (state: IsolateCacheState, key: string, serialized: string) => {
+  if (serialized.length > ENTRY_MEMORY_MAX_BYTES) return;
+  const previous = state.entries.get(key);
+  if (previous !== undefined) {
+    state.entries.delete(key);
+    state.entryBytes -= previous.length;
+  }
+  state.entries.set(key, serialized);
+  state.entryBytes += serialized.length;
+  for (const [oldestKey, oldest] of state.entries) {
+    if (state.entryBytes <= ENTRY_MEMORY_MAX_BYTES) break;
+    state.entries.delete(oldestKey);
+    state.entryBytes -= oldest.length;
+  }
+};
+
+const recallEntry = (state: IsolateCacheState, key: string): string | undefined => {
+  const serialized = state.entries.get(key);
+  if (serialized === undefined) return undefined;
+  state.entries.delete(key);
+  state.entries.set(key, serialized);
+  return serialized;
+};
+
+const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
+
 export const createPlatformCache = (kv?: KVNamespace): PlatformCache => {
-  const versions = new Map<PlatformCacheScope, string>();
+  const shared = kv ? isolateStateFor(kv) : undefined;
+  // Pinned per instance so one request reads a single consistent version.
+  const versions = new Map<PlatformCacheScope, string | null>();
   const memos = new Map<PlatformCacheScope, Map<string, Promise<unknown>>>();
   const bumped = new Set<PlatformCacheScope>();
 
-  const versionOf = async (scope: PlatformCacheScope): Promise<string> => {
-    const known = versions.get(scope);
-    if (known !== undefined) return known;
-    if (!kv) return "0";
-    let version = "0";
-    try {
-      version = (await kv.get(VERSION_KEYS[scope])) ?? "0";
-    } catch (error) {
-      // A failed version read must not look up entries under a stale token;
-      // a unique token forces loader fallback for this instance.
-      version = `err.${crypto.randomUUID()}`;
-      logCacheEvent("version_read_failed", { scope, error: error instanceof Error ? error.message : String(error) });
+  const enterBypass = (state: IsolateCacheState) => {
+    state.bypassUntil = Date.now() + KV_BYPASS_MS;
+    state.versions.clear();
+  };
+
+  /** Resolves the scope token, or null when KV must be skipped for this read. */
+  const versionOf = async (scope: PlatformCacheScope): Promise<string | null> => {
+    if (versions.has(scope)) return versions.get(scope)!;
+    if (!kv || !shared) return null;
+    const now = Date.now();
+    let version: string | null;
+    const memo = shared.versions.get(scope);
+    if (shared.bypassUntil > now) {
+      version = null;
+    } else if (memo && now - memo.readAt < VERSION_MEMO_MS) {
+      version = memo.token;
+    } else {
+      try {
+        version = (await kv.get(VERSION_KEYS[scope])) ?? "0";
+        shared.versions.set(scope, { token: version, readAt: now });
+      } catch (error) {
+        // Never look up or write entries under an unknown token; fall back to
+        // the loader and stop spending KV operations for a short window.
+        version = null;
+        enterBypass(shared);
+        logCacheEvent("version_read_failed", { scope, error: errorMessage(error) });
+      }
     }
     versions.set(scope, version);
     return version;
   };
 
   const cached = <T>(scope: PlatformCacheScope, name: string, loader: Loader<T>): Promise<T> => {
-    if (!kv) return loader();
+    if (!kv || !shared) return loader();
     let scopeMemos = memos.get(scope);
     if (!scopeMemos) {
       scopeMemos = new Map();
@@ -63,18 +137,37 @@ export const createPlatformCache = (kv?: KVNamespace): PlatformCache => {
     if (memoized) return memoized as Promise<T>;
     const promise = (async () => {
       const version = await versionOf(scope);
+      if (version === null) return loader();
       const key = `owb:v1:${scope}:${version}:${name}`;
-      try {
-        const stored = await kv.get(key, "json");
-        if (stored !== null) return (stored as { v: T }).v;
-      } catch (error) {
-        logCacheEvent("entry_read_failed", { scope, name, error: error instanceof Error ? error.message : String(error) });
+      // Entries are immutable under a version token, so the isolate copy needs
+      // no freshness check. It is stored serialized so requests never share
+      // (or mutate) one object.
+      const remembered = recallEntry(shared, key);
+      if (remembered !== undefined) return (JSON.parse(remembered) as { v: T }).v;
+      let kvAvailable = shared.bypassUntil <= Date.now();
+      if (kvAvailable) {
+        try {
+          const stored = await kv.get(key, "text");
+          if (stored !== null) {
+            rememberEntry(shared, key, stored);
+            return (JSON.parse(stored) as { v: T }).v;
+          }
+        } catch (error) {
+          kvAvailable = false;
+          enterBypass(shared);
+          logCacheEvent("entry_read_failed", { scope, name, error: errorMessage(error) });
+        }
       }
       const value = await loader();
-      try {
-        await kv.put(key, JSON.stringify({ v: value }), { expirationTtl: ENTRY_TTL_SECONDS });
-      } catch (error) {
-        logCacheEvent("entry_write_failed", { scope, name, error: error instanceof Error ? error.message : String(error) });
+      const serialized = JSON.stringify({ v: value });
+      rememberEntry(shared, key, serialized);
+      if (kvAvailable) {
+        try {
+          await kv.put(key, serialized, { expirationTtl: ENTRY_TTL_SECONDS });
+        } catch (error) {
+          enterBypass(shared);
+          logCacheEvent("entry_write_failed", { scope, name, error: errorMessage(error) });
+        }
       }
       return value;
     })();
@@ -84,17 +177,23 @@ export const createPlatformCache = (kv?: KVNamespace): PlatformCache => {
   };
 
   const invalidate = async (scope: PlatformCacheScope): Promise<void> => {
-    if (!kv || bumped.has(scope)) return;
+    if (!kv || !shared || bumped.has(scope)) return;
     bumped.add(scope);
     memos.delete(scope);
     const token = `${Date.now().toString(36)}.${crypto.randomUUID()}`;
     try {
+      // Attempted even during a read bypass: a published bump is what lets
+      // other isolates observe the write.
       await kv.put(VERSION_KEYS[scope], token);
       versions.set(scope, token);
+      shared.versions.set(scope, { token, readAt: Date.now() });
     } catch (error) {
       bumped.delete(scope);
-      versions.delete(scope);
-      logCacheEvent("version_bump_failed", { scope, error: error instanceof Error ? error.message : String(error) });
+      // This isolate must not keep serving the pre-write version it memoized.
+      versions.set(scope, null);
+      shared.versions.delete(scope);
+      enterBypass(shared);
+      logCacheEvent("version_bump_failed", { scope, error: errorMessage(error) });
     }
   };
 
