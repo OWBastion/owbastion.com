@@ -255,10 +255,11 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+    CREATE TABLE standalone_modes (mode TEXT PRIMARY KEY NOT NULL, event_weight_total REAL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE random_event_versions (
       game_version TEXT PRIMARY KEY NOT NULL,
       availability TEXT NOT NULL DEFAULT 'available',
-      mode TEXT, mode_weight_total REAL
+      mode TEXT
     );
     CREATE TABLE random_event_map_challenges (
       event_id TEXT NOT NULL REFERENCES random_events(id),
