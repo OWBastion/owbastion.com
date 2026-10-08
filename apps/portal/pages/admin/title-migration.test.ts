@@ -1,7 +1,7 @@
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises, type VueWrapper } from "@vue/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import TitleMigrationPage from "./titles.vue";
+import TitleMigrationPage from "./title-migration.vue";
 
 const holders = [
   { holderName: "Cold", totalCount: 2, unclaimedCount: 2, status: "pending" as const },
