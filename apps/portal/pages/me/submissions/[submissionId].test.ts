@@ -35,7 +35,7 @@ const stubs = {
   },
 };
 
-async function mountSubmission(route = "/submissions/submission-1") {
+async function mountSubmission(route = "/me/submissions/submission-1") {
   const wrapper = await mountSuspended(SubmissionPage, {
     route,
     global: { stubs },
@@ -57,7 +57,7 @@ describe("submission detail page", () => {
     expect(wrapper.text()).toContain("ocr-v3");
     expect(wrapper.text()).toContain("提交编号");
     expect(wrapper.text()).toContain("最后更新");
-    expect(wrapper.get('a[href="/submissions/new"]').text()).toContain("重新提交截图");
+    expect(wrapper.get('a[href="/me/submissions/new"]').text()).toContain("重新提交截图");
     expect(wrapper.text()).toContain("重新提交建议");
     expect(wrapper.text()).toContain("处理未通过");
     expect(wrapper.find('[aria-live="polite"]').exists()).toBe(false);
@@ -82,7 +82,7 @@ describe("submission detail page", () => {
       updatedAt: 1,
       evidenceUrl: null,
     }));
-    const wrapper = await mountSubmission("/submissions/submission-missing");
+    const wrapper = await mountSubmission("/me/submissions/submission-missing");
     expect(wrapper.text()).toContain("暂无截图");
     expect(wrapper.text()).not.toContain("无法读取截图");
   });
@@ -96,7 +96,7 @@ describe("submission detail page", () => {
       updatedAt: 1,
       evidenceUrl: "https://example.test/evidence.png",
     }));
-    const waiting = await mountSubmission("/submissions/submission-waiting");
+    const waiting = await mountSubmission("/me/submissions/submission-waiting");
     expect(waiting.text()).toContain("needs_review");
 
     api.mockImplementation(() => Promise.resolve({
@@ -107,7 +107,7 @@ describe("submission detail page", () => {
       updatedAt: 1,
       evidenceUrl: "https://example.test/evidence.png",
     }));
-    const ocrReview = await mountSubmission("/submissions/submission-ocr-review");
+    const ocrReview = await mountSubmission("/me/submissions/submission-ocr-review");
     expect(ocrReview.text()).toContain("needs_review");
   });
 
@@ -135,7 +135,7 @@ describe("submission detail page", () => {
         manualReviewEligible: true,
       });
     });
-    const wrapper = await mountSubmission("/submissions/submission-eligible");
+    const wrapper = await mountSubmission("/me/submissions/submission-eligible");
     const btn = wrapper.find('[aria-label="申请人工核对"]');
     expect(btn.exists()).toBe(true);
     await btn.trigger("click");
@@ -156,7 +156,7 @@ describe("submission detail page", () => {
         manualReviewEligible: true,
       });
     });
-    const wrapper = await mountSubmission("/submissions/submission-manual-ok");
+    const wrapper = await mountSubmission("/me/submissions/submission-manual-ok");
     await wrapper.get('[aria-label="申请人工核对"]').trigger("click");
     await flushPromises();
     const live = wrapper.get('[aria-live="polite"]');
@@ -178,7 +178,7 @@ describe("submission detail page", () => {
       updatedAt: 1,
       evidenceUrl: "https://example.test/evidence.png",
     }));
-    const wrapper = await mountSubmission("/submissions/submission-needs-review");
+    const wrapper = await mountSubmission("/me/submissions/submission-needs-review");
     expect(wrapper.text()).not.toContain("确认挑战");
     expect(wrapper.text()).not.toContain("选择挑战");
     expect(api).not.toHaveBeenCalledWith(expect.stringContaining("/challenge"), expect.objectContaining({ method: "POST" }));
@@ -195,7 +195,7 @@ describe("submission detail page", () => {
       evidenceUrl: "https://example.test/evidence.png",
       titleGrant: { grantId: "grant-1", titleKey: "CONQUEROR", titleName: "征服者", mapName: "花村" },
     }));
-    const wrapper = await mountSubmission("/submissions/submission-approved");
+    const wrapper = await mountSubmission("/me/submissions/submission-approved");
     expect(wrapper.text()).toContain("已获得称号");
     expect(wrapper.text()).toContain("征服者");
   });
@@ -211,7 +211,7 @@ describe("submission detail page", () => {
       titleGrant: { grantId: "grant-1", titleKey: "CONQUEROR", titleName: "征服者", mapName: "花村" },
       verifiedRunOutcome: { status: "created", awardedXp: 225 },
     }));
-    const created = await mountSubmission("/submissions/submission-mastery-created");
+    const created = await mountSubmission("/me/submissions/submission-mastery-created");
     expect(created.text()).toContain("已获得称号");
     expect(created.text()).toContain("精通记录已保存");
     expect(created.text()).toContain("获得 225 XP");
@@ -225,7 +225,7 @@ describe("submission detail page", () => {
       evidenceUrl: "https://example.test/evidence.png",
       verifiedRunOutcome: { status: "reused", awardedXp: 0 },
     }));
-    const reused = await mountSubmission("/submissions/submission-mastery-reused");
+    const reused = await mountSubmission("/me/submissions/submission-mastery-reused");
     expect(reused.text()).toContain("这次通关已记录");
 
     api.mockImplementation(() => Promise.resolve({
@@ -238,7 +238,7 @@ describe("submission detail page", () => {
       evidenceUrl: "https://example.test/evidence.png",
       verifiedRunOutcome: { status: "ineligible", awardedXp: 0 },
     }));
-    const ineligible = await mountSubmission("/submissions/submission-mastery-ineligible");
+    const ineligible = await mountSubmission("/me/submissions/submission-mastery-ineligible");
     expect(ineligible.text()).toContain("本次未计入精通进度");
   });
 
@@ -251,7 +251,7 @@ describe("submission detail page", () => {
       updatedAt: 2,
       evidenceUrl: "https://example.test/evidence.png",
     }));
-    const wrapper = await mountSubmission("/submissions/submission-passed");
+    const wrapper = await mountSubmission("/me/submissions/submission-passed");
     expect(wrapper.text()).toContain("completed");
     expect(wrapper.text()).not.toContain("已获得称号");
   });
@@ -270,7 +270,7 @@ describe("submission detail page", () => {
         evidenceUrl: "https://example.test/evidence.png",
       });
     });
-    const wrapper = await mountSubmission("/submissions/submission-refresh");
+    const wrapper = await mountSubmission("/me/submissions/submission-refresh");
     expect(wrapper.text()).toContain("processing");
     await wrapper.get('button[aria-label="刷新状态"]').trigger("click");
     await flushPromises();
@@ -288,7 +288,7 @@ describe("submission detail page", () => {
         accuracy: null,
       },
     }));
-    const wrapper = await mountSubmission("/submissions/submission-feedback");
+    const wrapper = await mountSubmission("/me/submissions/submission-feedback");
     const panel = wrapper.get('[aria-label="识别反馈"]');
     expect(panel.text()).toContain("00000000-0000-4000-8000-000000000004");
     expect(panel.text()).toContain("submission-1");
@@ -296,7 +296,7 @@ describe("submission detail page", () => {
 
   it("omits the OCR feedback panel when the submission has no OCR result", async () => {
     api.mockImplementation(() => Promise.resolve({ ...baseSubmission, status: "completed", reason: undefined }));
-    const wrapper = await mountSubmission("/submissions/submission-no-feedback");
+    const wrapper = await mountSubmission("/me/submissions/submission-no-feedback");
     expect(wrapper.find('[aria-label="识别反馈"]').exists()).toBe(false);
   });
 });

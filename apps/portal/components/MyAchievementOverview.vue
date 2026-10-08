@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { PublicAchievement } from "./AchievementCatalog.vue";
+import MapProgressOverview from "./player/MapProgressOverview.vue";
 import type { OwnedTitle } from "~/types/title";
 import type { PlayerChallengeProgress, PortalMap } from "~/composables/usePortalApi";
 import type { MapProgressChallenge } from "~/utils/map-progress";

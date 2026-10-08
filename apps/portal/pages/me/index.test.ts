@@ -28,11 +28,7 @@ const masteryLoading = ref(false);
 const masteryError = ref("");
 const refreshMastery = vi.fn(async () => ({ contractVersion: "1" as const, profiles: masteryProfiles.value, runs: [], page: 1, pageSize: 1, total: 0, hasMore: false }));
 const passkeys = ref<unknown[]>([{ passkeyId: "passkey-1" }]);
-const catalogMaps = ref<unknown[]>([]);
-const catalogChallenges = ref<unknown[]>([]);
 const portalApi = vi.fn(async (path: string) => {
-  if (path === "/v1/maps") return { items: catalogMaps.value };
-  if (path === "/v1/challenges?family=map") return { items: catalogChallenges.value };
   if (path === "/v1/me/passkeys") return { contractVersion: "1", items: passkeys.value, qqBound: true };
   throw new Error(`Unexpected request: ${path}`);
 });
@@ -75,7 +71,7 @@ async function mountPage(options?: { attachTo?: HTMLElement }): Promise<VueWrapp
 }
 
 describe("me page", () => {
-  beforeEach(() => { catalogMaps.value = []; catalogChallenges.value = []; masteryProfiles.value = []; });
+  beforeEach(() => { masteryProfiles.value = []; });
 
   it("shows only the three most recently granted titles and links to achievements", async () => {
     player.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
@@ -92,7 +88,7 @@ describe("me page", () => {
     const wrapper = await mountPage();
     const recentTitles = wrapper.get('section[aria-labelledby="titles-title"]');
     expect(recentTitles.findAll("strong").map((item) => item.text())).toEqual(["最新称号", "中间称号甲", "中间称号乙"]);
-    expect(wrapper.get('a[href="/achievements"]').text()).toContain("查看全部成就");
+    expect(wrapper.get('a[href="/me/achievements"]').text()).toContain("查看全部成就");
     expect(wrapper.text()).not.toContain("更多功能");
   });
 
@@ -180,30 +176,27 @@ describe("me page", () => {
     vi.unstubAllGlobals();
   });
 
-  const mapOf = (id: string, name: string) => ({ mapId: id, mapName: name, defaultGameplayRevisionId: `rev.${id}` });
-  const challengeOf = (map: string, key: string, name: string) => ({ challengeId: `c.${map}.${key}`, mapId: map, gameplayRevisionId: `rev.${map}`, titleKey: `${map}_${key}`, name, status: "active" });
   const mapTitle = (map: string, key: string) => ({ grantId: `g.${map}.${key}`, titleKey: `${map}_${key}`, label: key, category: "地图称号", condition: "完成", scope: "map" as const, mapId: map, gameplayRevisionId: `rev.${map}`, mapName: map, grantedAt: 1 });
   const profileOf = (map: string, xp: number, runs: number) => ({ mapId: map, gameplayRevisionId: `rev.${map}`, gameplayRevisionLifecycle: "default", totalXp: xp, verifiedRunCount: runs, difficultyStats: [], lowestDeaths: null, fewestSkips: null, highestSingleRunXp: null, highestCompletedDifficulty: null, recentRuns: [] });
 
-  it("lists the unfinished goals the player is already on, closest to done first, with summary facts", async () => {
+  it("summarizes titles, mastery XP and verified runs without computing map progress", async () => {
     player.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
-    catalogMaps.value = [mapOf("one", "地图一"), mapOf("two", "地图二"), mapOf("three", "地图三"), mapOf("four", "地图四")];
-    catalogChallenges.value = ["one", "two", "three", "four"].flatMap((map) => [challengeOf(map, "P", "开拓者"), challengeOf(map, "C", "征服者")]);
     titles.value = [mapTitle("one", "P"), mapTitle("three", "P"), mapTitle("three", "C")];
     masteryProfiles.value = [profileOf("one", 300, 2), profileOf("two", 120, 1)];
     refreshPlayer.mockResolvedValue(player.value);
     refreshTitles.mockResolvedValue(titles.value);
+    portalApi.mockClear();
 
     const wrapper = await mountPage();
-    const goals = wrapper.findAll(".next-goal");
-    // 地图一 needs one more, 地图二 two; 地图三 is complete and 地图四 is not started.
-    expect(goals.map((goal) => goal.find(".next-goal__map").text())).toEqual(["地图一", "地图二"]);
-    expect(goals[0]!.find(".next-goal__name").text()).toBe("征服者");
-    expect(goals[0]!.text()).toContain("还差 1 个");
     const stat = (label: string) => wrapper.findAll(".stat-sheet__item").find((item) => item.get("dt").text() === label)!.get("dd").text();
     expect(stat("称号")).toBe("3个");
     expect(stat("精通 XP")).toBe("420");
     expect(stat("已验证通关")).toBe("3次");
+    expect(wrapper.findAll(".stat-sheet__item").some((item) => item.get("dt").text() === "地图成就")).toBe(false);
+    expect(wrapper.find(".next-goal").exists()).toBe(false);
+    expect(wrapper.get('a[href="/me/achievements"]')).toBeTruthy();
+    expect(portalApi.mock.calls.map(([path]) => path)).not.toContain("/v1/maps");
+    expect(portalApi.mock.calls.map(([path]) => path)).not.toContain("/v1/challenges?family=map");
   });
 
   it("flags only a rejection that asks for a new upload", async () => {
@@ -220,7 +213,7 @@ describe("me page", () => {
     refreshPlayer.mockResolvedValue(player.value);
     wrapper = await mountPage();
     expect(wrapper.text()).toContain("1 次提交需要你处理");
-    expect(wrapper.get('a[href="/submissions/s-again"]').text()).toContain("去处理");
+    expect(wrapper.get('a[href="/me/submissions/s-again"]').text()).toContain("去处理");
   });
 
   it("distinguishes a missing session from loading and read failure", async () => {
