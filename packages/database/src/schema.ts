@@ -461,6 +461,7 @@ export const verifiedRuns = sqliteTable("mastery_runs", {
   createdAt: integer("created_at").notNull(),
 }, (table) => ({
   sourceSubmissionIdx: uniqueIndex("mastery_runs_source_submission_idx").on(table.sourceSubmissionId),
+  playerAcceptedIdx: index("mastery_runs_player_accepted_idx").on(table.playerAccountId, sql`${table.acceptedAt} DESC`, sql`${table.id} DESC`),
   activePlayerRunCodeIdx: uniqueIndex("mastery_runs_active_player_run_code_idx").on(table.playerAccountId, table.matchCode).where(sql`${table.status} = 'active'`),
   activePlayerMapAcceptedIdx: index("mastery_runs_active_player_map_revision_accepted_idx").on(table.playerAccountId, table.mapId, table.gameplayRevisionId, table.acceptedAt).where(sql`${table.status} = 'active'`),
 }));
