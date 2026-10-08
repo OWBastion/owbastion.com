@@ -17,7 +17,7 @@ const reviewPreview = (body: PreviewBody = {}) => {
   const titles = [{ titleKey: "LEGEND", titleName: "传奇征服者", mapName: "帕拉伊苏", alreadyOwned: false }];
   if (confirmed.has("c.pioneer")) titles.push({ titleKey: "PIONEER", titleName: "开拓者", mapName: "帕拉伊苏", alreadyOwned: false });
   if (confirmed.has("c.hero")) titles.push({ titleKey: "HERO", titleName: "称号 HERO", mapName: null as unknown as string, alreadyOwned: false });
-  return { contractVersion: "1", submissionId: "submission-1", evidenceOutcome: "review", candidates, completions: [], titles, verifiedRun: { status: "ineligible", reason: "missing_match_code" }, approvable: true, blockingCode: null };
+  return { contractVersion: "1", submissionId: "submission-1", evidenceOutcome: "review", candidates, completions: [], titles, verifiedRun: { status: "ineligible", reason: "missing_match_code" }, approvable: true, blockingCode: null, knownModes: ["2026镜中回响"] };
 };
 const settlePreview = async () => { await new Promise((resolve) => setTimeout(resolve, 350)); await flushPromises(); };
 
@@ -35,9 +35,9 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: unknow
       ? { submissionId: "submission-6", mapName: "釜山", difficulty: "", playerName: "他又", status: "ocr_pending", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "pending", ocrAttempt: null, ocrErrorCode: null, evidenceUrl: null, ocr: null, review: null }
       : { submissionId: "submission-6", mapName: "釜山", difficulty: "", playerName: "他又", status: "ocr_review_required", createdAt: 0, updatedAt: 2, challenge: null, ocrStatus: "review_required", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: { data: { map_name: "釜山" }, fields: {} }, review: null });
   }
-  if (path === "/v1/submissions/submission-6/review/preview" && options?.method === "POST") return Promise.resolve({ ...reviewPreview(), submissionId: "submission-6", candidates: [], titles: [], approvable: false, blockingCode: "SUBMISSION_OUTCOME_NOT_CONFIGURED" });
+  if (path === "/v1/submissions/submission-6/review/preview" && options?.method === "POST") return Promise.resolve({ ...reviewPreview(), submissionId: "submission-6", candidates: [], titles: [], approvable: false, blockingCode: "SUBMISSION_OUTCOME_NOT_CONFIGURED", knownModes: [] });
   if (path === "/v1/submissions/submission-1/review/preview" && options?.method === "POST") return Promise.resolve(reviewPreview(options.body as PreviewBody));
-  if (path === "/v1/submissions/submission-4/review/preview" && options?.method === "POST") return Promise.resolve({ ...reviewPreview(), submissionId: "submission-4", candidates: [], titles: [], approvable: false, blockingCode: "SUBMISSION_OUTCOME_NOT_CONFIGURED" });
+  if (path === "/v1/submissions/submission-4/review/preview" && options?.method === "POST") return Promise.resolve({ ...reviewPreview(), submissionId: "submission-4", candidates: [], titles: [], approvable: false, blockingCode: "SUBMISSION_OUTCOME_NOT_CONFIGURED", knownModes: [] });
   if (path === "/v1/submissions/submission-4") return Promise.resolve({ submissionId: "submission-4", mapName: "釜山", difficulty: "", playerName: "他又", status: "ocr_review_required", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "review_required", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: { data: { map_name: "釜山" }, fields: {} } });
   if (path === "/v1/submissions/submission-1") return Promise.resolve({ submissionId: "submission-1", mapName: "成就挑战", difficulty: "", playerName: "他又", status: "ready_for_review", createdAt: 0, updatedAt: 1, challenge: { family: "achievement", titleName: "守望先锋", category: "战绩", condition: "完成挑战", evidenceRule: "完整截图" }, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, ocrResultId: "ocr-result-1", ocrAccuracy: ocrMarkedInaccurate ? "inaccurate" : null, evidenceUrl: "https://evidence.owbastion.codes/uploads/submissions/test/high-entropy-key.png", ocr: { model_version: "v1", request_id: "ocr-request-1", data: { map_name: "帕拉伊苏", difficulty: "地狱", viewer_player: "他又", challenge_completed: true, ai_mark_detected: false, mode: "挑战模式", restart_in_seconds: 0, uptime_seconds: 120, server_load: null, event: { name: "测试事件", duration_seconds: 30, description: ["提高伤害", "持续生效"], numbers: [{ text: "伤害", value: 25, unit: "%" }], text: "测试事件 持续 30 秒" } }, fields: { map_name: { confidence: 0.98, status: "ok" }, difficulty: { confidence: 0.97, status: "ok" }, viewer_player: { confidence: 0.96, status: "ok" }, challenge_completed: { confidence: 0.99, status: "ok" } }, warnings: ["right_panel.version_missing"] }, match: { outcome: "review", candidates: [{ challengeId: "title.legacy", challengeType: "title_achievement", titleName: "旧匹配称号", quality: { accepted: false, reasons: ["achievement_evidence:low_confidence", "achievement_evidence:title_not_checked"] } }] } });
   if (path === "/v1/submissions/submission-2") return Promise.resolve({ submissionId: "submission-2", mapName: "釜山", difficulty: "专家", playerName: "他又", status: "approved", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: null });
@@ -226,6 +226,18 @@ describe("admin review detail page", () => {
     }));
   });
 
+  it("corrects the mode by choosing a configured standalone mode", async () => {
+    adminApi.mockClear();
+    const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
+    await flushPromises();
+    await wrapper.get('button[aria-label^="模式："]').trigger("click");
+    const select = wrapper.get('[role="group"][aria-label="模式核对"]').findComponent({ name: "USelect" });
+    expect((select.props("items") as Array<{ value: string }>).map((item) => item.value)).toEqual(["随机事件", "2026镜中回响", "挑战模式"]);
+    select.vm.$emit("update:modelValue", "2026镜中回响");
+    await settlePreview();
+    expect(adminApi).toHaveBeenLastCalledWith("/v1/submissions/submission-1/review/preview", expect.objectContaining({ body: { contractVersion: "1", fieldCorrections: [{ fieldKey: "mode", reviewedValue: "2026镜中回响" }] } }));
+  });
+
   describe("recognition check", () => {
     const chip = (wrapper: Awaited<ReturnType<typeof mountPage>>, label: string) => wrapper.get(`button[aria-label^="${label}："]`);
     const editor = (wrapper: Awaited<ReturnType<typeof mountPage>>, label: string) => wrapper.find(`[role="group"][aria-label="${label}核对"]`);
@@ -233,7 +245,8 @@ describe("admin review detail page", () => {
     it("sums the fields up in one line and shows each as a chip with what was recognized", async () => {
       const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
       await flushPromises();
-      expect(wrapper.text()).toContain("5 项一致，1 项待你确认");
+      expect(wrapper.text()).toContain("6 项一致，1 项待你确认");
+      expect(chip(wrapper, "模式").attributes("aria-label")).toBe("模式：挑战模式，一致");
       expect(chip(wrapper, "地图").attributes("aria-label")).toBe("地图：帕拉伊苏，一致");
       expect(chip(wrapper, "难度").attributes("aria-label")).toBe("难度：地狱，一致");
       expect(chip(wrapper, "通关标记").attributes("aria-label")).toContain("待确认");
@@ -255,7 +268,7 @@ describe("admin review detail page", () => {
       await flushPromises();
       await wrapper.get('button[aria-label="核对通关标记"]').trigger("click");
       await settlePreview();
-      expect(wrapper.text()).toContain("6 项全部一致");
+      expect(wrapper.text()).toContain("7 项全部一致");
       expect(chip(wrapper, "通关标记").attributes("aria-label")).toContain("已核对");
     });
 

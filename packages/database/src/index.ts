@@ -4020,9 +4020,28 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     // A failed recognition leaves no evidence; the reviewer's own field corrections then stand in for it.
     if (!rawResponse && !fieldCorrections?.length) throw new Error("SUBMISSION_NOT_REVIEWABLE");
     const correctedResponse = applySubmissionFieldCorrections(rawResponse ?? { ok: true, data: {}, fields: {} }, fieldCorrections);
-    const prepared = await preparePlayerAutoMatchChallenges(row, correctedResponse);
-    const decision = matchOcrAgainstChallenges(prepared.candidates, correctedResponse, prepared.mapIdsByName, prepared.titleNamesByKey, true);
-    const candidatesById = new globalThis.Map(decision.candidates.map((candidate) => [candidate.canonicalChallengeId, candidate]));
+    const [evidencePrepared, linkablePrepared] = await Promise.all([
+      preparePlayerAutoMatchChallenges(row, correctedResponse),
+      prepareCanonicalAutoMatchChallenges(await fetchPlayerAutoMatchChallenges(row.playerAccountId, row.createdAt), row.createdAt),
+    ]);
+    const decision = matchOcrAgainstChallenges(evidencePrepared.candidates, correctedResponse, evidencePrepared.mapIdsByName, evidencePrepared.titleNamesByKey, true);
+    // A maintainer may also link any Challenge the player can currently complete, whatever map or
+    // revision the evidence resolves to. Those are never matched from evidence (which would let a
+    // mirror-mode clear satisfy regular map Challenges again); they count only when confirmed.
+    const evidenceIds = new Set(decision.candidates.map((candidate) => candidate.canonicalChallengeId));
+    const linkable: AutoMatchCandidate[] = linkablePrepared.candidates.filter((candidate) => !evidenceIds.has(candidate.canonicalChallengeId)).map((candidate) => ({
+      ...candidate,
+      evaluation: { supported: true, matched: false, requiredFields: [] },
+      quality: { accepted: false, requiredFields: [], reasons: [] },
+      grantable: Boolean(candidate.challenge.titleKey),
+    }));
+    const prepared = {
+      ...evidencePrepared,
+      snapshots: new globalThis.Map([...linkablePrepared.snapshots, ...evidencePrepared.snapshots]),
+      canonicalChallengePlans: new globalThis.Map([...linkablePrepared.canonicalChallengePlans, ...evidencePrepared.canonicalChallengePlans]),
+      titleNamesByKey: new globalThis.Map([...linkablePrepared.titleNamesByKey, ...evidencePrepared.titleNamesByKey]),
+    };
+    const candidatesById = new globalThis.Map([...decision.candidates, ...linkable].map((candidate) => [candidate.canonicalChallengeId, candidate]));
     const ineligibleConfirmations = confirmedChallengeIds.filter((challengeId) => !candidatesById.has(challengeId));
     const chosen = new globalThis.Map<string, { candidate: AutoMatchCandidate; basis: ReviewEvidenceSelection["basis"] }>();
     for (const candidate of decision.exact) chosen.set(candidate.canonicalChallengeId, { candidate, basis: "conditions" });
@@ -4043,7 +4062,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         basis,
       }];
     });
-    return { correctedResponse, prepared, decision, selections, ineligibleConfirmations };
+    return { correctedResponse, prepared, decision, linkable, selections, ineligibleConfirmations };
   };
 
   // Resolves the Completion -> Grant chain that approving the selections would write,
@@ -6760,7 +6779,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const evidenceFields = new Set<AdminSubmissionReviewCandidate["requiredFields"][number]>(["map_name", "difficulty", "challenge_completed", "map_variant", "achievement_titles"]);
       const asEvidenceFields = (fields: readonly string[]) => fields.filter((field): field is AdminSubmissionReviewCandidate["requiredFields"][number] => evidenceFields.has(field as AdminSubmissionReviewCandidate["requiredFields"][number]));
       const evidenceRank = { matched: 0, needs_confirmation: 1, unsupported: 2, not_matched: 3 } as const;
-      const candidates = evidence.decision.candidates.map(({ challenge, canonicalChallengeId, evaluation, quality }): AdminSubmissionReviewCandidate => {
+      const candidates = [...evidence.decision.candidates, ...evidence.linkable].map(({ challenge, canonicalChallengeId, evaluation, quality }): AdminSubmissionReviewCandidate => {
         const titleName = challenge.titleKey ? evidence.prepared.titleNamesByKey.get(challenge.titleKey) ?? null : null;
         const status: AdminSubmissionReviewCandidate["evidence"] = !evaluation.supported ? "unsupported" : evaluation.matched ? "matched" : lowConfidence.has(canonicalChallengeId) ? "needs_confirmation" : "not_matched";
         return {
@@ -6840,6 +6859,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         verifiedRun,
         approvable: blockingCode === null,
         blockingCode,
+        knownModes: (await db.selectDistinct({ mode: gameplayRevisions.mode }).from(gameplayRevisions).where(isNotNull(gameplayRevisions.mode)).orderBy(gameplayRevisions.mode)).map((row) => row.mode!),
       };
     },
 
