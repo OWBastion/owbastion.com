@@ -55,8 +55,8 @@ describe("AppHeader", () => {
     expect(wrapper.text()).not.toContain("待处理");
     expect(wrapper.text()).not.toContain("内容编辑");
     expect(wrapper.text()).not.toContain("天梯排名");
-    expect(wrapper.find('nav[aria-label="管理导航"] a[href="/admin/achievements?section=catalog"]').exists()).toBe(true);
-    expect(wrapper.find('nav[aria-label="管理导航"] a[href="/admin/achievements?section=generic"]').exists()).toBe(true);
+    expect(wrapper.find('nav[aria-label="管理导航"] a[href="/admin/achievements/titles"]').exists()).toBe(true);
+    expect(wrapper.find('nav[aria-label="管理导航"] a[href="/admin/achievements/challenges"]').exists()).toBe(true);
     expect(wrapper.find('nav[aria-label="管理导航"] a[href="/admin/maps"]').exists()).toBe(true);
     expect(wrapper.find('nav[aria-label="管理导航"] a[href="/admin/events"]').exists()).toBe(true);
     expect(wrapper.find('nav[aria-label="管理导航"] a[href="/admin/reviews"]').exists()).toBe(true);
