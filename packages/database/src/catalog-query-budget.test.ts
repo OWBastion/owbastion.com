@@ -518,6 +518,30 @@ describe("catalog query budgets", () => {
     expect(getCount()).toBeLessThanOrEqual(3);
   });
 
+  it("searches each requested content kind without paying for unrelated catalogs", async () => {
+    const { services, sqlite, getCount, resetCount } = runWithSize(5, 8);
+    sqlite.prepare("UPDATE title_catalog SET label = '全局称号 0' WHERE key = 'GLOBAL_ONE'").run();
+    const query = { query: "0", page: 1, pageSize: 50 };
+    const all = await services.searchAgentContent(query);
+    const allCount = getCount();
+    // Independent fixture identities ensure that agreement with the combined
+    // search cannot conceal a missing content family in both paths.
+    const expectedIds = { event: "event.0", map: "map.0", achievement: "title.challenge.0", title: "GLOBAL_ONE" } as const;
+
+    for (const kind of ["event", "map", "achievement", "title"] as const) {
+      resetCount();
+      const selected = await services.searchAgentContent({ ...query, kind });
+      expect(selected.items).toContainEqual(expect.objectContaining({ kind, id: expectedIds[kind] }));
+      const expected = all.items.filter((item) => item.kind === kind);
+      expect(selected.items).toEqual(expected);
+      expect(selected.total).toBe(expected.length);
+      expect(selected.hasMore).toBe(false);
+      // A kind filter must save database work; no fixed SQL shape or exact
+      // statement count is required of a correct implementation.
+      expect(getCount()).toBeLessThan(allCount);
+    }
+  });
+
   it("projects equipped retired grants while excluding revoked and map grants", async () => {
     const { services, sqlite } = runWithSize(2, 2);
     const timestamp = Date.now();

@@ -4676,7 +4676,14 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     },
     async searchAgentContent(input: AgentSearchQuery) {
       const query = input.query.toLocaleLowerCase();
-      const [events, suspendedVersions, maps, achievements, titles] = await Promise.all([this.listRandomEvents({ status: input.status }), suspendedEventVersions(), this.listMaps(), this.listChallenges({ family: "achievement" }), listGlobalAgentTitles()]);
+      const include = (kind: AgentSearchResult["kind"]) => !input.kind || input.kind === kind;
+      const [events, suspendedVersions, maps, achievements, titles] = await Promise.all([
+        include("event") ? this.listRandomEvents({ status: input.status }) : [],
+        include("event") ? suspendedEventVersions() : new Set<string>(),
+        include("map") ? this.listMaps() : [],
+        include("achievement") ? this.listChallenges({ family: "achievement" }) : Promise.resolve<Challenge[]>([]),
+        include("title") ? listGlobalAgentTitles() : [],
+      ]);
       const results: AgentSearchResult[] = [];
       if (!input.kind || input.kind === "event") results.push(...events.filter((event) => !suspendedVersions.has(event.gameVersion) && [event.name, event.description, event.eventGroup ?? "", ...event.effectTags].some((value) => value.toLocaleLowerCase().includes(query))).map((event) => ({ kind: "event" as const, id: event.eventId, name: event.name, summary: event.description })));
       if (!input.kind || input.kind === "map") results.push(...maps.filter((map) => [map.mapName, ...map.mechanics].some((value) => value.toLocaleLowerCase().includes(query))).map((map) => ({ kind: "map" as const, id: map.mapId, name: map.mapName, summary: map.mechanics.join("、") || `游戏版本 ${map.gameVersion}` })));
@@ -7170,16 +7177,21 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       ]);
       const hasMore = accounts.length > input.pageSize;
       const items = accounts.slice(0, input.pageSize);
+      const bindingRows = items.length ? await db.select({ playerAccountId: bindings.playerAccountId, total: count() })
+        .from(bindings)
+        .where(and(inArray(bindings.playerAccountId, items.map((account) => account.id)), eq(bindings.status, "active")))
+        .groupBy(bindings.playerAccountId) : [];
+      const bindingCounts = new Map(bindingRows.map((row) => [row.playerAccountId, row.total]));
       return {
         contractVersion: "1" as const,
-        items: await Promise.all(items.map(async (account) => ({
+        items: items.map((account) => ({
           playerAccountId: account.id,
           playerId: account.playerId,
           playerName: account.playerName,
           status: account.status as "active" | "banned",
-          bindingCount: (await db.select().from(bindings).where(and(eq(bindings.playerAccountId, account.id), eq(bindings.status, "active")))).length,
+          bindingCount: bindingCounts.get(account.id) ?? 0,
           updatedAt: account.updatedAt,
-        }))),
+        })),
         page: input.page,
         pageSize: input.pageSize,
         total,
