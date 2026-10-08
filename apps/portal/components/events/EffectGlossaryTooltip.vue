@@ -59,13 +59,25 @@ function hideForPointer() {
 .effect-glossary-term {
   position: relative;
   display: inline-flex;
-  min-height: 2.75rem;
+  min-height: 0;
+  min-width: 0;
   align-items: center;
   padding: 0;
   border: 0;
+  border-radius: 0;
   background: transparent;
+  box-shadow: none;
+  appearance: none;
   cursor: help;
   font: inherit;
+}
+/* Keep a 44px touch target without inflating the visible badge. */
+.effect-glossary-term::after {
+  content: "";
+  position: absolute;
+  inset: 50% 0 auto;
+  height: 2.75rem;
+  transform: translateY(-50%);
 }
 .effect-glossary-tooltip {
   display: grid;
