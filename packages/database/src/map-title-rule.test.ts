@@ -285,6 +285,32 @@ describe("Agents map projection readiness", () => {
     }, auth, "mode-promote")).rejects.toThrow("DEFAULT_REVISION_CANNOT_USE_MODE");
   });
 
+  it("makes a standalone-mode revision selectable without a spatial config", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.mode");
+    seedAgentSpatialConfig(sqlite, "revision:map.mode:initial");
+    const services = createPlatformServices(database);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
+    // The maintainer flow: create an empty preparing revision, then set the mode and enable it.
+    const preparing = await services.createAdminMapRevision({ contractVersion: "1", mapId: "map.mode", mapVariant: null, copyConfiguration: false, challengeAssignments: [] }, auth, "mode-empty-create");
+    const update = (mode: string | null, key: string) => services.updateAdminMapRevision({
+      contractVersion: "1",
+      mapId: "map.mode",
+      revisionId: preparing.revisionId,
+      lifecycle: "selectable",
+      gameVersion: "2026.10.01",
+      mapVariant: null,
+      mode,
+      spatialConfig: null,
+      challengeAssignments: [],
+    }, auth, key);
+
+    // Bastion compiles regular selectable revisions, so they still need a spatial config.
+    await expect(update(null, "regular-without-spatial")).rejects.toThrow("INVALID_SPATIAL_CONFIG");
+    await expect(update("2026镜中回响", "mode-without-spatial")).resolves.toMatchObject({ lifecycle: "selectable", mode: "2026镜中回响", spatialConfig: null });
+  });
+
   it("keeps preparing composite revisions out of the Agents projection", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);

@@ -1564,9 +1564,12 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     if (other) throw new Error("MODE_REVISION_CONFLICT");
   };
 
-  const assertRevisionConfiguration = (lifecycle: AdminMapRevisionUpdateRequest["lifecycle"], mapVariant: "classic" | null, spatialConfig: AdminMapRevisionUpdateRequest["spatialConfig"]) => {
+  // Bastion compiles default and selectable revisions from their spatial config, so they need one.
+  // A standalone-mode revision is played by its own build and never projected to Bastion, so its
+  // spatial config is optional; when given it is still validated.
+  const assertRevisionConfiguration = (lifecycle: AdminMapRevisionUpdateRequest["lifecycle"], mapVariant: "classic" | null, spatialConfig: AdminMapRevisionUpdateRequest["spatialConfig"], mode: string | null = null) => {
     if (lifecycle === "default" && mapVariant !== null) throw new Error("DEFAULT_REVISION_CANNOT_USE_CLASSIC_VARIANT");
-    if ((lifecycle === "default" || lifecycle === "selectable") && !spatialConfig) throw new Error("INVALID_SPATIAL_CONFIG");
+    if ((lifecycle === "default" || lifecycle === "selectable") && !spatialConfig && !mode) throw new Error("INVALID_SPATIAL_CONFIG");
     const parsed = spatialConfig ? parseSpatialConfig(spatialConfig) : null;
     if ((lifecycle === "default" || lifecycle === "selectable") && parsed && !agentProjectedSpatialConfigSchema.safeParse(parsed).success) {
       throw new Error("INVALID_SPATIAL_CONFIG");
@@ -4927,7 +4930,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       if (!current) throw new Error("REVISION_NOT_FOUND");
       if ((current.lifecycle === "default") !== (input.lifecycle === "default")) throw new Error("REVISION_PROMOTION_REQUIRES_EXPLICIT_OPERATION");
       assertRevisionLifecycle(current.lifecycle, input.lifecycle);
-      const spatialConfig = assertRevisionConfiguration(input.lifecycle, input.mapVariant, input.spatialConfig);
+      const mode = input.mode === undefined ? current.mode : normalizeGameMode(input.mode);
+      const spatialConfig = assertRevisionConfiguration(input.lifecycle, input.mapVariant, input.spatialConfig, mode);
       const currentAssignments = await db.select().from(gameplayRevisionChallengeAssignments)
         .where(eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, input.revisionId));
       await validateRevisionAssignments(input.mapId, input.challengeAssignments, currentAssignments);
@@ -4936,7 +4940,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         const otherClassic = await db.select({ id: gameplayRevisions.id }).from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.legacyMapVariant, "classic"), ne(gameplayRevisions.id, input.revisionId))).get();
         if (otherClassic) throw new Error("LEGACY_VARIANT_CONFLICT");
       }
-      const mode = input.mode === undefined ? current.mode : normalizeGameMode(input.mode);
       await assertRevisionMode(input.mapId, input.revisionId, input.lifecycle, input.mapVariant, mode);
 
       const becomesClassicMapRevision = input.lifecycle === "selectable" && input.mapVariant === "classic";
