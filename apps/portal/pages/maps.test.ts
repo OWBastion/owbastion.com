@@ -58,8 +58,8 @@ describe("maps page", () => {
     const wrapper = await mountSuspended(MapsPage);
     await flushPromises();
     expect(wrapper.text()).toContain("萨摩亚");
-    expect(wrapper.text()).toContain("登录后查看");
-    expect(wrapper.text()).toContain("登录后可查看精通与评价。");
+    expect(wrapper.text()).toContain("登录后可评价地图。");
+    expect(wrapper.text()).not.toContain("精通");
     expect(wrapper.get('button[aria-label="查看萨摩亚详情"] img').attributes("src")).toBe("https://cdn.example.com/samoa-cover.png");
     expect(publicCatalogFetch).toHaveBeenCalledWith("maps");
     expect(publicCatalogFetch).toHaveBeenCalledWith("mapChallenges");
@@ -95,20 +95,20 @@ describe("maps page", () => {
     wrapper.unmount();
   });
 
-  it("shows map details and mastery for the selected map", async () => {
+  it("shows the same public map details to a signed-in player and loads no personal mastery data", async () => {
     currentPlayer.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
+    portalApi.mockClear();
     const wrapper = await mountSuspended(MapsPage);
     await flushPromises();
     await wrapper.get('button[aria-label="查看萨摩亚详情"]').trigger("click");
     await flushPromises();
-    expect(document.body.textContent).toContain("精通记录");
-    expect(document.body.textContent).toContain("225 XP");
-    expect(document.body.textContent).toContain("通关记录");
+    expect(document.body.textContent).toContain("地图概览");
     expect(document.body.textContent).toContain("地狱难度通关");
+    expect(document.body.textContent).not.toContain("精通记录");
+    expect(document.body.textContent).not.toContain("通关记录");
     expect(wrapper.text()).toContain("1 项");
-    expect(wrapper.text()).not.toContain("挑战进度");
-    expect(wrapper.text()).not.toContain("登录后可查看精通与评价。");
-    expect(portalApi).toHaveBeenCalledWith("/v1/me/mastery?mapId=map.samoa&page=1&pageSize=10");
+    expect(wrapper.text()).not.toContain("登录后可评价地图。");
+    expect(portalApi.mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith("/v1/me/mastery"))).toEqual([]);
     wrapper.unmount();
   });
 

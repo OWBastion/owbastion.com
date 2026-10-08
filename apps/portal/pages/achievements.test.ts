@@ -35,49 +35,17 @@ describe("achievements page", () => {
     expect(refreshTitles).not.toHaveBeenCalled();
   });
 
-  it("renders the signed-in player's achievement overview and historical titles", async () => {
+  it("renders the same public catalog for a signed-in player without loading personal data", async () => {
     currentPlayer.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
-    allTitles.value = false;
-    ownedTitles.value = [{ grantId: "grant-1", titleKey: "TEST", label: "测试称号", icon: "trophy", category: "测试", condition: "完成挑战", scope: "global", grantedAt: 2 }, { grantId: "grant-2", titleKey: "OLD", label: "历史称号", icon: "scroll", category: "旧记录", condition: "旧条件", scope: "global", grantedAt: 1 }];
-    challengeProgress.value = [{ challengeId: "title-1", titleKey: "TEST", titleName: "测试称号", icon: "trophy", status: "active", progressRule: { type: "required_maps_completed", mapIds: ["map.a", "map.b"] }, maps: [{ mapId: "map.a", completed: true }, { mapId: "map.b", completed: false }], completedMaps: 1, satisfied: false }];
+    ownedTitles.value = [{ grantId: "grant-1", titleKey: "TEST", label: "测试称号", icon: "trophy", category: "测试", condition: "完成挑战", scope: "global", grantedAt: 2 }];
+    refreshTitles.mockClear();
+    refreshChallengeProgress.mockClear();
     const wrapper = await mountSuspended(AchievementsPage);
     await flushPromises();
-    expect(wrapper.text()).toContain("我的成就");
-    expect(wrapper.text()).toContain("已获得 1 / 1");
-    expect(wrapper.text()).toContain("最近获得");
-    expect(wrapper.findAll('[role="img"][aria-label="已获得"]')).toHaveLength(2);
-    expect(wrapper.text()).toContain("历史称号");
-    expect(wrapper.text()).toContain("已完成 1 / 2");
-    expect(refreshTitles).toHaveBeenCalled();
-    expect(refreshChallengeProgress).toHaveBeenCalled();
-  });
-
-  it("shows an error when the personal achievement data cannot be loaded", async () => {
-    currentPlayer.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
-    refreshTitles.mockRejectedValueOnce(new Error("unavailable"));
-    const wrapper = await mountSuspended(AchievementsPage);
-    await flushPromises();
-    expect(wrapper.text()).toContain("无法读取成就");
-  });
-
-  it("shows recovery guidance when a normal player has migrated titles but no equipped selection", async () => {
-    currentPlayer.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
-    allTitles.value = false;
-    ownedTitles.value = Array.from({ length: 11 }, (_, index) => ({ grantId: `grant-${index}`, titleKey: `TEST-${index}`, label: `称号 ${index}`, icon: "trophy", category: "测试", condition: "完成挑战", scope: "global", grantedAt: index, equipped: false }));
-    challengeProgress.value = [];
-    const wrapper = await mountSuspended(AchievementsPage);
-    await flushPromises();
-    expect(wrapper.text()).toContain("需要选择佩戴称号");
-  });
-
-  it("unequips only the remaining equipped titles", async () => {
-    currentPlayer.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
-    ownedTitles.value = [{ grantId: "grant-1", titleKey: "TEST", label: "测试称号", icon: "trophy", category: "测试", condition: "完成挑战", scope: "global", grantedAt: 2, equipped: true }, { grantId: "grant-2", titleKey: "OLD", label: "历史称号", icon: "scroll", category: "旧记录", condition: "旧条件", scope: "global", grantedAt: 1, equipped: false }];
-    challengeProgress.value = [];
-    const wrapper = await mountSuspended(AchievementsPage);
-    await flushPromises();
-    await wrapper.findAll("button").find((button) => button.text() === "取消佩戴")!.trigger("click");
-    await flushPromises();
-    expect(replaceEquipped).toHaveBeenLastCalledWith([]);
+    expect(wrapper.text()).toContain("测试称号");
+    expect(wrapper.text()).not.toContain("我的成就");
+    expect(wrapper.text()).not.toContain("已获得");
+    expect(refreshTitles).not.toHaveBeenCalled();
+    expect(refreshChallengeProgress).not.toHaveBeenCalled();
   });
 });
