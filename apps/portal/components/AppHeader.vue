@@ -42,6 +42,33 @@ const adminNavigationItems = computed(() => {
   ];
 });
 
+const introductionPages = [
+  { label: "随机事件", description: "事件与概率", icon: "i-lucide-zap", to: "/events" },
+  { label: "地图", description: "地图与挑战介绍", icon: "i-lucide-map", to: "/maps" },
+  { label: "成就", description: "成就目录与完成条件", icon: "i-lucide-award", to: "/achievements" },
+  { label: "版本更新", description: "已发布的变更", icon: "i-lucide-scroll-text", to: "/changelog" },
+  { label: "开发日志", description: "开发中的进展", icon: "i-lucide-notebook-pen", to: "/blog" },
+];
+const pathActive = (to: string) => route.path === to || route.path.startsWith(`${to}/`);
+// Signed-out visitors see the public introduction pages. Signed-in players default to their own
+// URLs; the introduction pages stay reachable under one group and by direct URL.
+const siteNavigationItems = computed(() => {
+  if (!player.value) return introductionPages.map((page) => ({ ...page, active: pathActive(page.to) }));
+  const introActive = introductionPages.some((page) => pathActive(page.to));
+  return [
+    { label: "总览", icon: "i-lucide-layout-dashboard", to: "/me", active: route.path === "/me" },
+    { label: "我的成就", icon: "i-lucide-award", to: "/me/achievements", active: pathActive("/me/achievements") },
+    { label: "提交截图", icon: "i-lucide-upload", to: "/me/submissions/new", active: pathActive("/me/submissions") },
+    {
+      label: "游戏介绍",
+      icon: "i-lucide-book-open",
+      active: introActive,
+      defaultOpen: introActive,
+      children: introductionPages.map((page) => ({ ...page, active: pathActive(page.to) })),
+    },
+  ];
+});
+
 onMounted(() => { if (!loaded.value) void refresh(); });
 
 /** Disclosure close. Only restore focus when the menu was closed while focus was inside the panel. */
@@ -162,11 +189,7 @@ async function signOut() {
           <LazyUNavigationMenu :items="adminNavigationItems" orientation="horizontal" highlight variant="pill" />
         </template>
         <template v-else>
-          <NuxtLink to="/events" class="pressable">随机事件</NuxtLink>
-          <NuxtLink to="/maps" class="pressable">地图</NuxtLink>
-          <NuxtLink to="/achievements" class="pressable">成就</NuxtLink>
-          <NuxtLink to="/changelog" class="pressable">版本更新</NuxtLink>
-          <NuxtLink to="/blog" class="pressable">开发日志</NuxtLink>
+          <LazyUNavigationMenu :items="siteNavigationItems" orientation="horizontal" highlight variant="pill" />
         </template>
       </nav>
       <div class="account-actions">
@@ -201,11 +224,7 @@ async function signOut() {
           <LazyUNavigationMenu :items="adminNavigationItems" orientation="vertical" highlight variant="pill" />
         </template>
         <template v-else>
-          <NuxtLink to="/events" class="pressable">随机事件</NuxtLink>
-          <NuxtLink to="/maps" class="pressable">地图</NuxtLink>
-          <NuxtLink to="/achievements" class="pressable">成就</NuxtLink>
-          <NuxtLink to="/changelog" class="pressable">版本更新</NuxtLink>
-          <NuxtLink to="/blog" class="pressable">开发日志</NuxtLink>
+          <LazyUNavigationMenu :items="siteNavigationItems" orientation="vertical" highlight variant="pill" />
         </template>
       </nav>
     </Transition>

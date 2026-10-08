@@ -6,7 +6,8 @@ import AppHeader from "./AppHeader.vue";
 
 const route = reactive({ path: "/admin", fullPath: "/admin", query: {} as Record<string, string> });
 mockNuxtImport("useRoute", () => () => route);
-mockNuxtImport("useCurrentPlayer", () => () => ({ player: ref(null), loaded: ref(true), refresh: async () => null, logout: async () => undefined }));
+const currentPlayer = ref<unknown>(null);
+mockNuxtImport("useCurrentPlayer", () => () => ({ player: currentPlayer, loaded: ref(true), refresh: async () => null, logout: async () => undefined }));
 
 /**
  * Mobile nav disclosure contract (documented for #62):
@@ -72,7 +73,8 @@ describe("AppHeader", () => {
 
     const nav = wrapper.get("#mobile-nav");
     expect(nav.exists()).toBe(true);
-    const links = nav.findAll("a");
+    // The trap wraps over every focusable control (links and the buttons nested in them), in DOM order.
+    const links = nav.findAll("a[href], button:not([disabled])");
     // The wrap-around check needs at least two focusable controls; the link list itself is mutable navigation content.
     expect(links.length).toBeGreaterThan(1);
     const first = links[0];
@@ -202,6 +204,7 @@ describe("AppHeader", () => {
   });
 
   it("exposes one concise update route on public navigation", async () => {
+    currentPlayer.value = null;
     route.path = "/";
     route.fullPath = "/";
     const wrapper = await mountHeader();
@@ -239,5 +242,75 @@ describe("AppHeader admin navigation ownership", () => {
   it("keeps a single bindings entry regardless of tab query", async () => {
     const nav = await openMobileNav("/admin/bindings", { tab: "invitations" });
     expect(nav.findAll('a[href^="/admin/bindings"]')).toHaveLength(1);
+  });
+});
+
+describe("AppHeader site navigation by sign-in state", () => {
+  const introduction = ["/events", "/maps", "/achievements", "/changelog", "/blog"];
+
+  it("shows only the introduction pages to a signed-out visitor", async () => {
+    currentPlayer.value = null;
+    route.path = "/";
+    route.fullPath = "/";
+    const wrapper = await mountHeader();
+    const nav = wrapper.get('nav[aria-label="主导航"]');
+    for (const target of introduction) expect(nav.find(`a[href="${target}"]`).exists(), target).toBe(true);
+    for (const target of ["/me", "/me/achievements", "/me/submissions/new"]) expect(nav.find(`a[href="${target}"]`).exists(), target).toBe(false);
+    focusSpy.mockRestore();
+  });
+
+  it("defaults a signed-in player to personal URLs and groups the introduction pages", async () => {
+    currentPlayer.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
+    route.path = "/me";
+    route.fullPath = "/me";
+    const wrapper = await mountHeader();
+    await wrapper.get('button[aria-label="打开菜单"]').trigger("click");
+    await flushPromises();
+    const nav = wrapper.get("#mobile-nav");
+    for (const target of ["/me", "/me/achievements", "/me/submissions/new"]) expect(nav.find(`a[href="${target}"]`).exists(), target).toBe(true);
+    // The introduction pages are one group, collapsed until the player is on one of them.
+    expect(nav.find('a[href="/maps"]').exists()).toBe(false);
+    const group = nav.findAll("button").find((button) => button.text().includes("游戏介绍"));
+    expect(group).toBeTruthy();
+    await group!.trigger("click");
+    await flushPromises();
+    for (const target of introduction) expect(nav.find(`a[href="${target}"]`).exists(), target).toBe(true);
+    focusSpy.mockRestore();
+  });
+
+  it("keeps the introduction group open while a signed-in player reads an introduction page", async () => {
+    currentPlayer.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
+    route.path = "/maps";
+    route.fullPath = "/maps";
+    const wrapper = await mountHeader();
+    await wrapper.get('button[aria-label="打开菜单"]').trigger("click");
+    await flushPromises();
+    const nav = wrapper.get("#mobile-nav");
+    expect(nav.find('a[href="/maps"]').exists()).toBe(true);
+    expect(nav.find('a[href="/changelog"]').exists()).toBe(true);
+    focusSpy.mockRestore();
+    currentPlayer.value = null;
+  });
+
+  it("marks the current page in both navigation sets", async () => {
+    // Nuxt UI renders each item as <a><button>; the button carries the real current-page state.
+    const isCurrent = (wrapper: Awaited<ReturnType<typeof mountHeader>>, href: string) =>
+      wrapper.get(`nav[aria-label="主导航"] a[href="${href}"] button`).attributes("aria-current") === "page";
+
+    currentPlayer.value = null;
+    route.path = "/maps";
+    route.fullPath = "/maps";
+    const signedOut = await mountHeader();
+    expect(isCurrent(signedOut, "/maps")).toBe(true);
+    expect(isCurrent(signedOut, "/events")).toBe(false);
+
+    currentPlayer.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
+    route.path = "/me/achievements/maps/map.a";
+    route.fullPath = "/me/achievements/maps/map.a";
+    const signedIn = await mountHeader();
+    expect(isCurrent(signedIn, "/me/achievements")).toBe(true);
+    expect(isCurrent(signedIn, "/me")).toBe(false);
+    focusSpy.mockRestore();
+    currentPlayer.value = null;
   });
 });
