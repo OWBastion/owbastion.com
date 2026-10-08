@@ -15,6 +15,7 @@ export default defineNuxtConfig({
   routeRules: {
     "/admin": { ssr: false },
     "/admin/**": { ssr: false },
+    "/admin/map-titles": { redirect: { to: "/admin/achievements/map-challenges", statusCode: 302 } },
   },
   content: {
     experimental: {

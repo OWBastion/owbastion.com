@@ -15,7 +15,6 @@ const isAdminPage = computed(() => route.path.startsWith("/admin"));
 const adminPathActive = (to: string, exact = false) => exact ? route.path === to : route.path === to || route.path.startsWith(`${to}/`);
 const adminNavigationItems = computed(() => {
   const achievementPageActive = adminPathActive("/admin/achievements");
-  const section = Array.isArray(route.query.section) ? route.query.section[0] : route.query.section;
   const tab = Array.isArray(route.query.tab) ? route.query.tab[0] : route.query.tab;
   const invitationTabActive = ["invitations", "create", "batch"].includes(tab ?? "");
   const playerBindingActive = adminPathActive("/admin/bindings") && !invitationTabActive;
@@ -23,8 +22,8 @@ const adminNavigationItems = computed(() => {
   const invitationActive = adminPathActive("/admin/bindings") && invitationTabActive;
   const toolsActive = ["/admin/grants", "/admin/verified-runs", "/admin/titles"].some((to) => adminPathActive(to));
   return [
-    { label: "称号", icon: "i-lucide-award", to: "/admin/achievements?section=catalog", active: achievementPageActive && section === "catalog" },
-    { label: "挑战", icon: "i-lucide-list-checks", to: "/admin/achievements?section=generic", active: achievementPageActive && section !== "catalog" },
+    { label: "称号", icon: "i-lucide-award", to: "/admin/achievements/titles", active: adminPathActive("/admin/achievements/titles") },
+    { label: "挑战", icon: "i-lucide-list-checks", to: "/admin/achievements/challenges", active: achievementPageActive && !adminPathActive("/admin/achievements/titles") },
     { label: "地图", icon: "i-lucide-map", to: "/admin/maps", active: adminPathActive("/admin/maps") },
     { label: "随机事件", icon: "i-lucide-zap", to: "/admin/events", active: adminPathActive("/admin/events") },
     {
