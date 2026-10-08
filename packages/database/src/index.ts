@@ -4249,15 +4249,21 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
   };
 
-  // Bastion builds the room's event catalog from the platform's implemented, unsuspended event
-  // pools: the regular pools, plus a standalone mode's own pool in that mode's build. Null when the
-  // catalog is empty or a weight is unset, because Bastion then keeps its own default.
+  // The regular build's event catalog is the platform's implemented, unsuspended events outside any
+  // standalone mode's pools. A standalone mode's build may also return or disable regular events, so
+  // its total is the one an administrator records on that mode's pool. Null when no total applies:
+  // an empty catalog, an unset event weight, or a mode without a recorded total.
   const expectedRunCodeEventWeight = async (mode: string | null) => {
+    if (mode) {
+      const totals = new Set((await db.select({ total: randomEventVersions.modeWeightTotal }).from(randomEventVersions)
+        .where(and(eq(randomEventVersions.mode, mode), isNotNull(randomEventVersions.modeWeightTotal)))).map((row) => row.total!));
+      return totals.size === 1 ? eventWeightTotalCode([...totals]) : null;
+    }
     const rows = await db.select({ weight: randomEvents.weight, poolMode: randomEventVersions.mode, availability: randomEventVersions.availability })
       .from(randomEvents)
       .leftJoin(randomEventVersions, eq(randomEventVersions.gameVersion, randomEvents.gameVersion))
       .where(and(eq(randomEvents.releaseStatus, "implemented"), isNull(randomEvents.archivedAt)));
-    const pool = rows.filter((row) => row.availability !== "suspended" && (row.poolMode === null || row.poolMode === mode));
+    const pool = rows.filter((row) => row.availability !== "suspended" && row.poolMode === null);
     return !pool.length || pool.some((row) => row.weight === null) ? null : eventWeightTotalCode(pool.map((row) => row.weight!));
   };
 
@@ -4774,10 +4780,11 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         eventCount: count(randomEvents.id),
         availability: sql<string>`coalesce(${randomEventVersions.availability}, 'available')`,
         mode: randomEventVersions.mode,
+        modeWeightTotal: randomEventVersions.modeWeightTotal,
       }).from(randomEvents).leftJoin(randomEventVersions, eq(randomEventVersions.gameVersion, randomEvents.gameVersion))
-        .groupBy(randomEvents.gameVersion, randomEventVersions.availability, randomEventVersions.mode)
+        .groupBy(randomEvents.gameVersion, randomEventVersions.availability, randomEventVersions.mode, randomEventVersions.modeWeightTotal)
         .orderBy(desc(randomEvents.gameVersion));
-      return { contractVersion: "1", items: rows.map((row) => ({ gameVersion: row.gameVersion, availability: row.availability as RandomEventVersion["availability"], mode: row.mode ?? null, eventCount: Number(row.eventCount) })) };
+      return { contractVersion: "1", items: rows.map((row) => ({ gameVersion: row.gameVersion, availability: row.availability as RandomEventVersion["availability"], mode: row.mode ?? null, modeWeightTotal: row.modeWeightTotal ?? null, eventCount: Number(row.eventCount) })) };
     },
     async updateAdminRandomEventVersion(input, auth, idempotencyKey): Promise<RandomEventVersion> {
       const operation = "admin.random-event-version.availability";
@@ -4788,12 +4795,15 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const previous = await db.select().from(randomEventVersions).where(eq(randomEventVersions.gameVersion, input.gameVersion)).get();
       const timestamp = now();
       const mode = input.mode === undefined ? previous?.mode ?? null : normalizeGameMode(input.mode);
-      const response: RandomEventVersion = { gameVersion: input.gameVersion, availability: input.availability, mode, eventCount };
+      // A weight total only describes a standalone mode's build, so it goes away with the mode.
+      const modeWeightTotal = mode === null ? null : input.modeWeightTotal === undefined ? previous?.modeWeightTotal ?? null : input.modeWeightTotal;
+      if (input.modeWeightTotal != null && mode === null) throw new Error("EVENT_VERSION_MODE_REQUIRED");
+      const response: RandomEventVersion = { gameVersion: input.gameVersion, availability: input.availability, mode, modeWeightTotal, eventCount };
       const requestHash = await hashRequest(input);
       await database.batch([
-        database.prepare("INSERT INTO random_event_versions (game_version, availability, mode, suspended_at, suspended_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(game_version) DO UPDATE SET availability = excluded.availability, mode = excluded.mode, suspended_at = excluded.suspended_at, suspended_by = excluded.suspended_by, updated_at = excluded.updated_at").bind(input.gameVersion, input.availability, mode, input.availability === "suspended" ? timestamp : null, input.availability === "suspended" ? auth.subject : null, timestamp, timestamp),
+        database.prepare("INSERT INTO random_event_versions (game_version, availability, mode, mode_weight_total, suspended_at, suspended_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(game_version) DO UPDATE SET availability = excluded.availability, mode = excluded.mode, mode_weight_total = excluded.mode_weight_total, suspended_at = excluded.suspended_at, suspended_by = excluded.suspended_by, updated_at = excluded.updated_at").bind(input.gameVersion, input.availability, mode, modeWeightTotal, input.availability === "suspended" ? timestamp : null, input.availability === "suspended" ? auth.subject : null, timestamp, timestamp),
         database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(`${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, requestHash, JSON.stringify(response), timestamp),
-        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, "random_event_version", input.gameVersion, JSON.stringify({ previousAvailability: previous?.availability ?? "available", availability: input.availability, previousMode: previous?.mode ?? null, mode, eventCount }), timestamp),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, "random_event_version", input.gameVersion, JSON.stringify({ previousAvailability: previous?.availability ?? "available", availability: input.availability, previousMode: previous?.mode ?? null, mode, previousModeWeightTotal: previous?.modeWeightTotal ?? null, modeWeightTotal, eventCount }), timestamp),
       ]);
       return response;
     },

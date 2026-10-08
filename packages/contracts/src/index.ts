@@ -472,10 +472,12 @@ export const adminRandomEventBatchRequestSchema = z.object({ contractVersion, up
   .refine((request) => new Set(request.updates.map((update) => update.eventId)).size === request.updates.length, "Each event may appear once");
 export const adminRandomEventBatchResponseSchema = z.object({ contractVersion, items: z.array(randomEventSchema) });
 export const adminRandomEventImportRequestSchema = z.object({ contractVersion, fileName: z.string().trim().min(1).max(256), csv: z.string().min(1).max(512 * 1024) }).strict();
-// mode marks a pool that only a standalone mode's build (e.g. 2026镜中回响) adds on top of the regular pools.
-export const randomEventVersionSchema = z.object({ gameVersion: z.string().trim().min(1).max(64), availability: randomEventVersionAvailability, mode: z.string().nullable(), eventCount: z.number().int().nonnegative() }).strict();
+// mode marks a pool that belongs to a standalone mode's build (e.g. 2026镜中回响) and stays out of the
+// regular pools; modeWeightTotal is that build's run-code event-weight total, which may also return or
+// disable regular events and so cannot be derived from pools.
+export const randomEventVersionSchema = z.object({ gameVersion: z.string().trim().min(1).max(64), availability: randomEventVersionAvailability, mode: z.string().nullable(), modeWeightTotal: z.number().nullable(), eventCount: z.number().int().nonnegative() }).strict();
 export const adminRandomEventVersionListResponseSchema = z.object({ contractVersion, items: z.array(randomEventVersionSchema) }).strict();
-export const adminRandomEventVersionAvailabilityRequestSchema = z.object({ contractVersion, availability: randomEventVersionAvailability, mode: z.string().trim().min(1).max(64).nullable().optional() }).strict();
+export const adminRandomEventVersionAvailabilityRequestSchema = z.object({ contractVersion, availability: randomEventVersionAvailability, mode: z.string().trim().min(1).max(64).nullable().optional(), modeWeightTotal: z.number().min(0).max(99.99).nullable().optional() }).strict();
 
 export const reviewTargetTypeSchema = z.enum(["event", "map"]);
 export const reviewTargetSchema = z.discriminatedUnion("targetType", [

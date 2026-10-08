@@ -979,16 +979,17 @@ const seedRule = (
   }
 };
 
-// Regular pools total 62.70; the 2026镜中回响 build adds its own pool for 69.50. A removed event and a
-// suspended pool stay out of both totals.
+// Regular pools total 62.70; a removed event, a suspended pool, and the 2026镜中回响 pool stay out of
+// it. That mode's build returns and disables events, so its 69.50 total is recorded on its pool rather
+// than derived (62.70 + 4.80 would be 67.50).
 const seedEventPools = (sqlite: DatabaseSync) => {
   const insert = sqlite.prepare("INSERT INTO random_events (id, name, category, rarity, description, weight, game_version, release_status, created_at, updated_at) VALUES (?, ?, '增益', 'N', '描述', ?, ?, ?, ?, ?)");
   insert.run("event.regular.a", "常规甲", 60, "5.0", "implemented", now, now);
   insert.run("event.regular.b", "常规乙", 2.7, "4.0", "implemented", now, now);
   insert.run("event.regular.removed", "已移除", 5, "4.0", "removed", now, now);
   insert.run("event.suspended", "挂起池", 3, "3.0", "implemented", now, now);
-  insert.run("event.anniversary", "周年事件", 6.8, "2026周年", "implemented", now, now);
-  sqlite.prepare("INSERT INTO random_event_versions (game_version, availability, mode, created_at, updated_at) VALUES ('2026周年', 'available', '2026镜中回响', ?, ?), ('3.0', 'suspended', NULL, ?, ?)").run(now, now, now, now);
+  insert.run("event.anniversary", "周年事件", 4.8, "2026周年", "implemented", now, now);
+  sqlite.prepare("INSERT INTO random_event_versions (game_version, availability, mode, mode_weight_total, created_at, updated_at) VALUES ('2026周年', 'available', '2026镜中回响', 69.5, ?, ?), ('3.0', 'suspended', NULL, NULL, ?, ?)").run(now, now, now, now);
 };
 
 const seedMapTitleChallenge = (sqlite: DatabaseSync, challengeId: string, titleKey: string, mapId: string) => {

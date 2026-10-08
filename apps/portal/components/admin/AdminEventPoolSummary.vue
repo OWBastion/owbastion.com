@@ -1,8 +1,8 @@
 <script setup lang="ts">
-type EventVersion = { gameVersion: string; availability: "available" | "suspended"; mode: string | null; eventCount: number };
+type EventVersion = { gameVersion: string; availability: "available" | "suspended"; mode: string | null; modeWeightTotal: number | null; eventCount: number };
 
 defineProps<{ poolSize: number; poolWeight: number; versions: EventVersion[]; saving: string | null }>();
-const emit = defineEmits<{ toggle: [version: EventVersion, availability: EventVersion["availability"]] }>();
+const emit = defineEmits<{ toggle: [version: EventVersion, availability: EventVersion["availability"]]; configure: [version: EventVersion] }>();
 </script>
 
 <template>
@@ -14,6 +14,7 @@ const emit = defineEmits<{ toggle: [version: EventVersion, availability: EventVe
         <button type="button" class="pool-summary__version pressable-soft" :class="{ 'is-off': version.availability === 'suspended' }" :disabled="saving !== null" :aria-pressed="version.availability === 'available'" :aria-label="`${version.availability === 'available' ? '挂起' : '恢复'}版本 ${version.gameVersion}`" @click="emit('toggle', version, version.availability === 'available' ? 'suspended' : 'available')">
           <i aria-hidden="true" />{{ version.gameVersion }}<span v-if="version.availability === 'suspended'" class="pool-summary__state">已挂起</span>
         </button>
+        <button type="button" class="pool-summary__mode pressable-soft" :disabled="saving !== null" :aria-label="`设置版本 ${version.gameVersion} 的所属模式`" @click="emit('configure', version)">{{ version.mode ?? "常规" }}</button>
       </li>
     </ul>
   </section>
@@ -29,6 +30,8 @@ const emit = defineEmits<{ toggle: [version: EventVersion, availability: EventVe
 .pool-summary__version.is-off { color: var(--quiet); }
 .pool-summary__version.is-off i { background: var(--warning); }
 .pool-summary__version.is-off { text-decoration: line-through; }
+.pool-summary__versions li { display: inline-flex; align-items: center; gap: var(--space-1); }
+.pool-summary__mode { min-height: var(--control-sm, 2rem); padding: 0 var(--space-2); border: 0; background: none; color: var(--muted); font: inherit; font-size: var(--type-caption-size); cursor: pointer; }
 .pool-summary__state { margin-left: var(--space-1); text-decoration: none; display: inline-block; color: var(--warning); font-size: var(--type-caption-size); }
 @container (max-width: 39.99rem) { .pool-summary__versions { margin-left: 0; } }
 </style>
