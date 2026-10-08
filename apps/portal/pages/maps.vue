@@ -6,7 +6,6 @@ import { portalErrorDetails } from "~/utils/portal-error";
 useSeoMeta({ title: "地图 · 躲避堡垒 3", description: "查看当前支持的地图与挑战。" });
 
 const { player, refresh } = useCurrentPlayer();
-const { profiles: masteryProfiles, overviewLoading: masteryLoading, overviewError: masteryError, refreshOverview: refreshMastery, history: masteryHistory, historyMapId, historyLoading: masteryHistoryLoading, historyError: masteryHistoryError, loadHistory: loadMasteryHistory } = usePlayerMastery();
 const route = useRoute();
 const { data: catalog, pending: loading, error: catalogError } = await useAsyncData("public-map-directory", async () => {
   const [mapResponse, challengeResponse] = await Promise.all([
@@ -20,15 +19,10 @@ const challenges = computed(() => catalog.value?.challenges ?? []);
 const error = computed(() => catalogError.value ? portalErrorDetails(catalogError.value, "请稍后重试。").description : "");
 const selectedMapId = computed(() => typeof route.query.mapId === "string" ? route.query.mapId : undefined);
 
-const refreshMapMastery = async () => { await refreshMastery(); };
-const changeMasteryHistory = async (input: { mapId: string; page: number }) => { await loadMasteryHistory(input); };
 
 onMounted(async () => {
-  try {
-    if (await refresh()) void refreshMapMastery();
-  } catch {
-    player.value = null;
-  }
+  try { await refresh(); }
+  catch { player.value = null; }
 });
 </script>
 
@@ -36,7 +30,7 @@ onMounted(async () => {
   <main class="maps-page directory-page page-shell">
     <section class="page-intro" aria-labelledby="maps-title">
       <h1 id="maps-title" class="page-title">地图</h1>
-      <p v-if="!loading && !player" class="body-copy">登录后可查看精通与评价。</p>
+      <p v-if="!loading && !player" class="body-copy">登录后可评价地图。</p>
     </section>
     <section class="map-directory-panel surface-card" aria-label="地图列表">
       <div v-if="loading" class="map-skeleton-grid directory-grid" role="status" aria-label="读取中…">
@@ -50,7 +44,7 @@ onMounted(async () => {
         </div>
       </div>
       <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取地图" :description="error" />
-      <MapDirectory v-else :maps="maps" :challenges="challenges" :authenticated="Boolean(player)" :mastery-profiles="masteryProfiles" :mastery-loading="masteryLoading" :mastery-error="masteryError" :mastery-history="masteryHistory" :mastery-history-map-id="historyMapId" :mastery-history-loading="masteryHistoryLoading" :mastery-history-error="masteryHistoryError" :selected-map-id="selectedMapId" @retry-mastery="refreshMapMastery" @history-page="changeMasteryHistory" />
+      <MapDirectory v-else :maps="maps" :challenges="challenges" :authenticated="Boolean(player)" :selected-map-id="selectedMapId" />
     </section>
   </main>
 </template>
