@@ -19,6 +19,7 @@ const adminNavigationItems = computed(() => {
     return { label, icon, active, defaultOpen: active, children };
   };
   return [
+    { label: "总览", icon: "i-lucide-layout-dashboard", to: "/admin", active: route.path === "/admin" },
     group("内容", "i-lucide-layers", [
       { label: "地图", description: "地图与玩法修订", icon: "i-lucide-map", to: "/admin/maps", active: adminPathActive("/admin/maps") },
       { label: "随机事件", description: "事件与平衡元数据", icon: "i-lucide-zap", to: "/admin/events", active: adminPathActive("/admin/events") },
