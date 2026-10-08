@@ -634,7 +634,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     }
 
     const timestamp = now();
-    const operations: Array<{ statements: any[]; audit?: { entityId: string; payload: Record<string, unknown> } }> = [];
+    const operations: Array<{ statements: any[]; audit?: { entityId: string; payload: Record<string, unknown> }; createsConqueror?: boolean }> = [];
     for (const item of items) {
       if (["created", "reused", "conflict"].includes(item.status)) continue;
       const statements: any[] = [];
@@ -681,6 +681,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const inherited = activeIdentity && isInheritedConquerorGrant(inheritedSource, historical);
       let outcome: "created" | "reused" | "conflict";
       let grantId: string;
+      let createsConqueror = false;
       if (existing && existing.playerAccountId !== input.playerAccountId) {
         outcome = "conflict";
         grantId = existing.id;
@@ -712,13 +713,23 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         statements.push(db.insert(challengeCompletions).values({ id: completionId, playerAccountId: input.playerAccountId, challengeId: manualChallengeId, gameplayRevisionId: historical.gameplayRevisionId, status: "active", sourceType: "manual", sourceId: grantSource, completedAt: timestamp, createdAt: timestamp }));
         statements.push(db.insert(playerTitleGrants).values({ id: grantId, playerAccountId: input.playerAccountId, titleKey: historical.titleKey, mapId: historical.mapId, gameplayRevisionId: historical.gameplayRevisionId, slot: historical.slot, status: "active", sourceType: "historical", sourceId: historical.id, grantedBy: grantSource, grantedAt: timestamp, completionId }));
         statements.push(db.update(bindingInviteHistoricalTitleGrants).set({ status: outcome, playerTitleGrantId: grantId, lastError: null, processedAt: timestamp }).where(eq(bindingInviteHistoricalTitleGrants.id, item.id)));
+        createsConqueror = historical.titleKey === "CONQUEROR";
       }
       operations.push({
         statements,
         audit: { entityId: grantId, payload: { inviteId: input.inviteId, ...(input.claimId ? { claimId: input.claimId } : { grantSource }), historicalTitleGrantId: historical.id, playerAccountId: input.playerAccountId, authorizedBy: item.authorizedBy, outcome, mode: input.mode, ...(inherited ? { previousSourceId: activeIdentity.sourceId, reconciled: true } : {}) } },
+        createsConqueror,
       });
     }
     if (!operations.length) return;
+    // The player_title_grants_inherit_conqueror_after_dominator_insert trigger
+    // auto-creates an active CONQUEROR grant for a DOMINATOR insert when none
+    // exists yet for the same (player, map, revision). Inserting the invited
+    // CONQUEROR grants first lets the trigger's NOT EXISTS guard skip its
+    // auto-insert, so the authorized CONQUEROR keeps its own historical source
+    // and the later DOMINATOR insert cannot collide on
+    // player_title_grants_active_identity_idx.
+    operations.sort((a, b) => Number(b.createsConqueror) - Number(a.createsConqueror));
     const maxStatementsPerBatch = 80;
     let batchOperations: typeof operations = [];
     let batchStatementCount = 0;
