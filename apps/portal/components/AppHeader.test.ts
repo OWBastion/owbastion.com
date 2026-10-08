@@ -43,24 +43,11 @@ describe("AppHeader", () => {
     const wrapper = await mountHeader();
 
     expect(wrapper.get(".main-nav").attributes("aria-label")).toBe("管理导航");
-    expect(wrapper.text()).toContain("称号");
-    expect(wrapper.text()).toContain("挑战");
-    expect(wrapper.text()).toContain("地图");
-    expect(wrapper.text()).toContain("随机事件");
-    expect(wrapper.text()).toContain("玩家");
-    expect(wrapper.text()).toContain("邀请");
-    expect(wrapper.text()).toContain("截图审核");
-    expect(wrapper.text()).toContain("评价与审核");
-    expect(wrapper.text()).toContain("更多");
+    for (const group of ["内容", "称号运营", "审核", "玩家"]) expect(wrapper.text()).toContain(group);
+    expect(wrapper.text()).not.toContain("更多");
     expect(wrapper.text()).not.toContain("待处理");
     expect(wrapper.text()).not.toContain("内容编辑");
     expect(wrapper.text()).not.toContain("天梯排名");
-    expect(wrapper.find('nav[aria-label="管理导航"] a[href="/admin/achievements/titles"]').exists()).toBe(true);
-    expect(wrapper.find('nav[aria-label="管理导航"] a[href="/admin/achievements/challenges"]').exists()).toBe(true);
-    expect(wrapper.find('nav[aria-label="管理导航"] a[href="/admin/maps"]').exists()).toBe(true);
-    expect(wrapper.find('nav[aria-label="管理导航"] a[href="/admin/events"]').exists()).toBe(true);
-    expect(wrapper.find('nav[aria-label="管理导航"] a[href="/admin/reviews"]').exists()).toBe(true);
-    expect(wrapper.find('nav[aria-label="管理导航"] a[href="/admin/player-reviews"]').exists()).toBe(true);
 
     const toggle = wrapper.get('button[aria-label="打开菜单"]');
     // aria-controls must be absent while the panel is not in the DOM (no-missing-references regression).
@@ -176,33 +163,20 @@ describe("AppHeader", () => {
     await flushPromises();
 
     const nav = wrapper.get("#mobile-nav");
-    const playerTrigger = nav.findAll("button").find((button) => button.text().includes("玩家"));
-    const invitationsTrigger = nav.findAll("button").find((button) => button.text().includes("邀请"));
-    const maintenanceTrigger = nav.findAll("button").find((button) => button.text().includes("更多"));
-    expect(playerTrigger).toBeTruthy();
-    expect(invitationsTrigger).toBeTruthy();
-    expect(maintenanceTrigger).toBeTruthy();
-
-    await playerTrigger!.trigger("click");
-    await flushPromises();
-    expect(wrapper.find("#mobile-nav").exists()).toBe(true);
-    expect(nav.text()).toContain("玩家列表");
-    expect(nav.text()).toContain("绑定例外");
-    expect(nav.find("a[href=\"/admin/bindings\"]").exists()).toBe(true);
-
-    await invitationsTrigger!.trigger("click");
-    await flushPromises();
-    expect(nav.text()).toContain("邀请管理");
-    expect(nav.text()).toContain("QQ 群组策略");
-    expect(nav.find('a[href="/admin/bindings?tab=invitations"]').exists()).toBe(true);
-    expect(nav.find('a[href="/admin/channels"]').exists()).toBe(true);
-
-    await maintenanceTrigger!.trigger("click");
-    await flushPromises();
-    expect(wrapper.find("#mobile-nav").exists()).toBe(true);
-    expect(nav.text()).toContain("通关记录");
-    expect(nav.text()).toContain("手动授予");
-    expect(nav.find("a[href=\"/admin/verified-runs\"]").exists()).toBe(true);
+    const groups: Record<string, string[]> = {
+      内容: ["/admin/maps", "/admin/events", "/admin/achievements/titles"],
+      称号运营: ["/admin/grants", "/admin/title-migration"],
+      审核: ["/admin/reviews", "/admin/screenshot-sets", "/admin/player-reviews", "/admin/verified-runs"],
+      玩家: ["/admin/players", "/admin/bindings", "/admin/channels"],
+    };
+    for (const [label, targets] of Object.entries(groups)) {
+      const trigger = nav.findAll("button").find((button) => button.text().includes(label));
+      expect(trigger, label).toBeTruthy();
+      await trigger!.trigger("click");
+      await flushPromises();
+      expect(wrapper.find("#mobile-nav").exists()).toBe(true);
+      for (const target of targets) expect(nav.find(`a[href="${target}"]`).exists(), target).toBe(true);
+    }
 
     await nav.get("a[href=\"/admin/bindings\"]").trigger("click");
     await flushPromises();
@@ -237,5 +211,33 @@ describe("AppHeader", () => {
     expect(wrapper.findAll("#mobile-nav a").filter((link) => link.text() === "版本更新")).toHaveLength(1);
     expect(wrapper.find("#mobile-nav a[href=\"/changelog\"]").exists()).toBe(true);
     focusSpy.mockRestore();
+  });
+});
+
+describe("AppHeader admin navigation ownership", () => {
+  async function openMobileNav(path: string, query: Record<string, string> = {}) {
+    route.path = path;
+    route.fullPath = path;
+    route.query = query;
+    const wrapper = await mountHeader();
+    await wrapper.get('button[aria-label="打开菜单"]').trigger("click");
+    await flushPromises();
+    return wrapper.get("#mobile-nav");
+  }
+
+  it.each([
+    ["/admin/achievements/map-challenges", "/admin/achievements/titles", ["/admin/maps", "/admin/events"]],
+    ["/admin/title-migration", "/admin/title-migration", ["/admin/grants"]],
+    ["/admin/verified-runs", "/admin/verified-runs", ["/admin/reviews", "/admin/player-reviews"]],
+    ["/admin/channels", "/admin/channels", ["/admin/players", "/admin/bindings"]],
+  ])("expands the group that owns %s", async (path, entry, siblings) => {
+    const nav = await openMobileNav(path);
+    expect(nav.find(`a[href="${entry}"]`).exists(), entry).toBe(true);
+    for (const sibling of siblings) expect(nav.find(`a[href="${sibling}"]`).exists(), sibling).toBe(true);
+  });
+
+  it("keeps a single bindings entry regardless of tab query", async () => {
+    const nav = await openMobileNav("/admin/bindings", { tab: "invitations" });
+    expect(nav.findAll('a[href^="/admin/bindings"]')).toHaveLength(1);
   });
 });
