@@ -11,14 +11,14 @@ const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
 
 <template>
   <div v-if="submissions.length" class="submission-list">
-    <NuxtLink v-for="submission in submissions" :key="submission.submissionId" :to="`/submissions/${submission.submissionId}`" class="submission-row interactive-card pressable-soft">
+    <NuxtLink v-for="submission in submissions" :key="submission.submissionId" :to="`/me/submissions/${submission.submissionId}`" class="submission-row interactive-card pressable-soft">
       <div><strong>{{ submission.mapName }}</strong><span>{{ formatTime(submission.updatedAt) }}<template v-if="verifiedRunOutcomePresentation(submission.verifiedRunOutcome)"> · {{ verifiedRunOutcomePresentation(submission.verifiedRunOutcome)?.inline }}</template></span></div>
       <SubmissionStatusBadge :status="submission.status" :resubmission-required="submission.resubmissionRequired" />
     </NuxtLink>
   </div>
   <UEmpty v-else title="暂无提交记录" description="提交完成截图，开始记录你的地图精通进度。" variant="naked">
     <template #actions>
-      <UButton to="/submissions/new" icon="i-lucide-upload" label="提交截图" color="primary" />
+      <UButton to="/me/submissions/new" icon="i-lucide-upload" label="提交截图" color="primary" />
     </template>
   </UEmpty>
 </template>

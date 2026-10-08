@@ -1,7 +1,6 @@
 import { mountSuspended } from "@nuxt/test-utils/runtime";
 import { describe, expect, it } from "vitest";
 import MyAchievementOverview from "./MyAchievementOverview.vue";
-import MapProgressOverview from "./player/MapProgressOverview.vue";
 
 const challenges = [
   { challengeId: "title-1", family: "achievement" as const, type: "title_achievement" as const, kind: "title_achievement" as const, titleKey: "TEST", titleName: "测试称号", icon: "trophy", iconUrl: "https://example.test/icon.png", category: "测试", condition: "完成挑战", evidenceRule: "完整截图", gameVersion: "26.0713.1", status: "active" as const, submissionMode: "manual" as const },
@@ -72,7 +71,6 @@ describe("MyAchievementOverview", () => {
           { challengeId: "paraiso.pioneer", mapId: "map.paraiso", gameplayRevisionId: "revision:paraiso:default", titleKey: "PARAISO_PIONEER", name: "开拓者", status: "active" },
         ],
       },
-      global: { stubs: { MapProgressOverview } },
     });
 
     expect(wrapper.text()).toContain("地图成就");

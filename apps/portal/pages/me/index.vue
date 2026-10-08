@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { portalErrorDetails } from "~/utils/portal-error";
 import { playerSubmissionStatusLabel } from "~/utils/submissionStatus";
-import type { PortalMap } from "~/composables/usePortalApi";
-import { buildMapProgressRows, nextMapGoals, type MapProgressChallenge } from "~/utils/map-progress";
 import type { OwnedTitle } from "~/types/title";
 
 definePageMeta({ middleware: "auth" });
@@ -20,10 +18,6 @@ const playerError = shallowRef("");
 const titlesError = shallowRef("");
 const titlesReady = shallowRef(false);
 const retrying = shallowRef(false);
-const masteryRetrying = shallowRef(false);
-const masteryMaps = shallowRef<PortalMap[]>([]);
-const masteryChallenges = shallowRef<MapProgressChallenge[]>([]);
-const masteryCatalogError = shallowRef("");
 const recentTitles = computed(() => [...titles.value].sort((left, right) => right.grantedAt - left.grantedAt).slice(0, 3));
 const inspected = shallowRef<OwnedTitle | null>(null);
 const inspectOpen = shallowRef(false);
@@ -31,17 +25,11 @@ function inspectTitle(title: OwnedTitle) { inspected.value = title; inspectOpen.
 const formatTitleDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(timestamp);
 const titleMeta = (title: (typeof titles.value)[number]) => title.mapName ?? (title.scope === "global" ? title.category : "");
 
-const progressRows = computed(() => buildMapProgressRows({ maps: masteryMaps.value, challenges: masteryChallenges.value, titles: titles.value, profiles: masteryProfiles.value }));
 const currentProfiles = computed(() => masteryProfiles.value.filter((profile) => profile.gameplayRevisionLifecycle === "default"));
-const catalogReady = computed(() => titlesReady.value && !masteryCatalogError.value && masteryMaps.value.length > 0);
-const goals = computed(() => catalogReady.value ? nextMapGoals(progressRows.value) : []);
 const stats = computed(() => {
-  const earned = progressRows.value.reduce((sum, row) => sum + row.earnedChallenges.length, 0);
-  const total = progressRows.value.reduce((sum, row) => sum + row.challenges.length, 0);
   const masteryReady = !masteryLoading.value && !masteryError.value;
   return [
     { label: "称号", value: titlesReady.value ? String(titles.value.length) : "—", unit: titlesReady.value ? "个" : undefined },
-    { label: "地图成就", value: catalogReady.value && total ? String(earned) : "—", unit: catalogReady.value && total ? `/ ${total}` : undefined },
     { label: "精通 XP", value: masteryReady ? String(currentProfiles.value.reduce((sum, profile) => sum + profile.totalXp, 0)) : "—" },
     { label: "已验证通关", value: masteryReady ? String(currentProfiles.value.reduce((sum, profile) => sum + profile.verifiedRunCount, 0)) : "—", unit: masteryReady ? "次" : undefined },
   ];
@@ -51,23 +39,6 @@ const needsAttention = computed(() => (player.value?.recentSubmissions ?? []).fi
 const showSkeleton = computed(() => loading.value && !player.value);
 const sessionUnavailable = computed(() => !loading.value && !player.value && !playerError.value && status.value === "anonymous");
 const playerLoadFailed = computed(() => !loading.value && !player.value && Boolean(playerError.value));
-
-async function loadMastery() {
-  masteryCatalogError.value = "";
-  const [masteryResult, mapsResult, challengesResult] = await Promise.allSettled([
-    refreshMastery(),
-    api<{ items: PortalMap[] }>("/v1/maps"),
-    api<{ items: MapProgressChallenge[] }>("/v1/challenges?family=map"),
-  ]);
-  if (mapsResult.status === "fulfilled") masteryMaps.value = mapsResult.value.items;
-  if (challengesResult.status === "fulfilled") masteryChallenges.value = challengesResult.value.items;
-  if (mapsResult.status === "rejected") {
-    masteryCatalogError.value = portalErrorDetails(mapsResult.reason, "无法读取地图，请稍后重试。").description;
-  } else if (challengesResult.status === "rejected") {
-    masteryCatalogError.value = portalErrorDetails(challengesResult.reason, "无法读取地图成就，请稍后重试。").description;
-  }
-  return masteryResult.status === "fulfilled" ? masteryResult.value : null;
-}
 
 async function load(options: { forcePlayer?: boolean } = {}) {
   loading.value = true;
@@ -90,7 +61,7 @@ async function load(options: { forcePlayer?: boolean } = {}) {
       titlesError.value = portalErrorDetails(titlesResult.reason, "无法读取称号，请稍后重试。").description;
     }
 
-    if (playerResult.status === "fulfilled" && playerResult.value) void loadMastery();
+    if (playerResult.status === "fulfilled" && playerResult.value) void refreshMastery();
   } finally {
     loading.value = false;
   }
@@ -120,12 +91,7 @@ async function retryTitles() {
 }
 
 async function retryMastery() {
-  masteryRetrying.value = true;
-  try {
-    await loadMastery();
-  } finally {
-    masteryRetrying.value = false;
-  }
+  await refreshMastery();
 }
 
 async function checkPasskeyNudge() {
@@ -159,7 +125,7 @@ onMounted(() => {
         <div class="intro-actions">
           <UButton to="/me/profile" icon="i-lucide-id-card" label="个人主页" color="neutral" variant="outline" size="lg" class="intro-action" />
           <UButton to="/me/settings" icon="i-lucide-sliders-horizontal" label="个人设置" color="neutral" variant="outline" size="lg" class="intro-action" />
-          <UButton to="/submissions/new" icon="i-lucide-upload" label="提交截图" color="primary" size="lg" class="intro-action" />
+          <UButton to="/me/submissions/new" icon="i-lucide-upload" label="提交截图" color="primary" size="lg" class="intro-action" />
         </div>
       </section>
 
@@ -197,17 +163,10 @@ onMounted(() => {
         :description="`${needsAttention[0]!.mapName}：${playerSubmissionStatusLabel(needsAttention[0]!.status, needsAttention[0]!.resubmissionRequired)}`"
         class="me-alert"
       >
-        <template #actions><UButton :to="`/submissions/${needsAttention[0]!.submissionId}`" label="去处理" color="neutral" variant="outline" size="sm" /></template>
+        <template #actions><UButton :to="`/me/submissions/${needsAttention[0]!.submissionId}`" label="去处理" color="neutral" variant="outline" size="sm" /></template>
       </UAlert>
 
       <PlayerStatSheet :stats="stats" class="me-stats" />
-
-      <section v-if="goals.length" class="section-block" aria-labelledby="goals-title">
-        <PageSectionHeader title="继续挑战" heading-id="goals-title">
-          <template #actions><UButton to="/maps" label="查看地图" color="neutral" variant="outline" /></template>
-        </PageSectionHeader>
-        <PlayerNextGoals :goals="goals" />
-      </section>
 
       <section class="section-block" aria-labelledby="submissions-title">
         <PageSectionHeader title="最近提交" heading-id="submissions-title" />
@@ -217,7 +176,7 @@ onMounted(() => {
       <section class="section-block titles-section" aria-labelledby="titles-title">
         <PageSectionHeader title="最近获得的称号" heading-id="titles-title">
           <template #actions>
-            <UButton to="/achievements" label="查看全部成就" color="neutral" variant="outline" />
+            <UButton to="/me/achievements" label="查看全部成就" color="neutral" variant="outline" />
           </template>
         </PageSectionHeader>
         <UAlert
@@ -244,17 +203,12 @@ onMounted(() => {
       </section>
 
       <section class="section-block mastery-section" aria-labelledby="mastery-title">
-        <PageSectionHeader title="地图进度" heading-id="mastery-title">
-          <template #actions><UButton to="/maps" label="查看地图" color="neutral" variant="outline" /></template>
+        <PageSectionHeader title="地图成就与精通" heading-id="mastery-title">
+          <template #actions><UButton to="/me/achievements" label="查看我的成就" color="neutral" variant="outline" /></template>
         </PageSectionHeader>
         <UAlert v-if="masteryError" color="error" variant="subtle" title="无法读取精通记录" :description="masteryError" class="me-alert">
-          <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="masteryRetrying" @click="retryMastery" /></template>
+          <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="masteryLoading" @click="retryMastery" /></template>
         </UAlert>
-        <UAlert v-if="masteryCatalogError" color="error" variant="subtle" title="无法读取地图" :description="masteryCatalogError" class="me-alert">
-          <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="masteryRetrying" @click="retryMastery" /></template>
-        </UAlert>
-        <div v-if="masteryLoading" class="mastery-loading" role="status" aria-label="读取地图进度…"><USkeleton /><USkeleton /></div>
-        <PlayerMapProgressSection v-else-if="!masteryCatalogError" :maps="masteryMaps" :challenges="masteryChallenges" :titles="titles" :profiles="masteryProfiles" :title-progress-available="titlesReady" />
       </section>
 
       <PlayerTitleInspectDialog v-model:open="inspectOpen" :title="inspected" />
