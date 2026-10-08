@@ -13,8 +13,11 @@ export default defineNuxtConfig({
     storage: { cache: { driver: "memory" } },
   },
   routeRules: {
+    "/submissions/**": { redirect: { to: "/me/submissions/**", statusCode: 302 } },
     "/admin": { ssr: false },
     "/admin/**": { ssr: false },
+    "/admin/titles": { redirect: { to: "/admin/title-migration", statusCode: 302 } },
+    "/admin/map-titles": { redirect: { to: "/admin/achievements/map-challenges", statusCode: 302 } },
   },
   content: {
     experimental: {

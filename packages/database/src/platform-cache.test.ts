@@ -254,3 +254,78 @@ describe("platform cache amplification", () => {
     }
   });
 });
+
+describe("platform cache isolate reuse", () => {
+  const countingKv = (kv: KVNamespace) => {
+    const counts = { reads: 0, writes: 0 };
+    // A distinct namespace object models a separate isolate over the same store.
+    const wrapped = {
+      get: (async (...args: Parameters<KVNamespace["get"]>) => { counts.reads += 1; return (kv.get as (...a: unknown[]) => unknown)(...args); }) as KVNamespace["get"],
+      put: (async (...args: Parameters<KVNamespace["put"]>) => { counts.writes += 1; return kv.put(...args); }) as KVNamespace["put"],
+    } as KVNamespace;
+    return { kv: wrapped, counts };
+  };
+  const servicesFor = (database: D1Database, kv: KVNamespace) => createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, undefined, undefined, kv);
+  const admin = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" as const };
+
+  it("does not spend KV operations on repeated warm reads across requests in one isolate", async () => {
+    const { database, sqlite } = createCountingD1();
+    installSchema(sqlite);
+    seedMaps(sqlite);
+    const { kv: store } = createFakeKv();
+    const { kv, counts } = countingKv(store);
+    const first = await servicesFor(database, kv).listMaps();
+    counts.reads = 0;
+    counts.writes = 0;
+    for (let request = 0; request < 5; request += 1) expect(await servicesFor(database, kv).listMaps()).toEqual(first);
+    expect(counts).toEqual({ reads: 0, writes: 0 });
+  });
+
+  it("lets another isolate observe a committed write once its version memo window passes", async () => {
+    const { database, sqlite } = createCountingD1();
+    installSchema(sqlite);
+    seedMaps(sqlite);
+    const { kv: store } = createFakeKv();
+    const reader = countingKv(store).kv;
+    const writer = countingKv(store).kv;
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-10-08T00:00:00Z"));
+      expect((await servicesFor(database, reader).listMaps())[0]?.gameVersion).toBe("2026.07.15");
+      await servicesFor(database, writer).updateAdminMapMetadata({ mapId: "map.a", gameVersion: "2026.08.01", difficultyRating: "T1", mechanics: [], coverUrl: null, backgroundUrl: null }, admin, "key-iso");
+      expect((await servicesFor(database, writer).listMaps())[0]?.gameVersion).toBe("2026.08.01");
+      vi.setSystemTime(new Date("2026-10-08T00:00:30Z"));
+      expect((await servicesFor(database, reader).listMaps())[0]?.gameVersion).toBe("2026.08.01");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("serves D1 and stops calling KV while KV reads fail", async () => {
+    const { database, sqlite } = createCountingD1();
+    installSchema(sqlite);
+    seedMaps(sqlite);
+    let calls = 0;
+    const failing = {
+      get: async () => { calls += 1; throw new Error("KV get() limit exceeded for the day."); },
+      put: async () => { calls += 1; throw new Error("KV put() limit exceeded for the day."); },
+    } as unknown as KVNamespace;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      for (let request = 0; request < 3; request += 1) expect((await servicesFor(database, failing).listMaps()).map((map) => map.mapId)).toEqual(["map.a"]);
+      expect(calls).toBe(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("never hands one request an object another request can mutate", async () => {
+    const { database, sqlite } = createCountingD1();
+    installSchema(sqlite);
+    seedMaps(sqlite);
+    const { kv } = createFakeKv();
+    const first = await servicesFor(database, kv).listMaps();
+    first.length = 0;
+    expect((await servicesFor(database, kv).listMaps()).map((map) => map.mapId)).toEqual(["map.a"]);
+  });
+});

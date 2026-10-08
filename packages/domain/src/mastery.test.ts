@@ -149,4 +149,34 @@ describe("mastery projections", () => {
       { revision: "revision:map.test:r2", totalXp: 325, count: 1 },
     ]);
   });
+
+  it("groups interleaved runs without changing profile or recent-run tie ordering", () => {
+    const runs = [
+      run({ runId: "z-first", mapId: "map.z", gameplayRevisionId: "z1", awardedXp: 80, difficulty: "简单", acceptedAt: 5, deaths: null, skips: 2 }),
+      run({ runId: "a2", mapId: "map.a", gameplayRevisionId: "a2", awardedXp: 200 }),
+      run({ runId: "b1", mapId: "map.b", gameplayRevisionId: "b1", awardedXp: 200 }),
+      run({ runId: "z-last", mapId: "map.z", gameplayRevisionId: "z1", awardedXp: 120, difficulty: "传奇", completionDurationSeconds: 400, acceptedAt: 5, deaths: 1, skips: null }),
+      run({ runId: "a1", mapId: "map.a", gameplayRevisionId: "a1", awardedXp: 200 }),
+      run({ mapId: "map.z", gameplayRevisionId: "z1", awardedXp: 999, status: "invalidated" }),
+    ];
+    const profiles = buildMasteryProfiles(runs, 1);
+    expect(profiles.map((profile) => [profile.mapId, profile.gameplayRevisionId, profile.totalXp])).toEqual([
+      ["map.a", "a1", 200], ["map.a", "a2", 200], ["map.b", "b1", 200], ["map.z", "z1", 200],
+    ]);
+    expect(profiles[3]).toEqual({
+      mapId: "map.z",
+      gameplayRevisionId: "z1",
+      totalXp: 200,
+      verifiedRunCount: 2,
+      difficultyStats: [
+        { difficulty: "简单", verifiedRunCount: 1, fastestCompletionSeconds: 600 },
+        { difficulty: "传奇", verifiedRunCount: 1, fastestCompletionSeconds: 400 },
+      ],
+      lowestDeaths: 1,
+      fewestSkips: 2,
+      highestSingleRunXp: 120,
+      highestCompletedDifficulty: "传奇",
+      recentRuns: [runs[3]],
+    });
+  });
 });

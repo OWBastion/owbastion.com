@@ -6,7 +6,7 @@ import { createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, p
 import { buildMasteryProfiles, calculateVerifiedRunXpV2, difficultyAtLeastSatisfied, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, normalizeGameMode, eventWeightTotalCode, runCodeEventWeightTotal, parseCanonicalChallengeConditions, parseChallengeProgressRule, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
 import type { AdminVerifiedRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, ChallengeCondition, ChallengeProgressRule, VerifiedRunDifficulty, VerifiedRunEventCounters, VerifiedRunEvidenceCompatibilityV1, MasteryMapProfile, VerifiedRunActor, VerifiedRunConflictField, VerifiedRunForProjection, VerifiedRunXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
-import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerChallengeProgressListResponse, PlayerSubmissionStatus, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, QqScreenshotSubmissionRequest, QqScreenshotSubmissionResponse, RandomEvent, RandomEventVersion, ScreenshotSetStatus, Title } from "@owbastion/contracts";
+import type { AdminRandomEventBatchRequest, AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerChallengeProgressListResponse, PlayerSubmissionStatus, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, QqScreenshotSubmissionRequest, QqScreenshotSubmissionResponse, RandomEvent, RandomEventVersion, ScreenshotSetStatus, Title } from "@owbastion/contracts";
 import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, challengeCompletions, challengeSatisfies, challenges, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrAccuracyFeedback, ocrResults, passkeyChallenges, passkeyCredentials, passkeyRecoveryGrants, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, portalSessions, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, reviews, screenshotSetMembers, screenshotSets, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions, verifiedRunConflictResolutions, verifiedRunLifecycleEvents, verifiedRuns } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { fetchQqAttachmentImage } from "./qq-attachment";
@@ -2495,11 +2495,23 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       mapChallengeIds.length ? db.select({ challenge: achievementChallenges, map: maps }).from(achievementChallenges).innerJoin(maps, eq(achievementChallenges.mapId, maps.id)).where(inArray(achievementChallenges.id, mapChallengeIds)) : [],
       titleChallengeIds.length ? db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(inArray(titleChallenges.id, titleChallengeIds)) : [],
       snapshotTitleKeys.length ? db.select().from(titleCatalog).where(inArray(titleCatalog.key, snapshotTitleKeys)) : [],
-      submissionIds.length ? db.select().from(ocrResults).where(inArray(ocrResults.submissionId, submissionIds)).orderBy(desc(ocrResults.createdAt)) : [],
+      // The existing submission/created index traverses timestamp ties by
+      // descending rowid. Keep that winner when fetching one payload per item.
+      submissionIds.length ? db.select().from(ocrResults).where(sql`${ocrResults.id} IN (
+        SELECT (SELECT latest.id FROM ocr_results AS latest
+          WHERE latest.submission_id = requested_submission.value
+          ORDER BY latest.created_at DESC, latest.rowid DESC LIMIT 1)
+        FROM json_each(${JSON.stringify(submissionIds)}) AS requested_submission
+      )`) : [],
       submissionIds.length ? db.select().from(submissionSpotChecks).where(inArray(submissionSpotChecks.submissionId, submissionIds)) : [],
       playerAccountIds.length ? db.select({ id: playerAccounts.id }).from(playerAccounts).where(inArray(playerAccounts.id, playerAccountIds)) : [],
       loadVerifiedRunSubmissionOutcomes(submissionIds),
-      submissionIds.length ? db.select().from(submissionReviews).where(inArray(submissionReviews.submissionId, submissionIds)).orderBy(submissionReviews.createdAt, sql`rowid`) : [],
+      submissionIds.length ? db.select().from(submissionReviews).where(sql`${submissionReviews.id} IN (
+        SELECT (SELECT latest.id FROM submission_reviews AS latest
+          WHERE latest.submission_id = requested_submission.value
+          ORDER BY latest.created_at DESC, latest.rowid DESC LIMIT 1)
+        FROM json_each(${JSON.stringify(submissionIds)}) AS requested_submission
+      )`) : [],
       submissionIds.length ? db.select({ submissionId: playerTitleGrants.sourceId, grantId: playerTitleGrants.id, titleKey: playerTitleGrants.titleKey, titleName: titleCatalog.label }).from(playerTitleGrants).innerJoin(titleCatalog, eq(titleCatalog.key, playerTitleGrants.titleKey)).where(and(inArray(playerTitleGrants.sourceType, ["automatic", "submission"]), inArray(playerTitleGrants.sourceId, submissionIds), eq(playerTitleGrants.status, "active"))).orderBy(playerTitleGrants.grantedAt, playerTitleGrants.id) : [],
       submissionIds.length ? db.select().from(ocrAccuracyFeedback).where(inArray(ocrAccuracyFeedback.submissionId, submissionIds)) : [],
     ]);
@@ -4715,7 +4727,14 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     },
     async searchAgentContent(input: AgentSearchQuery) {
       const query = input.query.toLocaleLowerCase();
-      const [events, suspendedVersions, maps, achievements, titles] = await Promise.all([this.listRandomEvents({ status: input.status }), suspendedEventVersions(), this.listMaps(), this.listChallenges({ family: "achievement" }), listGlobalAgentTitles()]);
+      const include = (kind: AgentSearchResult["kind"]) => !input.kind || input.kind === kind;
+      const [events, suspendedVersions, maps, achievements, titles] = await Promise.all([
+        include("event") ? this.listRandomEvents({ status: input.status }) : [],
+        include("event") ? suspendedEventVersions() : new Set<string>(),
+        include("map") ? this.listMaps() : [],
+        include("achievement") ? this.listChallenges({ family: "achievement" }) : Promise.resolve<Challenge[]>([]),
+        include("title") ? listGlobalAgentTitles() : [],
+      ]);
       const results: AgentSearchResult[] = [];
       if (!input.kind || input.kind === "event") results.push(...events.filter((event) => !suspendedVersions.has(event.gameVersion) && [event.name, event.description, event.eventGroup ?? "", ...event.effectTags].some((value) => value.toLocaleLowerCase().includes(query))).map((event) => ({ kind: "event" as const, id: event.eventId, name: event.name, summary: event.description })));
       if (!input.kind || input.kind === "map") results.push(...maps.filter((map) => [map.mapName, ...map.mechanics].some((value) => value.toLocaleLowerCase().includes(query))).map((map) => ({ kind: "map" as const, id: map.mapId, name: map.mapName, summary: map.mechanics.join("、") || `游戏版本 ${map.gameVersion}` })));
@@ -4790,6 +4809,29 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const existing = await db.select().from(randomEvents).where(eq(randomEvents.id, input.eventId)).get(); if (!existing) throw new Error("EVENT_NOT_FOUND"); await validateEventLinks(input.challengeLinks);
       await db.update(randomEvents).set({ name: input.name, category: input.category, rarity: randomEventRarityForWeight(input.weight), description: input.description, durationSeconds: input.durationSeconds, cooldownSeconds: input.cooldownSeconds, weight: input.weight, gameVersion: input.gameVersion, ...(input.eventGroup !== undefined ? { eventGroup: input.eventGroup } : {}), effectTagsJson: JSON.stringify([...new Set(input.effectTags)]), releaseStatus: input.releaseStatus, updatedAt: now() }).where(eq(randomEvents.id, input.eventId)); await replaceEventLinks(input.eventId, input.challengeLinks);
       const response = await asRandomEvent((await db.select().from(randomEvents).where(eq(randomEvents.id, input.eventId)).get())!); await recordIdempotency(db, auth.subject, "admin.random-event.update", idempotencyKey, input, response); await recordAudit(db, auth, "admin.random-event.update", "random_event", input.eventId, input); return response;
+    },
+    async batchUpdateAdminRandomEvents(input: AdminRandomEventBatchRequest, auth, idempotencyKey): Promise<RandomEvent[]> {
+      const operation = "admin.random-event.batch-update";
+      const replay = await replayOrConflict<RandomEvent[]>(db, auth.subject, operation, idempotencyKey, input); if (replay) return replay;
+      const ids = input.updates.map((update) => update.eventId);
+      const existing = await db.select({ id: randomEvents.id }).from(randomEvents).where(inArray(randomEvents.id, ids));
+      if (existing.length !== ids.length) throw new Error("EVENT_NOT_FOUND");
+      const timestamp = now();
+      const columns: Record<string, string> = { name: "name", category: "category", description: "description", durationSeconds: "duration_seconds", cooldownSeconds: "cooldown_seconds", weight: "weight", gameVersion: "game_version", eventGroup: "event_group", releaseStatus: "release_status" };
+      const statements = input.updates.map(({ eventId, ...patch }) => {
+        const sets: string[] = []; const values: unknown[] = [];
+        for (const [field, column] of Object.entries(columns)) { const value = (patch as Record<string, unknown>)[field]; if (value === undefined) continue; sets.push(`${column} = ?`); values.push(value); }
+        if (patch.weight !== undefined) { sets.push("rarity = ?"); values.push(randomEventRarityForWeight(patch.weight)); }
+        if (patch.effectTags !== undefined) { sets.push("effect_tags_json = ?"); values.push(JSON.stringify([...new Set(patch.effectTags)])); }
+        sets.push("updated_at = ?"); values.push(timestamp);
+        return database.prepare(`UPDATE random_events SET ${sets.join(", ")} WHERE id = ?`).bind(...values, eventId);
+      });
+      statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, "random_event", "batch", JSON.stringify({ eventCount: ids.length, updates: input.updates }), timestamp));
+      await database.batch(statements);
+      const rows = await db.select().from(randomEvents).where(inArray(randomEvents.id, ids));
+      const byId = new Map(rows.map((row) => [row.id, row]));
+      const response = await Promise.all(ids.map((id) => asRandomEvent(byId.get(id)!)));
+      await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, response); return response;
     },
     async archiveAdminRandomEvent(input, auth, idempotencyKey) {
       const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "admin.random-event.archive", idempotencyKey, input); if (replay) return;
@@ -7188,16 +7230,21 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       ]);
       const hasMore = accounts.length > input.pageSize;
       const items = accounts.slice(0, input.pageSize);
+      const bindingRows = items.length ? await db.select({ playerAccountId: bindings.playerAccountId, total: count() })
+        .from(bindings)
+        .where(and(inArray(bindings.playerAccountId, items.map((account) => account.id)), eq(bindings.status, "active")))
+        .groupBy(bindings.playerAccountId) : [];
+      const bindingCounts = new Map(bindingRows.map((row) => [row.playerAccountId, row.total]));
       return {
         contractVersion: "1" as const,
-        items: await Promise.all(items.map(async (account) => ({
+        items: items.map((account) => ({
           playerAccountId: account.id,
           playerId: account.playerId,
           playerName: account.playerName,
           status: account.status as "active" | "banned",
-          bindingCount: (await db.select().from(bindings).where(and(eq(bindings.playerAccountId, account.id), eq(bindings.status, "active")))).length,
+          bindingCount: bindingCounts.get(account.id) ?? 0,
           updatedAt: account.updatedAt,
-        }))),
+        })),
         page: input.page,
         pageSize: input.pageSize,
         total,
@@ -7509,13 +7556,37 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           eq(titleCatalog.publicVisibility, 1),
         ))
         .orderBy(titleCatalog.category, titleCatalog.label);
-      const items: PlayerChallengeProgressListResponse["items"] = [];
-      for (const { challenge, title } of rows) {
+      const visibleChallenges = rows.flatMap(({ challenge, title }) => {
         const rule = parseChallengeProgressRule(challenge.progressRule);
         const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, timestamp, challenge.gameVersion);
-        if (!rule || !status) continue;
-        const eligibility = await loadEligibleProgressRunMaps({ playerAccountId: access.player.id, rule, startsAt: challenge.startsAt, endsAt: challenge.endsAt });
-        items.push({
+        return rule && status ? [{ challenge, title, rule, status }] : [];
+      });
+      // CROSS JOIN keeps the small rule/map inputs ahead of the indexed run
+      // lookup, instead of scanning all of a player's runs for each rule.
+      const eligibleRunMaps = visibleChallenges.length ? (await database.prepare(`
+        SELECT DISTINCT json_extract(rule.value, '$.challengeId') AS challengeId, run.map_id AS mapId, run.difficulty
+        FROM json_each(?) AS rule
+        CROSS JOIN json_each(rule.value, '$.mapIds') AS required_map
+        CROSS JOIN mastery_runs AS run ON run.player_account_id = ? AND run.status = 'active' AND run.map_id = required_map.value
+        JOIN submissions AS submission ON submission.id = run.source_submission_id
+        JOIN gameplay_revisions AS revision ON revision.id = run.gameplay_revision_id
+        WHERE revision.mode IS json_extract(rule.value, '$.mode')
+          AND (json_extract(rule.value, '$.startsAt') IS NULL OR submission.created_at >= json_extract(rule.value, '$.startsAt'))
+          AND (json_extract(rule.value, '$.endsAt') IS NULL OR submission.created_at < json_extract(rule.value, '$.endsAt'))
+      `).bind(JSON.stringify(visibleChallenges.map(({ challenge, rule }) => ({
+        challengeId: challenge.id, mapIds: rule.mapIds, mode: rule.mode ?? null, startsAt: challenge.startsAt, endsAt: challenge.endsAt,
+      }))), access.player.id).all<{ challengeId: string; mapId: string; difficulty: string }>()).results : [];
+      const runsByChallenge = new Map<string, Array<{ mapId: string; difficulty: string }>>();
+      for (const run of eligibleRunMaps) {
+        const runs = runsByChallenge.get(run.challengeId) ?? [];
+        runs.push(run);
+        runsByChallenge.set(run.challengeId, runs);
+      }
+      const items: PlayerChallengeProgressListResponse["items"] = visibleChallenges.map(({ challenge, title, rule, status }) => {
+        const completed = new Set((runsByChallenge.get(challenge.id) ?? [])
+          .filter((run) => !rule.difficultyAtLeast || difficultyAtLeastSatisfied(run.difficulty, rule.difficultyAtLeast))
+          .map((run) => run.mapId));
+        return {
           challengeId: challenge.id,
           titleKey: title.key,
           titleName: title.label,
@@ -7525,11 +7596,11 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           ...(challenge.startsAt !== null ? { startsAt: challenge.startsAt } : {}),
           ...(challenge.endsAt !== null ? { endsAt: challenge.endsAt } : {}),
           progressRule: rule,
-          maps: rule.mapIds.map((mapId) => ({ mapId, completed: eligibility.completed.has(mapId) })),
-          completedMaps: eligibility.completed.size,
-          satisfied: eligibility.satisfied,
-        });
-      }
+          maps: rule.mapIds.map((mapId) => ({ mapId, completed: completed.has(mapId) })),
+          completedMaps: completed.size,
+          satisfied: rule.mapIds.every((mapId) => completed.has(mapId)),
+        };
+      });
       return { contractVersion: "1" as const, items };
     },
 

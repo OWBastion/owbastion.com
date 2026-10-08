@@ -170,7 +170,7 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
         <section class="map-identity" aria-label="地图身份">
           <p class="map-identity__id">{{ map.mapId }}</p>
           <p class="type-caption">目录版本 {{ map.gameVersion }}</p>
-          <UButton :to="{ path: '/admin/achievements', query: { section: 'map', mapId: map.mapId } }" label="称号规则" color="neutral" variant="ghost" size="sm" class="map-identity__link" />
+          <UButton :to="{ path: '/admin/achievements/map-challenges', query: { mapId: map.mapId } }" label="称号规则" color="neutral" variant="ghost" size="sm" class="map-identity__link" />
         </section>
         <AdminMapRevisionList :revisions="revisions" :selected-revision-id="selectedRevisionId" :disabled="api.saving.value" @select="selectedRevisionId = $event" />
       </aside>

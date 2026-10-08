@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionPromotionRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventVersionAvailabilityRequestSchema, adminRandomEventVersionListResponseSchema, adminSubmissionReviewPreviewRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, adminVerifiedRunCorrectionRequestSchema, adminVerifiedRunSchema, agentMapSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema, agentTitleListResponseSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, ocrAccuracyFeedbackRequestSchema, ocrAccuracyFeedbackResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqBindingClaimVerifyRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema } from "./index";
+import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionPromotionRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventBatchRequestSchema, adminRandomEventVersionAvailabilityRequestSchema, adminRandomEventVersionListResponseSchema, adminSubmissionReviewPreviewRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, adminVerifiedRunCorrectionRequestSchema, adminVerifiedRunSchema, agentMapSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema, agentTitleListResponseSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, ocrAccuracyFeedbackRequestSchema, ocrAccuracyFeedbackResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqBindingClaimVerifyRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema } from "./index";
 
 describe("v1 platform contracts", () => {
   it("validates global and scoped achievement creation", () => {
@@ -34,6 +34,19 @@ describe("v1 platform contracts", () => {
     expect(adminRandomEventUpdateRequestSchema.parse({ ...input, eventGroup: null }).eventGroup).toBeNull();
     expect(adminRandomEventUpdateRequestSchema.safeParse({ ...input, eventGroup: "x".repeat(65) }).success).toBe(false);
     expect(randomEventSchema.safeParse({ eventId: "event.test", ...input, rarity: "", effectAnnotations: [], archived: false, challenges: [] }).success).toBe(false);
+  });
+  it("accepts a batch of partial event updates and rejects empty, duplicate, oversized, or unknown ones", () => {
+    const update = (eventId: string, extra: Record<string, unknown> = { weight: 1 }) => ({ eventId, ...extra });
+    const batch = (updates: unknown[]) => adminRandomEventBatchRequestSchema.safeParse({ contractVersion: "1", updates });
+    const parsed = adminRandomEventBatchRequestSchema.parse({ contractVersion: "1", updates: [update("a", { eventGroup: "  ", releaseStatus: "removed" })] });
+    expect(parsed.updates[0]).toEqual({ eventId: "a", eventGroup: null, releaseStatus: "removed" });
+    expect(batch([]).success).toBe(false);
+    expect(batch([{ eventId: "a" }]).success).toBe(false);
+    expect(batch([update("a"), update("a")]).success).toBe(false);
+    expect(batch([update("a", { rarity: "SSR" })]).success).toBe(false);
+    expect(batch([update("a", { challengeLinks: [] })]).success).toBe(false);
+    expect(batch(Array.from({ length: 101 }, (_, index) => update(`e${index}`))).success).toBe(false);
+    expect(batch(Array.from({ length: 100 }, (_, index) => update(`e${index}`))).success).toBe(true);
   });
   it("validates version-level random-event availability", () => {
     expect(adminRandomEventVersionAvailabilityRequestSchema.safeParse({ contractVersion: "1", availability: "suspended" }).success).toBe(true);

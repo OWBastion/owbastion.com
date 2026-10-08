@@ -1,19 +1,14 @@
 <script setup lang="ts">
 import type { Map, MapChallenge } from "~/types/challenge";
 import type { ReviewSummary } from "~/composables/usePlayerReview";
-import type { PlayerMasteryMapProfile } from "~/composables/usePortalApi";
 import ReviewSummaryBadge from "~/components/reviews/ReviewSummaryBadge.vue";
 
 const props = defineProps<{
   map: Map;
   challenges: MapChallenge[];
-  authenticated: boolean;
   reviewSummary: ReviewSummary | null;
   reviewLoading: boolean;
   reviewError?: string;
-  masteryProfile: PlayerMasteryMapProfile | null;
-  masteryLoading: boolean;
-  masteryError?: string;
 }>();
 
 const emit = defineEmits<{ select: [] }>();
@@ -31,7 +26,6 @@ const mapIndex = computed(() => props.map.mapId.split(".").at(-1)?.slice(0, 2).t
       <ReviewSummaryBadge :summary="reviewSummary" :loading="reviewLoading" :error="reviewError" />
       <dl class="map-card-stats">
         <div><dt class="type-label-sm">地图评级</dt><dd class="type-label" :class="{ quiet: map.difficultyRating == null }">{{ map.difficultyRating ?? "暂无记录" }}</dd></div>
-        <div><dt class="type-label-sm">精通</dt><dd v-if="!authenticated" class="type-label quiet">登录后查看</dd><dd v-else-if="masteryLoading" class="type-label quiet">读取中…</dd><dd v-else-if="masteryProfile" class="type-label">{{ masteryProfile.totalXp }} XP · {{ masteryProfile.verifiedRunCount }} 次</dd><dd v-else-if="masteryError" class="type-label quiet">暂不可用</dd><dd v-else class="type-label quiet">暂无记录</dd></div>
         <div><dt class="type-label-sm">挑战</dt><dd class="type-label" :class="{ quiet: !mapChallenges.length }">{{ mapChallenges.length ? `${mapChallenges.length} 项` : "暂无记录" }}</dd></div>
       </dl>
       <div v-if="mechanics.length" class="map-card-tags"><UBadge v-for="mechanic in mechanics" :key="mechanic" :label="mechanic" color="neutral" variant="subtle" /></div>

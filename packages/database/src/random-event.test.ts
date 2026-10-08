@@ -156,6 +156,37 @@ describe("random-event rarity derivation", () => {
     expect(plain.eventGroup).toBeNull();
   });
 
+  it("applies a batch of partial updates atomically, with one audit record and idempotent replay", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    const services = createPlatformServices(database);
+    const first = await services.createAdminRandomEvent(writeInput({ name: "甲", eventGroup: "赌徒", weight: 0.9 }), auth, "batch-a");
+    const second = await services.createAdminRandomEvent(writeInput({ name: "乙", weight: 0.4 }), auth, "batch-b");
+
+    const request = { contractVersion: "1" as const, updates: [{ eventId: first.eventId, weight: 0.3, eventGroup: null }, { eventId: second.eventId, releaseStatus: "removed" as const, eventGroup: "作弊" }] };
+    const result = await services.batchUpdateAdminRandomEvents(request, auth, "batch-1");
+    expect(result.map((event) => [event.name, event.weight, event.rarity, event.eventGroup, event.releaseStatus])).toEqual([["甲", 0.3, "SSR", null, "implemented"], ["乙", 0.4, "SSR", "作弊", "removed"]]);
+    // Fields that were not listed stay as they were.
+    expect(result[0]).toMatchObject({ category: "增益", description: "事件说明", gameVersion: "5.0" });
+    expect(sqlite.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE operation = 'admin.random-event.batch-update'").get()).toEqual({ n: 1 });
+
+    const replayed = await services.batchUpdateAdminRandomEvents(request, auth, "batch-1");
+    expect(replayed).toEqual(result);
+    expect(sqlite.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE operation = 'admin.random-event.batch-update'").get()).toEqual({ n: 1 });
+    await expect(services.batchUpdateAdminRandomEvents({ ...request, updates: [{ eventId: first.eventId, weight: 2 }] }, auth, "batch-1")).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+  });
+
+  it("changes nothing when any event in a batch is missing", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    const services = createPlatformServices(database);
+    const created = await services.createAdminRandomEvent(writeInput({ weight: 0.9 }), auth, "missing-a");
+
+    await expect(services.batchUpdateAdminRandomEvents({ contractVersion: "1", updates: [{ eventId: created.eventId, weight: 0.1 }, { eventId: "event.nope", weight: 0.1 }] }, auth, "missing-1")).rejects.toThrow("EVENT_NOT_FOUND");
+    expect(sqlite.prepare("SELECT weight FROM random_events WHERE id = ?").get(created.eventId)).toEqual({ weight: 0.9 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE operation = 'admin.random-event.batch-update'").get()).toEqual({ n: 0 });
+  });
+
   it("matches events by group name in search", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);

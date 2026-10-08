@@ -317,11 +317,18 @@ export const buildMasteryMapProfile = (mapId: string, gameplayRevisionId: string
 };
 
 export const buildMasteryProfiles = (runs: VerifiedRunForProjection[], recentLimit = 10) => {
-  const revisionKeys = [...new Set(runs.filter((run) => run.status === "active").map((run) => `${run.mapId}\u0000${run.gameplayRevisionId}`))];
-  return revisionKeys
-    .map((key) => {
+  const runsByRevision = new Map<string, VerifiedRunForProjection[]>();
+  for (const run of runs) {
+    if (run.status !== "active") continue;
+    const key = `${run.mapId}\u0000${run.gameplayRevisionId}`;
+    const group = runsByRevision.get(key);
+    if (group) group.push(run);
+    else runsByRevision.set(key, [run]);
+  }
+  return [...runsByRevision.entries()]
+    .map(([key, revisionRuns]) => {
       const [mapId, gameplayRevisionId] = key.split("\u0000");
-      return buildMasteryMapProfile(mapId!, gameplayRevisionId!, runs, recentLimit);
+      return buildMasteryMapProfile(mapId!, gameplayRevisionId!, revisionRuns, recentLimit);
     })
     .sort((left, right) => right.totalXp - left.totalXp || right.highestSingleRunXp! - left.highestSingleRunXp! || left.mapId.localeCompare(right.mapId) || left.gameplayRevisionId.localeCompare(right.gameplayRevisionId));
 };

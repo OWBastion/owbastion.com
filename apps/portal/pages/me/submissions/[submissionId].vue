@@ -194,7 +194,7 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
             <div class="overview-actions">
               <UButton
                 v-if="data.resubmissionRequired"
-                to="/submissions/new"
+                to="/me/submissions/new"
                 label="重新提交截图"
                 icon="i-lucide-upload"
                 color="primary"

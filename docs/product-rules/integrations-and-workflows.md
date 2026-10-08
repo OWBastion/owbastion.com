@@ -490,6 +490,10 @@ metadata, and linked challenges that are currently open. Maintainers create,
 edit, archive, and link events in the Portal. The same Portal/API path accepts
 a CSV preview and confirmed import; it validates every row before an atomic
 write, records the source hash and audit event, and never stores the CSV.
+Maintainers change several events at once through one idempotent batch
+request (up to 100 events, changing only the listed fields, all or nothing,
+recorded as a single audit event); restoring earlier values is another batch.
+Challenge links are not part of it.
 Maintainers may suspend or restore a whole game version through a separate,
 idempotent operational state. Suspension leaves event lifecycle, balancing
 metadata, and admin visibility unchanged, but omits that version's events from

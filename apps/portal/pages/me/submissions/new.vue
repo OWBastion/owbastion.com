@@ -46,7 +46,7 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
           ? "截图处理完成。"
           : "截图已上传，等待处理。";
     toast.add({ title, color: result.status === "rejected" ? "warning" : "success" });
-    await navigateTo(`/submissions/${encodeURIComponent(result.submissionId)}`);
+    await navigateTo(`/me/submissions/${encodeURIComponent(result.submissionId)}`);
   } catch {
     // useSubmissionUpload already shows the failure inline, with retry guidance, in a role="alert" region.
   }

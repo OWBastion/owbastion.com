@@ -1700,6 +1700,17 @@
     }
    }
   },
+  "/v1/admin/events/batch": {
+   "post": {
+    "operationId": "batchUpdateAdminRandomEvents",
+    "description": "Maintainer-only. Changes only the listed fields of up to 100 distinct events, all or nothing, and records one audit event. Requires an Idempotency-Key. Challenge links are not part of a batch.",
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
   "/v1/admin/events/{eventId}": {
    "put": {
     "operationId": "updateAdminRandomEvent",

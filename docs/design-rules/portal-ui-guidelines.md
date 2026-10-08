@@ -86,7 +86,7 @@ Use this pattern for `/admin`:
 - Do not replace `AdminDataTable` with a raw `UTable`, custom HTML table, or one-off list that is functionally a table. If a table genuinely cannot use `AdminDataTable`, document the reason in the change description before introducing the exception.
 - Server-paginated data must retain pagination controls and current-page state. Do not turn server pagination into infinite scrolling.
 - Use `UAlert` or the `AdminWorkspace` messages area for feedback. Do not communicate success, errors, or dangerous actions through color alone.
-- Use `AdminResponsiveDialog` for every admin detail, edit, and confirmation overlay: it renders a centered `UModal` at `768px` and above and a bottom `UDrawer` below that breakpoint. `UPopover` is only for a small, contextual form that remains next to its trigger, such as a one-field scheduling action.
+- Use `AdminResponsiveDialog` for every admin detail, edit, and confirmation overlay (an editable catalog edits in its table and opens a slide-over sheet; see the admin workbench archetype): it renders a centered `UModal` at `768px` and above and a bottom `UDrawer` below that breakpoint. `UPopover` is only for a small, contextual form that remains next to its trigger, such as a one-field scheduling action.
 - Use `color="error"` for dangerous actions and state the consequence clearly. Save, retire, ban, and similar actions need loading and disabled states.
 - Admin copy should prioritize labels, values, statuses, and actions. Do not add explanatory paragraphs for facts an administrator already understands, such as what a grant or map scope is. Keep helper text only when it states a constraint, a consequence, or the next action needed to continue.
 - Admin UI is optimized for **scan → locate → judge → act**: compact labels, values, statuses, filters, and actions. Do not add overview, preview, summary, onboarding, or explanatory cards unless they materially improve an actual operational decision; reject decorative layers that reduce information density without improving a decision.
@@ -97,6 +97,10 @@ Use this pattern for `/admin`:
 - Master/detail workspaces keep selection and detail visible together on wide
   screens; on narrow screens, stack the detail below the list or open it with
   `AdminResponsiveDialog` when the detail is an edit/decision surface.
+- A draft-based workbench (see the admin workbench archetype) takes the place of a
+  per-action confirmation: a bulk action only stages changes, and the draft band
+  states how many are unsaved and what they move before the single save, which
+  can be undone.
 - Batch confirmation shows the selected scope, affected count, current status,
   consequence, and actions. Put the confirm action after the consequence and
   keep cancel available without making an optional reason mandatory.

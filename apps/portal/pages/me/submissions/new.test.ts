@@ -16,7 +16,7 @@ describe("new submission page privacy statement", () => {
 
   it("renders verified screenshot privacy facts", async () => {
     const wrapper = await mountSuspended(NewSubmissionPage, {
-      route: "/submissions/new",
+      route: "/me/submissions/new",
     });
 
     const text = wrapper.text();
@@ -34,7 +34,7 @@ describe("new submission page privacy statement", () => {
 
   it("does not use internal model-training or OCR wording on the player page", async () => {
     const wrapper = await mountSuspended(NewSubmissionPage, {
-      route: "/submissions/new",
+      route: "/me/submissions/new",
     });
 
     const text = wrapper.text();
@@ -44,7 +44,7 @@ describe("new submission page privacy statement", () => {
   });
 
   it("accepts a pasted image and enables upload", async () => {
-    const wrapper = await mountSuspended(NewSubmissionPage, { route: "/submissions/new" });
+    const wrapper = await mountSuspended(NewSubmissionPage, { route: "/me/submissions/new" });
     const submit = () => wrapper.find("button[type=submit]");
     expect(submit().attributes("disabled")).toBeDefined();
 
@@ -57,7 +57,7 @@ describe("new submission page privacy statement", () => {
   });
 
   it("rejects an unsupported pasted file before upload", async () => {
-    const wrapper = await mountSuspended(NewSubmissionPage, { route: "/submissions/new" });
+    const wrapper = await mountSuspended(NewSubmissionPage, { route: "/me/submissions/new" });
     const event = new Event("paste") as ClipboardEvent;
     Object.defineProperty(event, "clipboardData", { value: { files: [new File(["x"], "a.gif", { type: "image/gif" })] } });
     document.dispatchEvent(event);
