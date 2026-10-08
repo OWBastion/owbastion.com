@@ -34,6 +34,7 @@ const services: PlatformServices = {
   getRandomEvent: async () => null,
   createAdminRandomEvent: async () => { throw new Error("CHALLENGE_NOT_FOUND"); },
   updateAdminRandomEvent: async () => { throw new Error("EVENT_NOT_FOUND"); },
+  batchUpdateAdminRandomEvents: async () => { throw new Error("EVENT_NOT_FOUND"); },
   archiveAdminRandomEvent: async () => { throw new Error("EVENT_NOT_FOUND"); },
   previewAdminRandomEventImport: async () => ({ sourceHash: "hash", validRowCount: 0, errors: [], rows: [] }),
   importAdminRandomEvents: async () => ({ importedCount: 0 }),
@@ -617,6 +618,20 @@ describe("API", () => {
     expect((await app.request("http://localhost/v1/admin/events/imports", request, env)).status).toBe(403);
     const maintainerApp = createApp({ authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => services });
     expect((await maintainerApp.request("http://localhost/v1/admin/events/imports", request, env)).status).toBe(422);
+  });
+  it("requires a maintainer, an idempotency key, and a valid body for batch event updates", async () => {
+    const send = (application: typeof app, headers: Record<string, string>, body: unknown) => application.request("http://localhost/v1/admin/events/batch", { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body) }, env);
+    const valid = { contractVersion: "1", updates: [{ eventId: "event.a", weight: 0.5 }] };
+    expect((await send(app, {}, valid)).status).toBe(403);
+    const calls: unknown[] = [];
+    const maintainerApp = createApp({ authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, batchUpdateAdminRandomEvents: async (input, _auth, key) => { calls.push([input.updates, key]); return []; } }) });
+    expect((await send(maintainerApp, {}, valid)).status).toBe(422);
+    expect((await send(maintainerApp, { "idempotency-key": "k" }, { contractVersion: "1", updates: [{ eventId: "event.a" }] })).status).toBe(422);
+    expect((await send(maintainerApp, { "idempotency-key": "k" }, { contractVersion: "1", updates: [{ eventId: "event.a", weight: 1 }, { eventId: "event.a", weight: 2 }] })).status).toBe(422);
+    expect((await send(maintainerApp, { "idempotency-key": "k" }, valid)).status).toBe(200);
+    expect(calls).toEqual([[[{ eventId: "event.a", weight: 0.5 }], "k"]]);
+    const missing = createApp({ authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => services });
+    expect((await send(missing, { "idempotency-key": "k" }, valid)).status).toBe(404);
   });
   it("lists and updates random-event version availability through maintainer routes", async () => {
     const calls: Array<{ gameVersion: string; availability: string; key: string }> = [];

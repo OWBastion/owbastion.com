@@ -122,11 +122,32 @@
   data matrix that cannot be converted into actionable records without losing
   meaning or operability.
 
-## Admin master and detail
+## Admin workbench (editable catalog)
 
-- Keep the selectable list and selected detail in a wide workspace.
-- Use `AdminResponsiveDialog` for overlays and collapse the columns rather than
-  shrinking data below operable sizes.
+For a catalog the maintainers tune rather than only browse (random events are the
+reference), the table is the workbench and every change goes through one draft.
+
+- **Pool strip first**: what the catalog currently produces (for events: how many
+  are in the candidate pool and their total weight) and the operational switches
+  (version availability) as small toggles with an undo toast.
+- **One toolbar line**: search, the status as chips with counts, and the few
+  filters that narrow the list. Page-level actions (新建, 导入) sit on the title row.
+- **Edit in the row**: the values that are tuned (weight, group, version, status)
+  are native controls in the table; derived values recompute for every row as they
+  change and show their delta, so one edit shows what it displaces.
+- **One draft, one commit**: every edit, bulk action and sheet edit is staged. A
+  band above the table says how many changes are unsaved and what moved most, with
+  "放弃" and "保存全部". Saving is one batch request (all or nothing, one audit
+  record); the toast offers "撤销", which writes the previous values back. Nothing
+  is saved while typing, and leaving with a draft asks first.
+- **Selection band**: choosing rows adds a band for bulk status, version, group and
+  weight (set, add, multiply). Bulk actions stage into the same draft.
+- **Details on demand**: the name opens a slide-over sheet with every field, the
+  derived value and previous/next; it edits the same draft. A new record is created
+  from the sheet with its own action. Nothing is docked beside the table.
+- Narrow screens keep the compared columns (weight, probability) and edit the rest
+  in the sheet; the draft and selection bands stay in flow above the table.
+- Archiving is irreversible through the API, so it keeps a confirming second click.
 
 ## Admin review workspace
 

@@ -465,6 +465,12 @@ const randomEventGroupInput = z.string().trim().max(64).transform((value) => val
 const randomEventWriteFields = z.object({ name: z.string().trim().min(1).max(256), category: z.string().trim().min(1).max(64), description: z.string().trim().min(1).max(4096), durationSeconds: z.number().int().nonnegative().nullable(), cooldownSeconds: z.number().nonnegative().nullable(), weight: z.number().nonnegative().nullable(), gameVersion: z.string().trim().min(1).max(64), eventGroup: randomEventGroupInput, effectTags: z.array(z.string().trim().min(1).max(64)).max(16), releaseStatus: randomEventStatus, challengeLinks: z.array(randomEventLinkSchema).max(64) }).strict();
 export const adminRandomEventCreateRequestSchema = z.object({ contractVersion }).merge(randomEventWriteFields);
 export const adminRandomEventUpdateRequestSchema = z.object({ contractVersion }).merge(randomEventWriteFields);
+// A batch changes only the listed fields of up to 100 distinct events, all or nothing; challenge links are not part of it.
+const randomEventBatchUpdate = randomEventWriteFields.omit({ challengeLinks: true }).partial().extend({ eventId: externalId }).strict()
+  .refine((update) => Object.keys(update).length > 1, "A batch update must change at least one field");
+export const adminRandomEventBatchRequestSchema = z.object({ contractVersion, updates: z.array(randomEventBatchUpdate).min(1).max(100) }).strict()
+  .refine((request) => new Set(request.updates.map((update) => update.eventId)).size === request.updates.length, "Each event may appear once");
+export const adminRandomEventBatchResponseSchema = z.object({ contractVersion, items: z.array(randomEventSchema) });
 export const adminRandomEventImportRequestSchema = z.object({ contractVersion, fileName: z.string().trim().min(1).max(256), csv: z.string().min(1).max(512 * 1024) }).strict();
 export const randomEventVersionSchema = z.object({ gameVersion: z.string().trim().min(1).max(64), availability: randomEventVersionAvailability, eventCount: z.number().int().nonnegative() }).strict();
 export const adminRandomEventVersionListResponseSchema = z.object({ contractVersion, items: z.array(randomEventVersionSchema) }).strict();
@@ -1676,6 +1682,7 @@ export type AdminReviewAudit = z.infer<typeof adminReviewAuditSchema>;
 export type AdminReviewListResponse = z.infer<typeof adminReviewListResponseSchema>;
 export type AdminRandomEventCreateRequest = z.infer<typeof adminRandomEventCreateRequestSchema>;
 export type AdminRandomEventUpdateRequest = z.infer<typeof adminRandomEventUpdateRequestSchema>;
+export type AdminRandomEventBatchRequest = z.infer<typeof adminRandomEventBatchRequestSchema>;
 export type AdminRandomEventImportRequest = z.infer<typeof adminRandomEventImportRequestSchema>;
 export type RandomEventVersion = z.infer<typeof randomEventVersionSchema>;
 export type AdminRandomEventVersionListResponse = z.infer<typeof adminRandomEventVersionListResponseSchema>;

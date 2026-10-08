@@ -60,6 +60,7 @@ global reduced-motion rules in `main.css`.
 | --- | --- | --- |
 | Status | Ongoing work | Loading on control, `aria-busy`, skeleton/status text |
 | Completion | Successful commit | Toast or refreshed state; short factual copy |
+| Undo | A reversible write just succeeded | The completion toast carries a "撤销" action that writes the previous values back; used instead of a confirmation for reversible changes |
 | Warning | Recoverable attention | `warning` alert / badge + text |
 | Error | Failed operation | `error` alert, named object, smallest next step |
 | Press | Finger/pointer down | Immediate `pressable*` feedback |
