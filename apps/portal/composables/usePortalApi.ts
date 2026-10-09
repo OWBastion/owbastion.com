@@ -99,8 +99,11 @@ const requestOptions = (options: Parameters<typeof $fetch>[1], requestId: string
   return { ...options, headers };
 };
 
+type PlainFetch = <T>(url: string, options?: Record<string, unknown>) => Promise<T>;
+
 export function usePortalApi() {
-  const requestFetch = import.meta.server ? useRequestFetch() : $fetch;
+  // Each branch is cast on its own: letting the compiler reduce the union of the two typed Nitro fetch signatures recurses past its depth limit.
+  const requestFetch = (import.meta.server ? (useRequestFetch() as unknown as PlainFetch) : ($fetch as unknown as PlainFetch));
 
   return async <T>(path: string, options: Parameters<typeof $fetch<T>>[1] = {}) => {
     const requestId = createRequestId();

@@ -44,4 +44,21 @@ describe("EditorialArticle", () => {
     expect(wrapper.text()).toContain("开发日志");
     expect(wrapper.text()).toContain("为 Portal 建立内容基础。");
   });
+
+  it("shows the reading time and tags for a blog entry", async () => {
+    const wrapper = await mountSuspended(EditorialArticle, { props: { entry: { ...blogEntry, tags: ["随机事件", "称号"] }, kind: "blog", minutes: 6 }, global: { stubs } });
+
+    expect(wrapper.text()).toContain("约 6 分钟读完");
+    expect(wrapper.findAll(".editorial-tags li").map((tag) => tag.text())).toEqual(["随机事件", "称号"]);
+  });
+
+  it("offers an inline contents list only when there are three or more headings", async () => {
+    const toc = [{ id: "a", text: "甲", depth: 2 }, { id: "b", text: "乙", depth: 2 }, { id: "c", text: "丙", depth: 3 }];
+    const long = await mountSuspended(EditorialArticle, { props: { entry: blogEntry, kind: "blog", toc }, global: { stubs } });
+    expect(long.get(".editorial-toc-inline").text()).toContain("甲");
+    expect(long.get(".editorial-toc-inline a[href='#c']").text()).toBe("丙");
+
+    const short = await mountSuspended(EditorialArticle, { props: { entry: blogEntry, kind: "blog", toc: toc.slice(0, 2) }, global: { stubs } });
+    expect(short.find(".editorial-toc-inline").exists()).toBe(false);
+  });
 });

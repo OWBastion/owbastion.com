@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import EditorialArticle from "~/components/content/EditorialArticle.vue";
+import { editorialText, editorialToc, readingMinutes } from "~/utils/editorial";
 
 const route = useRoute();
 const slug = computed(() => String(route.params.slug ?? ""));
@@ -11,36 +11,39 @@ const { data: post, status, error } = await useAsyncData(
   () => queryCollection("blog").path(contentPath.value).first(),
   { default: () => null, watch: [contentPath] },
 );
+// Neighbours come from a light projection of the whole list, newest first.
+const { data: all } = await useAsyncData(
+  "public-blog-neighbours",
+  () => queryCollection("blog").select("title", "path", "publishedAt").order("publishedAt", "DESC").all(),
+  { default: () => [] },
+);
 
 const title = computed(() => post.value ? `${post.value.title} · 开发日志 · 躲避堡垒 3` : "开发日志 · 躲避堡垒 3");
 const description = computed(() => post.value?.description ?? "阅读 Portal 的开发日志与设计记录。");
 const canonical = computed(() => new URL(contentPath.value, requestUrl.origin).toString());
+const index = computed(() => all.value.findIndex((item) => item.path === contentPath.value));
+const older = computed(() => index.value >= 0 && all.value[index.value + 1] ? { path: all.value[index.value + 1]!.path, title: all.value[index.value + 1]!.title, label: "上一篇" } : null);
+const newer = computed(() => index.value > 0 ? { path: all.value[index.value - 1]!.path, title: all.value[index.value - 1]!.title, label: "下一篇" } : null);
+const minutes = computed(() => post.value ? readingMinutes(editorialText(post.value.body)) : undefined);
 
 useSeoMeta({
   title: () => title.value,
   description: () => description.value,
   ogTitle: () => title.value,
   ogDescription: () => description.value,
+  ogUrl: () => canonical.value,
   ogType: "article",
+  ogSiteName: "躲避堡垒 3",
+  ogLocale: "zh_CN",
+  articlePublishedTime: () => post.value?.publishedAt ? String(post.value.publishedAt) : undefined,
+  articleTag: () => post.value?.tags,
+  twitterCard: "summary",
+  twitterTitle: () => title.value,
+  twitterDescription: () => description.value,
 });
 useHead(() => ({ link: [{ rel: "canonical", href: canonical.value }] }));
 </script>
 
 <template>
-  <main class="editorial-detail-page page-shell--readable">
-    <NuxtLink to="/blog" class="editorial-back-link pressable"><UIcon name="i-lucide-arrow-left" aria-hidden="true" />返回开发日志</NuxtLink>
-    <div v-if="status === 'pending'" class="editorial-detail-state surface-card" role="status">读取中…</div>
-    <UAlert v-else-if="error" color="error" variant="subtle" role="alert" title="无法读取开发日志" description="内容暂时不可用，请稍后重试。" />
-    <UAlert v-else-if="!post" color="neutral" variant="subtle" role="alert" title="找不到这篇开发日志" description="该地址对应的内容不存在或已移除。">
-      <template #actions><UButton to="/blog" label="返回开发日志" color="neutral" variant="outline" /></template>
-    </UAlert>
-    <EditorialArticle v-else :entry="post" kind="blog" />
-  </main>
+  <EditorialDetail kind="blog" :entry="post" :status="status" :failed="Boolean(error)" :canonical="canonical" :share-title="post?.title ?? '开发日志'" :toc="editorialToc(post?.body)" :minutes="minutes" :older="older" :newer="newer" />
 </template>
-
-<style scoped>
-.editorial-detail-page { padding-block: clamp(3rem, 8vh, 5.5rem) 4.5rem; }
-.editorial-back-link { display: inline-flex; min-height: 44px; align-items: center; gap: var(--space-2); margin-bottom: var(--space-4); color: var(--muted); font-size: var(--type-caption-size); font-weight: 500; text-decoration: none; }
-.editorial-detail-state { min-height: 260px; display: grid; place-items: center; color: var(--muted); }
-@media (max-width: 47.99rem) { .editorial-detail-page { padding-block: 2.375rem 3rem; } }
-</style>
