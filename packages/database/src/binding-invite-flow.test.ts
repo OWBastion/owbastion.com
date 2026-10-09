@@ -7,6 +7,7 @@ import { resolvePortalSession } from "./portal-session";
 
 const hashRequest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const legacyInviteRetryMigration = readFileSync(new URL("../../../migrations/0087_legacy_passkey_invite_retry_anchor.sql", import.meta.url), "utf8");
+const dominatorInheritanceTrigger = readFileSync(new URL("../../../migrations/0075_enforce_dominator_conqueror_inheritance.sql", import.meta.url), "utf8").match(/CREATE TRIGGER[\s\S]*?END;/)![0];
 
 const createD1 = (failBatchNumbers: number[] = []) => {
   const sqlite = new DatabaseSync(":memory:");
@@ -132,6 +133,35 @@ describe("invitation binding flow", () => {
 
     expect(sqlite.prepare("SELECT source_id FROM player_title_grants WHERE id = 'grant.manual'").get()).toEqual({ source_id: "manual.source" });
     expect(sqlite.prepare("SELECT status, last_error FROM binding_invite_historical_title_grants WHERE historical_title_grant_id = 'hist.pending.conqueror'").get()).toEqual({ status: "conflict", last_error: "HISTORICAL_TITLE_GRANT_CLAIMED" });
+  });
+
+  it("creates invited conqueror grants before dominator inserts so the inheritance trigger cannot conflict", async () => {
+    const { database, sqlite } = createD1();
+    const now = Date.now();
+    sqlite.exec(`
+      CREATE UNIQUE INDEX player_title_grants_source_idx ON player_title_grants(source_type, source_id, title_key);
+      CREATE UNIQUE INDEX player_title_grants_active_identity_idx ON player_title_grants(player_account_id, title_key, COALESCE(map_id, ''), COALESCE(gameplay_revision_id, '')) WHERE status = 'active';
+      ${dominatorInheritanceTrigger}
+    `);
+    // The dominator authorization is inserted first so its item sorts ahead of
+    // the conqueror item in insertion order — the same ordering that used to
+    // let the trigger-created conqueror grant collide with the invited one.
+    sqlite.prepare("INSERT INTO historical_title_grants (id, scope, map_id, gameplay_revision_id, slot, title_key, holder_name, source_version) VALUES ('hist.dominator', 'map', 'map.1', 'revision:map.1:initial', 'dominator', 'DOMINATOR', 'Player', 'test'), ('hist.conqueror', 'map', 'map.1', 'revision:map.1:initial', 'conqueror', 'CONQUEROR', 'Player', 'test')").run();
+    sqlite.prepare("INSERT INTO binding_invites (id, code_hash, player_name, normalized_player_name, player_id, created_by, created_at, expires_at) VALUES ('invite.1', ?, 'Player', 'player', '1234', 'admin', ?, ?)").run(hashRequest("PAIRTITLE123"), now, now + 60_000);
+    sqlite.prepare("INSERT INTO binding_invite_historical_title_grants (id, invite_id, historical_title_grant_id, authorized_by, created_at) VALUES ('authorization.dominator', 'invite.1', 'hist.dominator', 'admin', ?), ('authorization.conqueror', 'invite.1', 'hist.conqueror', 'admin', ?)").run(now, now);
+    sqlite.prepare("INSERT INTO qq_group_access (group_open_id, environment, status, verify_enabled, created_at, updated_at) VALUES ('group.1', 'test', 'active', 1, ?, ?)").run(now, now);
+    const services = createPlatformServices(database);
+    const claim = await services.redeemBindingInvite({ contractVersion: "1", code: "PAIRTITLE123" });
+    await services.verifyBindingClaim({ contractVersion: "1", provider: "qq", code: claim.code, groupOpenId: "group.1", memberOpenId: "member.1", messageId: "message.pair" }, auth, "verify.pair");
+
+    expect(sqlite.prepare("SELECT status FROM binding_invite_historical_title_grants ORDER BY id").all()).toEqual([{ status: "created" }, { status: "created" }]);
+    // Two grants total: the invited dominator, then the invited conqueror
+    // attached to its own historical record. The trigger sees the conqueror
+    // already active and skips its inherited auto-insert.
+    expect(sqlite.prepare("SELECT title_key, source_id FROM player_title_grants ORDER BY title_key").all()).toEqual([
+      { title_key: "CONQUEROR", source_id: "hist.conqueror" },
+      { title_key: "DOMINATOR", source_id: "hist.dominator" },
+    ]);
   });
 
   it("does not authorize a name-equal historical holder without explicit selection", async () => {

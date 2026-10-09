@@ -2182,7 +2182,7 @@
   "/v1/admin/submissions/{submissionId}/review/preview": {
    "post": {
     "operationId": "previewSubmissionReview",
-    "description": "Read-only approval preview for the same fieldCorrections and confirmedChallengeIds an approval would send. Returns every eligible Challenge with its evidence state (matched, needs_confirmation, not_matched, unsupported) and missing evidence fields, the Completions and Titles approval would record, the Verified Run evidence state, and approvable/blockingCode. It writes nothing: no review, Completion, Grant, or canonical Challenge record. Canonical Challenges approval would create or archive are planned in memory and materialized only by the approval.",
+    "description": "Read-only approval preview for the same fieldCorrections and confirmedChallengeIds an approval would send. Returns every Challenge the player can currently complete with its evidence state (matched, needs_confirmation, not_matched, unsupported) and missing evidence fields; Challenges outside the corrected evidence's map and revision are listed as not_matched and count only when confirmed. It also returns knownModes, the configured standalone modes, the Completions and Titles approval would record, the Verified Run evidence state, and approvable/blockingCode. It writes nothing: no review, Completion, Grant, or canonical Challenge record. Canonical Challenges approval would create or archive are planned in memory and materialized only by the approval.",
     "parameters": [
      {
       "$ref": "#/components/parameters/submissionId"

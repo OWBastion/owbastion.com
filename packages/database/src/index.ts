@@ -634,7 +634,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     }
 
     const timestamp = now();
-    const operations: Array<{ statements: any[]; audit?: { entityId: string; payload: Record<string, unknown> } }> = [];
+    const operations: Array<{ statements: any[]; audit?: { entityId: string; payload: Record<string, unknown> }; createsConqueror?: boolean }> = [];
     for (const item of items) {
       if (["created", "reused", "conflict"].includes(item.status)) continue;
       const statements: any[] = [];
@@ -681,6 +681,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const inherited = activeIdentity && isInheritedConquerorGrant(inheritedSource, historical);
       let outcome: "created" | "reused" | "conflict";
       let grantId: string;
+      let createsConqueror = false;
       if (existing && existing.playerAccountId !== input.playerAccountId) {
         outcome = "conflict";
         grantId = existing.id;
@@ -712,13 +713,23 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         statements.push(db.insert(challengeCompletions).values({ id: completionId, playerAccountId: input.playerAccountId, challengeId: manualChallengeId, gameplayRevisionId: historical.gameplayRevisionId, status: "active", sourceType: "manual", sourceId: grantSource, completedAt: timestamp, createdAt: timestamp }));
         statements.push(db.insert(playerTitleGrants).values({ id: grantId, playerAccountId: input.playerAccountId, titleKey: historical.titleKey, mapId: historical.mapId, gameplayRevisionId: historical.gameplayRevisionId, slot: historical.slot, status: "active", sourceType: "historical", sourceId: historical.id, grantedBy: grantSource, grantedAt: timestamp, completionId }));
         statements.push(db.update(bindingInviteHistoricalTitleGrants).set({ status: outcome, playerTitleGrantId: grantId, lastError: null, processedAt: timestamp }).where(eq(bindingInviteHistoricalTitleGrants.id, item.id)));
+        createsConqueror = historical.titleKey === "CONQUEROR";
       }
       operations.push({
         statements,
         audit: { entityId: grantId, payload: { inviteId: input.inviteId, ...(input.claimId ? { claimId: input.claimId } : { grantSource }), historicalTitleGrantId: historical.id, playerAccountId: input.playerAccountId, authorizedBy: item.authorizedBy, outcome, mode: input.mode, ...(inherited ? { previousSourceId: activeIdentity.sourceId, reconciled: true } : {}) } },
+        createsConqueror,
       });
     }
     if (!operations.length) return;
+    // The player_title_grants_inherit_conqueror_after_dominator_insert trigger
+    // auto-creates an active CONQUEROR grant for a DOMINATOR insert when none
+    // exists yet for the same (player, map, revision). Inserting the invited
+    // CONQUEROR grants first lets the trigger's NOT EXISTS guard skip its
+    // auto-insert, so the authorized CONQUEROR keeps its own historical source
+    // and the later DOMINATOR insert cannot collide on
+    // player_title_grants_active_identity_idx.
+    operations.sort((a, b) => Number(b.createsConqueror) - Number(a.createsConqueror));
     const maxStatementsPerBatch = 80;
     let batchOperations: typeof operations = [];
     let batchStatementCount = 0;
@@ -1564,9 +1575,12 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     if (other) throw new Error("MODE_REVISION_CONFLICT");
   };
 
-  const assertRevisionConfiguration = (lifecycle: AdminMapRevisionUpdateRequest["lifecycle"], mapVariant: "classic" | null, spatialConfig: AdminMapRevisionUpdateRequest["spatialConfig"]) => {
+  // Bastion compiles default and selectable revisions from their spatial config, so they need one.
+  // A standalone-mode revision is played by its own build and never projected to Bastion, so its
+  // spatial config is optional; when given it is still validated.
+  const assertRevisionConfiguration = (lifecycle: AdminMapRevisionUpdateRequest["lifecycle"], mapVariant: "classic" | null, spatialConfig: AdminMapRevisionUpdateRequest["spatialConfig"], mode: string | null = null) => {
     if (lifecycle === "default" && mapVariant !== null) throw new Error("DEFAULT_REVISION_CANNOT_USE_CLASSIC_VARIANT");
-    if ((lifecycle === "default" || lifecycle === "selectable") && !spatialConfig) throw new Error("INVALID_SPATIAL_CONFIG");
+    if ((lifecycle === "default" || lifecycle === "selectable") && !spatialConfig && !mode) throw new Error("INVALID_SPATIAL_CONFIG");
     const parsed = spatialConfig ? parseSpatialConfig(spatialConfig) : null;
     if ((lifecycle === "default" || lifecycle === "selectable") && parsed && !agentProjectedSpatialConfigSchema.safeParse(parsed).success) {
       throw new Error("INVALID_SPATIAL_CONFIG");
@@ -4029,9 +4043,28 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     // A failed recognition leaves no evidence; the reviewer's own field corrections then stand in for it.
     if (!rawResponse && !fieldCorrections?.length) throw new Error("SUBMISSION_NOT_REVIEWABLE");
     const correctedResponse = applySubmissionFieldCorrections(rawResponse ?? { ok: true, data: {}, fields: {} }, fieldCorrections);
-    const prepared = await preparePlayerAutoMatchChallenges(row, correctedResponse);
-    const decision = matchOcrAgainstChallenges(prepared.candidates, correctedResponse, prepared.mapIdsByName, prepared.titleNamesByKey, true);
-    const candidatesById = new globalThis.Map(decision.candidates.map((candidate) => [candidate.canonicalChallengeId, candidate]));
+    const [evidencePrepared, linkablePrepared] = await Promise.all([
+      preparePlayerAutoMatchChallenges(row, correctedResponse),
+      prepareCanonicalAutoMatchChallenges(await fetchPlayerAutoMatchChallenges(row.playerAccountId, row.createdAt), row.createdAt),
+    ]);
+    const decision = matchOcrAgainstChallenges(evidencePrepared.candidates, correctedResponse, evidencePrepared.mapIdsByName, evidencePrepared.titleNamesByKey, true);
+    // A maintainer may also link any Challenge the player can currently complete, whatever map or
+    // revision the evidence resolves to. Those are never matched from evidence (which would let a
+    // mirror-mode clear satisfy regular map Challenges again); they count only when confirmed.
+    const evidenceIds = new Set(decision.candidates.map((candidate) => candidate.canonicalChallengeId));
+    const linkable: AutoMatchCandidate[] = linkablePrepared.candidates.filter((candidate) => !evidenceIds.has(candidate.canonicalChallengeId)).map((candidate) => ({
+      ...candidate,
+      evaluation: { supported: true, matched: false, requiredFields: [] },
+      quality: { accepted: false, requiredFields: [], reasons: [] },
+      grantable: Boolean(candidate.challenge.titleKey),
+    }));
+    const prepared = {
+      ...evidencePrepared,
+      snapshots: new globalThis.Map([...linkablePrepared.snapshots, ...evidencePrepared.snapshots]),
+      canonicalChallengePlans: new globalThis.Map([...linkablePrepared.canonicalChallengePlans, ...evidencePrepared.canonicalChallengePlans]),
+      titleNamesByKey: new globalThis.Map([...linkablePrepared.titleNamesByKey, ...evidencePrepared.titleNamesByKey]),
+    };
+    const candidatesById = new globalThis.Map([...decision.candidates, ...linkable].map((candidate) => [candidate.canonicalChallengeId, candidate]));
     const ineligibleConfirmations = confirmedChallengeIds.filter((challengeId) => !candidatesById.has(challengeId));
     const chosen = new globalThis.Map<string, { candidate: AutoMatchCandidate; basis: ReviewEvidenceSelection["basis"] }>();
     for (const candidate of decision.exact) chosen.set(candidate.canonicalChallengeId, { candidate, basis: "conditions" });
@@ -4052,7 +4085,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         basis,
       }];
     });
-    return { correctedResponse, prepared, decision, selections, ineligibleConfirmations };
+    return { correctedResponse, prepared, decision, linkable, selections, ineligibleConfirmations };
   };
 
   // Resolves the Completion -> Grant chain that approving the selections would write,
@@ -5067,7 +5100,9 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       if (!current) throw new Error("REVISION_NOT_FOUND");
       if ((current.lifecycle === "default") !== (input.lifecycle === "default")) throw new Error("REVISION_PROMOTION_REQUIRES_EXPLICIT_OPERATION");
       assertRevisionLifecycle(current.lifecycle, input.lifecycle);
-      const spatialConfig = assertRevisionConfiguration(input.lifecycle, input.mapVariant, input.spatialConfig);
+      // A revision's standalone mode is managed from that mode, not edited here.
+      const mode = current.mode;
+      const spatialConfig = assertRevisionConfiguration(input.lifecycle, input.mapVariant, input.spatialConfig, mode);
       const currentAssignments = await db.select().from(gameplayRevisionChallengeAssignments)
         .where(eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, input.revisionId));
       await validateRevisionAssignments(input.mapId, input.challengeAssignments, currentAssignments);
@@ -5076,8 +5111,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         const otherClassic = await db.select({ id: gameplayRevisions.id }).from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.legacyMapVariant, "classic"), ne(gameplayRevisions.id, input.revisionId))).get();
         if (otherClassic) throw new Error("LEGACY_VARIANT_CONFLICT");
       }
-      // A revision's standalone mode is managed from that mode, not edited here.
-      const mode = current.mode;
       await assertRevisionMode(input.mapId, input.revisionId, input.lifecycle, input.mapVariant, mode);
 
       const becomesClassicMapRevision = input.lifecycle === "selectable" && input.mapVariant === "classic";
@@ -6879,7 +6912,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const evidenceFields = new Set<AdminSubmissionReviewCandidate["requiredFields"][number]>(["map_name", "difficulty", "challenge_completed", "map_variant", "achievement_titles"]);
       const asEvidenceFields = (fields: readonly string[]) => fields.filter((field): field is AdminSubmissionReviewCandidate["requiredFields"][number] => evidenceFields.has(field as AdminSubmissionReviewCandidate["requiredFields"][number]));
       const evidenceRank = { matched: 0, needs_confirmation: 1, unsupported: 2, not_matched: 3 } as const;
-      const candidates = evidence.decision.candidates.map(({ challenge, canonicalChallengeId, evaluation, quality }): AdminSubmissionReviewCandidate => {
+      const candidates = [...evidence.decision.candidates, ...evidence.linkable].map(({ challenge, canonicalChallengeId, evaluation, quality }): AdminSubmissionReviewCandidate => {
         const titleName = challenge.titleKey ? evidence.prepared.titleNamesByKey.get(challenge.titleKey) ?? null : null;
         const status: AdminSubmissionReviewCandidate["evidence"] = !evaluation.supported ? "unsupported" : evaluation.matched ? "matched" : lowConfidence.has(canonicalChallengeId) ? "needs_confirmation" : "not_matched";
         return {
@@ -6959,6 +6992,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         verifiedRun,
         approvable: blockingCode === null,
         blockingCode,
+        knownModes: (await db.select({ mode: standaloneModes.mode }).from(standaloneModes).orderBy(standaloneModes.mode)).map((row) => row.mode),
       };
     },
 

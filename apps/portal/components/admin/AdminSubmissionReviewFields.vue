@@ -23,7 +23,7 @@ const annotatableFields = [
   { key: "deaths", label: "死亡次数" },
   { key: "skips", label: "跳过次数" },
 ] as const;
-const typedFieldPlaceholder: Record<string, string> = { mode: "截图右上角方括号内，如 随机事件5.0 或 2026镜中回响", version: "例如 2026.0928.1", run_code: "输入截图中的对局码", duration_seconds: "整数秒", deaths: "整数", skips: "整数" };
+const typedFieldPlaceholder: Record<string, string> = { version: "例如 2026.0928.1", run_code: "输入截图中的对局码", duration_seconds: "整数秒", deaths: "整数", skips: "整数" };
 const ocrPayload = computed(() => props.submission.ocr as OcrPayload | null);
 const modelVersion = computed(() => typeof ocrPayload.value?.model_version === "string" && ocrPayload.value.model_version ? ocrPayload.value.model_version : null);
 const checkedTitles = computed(() => Array.isArray(ocrPayload.value?.data?.achievement_titles) ? ocrPayload.value?.data?.achievement_titles.filter((value): value is string => typeof value === "string" && value.trim().length > 0) : []);
@@ -92,6 +92,7 @@ const fieldChoices = (key: string): Array<string | { label: string; value: strin
     case "map_name": return withCurrent(mapNames.value, [current]);
     case "difficulty": return withCurrent(difficultyNames, [current]);
     case "viewer_player": return withCurrent([props.submission.playerName], [current]);
+    case "mode": return [{ label: "常规（随机事件）", value: "随机事件" }, ...withCurrent(props.preview?.knownModes ?? [], [current]).filter((mode) => mode !== "随机事件").map((mode) => ({ label: mode, value: mode }))];
     case "challenge_completed": return [{ label: "已完成", value: "true" }, { label: "未完成", value: "false" }];
     case "map_variant": return [{ label: "标准", value: "standard" }, { label: "经典", value: "classic" }];
     default: return [];
@@ -109,7 +110,7 @@ const toggleFieldConfirmation = (fieldKey: string, checked: boolean) => {
 
 
 const ocrValue = (value: unknown) => value === null || value === undefined ? "未识别" : value === true ? "已识别完成" : value === false ? "未识别完成" : String(value);
-const ocrDisplayValue = (name: string, value: unknown) => name === "map_variant" ? mapVariantLabel(value) : ocrValue(value);
+const ocrDisplayValue = (name: string, value: unknown) => name === "map_variant" ? mapVariantLabel(value) : name === "mode" && (value === null || value === undefined || value === "") ? "常规（随机事件）" : ocrValue(value);
 const ocrConfidence = (value: unknown) => typeof value === "number" ? `${Math.round(value * 100)}%` : "—";
 const hasOcrConfidence = (value: unknown) => typeof value === "number";
 const ocrFieldStatusLabel = (status: unknown) => {
@@ -122,7 +123,7 @@ const ocrFieldStatusLabel = (status: unknown) => {
 };
 const ocrFieldStatusTone = (status: unknown): "default" | "success" | "warning" => status === "ok" ? "success" : status === "missing" || status === "low_confidence" || status === "unreadable" || status === "error" ? "warning" : "default";
 const candidates = computed(() => props.preview?.candidates ?? []);
-const primaryFieldKeys: readonly string[] = ["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "achievement_titles"];
+const primaryFieldKeys: readonly string[] = ["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "mode", "achievement_titles"];
 // Fields a still-unconfirmed Challenge is waiting for, so the chips can point at what needs checking.
 const neededFields = computed(() => new Set<string>(candidates.value.filter((candidate) => candidate.evidence === "needs_confirmation" && candidate.selectedBy === null).flatMap((candidate) => candidate.missingFields)));
 const showExtraFields = ref(false);
@@ -139,8 +140,8 @@ const fieldRows = computed(() => annotatableFields.map((field) => {
   const attested = confirmedFields.value.includes(field.key);
   const isPanel = field.key === "achievement_titles";
   const primary = primaryFieldKeys.includes(field.key);
-  // The panel and the map version always read as something ("无", the standard version); only truly absent values invite typing one in.
-  const recognized = isPanel || field.key === "map_variant" || (raw !== null && raw !== undefined);
+  // The panel, map version and mode always read as something ("无", the standard version, the regular mode); only truly absent values invite typing one in.
+  const recognized = isPanel || field.key === "map_variant" || field.key === "mode" || (raw !== null && raw !== undefined);
   const needed = neededFields.value.has(field.key) && !attested;
   const attention = !attested && (needed || (primary && (!recognized || (ocr?.status !== undefined && ocr.status !== "ok"))));
   const changed = attested && (correctionInputs[field.key] ?? "") !== (initialInputs[field.key] ?? "");

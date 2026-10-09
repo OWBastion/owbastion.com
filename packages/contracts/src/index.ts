@@ -1091,6 +1091,8 @@ export const adminSubmissionReviewPreviewResponseSchema = z.object({
   }).strict(),
   approvable: z.boolean(),
   blockingCode: z.string().nullable(),
+  // The configured Standalone Modes, offered when correcting the mode.
+  knownModes: z.array(z.string()).max(64),
 }).strict();
 export const adminSubmissionReviewResponseSchema = z.object({
   contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean(), grants: z.array(z.object({ grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean() })).min(1).optional(), verifiedRunOutcome: playerVerifiedRunSubmissionOutcomeSchema.optional(),

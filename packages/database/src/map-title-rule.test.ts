@@ -281,6 +281,32 @@ describe("Agents map projection readiness", () => {
     await expect(services.upsertAdminStandaloneMode({ contractVersion: "1", mode: "另一个模式", mapIds: [], eventPools: ["2026周年"], eventWeightTotal: null }, auth, "mode-pool-conflict")).rejects.toThrow("STANDALONE_MODE_POOL_CONFLICT");
   });
 
+  it("keeps editing a standalone-mode revision without a spatial config", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.mode");
+    seedAgentSpatialConfig(sqlite, "revision:map.mode:initial");
+    const services = createPlatformServices(database);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
+    await services.upsertAdminStandaloneMode({ contractVersion: "1", mode: "2026镜中回响", mapIds: ["map.mode"], eventPools: [], eventWeightTotal: null }, auth, "mode-create");
+    const mirror = (sqlite.prepare("SELECT id FROM gameplay_revisions WHERE mode = '2026镜中回响'").get() as { id: string }).id;
+    const preparing = await services.createAdminMapRevision({ contractVersion: "1", mapId: "map.mode", mapVariant: null, copyConfiguration: false, challengeAssignments: [] }, auth, "regular-create");
+    const update = (revisionId: string, key: string) => services.updateAdminMapRevision({
+      contractVersion: "1",
+      mapId: "map.mode",
+      revisionId,
+      lifecycle: "selectable",
+      gameVersion: "2026.10.01",
+      mapVariant: null,
+      spatialConfig: null,
+      challengeAssignments: [],
+    }, auth, key);
+
+    // Bastion compiles regular selectable revisions, so they still need a spatial config.
+    await expect(update(preparing.revisionId, "regular-without-spatial")).rejects.toThrow("INVALID_SPATIAL_CONFIG");
+    await expect(update(mirror, "mode-without-spatial")).resolves.toMatchObject({ lifecycle: "selectable", mode: "2026镜中回响", spatialConfig: null, gameVersion: "2026.10.01" });
+  });
+
   it("keeps preparing composite revisions out of the Agents projection", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
@@ -2193,10 +2219,54 @@ describe("maintainer Challenge confirmation during submission review", () => {
     sqlite.prepare("UPDATE ocr_results SET response_json = ? WHERE id = 'ocr.confirm'").run(JSON.stringify({ schema_version: "1", ok: true, layout_version: "1280x720-v7", data: { map_name: "地图 map.paris", difficulty: "地狱", mode: "随机事仵5.0" } }));
     const services = createPlatformServices(database);
 
+    // With the misread mode the map Challenge is only manually linkable; the corrected mode makes it evidence again.
     const misread = await services.previewSubmissionReview({ submissionId: "submission.confirm" }, auth);
-    expect(misread.candidates.some((candidate) => candidate.titleName === "称号 PIONEER")).toBe(false);
+    expect(misread.candidates.find((candidate) => candidate.titleName === "称号 PIONEER")).toMatchObject({ evidence: "not_matched" });
     const corrected = await services.previewSubmissionReview({ submissionId: "submission.confirm", fieldCorrections: [{ fieldKey: "mode", reviewedValue: "随机事件5.0" }] }, auth);
-    expect(corrected.candidates.some((candidate) => candidate.titleName === "称号 PIONEER")).toBe(true);
+    expect(corrected.candidates.find((candidate) => candidate.titleName === "称号 PIONEER")).toMatchObject({ evidence: "needs_confirmation" });
+  });
+
+  it("links a Challenge outside the evidence's map and approves it", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedIncompleteMapEvidence(sqlite);
+    // OCR read 地图 map.paris, but the maintainer sees the clear was on another map.
+    seedMap(sqlite, "map.other");
+    seedTitle(sqlite, "DOMINATOR");
+    seedRule(sqlite, "rule.dominator", "DOMINATOR", "dominator", { slot: "dominator" });
+    const services = createPlatformServices(database);
+
+    const preview = await services.previewSubmissionReview({ submissionId: "submission.confirm" }, auth);
+    const other = preview.candidates.find((candidate) => candidate.titleName === "称号 DOMINATOR" && candidate.mapName === "地图 map.other");
+    expect(other).toMatchObject({ evidence: "not_matched", selectedBy: null });
+
+    const confirmed = await services.previewSubmissionReview({ submissionId: "submission.confirm", confirmedChallengeIds: [other!.challengeId] }, auth);
+    expect(confirmed).toMatchObject({ approvable: true, blockingCode: null, titles: [{ titleKey: "DOMINATOR", mapName: "地图 map.other" }] });
+    await services.reviewSubmission({ submissionId: "submission.confirm", decision: "approved", confirmedChallengeIds: [other!.challengeId] }, auth, "link.other");
+    expect(sqlite.prepare("SELECT title_key, map_id FROM player_title_grants WHERE source_id = 'submission.confirm' AND status = 'active'").all()).toEqual([{ title_key: "DOMINATOR", map_id: "map.other" }]);
+  });
+
+  it("never selects a linkable Challenge from evidence alone", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.rialto");
+    sqlite.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, mode, game_version, created_at, updated_at) VALUES ('revision:map.rialto:mirror', 'map.rialto', 'selectable', NULL, '2026镜中回响', '2026.10.01', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO standalone_modes (mode, event_weight_total, created_at, updated_at) VALUES ('2026镜中回响', NULL, ?, ?)").run(now, now);
+    seedTitle(sqlite, "DOMINATOR");
+    seedRule(sqlite, "rule.dominator", "DOMINATOR", "dominator", { slot: "dominator" });
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.link', 'link-1', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.link', 'identity.link', 'player.link', 'qq', 'group.link', 'member.link', 'active', ?)").run(now);
+    sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.link', 'binding.link', 'ocr_review_required', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'message.link', ?, ?)").run(now, now);
+    // A mirror-mode hell clear: the regular 统治者 conditions would match, but that map Challenge is only linkable.
+    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.link', 'submission.link', 1, 'review_required', ?, ?)").run(
+      JSON.stringify({ schema_version: "1", ok: true, layout_version: "1280x720-v7", data: { map_name: "地图 map.rialto", difficulty: "地狱", challenge_completed: true, mode: "2026镜中回响" } }),
+      now,
+    );
+    const services = createPlatformServices(database);
+
+    const preview = await services.previewSubmissionReview({ submissionId: "submission.link" }, auth);
+    expect(preview.candidates.find((candidate) => candidate.titleName === "称号 DOMINATOR")).toMatchObject({ evidence: "not_matched", selectedBy: null });
+    expect(preview).toMatchObject({ titles: [], completions: [], knownModes: ["2026镜中回响"] });
   });
 
   it("previews and approves a displayed Challenge that the maintainer confirms from the screenshot", async () => {
