@@ -16,6 +16,19 @@
   required next action (see [`content-and-state.md`](content-and-state.md)).
 - Use the directory components and `UEmpty`.
 
+## Editorial list (开发日志 and 版本更新)
+
+- No card around the list. One column about 48rem wide under the page title and a
+  one-line lead, grouped by year with a quiet year rule.
+- Development logs lead with the newest entry as a feature (date, title, summary,
+  tags, "阅读全文") and list the rest as rows: date, title, a two-line summary, tags.
+  The shared 开发日志 tag is left out because the page already says so.
+- Release notes are rows of version pill, date and title, with the newest marked
+  "最新"; their summary is a fixed sentence and is not repeated in the list.
+- A row is one link with a hover surface; on narrow screens the date sits above
+  the title. The list is a light projection (title, path, date, version, tags),
+  not the article bodies.
+
 ## Editorial article (开发日志 and 版本更新)
 
 - A page for reading and passing on, not a card: one centered column about

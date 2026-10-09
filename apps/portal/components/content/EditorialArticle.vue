@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { formatEditorialDate, type EditorialTocEntry } from "~/utils/editorial";
+import { editorialTags, formatEditorialDate, type EditorialTocEntry } from "~/utils/editorial";
 
 type EditorialEntry = {
   title: string;
@@ -39,7 +39,7 @@ const showToc = computed(() => props.toc.length >= 3);
         </div>
         <h1 :class="isChangelog ? 'type-headline changelog-title' : 'editorial-title'">{{ entry.title }}</h1>
         <p v-if="!isChangelog" class="editorial-article-description">{{ entry.description }}</p>
-        <ul v-if="!isChangelog && entry.tags?.length" class="editorial-tags" aria-label="标签"><li v-for="tag in entry.tags" :key="tag">{{ tag }}</li></ul>
+        <ul v-if="!isChangelog && editorialTags(entry.tags).length" class="editorial-tags" aria-label="标签"><li v-for="tag in editorialTags(entry.tags)" :key="tag">{{ tag }}</li></ul>
       </header>
 
       <details v-if="showToc" class="editorial-toc-inline">
