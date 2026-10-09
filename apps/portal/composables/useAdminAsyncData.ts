@@ -34,6 +34,7 @@ export function useAdminAsyncData<T>(
     {
       server: false,
       immediate: false,
+      dedupe: "defer",
       default: () => cache.value[cacheKey.value] as T,
       getCachedData: noCachedAsyncData,
     },
@@ -51,6 +52,7 @@ export function useAdminAsyncData<T>(
   watch(cacheKey, (nextCacheKey) => {
     const cached = cache.value[nextCacheKey];
     if (cached !== undefined) options.onData?.(cached);
+    else void refresh();
   }, { flush: "sync" });
 
   const cached = cache.value[cacheKey.value];
