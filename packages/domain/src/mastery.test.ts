@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMasteryMapProfile, buildMasteryProfiles, calculateVerifiedRunXpV1, calculateVerifiedRunXpV2, createVerifiedRunEvidenceCompatibilityV1, isVerifiedRunEvidenceCompatibilityEnabled, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, verifiedRunXpRuleV1, verifiedRunXpRuleV2, normalizeMatchCode, type VerifiedRunForProjection } from "./mastery";
+import { buildMasteryMapProfile, buildMasteryProfiles, calculateVerifiedRunXpV1, calculateVerifiedRunXpV2, createVerifiedRunEvidenceCompatibilityV1, isVerifiedRunEvidenceCompatibilityEnabled, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, verifiedRunXpRuleV1, verifiedRunXpRuleV2, normalizeMatchCode, runCodeEventWeightTotal, eventWeightTotalCode, type VerifiedRunForProjection } from "./mastery";
 
 const run = (overrides: Partial<VerifiedRunForProjection> = {}): VerifiedRunForProjection => ({
   runId: "run-1",
@@ -46,6 +46,15 @@ describe("historical Verified Run XP rule v1", () => {
 
   it("normalizes only the canonical three-part run code", () => {
     expect(normalizeMatchCode(" 1234－5678—9012 ")).toBe("1234-5678-9012");
+  });
+
+  it("reads the event-weight total Bastion embeds in run codes from 26.1004.6", () => {
+    // Bastion places round(62.7 * 100) = 6270 at group 1 digits 2-3, group 2 digit 3, group 3 digit 4.
+    expect(runCodeEventWeightTotal("1629-3471-5820", "26.1004.6")).toBe(6270);
+    expect(runCodeEventWeightTotal("9695-1153-2370", "26.1005.3")).toBe(6950);
+    expect(runCodeEventWeightTotal("1629-3471-5820", "26.1004.5")).toBeNull();
+    expect(eventWeightTotalCode(Array.from({ length: 627 }, () => 0.1))).toBe(6270);
+    expect(eventWeightTotalCode([60, 9.5])).toBe(6950);
     expect(() => normalizeMatchCode("0123-4567-8901")).toThrow("MATCH_CODE_INVALID");
   });
 

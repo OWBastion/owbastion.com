@@ -448,15 +448,19 @@ A Gameplay Revision under a stable Map has explicit lifecycle states:
 Exactly one enabled revision is the default for a map. A map may expose zero or
 more additional selectable revisions.
 
-A standalone game mode that reuses map names (for example `2026镜中回响`) is
-played on its own selectable revision per map, identified by the mode label the
-settlement HUD shows. Screenshot evidence carrying that mode resolves to that
-revision, so its Verified Runs and Challenges never fall into the regular
-revision's scope. A mode revision is never the default or a classic variant.
-Because Bastion's regular build never compiles it, a mode revision does not
-require a spatial config.
-A mode label that matches no configured mode is treated as unrecognized
-evidence and goes to maintainer review rather than being guessed.
+The regular `随机事件` mode is the only permanent mode. Any other mode (for
+example `2026镜中回响`) is a limited-time standalone build that reuses map names,
+and it is configured as one **Standalone Mode**: the maps it plays, the event
+pools its build owns, and its run-code event-weight total. Saving the mode gives
+each listed map the mode's own selectable revision (no spatial config, since
+Bastion's regular build never compiles it) and retires a dropped map's revision
+to historical; its map layouts stay in Bastion's history rather than the
+platform. Screenshot evidence carrying the mode label resolves to that revision,
+so its Verified Runs and Challenges never fall into the regular revision's scope.
+A mode revision is never the default or a classic variant. A mode label that
+matches no configured Standalone Mode is unrecognized evidence and goes to
+maintainer review rather than being guessed. A progress rule may follow every
+map of a Standalone Mode; adding or dropping a map reconciles it.
 
 Applicability is derived from the revision lifecycle:
 

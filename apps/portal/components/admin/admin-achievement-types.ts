@@ -2,7 +2,8 @@ export type AchievementStatus = "scheduled" | "active" | "sunsetting" | "retired
 
 export type AchievementProgressRule = {
   type: "required_maps_completed";
-  mapIds: string[];
+  // Omitted with a mode: every map of that standalone mode.
+  mapIds?: string[];
   difficultyAtLeast?: string;
   mode?: string;
 };

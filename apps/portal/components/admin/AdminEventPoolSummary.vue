@@ -1,5 +1,5 @@
 <script setup lang="ts">
-type EventVersion = { gameVersion: string; availability: "available" | "suspended"; eventCount: number };
+type EventVersion = { gameVersion: string; availability: "available" | "suspended"; mode: string | null; eventCount: number };
 
 defineProps<{ poolSize: number; poolWeight: number; versions: EventVersion[]; saving: string | null }>();
 const emit = defineEmits<{ toggle: [version: EventVersion, availability: EventVersion["availability"]] }>();
@@ -14,6 +14,7 @@ const emit = defineEmits<{ toggle: [version: EventVersion, availability: EventVe
         <button type="button" class="pool-summary__version pressable-soft" :class="{ 'is-off': version.availability === 'suspended' }" :disabled="saving !== null" :aria-pressed="version.availability === 'available'" :aria-label="`${version.availability === 'available' ? '挂起' : '恢复'}版本 ${version.gameVersion}`" @click="emit('toggle', version, version.availability === 'available' ? 'suspended' : 'available')">
           <i aria-hidden="true" />{{ version.gameVersion }}<span v-if="version.availability === 'suspended'" class="pool-summary__state">已挂起</span>
         </button>
+        <NuxtLink v-if="version.mode" to="/admin/modes" class="pool-summary__mode" :aria-label="`${version.gameVersion} 属于独立模式 ${version.mode}`">仅 {{ version.mode }}</NuxtLink>
       </li>
     </ul>
   </section>
@@ -29,6 +30,8 @@ const emit = defineEmits<{ toggle: [version: EventVersion, availability: EventVe
 .pool-summary__version.is-off { color: var(--quiet); }
 .pool-summary__version.is-off i { background: var(--warning); }
 .pool-summary__version.is-off { text-decoration: line-through; }
+.pool-summary__versions li { display: inline-flex; align-items: center; gap: var(--space-1); }
+.pool-summary__mode { color: var(--muted); font-size: var(--type-caption-size); }
 .pool-summary__state { margin-left: var(--space-1); text-decoration: none; display: inline-block; color: var(--warning); font-size: var(--type-caption-size); }
 @container (max-width: 39.99rem) { .pool-summary__versions { margin-left: 0; } }
 </style>

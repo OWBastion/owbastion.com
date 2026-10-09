@@ -224,12 +224,13 @@ export const mapChallengeSchema = z.object({
 // exclusive with screenshot submission modes and with scope: "map" projection.
 export const achievementProgressRuleSchema = z.object({
   type: z.literal("required_maps_completed"),
-  mapIds: z.array(externalId).min(1).max(256),
+  // Omitted with a mode: every map of that standalone mode, following its map list.
+  mapIds: z.array(externalId).min(1).max(256).optional(),
   difficultyAtLeast: z.string().trim().min(1).max(64).optional(),
   // Counts only runs on Gameplay Revisions of this standalone mode (e.g. 2026镜中回响);
   // without it only regular-mode runs count.
   mode: z.string().trim().min(1).max(64).optional(),
-}).strict();
+}).strict().refine((rule) => rule.mapIds || rule.mode, { message: "A progress rule needs maps or a standalone mode", path: ["mapIds"] });
 
 export const achievementChallengeSchema = z.object({
   challengeId: externalId,
@@ -472,9 +473,29 @@ export const adminRandomEventBatchRequestSchema = z.object({ contractVersion, up
   .refine((request) => new Set(request.updates.map((update) => update.eventId)).size === request.updates.length, "Each event may appear once");
 export const adminRandomEventBatchResponseSchema = z.object({ contractVersion, items: z.array(randomEventSchema) });
 export const adminRandomEventImportRequestSchema = z.object({ contractVersion, fileName: z.string().trim().min(1).max(256), csv: z.string().min(1).max(512 * 1024) }).strict();
-export const randomEventVersionSchema = z.object({ gameVersion: z.string().trim().min(1).max(64), availability: randomEventVersionAvailability, eventCount: z.number().int().nonnegative() }).strict();
+// mode names the standalone mode whose build owns this pool (set from that mode); null is the regular build.
+export const randomEventVersionSchema = z.object({ gameVersion: z.string().trim().min(1).max(64), availability: randomEventVersionAvailability, mode: z.string().nullable(), eventCount: z.number().int().nonnegative() }).strict();
 export const adminRandomEventVersionListResponseSchema = z.object({ contractVersion, items: z.array(randomEventVersionSchema) }).strict();
 export const adminRandomEventVersionAvailabilityRequestSchema = z.object({ contractVersion, availability: randomEventVersionAvailability }).strict();
+
+// A standalone mode is configured in one place: its maps (each played on the mode's own selectable
+// Gameplay Revision, created and retired by the platform), the event pools its build owns, and the
+// run-code event-weight total of that build.
+export const adminStandaloneModeSchema = z.object({
+  mode: z.string(),
+  mapIds: z.array(externalId).max(128),
+  eventPools: z.array(z.string()).max(32),
+  eventWeightTotal: z.number().nullable(),
+  createdAt: z.number().int(),
+  updatedAt: z.number().int(),
+}).strict();
+export const adminStandaloneModeListResponseSchema = z.object({ contractVersion, items: z.array(adminStandaloneModeSchema).max(64) }).strict();
+export const adminStandaloneModeUpsertRequestSchema = z.object({
+  contractVersion,
+  mapIds: z.array(externalId).max(128),
+  eventPools: z.array(z.string().trim().min(1).max(64)).max(32),
+  eventWeightTotal: z.number().min(0).max(99.99).nullable(),
+}).strict();
 
 export const reviewTargetTypeSchema = z.enum(["event", "map"]);
 export const reviewTargetSchema = z.discriminatedUnion("targetType", [
@@ -599,7 +620,6 @@ export const adminMapRevisionCreateRequestSchema = z.object({
   resetReason: z.string().trim().max(512).transform((value) => value || null).nullable().optional(),
   gameVersion: z.string().trim().min(1).max(64).optional(),
   mapVariant: z.literal("classic").nullable(),
-  mode: z.string().trim().min(1).max(64).nullable().optional(),
   copyConfiguration: z.boolean(),
   spatialConfig: agentSpatialConfigSchema.nullable().optional(),
   challengeAssignments: z.array(adminMapRevisionChallengeAssignmentInputSchema).max(256).optional(),
@@ -609,7 +629,6 @@ export const adminMapRevisionUpdateRequestSchema = z.object({
   lifecycle: adminMapRevisionLifecycle,
   gameVersion: z.string().trim().min(1).max(64),
   mapVariant: z.literal("classic").nullable(),
-  mode: z.string().trim().min(1).max(64).nullable().optional(),
   spatialConfig: agentSpatialConfigSchema.nullable(),
   challengeAssignments: z.array(adminMapRevisionChallengeAssignmentInputSchema).max(256),
 }).strict();
@@ -1072,7 +1091,7 @@ export const adminSubmissionReviewPreviewResponseSchema = z.object({
   }).strict(),
   approvable: z.boolean(),
   blockingCode: z.string().nullable(),
-  // Standalone modes with a configured Gameplay Revision, offered when correcting the mode.
+  // The configured Standalone Modes, offered when correcting the mode.
   knownModes: z.array(z.string()).max(64),
 }).strict();
 export const adminSubmissionReviewResponseSchema = z.object({
@@ -1689,6 +1708,9 @@ export type AdminRandomEventImportRequest = z.infer<typeof adminRandomEventImpor
 export type RandomEventVersion = z.infer<typeof randomEventVersionSchema>;
 export type AdminRandomEventVersionListResponse = z.infer<typeof adminRandomEventVersionListResponseSchema>;
 export type AdminRandomEventVersionAvailabilityRequest = z.infer<typeof adminRandomEventVersionAvailabilityRequestSchema>;
+export type AdminStandaloneMode = z.infer<typeof adminStandaloneModeSchema>;
+export type AdminStandaloneModeListResponse = z.infer<typeof adminStandaloneModeListResponseSchema>;
+export type AdminStandaloneModeUpsertRequest = z.infer<typeof adminStandaloneModeUpsertRequestSchema>;
 export type AdminMapMetadataUpdateRequest = z.infer<typeof adminMapMetadataUpdateRequestSchema>;
 export type AdminMapRevisionChallengeAssignment = z.infer<typeof adminMapRevisionChallengeAssignmentSchema>;
 export type AdminMapRevisionCreateRequest = z.infer<typeof adminMapRevisionCreateRequestSchema>;

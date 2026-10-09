@@ -127,9 +127,16 @@ export const randomEvents = sqliteTable("random_events", {
   gameVersion: text("game_version").notNull(), effectTagsJson: text("effect_tags_json").notNull().default("[]"), eventGroup: text("event_group"),
   releaseStatus: text("release_status").notNull(), archivedAt: integer("archived_at"), archivedBy: text("archived_by"), createdAt: integer("created_at").notNull(), updatedAt: integer("updated_at").notNull(),
 });
+export const standaloneModes = sqliteTable("standalone_modes", {
+  mode: text("mode").primaryKey(),
+  eventWeightTotal: real("event_weight_total"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
 export const randomEventVersions = sqliteTable("random_event_versions", {
   gameVersion: text("game_version").primaryKey(),
   availability: text("availability").notNull().default("available"),
+  mode: text("mode"),
   suspendedAt: integer("suspended_at"),
   suspendedBy: text("suspended_by"),
   createdAt: integer("created_at").notNull(),

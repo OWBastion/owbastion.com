@@ -3,11 +3,11 @@ import { count, desc, eq, and, gt, gte, like, or, inArray, isNull, isNotNull, ne
 import { drizzle } from "drizzle-orm/d1";
 import { alias } from "drizzle-orm/sqlite-core";
 import { createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, passkeyUserHandleMatches, verifyPasskeyAuthentication, verifyPasskeyRegistration } from "@owbastion/auth";
-import { buildMasteryProfiles, calculateVerifiedRunXpV2, difficultyAtLeastSatisfied, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, normalizeGameMode, parseCanonicalChallengeConditions, parseChallengeProgressRule, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
+import { buildMasteryProfiles, calculateVerifiedRunXpV2, difficultyAtLeastSatisfied, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, normalizeGameMode, eventWeightTotalCode, runCodeEventWeightTotal, parseCanonicalChallengeConditions, parseChallengeProgressRule, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
 import type { AdminVerifiedRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, ChallengeCondition, ChallengeProgressRule, VerifiedRunDifficulty, VerifiedRunEventCounters, VerifiedRunEvidenceCompatibilityV1, MasteryMapProfile, VerifiedRunActor, VerifiedRunConflictField, VerifiedRunForProjection, VerifiedRunXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
-import type { AdminRandomEventBatchRequest, AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerChallengeProgressListResponse, PlayerSubmissionStatus, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, QqScreenshotSubmissionRequest, QqScreenshotSubmissionResponse, RandomEvent, RandomEventVersion, ScreenshotSetStatus, Title } from "@owbastion/contracts";
-import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, challengeCompletions, challengeSatisfies, challenges, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrAccuracyFeedback, ocrResults, passkeyChallenges, passkeyCredentials, passkeyRecoveryGrants, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, portalSessions, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, reviews, screenshotSetMembers, screenshotSets, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions, verifiedRunConflictResolutions, verifiedRunLifecycleEvents, verifiedRuns } from "./schema";
+import type { AdminRandomEventBatchRequest, AdminStandaloneMode, AdminStandaloneModeListResponse, AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerChallengeProgressListResponse, PlayerSubmissionStatus, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, QqScreenshotSubmissionRequest, QqScreenshotSubmissionResponse, RandomEvent, RandomEventVersion, ScreenshotSetStatus, Title } from "@owbastion/contracts";
+import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, challengeCompletions, challengeSatisfies, challenges, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrAccuracyFeedback, ocrResults, passkeyChallenges, passkeyCredentials, passkeyRecoveryGrants, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, portalSessions, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, reviews, standaloneModes, screenshotSetMembers, screenshotSets, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions, verifiedRunConflictResolutions, verifiedRunLifecycleEvents, verifiedRuns } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { fetchQqAttachmentImage } from "./qq-attachment";
 import { matchOcrAgainstChallenges, type AutoMatchCandidate, type CanonicalOcrChallenge } from "./ocr-auto-match";
@@ -2913,8 +2913,30 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   // eligibility window (Submission timestamps carry the event-time fact;
   // review may complete after the window closes). Screenshot/OCR evidence is
   // never consulted.
+  const assertProgressRuleTargets = async (rule: { mapIds?: string[]; mode?: string }) => {
+    if (rule.mapIds) {
+      const requiredMapIds = [...new Set(rule.mapIds)];
+      const requiredMaps = await db.select({ id: maps.id, status: maps.status }).from(maps).where(inArray(maps.id, requiredMapIds));
+      if (requiredMaps.length !== requiredMapIds.length) throw new Error("MAP_NOT_FOUND");
+      if (requiredMaps.some((map) => map.status !== "active")) throw new Error("MAP_NOT_ACTIVE");
+    }
+    const mode = normalizeGameMode(rule.mode);
+    if (mode && !await db.select({ mode: standaloneModes.mode }).from(standaloneModes).where(eq(standaloneModes.mode, mode)).get()) throw new Error("STANDALONE_MODE_NOT_FOUND");
+  };
+
+  // The maps a standalone mode currently plays are its selectable Gameplay Revisions.
+  const standaloneModeMapIds = async (modes: readonly string[]) => {
+    const rows = modes.length ? await db.select({ mode: gameplayRevisions.mode, mapId: gameplayRevisions.mapId }).from(gameplayRevisions)
+      .where(and(inArray(gameplayRevisions.mode, [...modes]), eq(gameplayRevisions.lifecycle, "selectable"))) : [];
+    return new globalThis.Map(modes.map((mode) => [mode, rows.filter((row) => row.mode === mode).map((row) => row.mapId).sort()]));
+  };
+  // A rule without its own map list follows every map of its standalone mode.
+  const progressRuleMapIds = async (rule: ChallengeProgressRule) =>
+    [...new Set(rule.mapIds ?? (rule.mode ? (await standaloneModeMapIds([rule.mode])).get(rule.mode) ?? [] : []))];
+
   const loadEligibleProgressRunMaps = async (input: { playerAccountId: string; rule: ChallengeProgressRule; startsAt: number | null; endsAt: number | null }) => {
-    const requiredMapIds = [...new Set(input.rule.mapIds)];
+    const requiredMapIds = await progressRuleMapIds(input.rule);
+    if (!requiredMapIds.length) return { completed: new Set<string>(), satisfied: false };
     const rows = await db.select({ mapId: verifiedRuns.mapId, difficulty: verifiedRuns.difficulty })
       .from(verifiedRuns)
       .innerJoin(submissions, eq(verifiedRuns.sourceSubmissionId, submissions.id))
@@ -3093,10 +3115,11 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       gameplayRevisionId: null,
       timestamp,
     }));
+    const requiredMapIds = await progressRuleMapIds(input.rule);
     const [runPlayers, completionPlayers] = await Promise.all([
-      db.selectDistinct({ playerAccountId: verifiedRuns.playerAccountId })
+      requiredMapIds.length ? db.selectDistinct({ playerAccountId: verifiedRuns.playerAccountId })
         .from(verifiedRuns)
-        .where(and(eq(verifiedRuns.status, "active"), inArray(verifiedRuns.mapId, input.rule.mapIds))),
+        .where(and(eq(verifiedRuns.status, "active"), inArray(verifiedRuns.mapId, requiredMapIds))) : Promise.resolve([] as Array<{ playerAccountId: string }>),
       db.selectDistinct({ playerAccountId: challengeCompletions.playerAccountId })
         .from(challengeCompletions)
         .innerJoin(challenges, eq(challengeCompletions.challengeId, challenges.id))
@@ -4282,9 +4305,44 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
   };
 
+  // The regular build's event catalog is the platform's implemented, unsuspended events outside any
+  // standalone mode's pools. A standalone mode's build may also return or disable regular events, so
+  // its total is the one recorded on the mode. Null when no total applies: an empty catalog, an unset
+  // event weight, or a mode without a recorded total.
+  const expectedRunCodeEventWeight = async (mode: string | null) => {
+    if (mode) {
+      const total = (await db.select({ total: standaloneModes.eventWeightTotal }).from(standaloneModes).where(eq(standaloneModes.mode, mode)).get())?.total ?? null;
+      return total === null ? null : eventWeightTotalCode([total]);
+    }
+    const rows = await db.select({ weight: randomEvents.weight, poolMode: randomEventVersions.mode, availability: randomEventVersions.availability })
+      .from(randomEvents)
+      .leftJoin(randomEventVersions, eq(randomEventVersions.gameVersion, randomEvents.gameVersion))
+      .where(and(eq(randomEvents.releaseStatus, "implemented"), isNull(randomEvents.archivedAt)));
+    const pool = rows.filter((row) => row.availability !== "suspended" && row.poolMode === null);
+    return !pool.length || pool.some((row) => row.weight === null) ? null : eventWeightTotalCode(pool.map((row) => row.weight!));
+  };
+
+  // A run code whose embedded event-weight total differs from the build's pools by more than the
+  // tolerance means the room's weights were changed; the tolerance absorbs small drift between platform
+  // weights and the deployed build. Unreadable codes, builds before the embedding, and unset weights are
+  // not checked.
+  const runCodeEventWeightTolerance = 50; // ±0.50 of total event weight, in run-code units
+  const assessRunCodeEventWeight = async (response: OcrResponse) => {
+    if (!hasReliableMasteryField(response, "run_code", masteryEvidenceCompatibility) || !hasReliableMasteryField(response, "version", masteryEvidenceCompatibility)) return null;
+    let read: number | null;
+    try {
+      read = runCodeEventWeightTotal(String(response.data?.run_code ?? ""), String(response.data?.version ?? ""));
+    } catch {
+      return null;
+    }
+    if (read === null) return null;
+    const expected = await expectedRunCodeEventWeight(standaloneOcrMode(response));
+    return expected === null ? null : { read, expected };
+  };
+
   // A non-regular mode label is trusted only when an administrator has configured that mode;
   // anything else is most likely a misread of the regular label and needs a maintainer.
-  const isKnownStandaloneMode = async (mode: string) => Boolean(await db.select({ id: gameplayRevisions.id }).from(gameplayRevisions).where(eq(gameplayRevisions.mode, mode)).get());
+  const isKnownStandaloneMode = async (mode: string) => Boolean(await db.select({ mode: standaloneModes.mode }).from(standaloneModes).where(eq(standaloneModes.mode, mode)).get());
 
   const completeOcrResult = async (row: typeof submissions.$inferSelect, result: OcrResponse, input: { attempt: number; manual: boolean; requestId: string }) => {
     const ocrRequestId = input.requestId;
@@ -4297,6 +4355,15 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       if (mode && !await isKnownStandaloneMode(mode)) {
         await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ unknownMode: mode }), nextStatus: "ocr_review_required", reviewReason: "无法识别截图所在的游戏模式，请人工核对", incrementFailCount: false });
         logOcrEvent("job_completed", { ...context, outcome: "unknown_mode", mode, durationMs: Date.now() - startedAt });
+        return;
+      }
+      stage = "check_run_code_event_weight";
+      const runCodeEventWeight = await assessRunCodeEventWeight(result);
+      if (runCodeEventWeight && Math.abs(runCodeEventWeight.read - runCodeEventWeight.expected) > runCodeEventWeightTolerance) {
+        // Nothing is granted or recorded from a run whose weights were changed; a maintainer decides.
+        // The player-visible reason stays generic; the values stay in maintainer-only match evidence.
+        await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ runCodeEventWeight }), nextStatus: "ocr_review_required", reviewReason: "无法通过成就挑战校验", incrementFailCount: false });
+        logOcrEvent("job_completed", { ...context, outcome: "run_code_event_weight_mismatch", ...runCodeEventWeight, durationMs: Date.now() - startedAt });
         return;
       }
       stage = "resolve_auto_candidates";
@@ -4767,10 +4834,11 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         gameVersion: randomEvents.gameVersion,
         eventCount: count(randomEvents.id),
         availability: sql<string>`coalesce(${randomEventVersions.availability}, 'available')`,
+        mode: randomEventVersions.mode,
       }).from(randomEvents).leftJoin(randomEventVersions, eq(randomEventVersions.gameVersion, randomEvents.gameVersion))
-        .groupBy(randomEvents.gameVersion, randomEventVersions.availability)
+        .groupBy(randomEvents.gameVersion, randomEventVersions.availability, randomEventVersions.mode)
         .orderBy(desc(randomEvents.gameVersion));
-      return { contractVersion: "1", items: rows.map((row) => ({ gameVersion: row.gameVersion, availability: row.availability as RandomEventVersion["availability"], eventCount: Number(row.eventCount) })) };
+      return { contractVersion: "1", items: rows.map((row) => ({ gameVersion: row.gameVersion, availability: row.availability as RandomEventVersion["availability"], mode: row.mode ?? null, eventCount: Number(row.eventCount) })) };
     },
     async updateAdminRandomEventVersion(input, auth, idempotencyKey): Promise<RandomEventVersion> {
       const operation = "admin.random-event-version.availability";
@@ -4780,13 +4848,87 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       if (!eventCount) throw new Error("EVENT_VERSION_NOT_FOUND");
       const previous = await db.select().from(randomEventVersions).where(eq(randomEventVersions.gameVersion, input.gameVersion)).get();
       const timestamp = now();
-      const response: RandomEventVersion = { gameVersion: input.gameVersion, availability: input.availability, eventCount };
+      // The pool's standalone mode is set from that mode, never here.
+      const response: RandomEventVersion = { gameVersion: input.gameVersion, availability: input.availability, mode: previous?.mode ?? null, eventCount };
       const requestHash = await hashRequest(input);
       await database.batch([
         database.prepare("INSERT INTO random_event_versions (game_version, availability, suspended_at, suspended_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(game_version) DO UPDATE SET availability = excluded.availability, suspended_at = excluded.suspended_at, suspended_by = excluded.suspended_by, updated_at = excluded.updated_at").bind(input.gameVersion, input.availability, input.availability === "suspended" ? timestamp : null, input.availability === "suspended" ? auth.subject : null, timestamp, timestamp),
         database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(`${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, requestHash, JSON.stringify(response), timestamp),
         database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, "random_event_version", input.gameVersion, JSON.stringify({ previousAvailability: previous?.availability ?? "available", availability: input.availability, eventCount }), timestamp),
       ]);
+      return response;
+    },
+    async listAdminStandaloneModes(_auth): Promise<AdminStandaloneModeListResponse> {
+      const [modes, revisions, pools] = await Promise.all([
+        db.select().from(standaloneModes).orderBy(desc(standaloneModes.createdAt)),
+        db.select({ mode: gameplayRevisions.mode, mapId: gameplayRevisions.mapId }).from(gameplayRevisions).where(and(isNotNull(gameplayRevisions.mode), eq(gameplayRevisions.lifecycle, "selectable"))),
+        db.select({ mode: randomEventVersions.mode, gameVersion: randomEventVersions.gameVersion }).from(randomEventVersions).where(isNotNull(randomEventVersions.mode)),
+      ]);
+      return { contractVersion: "1", items: modes.map((row) => ({
+        mode: row.mode,
+        mapIds: revisions.filter((revision) => revision.mode === row.mode).map((revision) => revision.mapId).sort(),
+        eventPools: pools.filter((pool) => pool.mode === row.mode).map((pool) => pool.gameVersion).sort(),
+        eventWeightTotal: row.eventWeightTotal,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      })) };
+    },
+    // Saving a standalone mode is its whole setup: each listed map gets the mode's own selectable
+    // Gameplay Revision (created without a spatial config, which only Bastion's regular build needs),
+    // maps no longer listed have theirs retired to historical (runs and grants on it stay valid), the
+    // listed event pools move to the mode, and progress rules that follow the mode are reconciled.
+    async upsertAdminStandaloneMode(input, auth, idempotencyKey): Promise<AdminStandaloneMode> {
+      const operation = "admin.standalone-mode.upsert";
+      const replay = await replayOrConflict<AdminStandaloneMode>(db, auth.subject, operation, idempotencyKey, input);
+      if (replay) return replay;
+      const mode = normalizeGameMode(input.mode);
+      if (!mode || mode.includes("随机事件")) throw new Error("STANDALONE_MODE_INVALID");
+      const mapIds = [...new Set(input.mapIds)].sort();
+      const eventPools = [...new Set(input.eventPools)].sort();
+      const [mapRows, poolRows, poolOwners, modeRevisions, previous] = await Promise.all([
+        mapIds.length ? db.select({ id: maps.id, status: maps.status }).from(maps).where(inArray(maps.id, mapIds)) : Promise.resolve([] as Array<{ id: string; status: string }>),
+        eventPools.length ? db.selectDistinct({ gameVersion: randomEvents.gameVersion }).from(randomEvents).where(inArray(randomEvents.gameVersion, eventPools)) : Promise.resolve([] as Array<{ gameVersion: string }>),
+        eventPools.length ? db.select({ gameVersion: randomEventVersions.gameVersion, mode: randomEventVersions.mode }).from(randomEventVersions).where(inArray(randomEventVersions.gameVersion, eventPools)) : Promise.resolve([] as Array<{ gameVersion: string; mode: string | null }>),
+        db.select({ id: gameplayRevisions.id, mapId: gameplayRevisions.mapId, lifecycle: gameplayRevisions.lifecycle }).from(gameplayRevisions).where(eq(gameplayRevisions.mode, mode)),
+        db.select().from(standaloneModes).where(eq(standaloneModes.mode, mode)).get(),
+      ]);
+      if (mapRows.length !== mapIds.length) throw new Error("MAP_NOT_FOUND");
+      if (mapRows.some((map) => map.status !== "active")) throw new Error("MAP_NOT_ACTIVE");
+      if (poolRows.length !== eventPools.length) throw new Error("EVENT_VERSION_NOT_FOUND");
+      if (poolOwners.some((pool) => pool.mode !== null && pool.mode !== mode)) throw new Error("STANDALONE_MODE_POOL_CONFLICT");
+
+      const timestamp = now();
+      const listed = new Set(mapIds);
+      const revisionByMap = new globalThis.Map(modeRevisions.map((revision) => [revision.mapId, revision]));
+      const statements: D1PreparedStatement[] = [
+        database.prepare("INSERT INTO standalone_modes (mode, event_weight_total, created_at, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(mode) DO UPDATE SET event_weight_total = excluded.event_weight_total, updated_at = excluded.updated_at").bind(mode, input.eventWeightTotal, timestamp, timestamp),
+      ];
+      for (const mapId of mapIds) {
+        const revision = revisionByMap.get(mapId);
+        if (!revision) {
+          statements.push(database.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, mode, copied_from_revision_id, reset_reason, game_version, spatial_config_json, created_at, updated_at) VALUES (?, ?, 'selectable', NULL, ?, NULL, NULL, ?, NULL, ?, ?)").bind(`revision:${mapId}:${crypto.randomUUID()}`, mapId, mode, formatCurrentGameVersion(timestamp), timestamp, timestamp));
+        } else if (revision.lifecycle !== "selectable") {
+          statements.push(database.prepare("UPDATE gameplay_revisions SET lifecycle = 'selectable', updated_at = ? WHERE id = ?").bind(timestamp, revision.id));
+        }
+      }
+      for (const revision of modeRevisions) {
+        if (!listed.has(revision.mapId) && revision.lifecycle === "selectable") {
+          statements.push(database.prepare("UPDATE gameplay_revisions SET lifecycle = 'historical', updated_at = ? WHERE id = ?").bind(timestamp, revision.id));
+        }
+      }
+      statements.push(database.prepare("UPDATE random_event_versions SET mode = NULL, updated_at = ? WHERE mode = ? AND game_version NOT IN (SELECT value FROM json_each(?))").bind(timestamp, mode, JSON.stringify(eventPools)));
+      for (const pool of eventPools) {
+        statements.push(database.prepare("INSERT INTO random_event_versions (game_version, availability, mode, created_at, updated_at) VALUES (?, 'available', ?, ?, ?) ON CONFLICT(game_version) DO UPDATE SET mode = excluded.mode, updated_at = excluded.updated_at").bind(pool, mode, timestamp, timestamp));
+      }
+      const response: AdminStandaloneMode = { mode, mapIds, eventPools, eventWeightTotal: input.eventWeightTotal, createdAt: previous?.createdAt ?? timestamp, updatedAt: timestamp };
+      statements.push(
+        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(`${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, await hashRequest(input), JSON.stringify(response), timestamp),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, "standalone_mode", mode, JSON.stringify({ previousEventWeightTotal: previous?.eventWeightTotal ?? null, eventWeightTotal: input.eventWeightTotal, previousMapIds: modeRevisions.filter((revision) => revision.lifecycle === "selectable").map((revision) => revision.mapId).sort(), mapIds, eventPools }), timestamp),
+      );
+      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      for (const { challenge, rule } of await loadProgressChallenges()) {
+        if (rule.mode === mode && !rule.mapIds) await reconcileProgressChallengePlayers({ challenge, rule, actorId: auth.subject });
+      }
       return response;
     },
     async createAdminRandomEvent(input, auth, idempotencyKey) {
@@ -4925,13 +5067,11 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         const existingClassic = await db.select({ id: gameplayRevisions.id }).from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.legacyMapVariant, "classic"))).get();
         if (existingClassic) throw new Error("LEGACY_VARIANT_CONFLICT");
       }
-      const mode = normalizeGameMode(input.mode);
-      await assertRevisionMode(input.mapId, null, "preparing", input.mapVariant, mode);
 
       const timestamp = now();
       const revisionId = `revision:${input.mapId}:${crypto.randomUUID()}`;
-      const statements = [database.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, mode, copied_from_revision_id, reset_reason, game_version, spatial_config_json, created_at, updated_at) VALUES (?, ?, 'preparing', ?, ?, ?, ?, ?, ?, ?, ?)").bind(
-        revisionId, input.mapId, input.mapVariant, mode, source?.id ?? input.sourceRevisionId ?? null, resetReason, gameVersion, spatialConfig ? JSON.stringify(spatialConfig) : null, timestamp, timestamp,
+      const statements = [database.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, spatial_config_json, created_at, updated_at) VALUES (?, ?, 'preparing', ?, ?, ?, ?, ?, ?, ?)").bind(
+        revisionId, input.mapId, input.mapVariant, source?.id ?? input.sourceRevisionId ?? null, resetReason, gameVersion, spatialConfig ? JSON.stringify(spatialConfig) : null, timestamp, timestamp,
       )];
       for (const assignment of assignments) {
         statements.push(database.prepare("INSERT INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, condition, evidence_rule, submission_mode, slot, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(
@@ -4960,7 +5100,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       if (!current) throw new Error("REVISION_NOT_FOUND");
       if ((current.lifecycle === "default") !== (input.lifecycle === "default")) throw new Error("REVISION_PROMOTION_REQUIRES_EXPLICIT_OPERATION");
       assertRevisionLifecycle(current.lifecycle, input.lifecycle);
-      const mode = input.mode === undefined ? current.mode : normalizeGameMode(input.mode);
+      // A revision's standalone mode is managed from that mode, not edited here.
+      const mode = current.mode;
       const spatialConfig = assertRevisionConfiguration(input.lifecycle, input.mapVariant, input.spatialConfig, mode);
       const currentAssignments = await db.select().from(gameplayRevisionChallengeAssignments)
         .where(eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, input.revisionId));
@@ -5394,10 +5535,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       if (input.progressRule) {
         if (input.scope !== "global") throw new Error("INVALID_MAP_SCOPE");
         if (input.submissionMode !== "manual") throw new Error("INVALID_SUBMISSION_MODE");
-        const requiredMapIds = [...new Set(input.progressRule.mapIds)];
-        const requiredMaps = await db.select({ id: maps.id, status: maps.status }).from(maps).where(inArray(maps.id, requiredMapIds));
-        if (requiredMaps.length !== requiredMapIds.length) throw new Error("MAP_NOT_FOUND");
-        if (requiredMaps.some((map) => map.status !== "active")) throw new Error("MAP_NOT_ACTIVE");
+        await assertProgressRuleTargets(input.progressRule);
       }
       const targetMapIds = [...new Set(input.mapIds)];
       if (input.scope === "global" && targetMapIds.length) throw new Error("INVALID_MAP_SCOPE");
@@ -5503,12 +5641,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           if (input.submissionMode !== "manual") throw new Error("INVALID_SUBMISSION_MODE");
           // Map existence is only re-validated when the rule itself changes;
           // drift (a required map retired later) must not block unrelated edits.
-          if (input.progressRule !== undefined) {
-            const requiredMapIds = [...new Set(progressRule.mapIds)];
-            const requiredMaps = await db.select({ id: maps.id, status: maps.status }).from(maps).where(inArray(maps.id, requiredMapIds));
-            if (requiredMaps.length !== requiredMapIds.length) throw new Error("MAP_NOT_FOUND");
-            if (requiredMaps.some((map) => map.status !== "active")) throw new Error("MAP_NOT_ACTIVE");
-          }
+          if (input.progressRule !== undefined) await assertProgressRuleTargets(progressRule);
         }
         const mapIds = input.mapIds !== undefined ? [...new Set(input.mapIds)] : (scope === "map" ? (await db.select({ mapId: achievementChallengeMaps.mapId }).from(achievementChallengeMaps).where(eq(achievementChallengeMaps.challengeId, row.challenge.id))).map(({ mapId }) => mapId) : []);
         if (scope === "global" && mapIds.length) throw new Error("INVALID_MAP_SCOPE");
@@ -6859,7 +6992,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         verifiedRun,
         approvable: blockingCode === null,
         blockingCode,
-        knownModes: (await db.selectDistinct({ mode: gameplayRevisions.mode }).from(gameplayRevisions).where(isNotNull(gameplayRevisions.mode)).orderBy(gameplayRevisions.mode)).map((row) => row.mode!),
+        knownModes: (await db.select({ mode: standaloneModes.mode }).from(standaloneModes).orderBy(standaloneModes.mode)).map((row) => row.mode),
       };
     },
 
@@ -7554,6 +7687,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, timestamp, challenge.gameVersion);
         return rule && status ? [{ challenge, title, rule, status }] : [];
       });
+      const modeMapIds = await standaloneModeMapIds([...new Set(visibleChallenges.flatMap(({ rule }) => !rule.mapIds && rule.mode ? [rule.mode] : []))]);
+      const ruleMapIds = new Map(visibleChallenges.map(({ challenge, rule }) => [challenge.id, rule.mapIds ?? (rule.mode ? modeMapIds.get(rule.mode) ?? [] : [])]));
       // CROSS JOIN keeps the small rule/map inputs ahead of the indexed run
       // lookup, instead of scanning all of a player's runs for each rule.
       const eligibleRunMaps = visibleChallenges.length ? (await database.prepare(`
@@ -7567,7 +7702,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           AND (json_extract(rule.value, '$.startsAt') IS NULL OR submission.created_at >= json_extract(rule.value, '$.startsAt'))
           AND (json_extract(rule.value, '$.endsAt') IS NULL OR submission.created_at < json_extract(rule.value, '$.endsAt'))
       `).bind(JSON.stringify(visibleChallenges.map(({ challenge, rule }) => ({
-        challengeId: challenge.id, mapIds: rule.mapIds, mode: rule.mode ?? null, startsAt: challenge.startsAt, endsAt: challenge.endsAt,
+        challengeId: challenge.id, mapIds: ruleMapIds.get(challenge.id), mode: rule.mode ?? null, startsAt: challenge.startsAt, endsAt: challenge.endsAt,
       }))), access.player.id).all<{ challengeId: string; mapId: string; difficulty: string }>()).results : [];
       const runsByChallenge = new Map<string, Array<{ mapId: string; difficulty: string }>>();
       for (const run of eligibleRunMaps) {
@@ -7589,9 +7724,9 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           ...(challenge.startsAt !== null ? { startsAt: challenge.startsAt } : {}),
           ...(challenge.endsAt !== null ? { endsAt: challenge.endsAt } : {}),
           progressRule: rule,
-          maps: rule.mapIds.map((mapId) => ({ mapId, completed: completed.has(mapId) })),
+          maps: ruleMapIds.get(challenge.id)!.map((mapId) => ({ mapId, completed: completed.has(mapId) })),
           completedMaps: completed.size,
-          satisfied: rule.mapIds.every((mapId) => completed.has(mapId)),
+          satisfied: ruleMapIds.get(challenge.id)!.length > 0 && ruleMapIds.get(challenge.id)!.every((mapId) => completed.has(mapId)),
         };
       });
       return { contractVersion: "1" as const, items };

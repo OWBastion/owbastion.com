@@ -12,7 +12,7 @@ definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "事件管理 · 躲避堡垒 3" });
 
 type ImportPreview = { sourceHash: string; validRowCount: number; errors: Array<{ row: number; message: string }>; rows: Array<{ name: string; category: string; releaseStatus: string }> };
-type EventVersion = { gameVersion: string; availability: "available" | "suspended"; eventCount: number };
+type EventVersion = { gameVersion: string; availability: "available" | "suspended"; mode: string | null; eventCount: number };
 type StatusFilter = RandomEvent["releaseStatus"] | "all";
 const NO_GROUP = "__none";
 
@@ -43,9 +43,11 @@ const error = shallowRef("");
 
 const suspended = computed(() => new Set(versions.value.filter((version) => version.availability === "suspended").map((version) => version.gameVersion)));
 const effective = computed(() => applyDraft(events.value, draft.value));
-const baseProbabilities = computed(() => calculatePoolProbabilities(events.value, suspended.value));
-const nextProbabilities = computed(() => calculatePoolProbabilities(effective.value, suspended.value));
-const pool = computed(() => effective.value.filter((event) => event.releaseStatus === "implemented" && !event.archived && !suspended.value.has(event.gameVersion)));
+// Pools a standalone mode owns are not in the regular build, like suspended ones.
+const outsideRegularPool = computed(() => new Set([...suspended.value, ...versions.value.filter((version) => version.mode).map((version) => version.gameVersion)]));
+const baseProbabilities = computed(() => calculatePoolProbabilities(events.value, outsideRegularPool.value));
+const nextProbabilities = computed(() => calculatePoolProbabilities(effective.value, outsideRegularPool.value));
+const pool = computed(() => effective.value.filter((event) => event.releaseStatus === "implemented" && !event.archived && !outsideRegularPool.value.has(event.gameVersion)));
 const poolWeight = computed(() => pool.value.reduce((total, event) => total + (event.weight ?? 0), 0));
 const groups = computed(() => [...new Set(effective.value.map((event) => event.eventGroup).filter((group): group is string => Boolean(group)))].sort((left, right) => left.localeCompare(right, "zh-CN")));
 const categories = computed(() => [...new Set(effective.value.map((event) => event.category))].sort());

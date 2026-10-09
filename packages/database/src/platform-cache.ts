@@ -215,6 +215,7 @@ const CATALOG_TABLES = new Set([
   "achievement_challenge_maps",
   "random_events",
   "random_event_versions",
+  "standalone_modes",
   "random_event_map_challenges",
   "random_event_title_challenges",
   "random_event_imports",

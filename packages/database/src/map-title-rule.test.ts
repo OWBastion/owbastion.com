@@ -241,74 +241,70 @@ describe("Agents map projection readiness", () => {
     }, auth, "promote-legacy-composite")).rejects.toThrow("INVALID_SPATIAL_CONFIG");
   });
 
-  it("keeps a standalone-mode revision selectable, unique per map, and off the classic variant", async () => {
+  it("sets up a standalone mode's maps, event pools, and weight total in one save", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
-    seedMap(sqlite, "map.mode");
-    seedAgentSpatialConfig(sqlite, "revision:map.mode:initial");
+    for (const mapId of ["map.mode", "map.second"]) {
+      seedMap(sqlite, mapId);
+      seedAgentSpatialConfig(sqlite, `revision:${mapId}:initial`);
+    }
+    sqlite.prepare("INSERT INTO random_events (id, name, category, rarity, description, weight, game_version, release_status, created_at, updated_at) VALUES ('event.anniversary', '周年事件', '增益', 'N', '描述', 1, '2026周年', 'implemented', ?, ?)").run(now, now);
     const services = createPlatformServices(database);
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
-    const create = (mode: string, mapVariant: "classic" | null, key: string) => services.createAdminMapRevision({
-      contractVersion: "1",
-      mapId: "map.mode",
-      gameVersion: "2026.10.01",
-      mapVariant,
-      mode,
-      copyConfiguration: false,
-      spatialConfig: sharedCompositeSpatialConfig(),
-      challengeAssignments: [],
-    }, auth, key);
+    const save = (mapIds: string[], key: string, eventPools = ["2026周年"]) => services.upsertAdminStandaloneMode({ contractVersion: "1", mode: "2026 镜中回响", mapIds, eventPools, eventWeightTotal: 69.5 }, auth, key);
+    const modeRevisions = () => sqlite.prepare("SELECT map_id, lifecycle, spatial_config_json FROM gameplay_revisions WHERE mode = '2026镜中回响' ORDER BY map_id").all();
 
-    const mirror = await create("2026 镜中回响", null, "mode-create");
-    expect(mirror).toMatchObject({ lifecycle: "preparing", mode: "2026镜中回响", mapVariant: null });
-    await expect(create("2026镜中回响", null, "mode-duplicate")).rejects.toThrow("MODE_REVISION_CONFLICT");
-    await expect(create("其他模式", "classic", "mode-classic")).rejects.toThrow("MODE_REVISION_CANNOT_USE_CLASSIC_VARIANT");
-
-    const selectable = await services.updateAdminMapRevision({
-      contractVersion: "1",
-      mapId: "map.mode",
-      revisionId: mirror.revisionId,
-      lifecycle: "selectable",
-      gameVersion: "2026.10.01",
-      mapVariant: null,
-      spatialConfig: sharedCompositeSpatialConfig(),
-      challengeAssignments: [],
-    }, auth, "mode-selectable");
-    expect(selectable).toMatchObject({ lifecycle: "selectable", mode: "2026镜中回响" });
+    await expect(save(["map.mode", "map.second"], "mode-create")).resolves.toMatchObject({ mode: "2026镜中回响", mapIds: ["map.mode", "map.second"], eventPools: ["2026周年"], eventWeightTotal: 69.5 });
+    // Each map gets the mode's own selectable revision, without a spatial config.
+    expect(modeRevisions()).toEqual([
+      { map_id: "map.mode", lifecycle: "selectable", spatial_config_json: null },
+      { map_id: "map.second", lifecycle: "selectable", spatial_config_json: null },
+    ]);
+    expect(sqlite.prepare("SELECT mode FROM random_event_versions WHERE game_version = '2026周年'").get()).toEqual({ mode: "2026镜中回响" });
     // Bastion's regular build cannot select a standalone-mode layout, so the Agents projection omits it.
     expect((await services.getAgentMap({ mapId: "map.mode" }))!.gameplayRevisions.map((revision) => revision.gameplayRevisionId)).toEqual(["revision:map.mode:initial"]);
-    await expect(services.promoteAdminMapRevision({
-      contractVersion: "1",
-      mapId: "map.mode",
-      revisionId: mirror.revisionId,
-      replacedDefaultLifecycle: "selectable",
-    }, auth, "mode-promote")).rejects.toThrow("DEFAULT_REVISION_CANNOT_USE_MODE");
+    const [mirror] = sqlite.prepare("SELECT id FROM gameplay_revisions WHERE mode = '2026镜中回响' AND map_id = 'map.mode'").all() as Array<{ id: string }>;
+    await expect(services.promoteAdminMapRevision({ contractVersion: "1", mapId: "map.mode", revisionId: mirror!.id, replacedDefaultLifecycle: "selectable" }, auth, "mode-promote")).rejects.toThrow("DEFAULT_REVISION_CANNOT_USE_MODE");
+
+    // Dropping a map retires its revision; listing it again restores the same revision.
+    await save(["map.mode"], "mode-drop", []);
+    expect(modeRevisions()).toEqual([
+      { map_id: "map.mode", lifecycle: "selectable", spatial_config_json: null },
+      { map_id: "map.second", lifecycle: "historical", spatial_config_json: null },
+    ]);
+    expect(sqlite.prepare("SELECT mode FROM random_event_versions WHERE game_version = '2026周年'").get()).toEqual({ mode: null });
+    await save(["map.mode", "map.second"], "mode-restore");
+    expect(modeRevisions()).toHaveLength(2);
+    expect(await services.listAdminStandaloneModes(auth)).toMatchObject({ items: [{ mode: "2026镜中回响", mapIds: ["map.mode", "map.second"], eventPools: ["2026周年"] }] });
+
+    await expect(services.upsertAdminStandaloneMode({ contractVersion: "1", mode: "随机事件5.0", mapIds: [], eventPools: [], eventWeightTotal: null }, auth, "mode-regular")).rejects.toThrow("STANDALONE_MODE_INVALID");
+    await expect(services.upsertAdminStandaloneMode({ contractVersion: "1", mode: "另一个模式", mapIds: [], eventPools: ["2026周年"], eventWeightTotal: null }, auth, "mode-pool-conflict")).rejects.toThrow("STANDALONE_MODE_POOL_CONFLICT");
   });
 
-  it("makes a standalone-mode revision selectable without a spatial config", async () => {
+  it("keeps editing a standalone-mode revision without a spatial config", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
     seedMap(sqlite, "map.mode");
     seedAgentSpatialConfig(sqlite, "revision:map.mode:initial");
     const services = createPlatformServices(database);
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
-    // The maintainer flow: create an empty preparing revision, then set the mode and enable it.
-    const preparing = await services.createAdminMapRevision({ contractVersion: "1", mapId: "map.mode", mapVariant: null, copyConfiguration: false, challengeAssignments: [] }, auth, "mode-empty-create");
-    const update = (mode: string | null, key: string) => services.updateAdminMapRevision({
+    await services.upsertAdminStandaloneMode({ contractVersion: "1", mode: "2026镜中回响", mapIds: ["map.mode"], eventPools: [], eventWeightTotal: null }, auth, "mode-create");
+    const mirror = (sqlite.prepare("SELECT id FROM gameplay_revisions WHERE mode = '2026镜中回响'").get() as { id: string }).id;
+    const preparing = await services.createAdminMapRevision({ contractVersion: "1", mapId: "map.mode", mapVariant: null, copyConfiguration: false, challengeAssignments: [] }, auth, "regular-create");
+    const update = (revisionId: string, key: string) => services.updateAdminMapRevision({
       contractVersion: "1",
       mapId: "map.mode",
-      revisionId: preparing.revisionId,
+      revisionId,
       lifecycle: "selectable",
       gameVersion: "2026.10.01",
       mapVariant: null,
-      mode,
       spatialConfig: null,
       challengeAssignments: [],
     }, auth, key);
 
     // Bastion compiles regular selectable revisions, so they still need a spatial config.
-    await expect(update(null, "regular-without-spatial")).rejects.toThrow("INVALID_SPATIAL_CONFIG");
-    await expect(update("2026镜中回响", "mode-without-spatial")).resolves.toMatchObject({ lifecycle: "selectable", mode: "2026镜中回响", spatialConfig: null });
+    await expect(update(preparing.revisionId, "regular-without-spatial")).rejects.toThrow("INVALID_SPATIAL_CONFIG");
+    await expect(update(mirror, "mode-without-spatial")).resolves.toMatchObject({ lifecycle: "selectable", mode: "2026镜中回响", spatialConfig: null, gameVersion: "2026.10.01" });
   });
 
   it("keeps preparing composite revisions out of the Agents projection", async () => {
@@ -1005,6 +1001,20 @@ const seedRule = (
   }
 };
 
+// Regular pools total 62.70; a removed event, a suspended pool, and the 2026镜中回响 pool stay out of
+// it. That mode's build returns and disables events, so its 69.50 total is recorded on its pool rather
+// than derived (62.70 + 4.80 would be 67.50); it is recorded on the mode.
+const seedEventPools = (sqlite: DatabaseSync) => {
+  const insert = sqlite.prepare("INSERT INTO random_events (id, name, category, rarity, description, weight, game_version, release_status, created_at, updated_at) VALUES (?, ?, '增益', 'N', '描述', ?, ?, ?, ?, ?)");
+  insert.run("event.regular.a", "常规甲", 60, "5.0", "implemented", now, now);
+  insert.run("event.regular.b", "常规乙", 2.7, "4.0", "implemented", now, now);
+  insert.run("event.regular.removed", "已移除", 5, "4.0", "removed", now, now);
+  insert.run("event.suspended", "挂起池", 3, "3.0", "implemented", now, now);
+  insert.run("event.anniversary", "周年事件", 4.8, "2026周年", "implemented", now, now);
+  sqlite.prepare("INSERT INTO standalone_modes (mode, event_weight_total, created_at, updated_at) VALUES ('2026镜中回响', 69.5, ?, ?)").run(now, now);
+  sqlite.prepare("INSERT INTO random_event_versions (game_version, availability, mode, created_at, updated_at) VALUES ('2026周年', 'available', '2026镜中回响', ?, ?), ('3.0', 'suspended', NULL, ?, ?)").run(now, now, now, now);
+};
+
 const seedMapTitleChallenge = (sqlite: DatabaseSync, challengeId: string, titleKey: string, mapId: string) => {
   sqlite.prepare(
     "INSERT INTO title_challenges (id, title_key, condition, evidence_rule, submission_mode, game_version, status, introduced_version, scope, created_at, updated_at) VALUES (?, ?, '完成经典版地图', '上传截图', 'manual', '2026.07.15', 'active', '2026.07.15', 'map', ?, ?)",
@@ -1174,6 +1184,53 @@ describe("map title rule model – locked invariants", () => {
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM challenge_completions WHERE player_account_id = 'player.auto' AND status = 'active'").get()).toEqual({ count: 2 });
     });
 
+    const deliverRegularClear = async (runCode: string) => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.rialto");
+      seedTitle(sqlite, "DOMINATOR");
+      seedRule(sqlite, "rule.dominator", "DOMINATOR", "dominator", { slot: "dominator" });
+      seedEventPools(sqlite);
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.weights', 'weights-1', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.weights', 'identity.weights', 'player.weights', 'qq', 'group.weights', 'member.weights', 'active', ?)").run(now);
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.weights', 'binding.weights', 'ocr_pending', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'weights.1', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, byte_size, sha256, object_key, upload_status, created_at) VALUES ('attachment.weights', 'submission.weights', 'portal', 'external.weights', 'image/png', 1, 'hash', 'evidence/weights.png', 'stored', ?)").run(now);
+      const ocrResponse = {
+        schema_version: "1",
+        ok: true,
+        layout_version: "1280x720-v7",
+        fields: Object.fromEntries(["challenge_completed", "map_name", "difficulty", "version", "run_code", "duration_seconds", "deaths", "skips"].map((field) => [field, { status: "ok", confidence: 0.99 }])),
+        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.rialto", difficulty: "地狱", mode: "随机事件5.0", version: "99.0101.1", run_code: runCode, duration_seconds: 600, deaths: 0, skips: 0 },
+      };
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
+      try {
+        const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
+        await deliverOcrFixture(services, sqlite, { submissionId: "submission.weights", objectKey: "evidence/weights.png", attempt: 1, requestId: "request.weights" });
+      } finally {
+        vi.unstubAllGlobals();
+      }
+      return sqlite;
+    };
+
+    it("holds a run whose run code carries changed event weights for maintainer review", async () => {
+      // A regular-mode clear whose code carries 69.50, the anniversary build's total, instead of the regular 62.70.
+      const sqlite = await deliverRegularClear("9695-1153-2370");
+
+      // Players see only the generic reason; the values stay in maintainer-only match evidence.
+      expect(sqlite.prepare("SELECT status, review_reason FROM submissions WHERE id = 'submission.weights'").get()).toEqual({ status: "ocr_review_required", review_reason: "无法通过成就挑战校验" });
+      expect(JSON.parse((sqlite.prepare("SELECT match_json FROM ocr_results WHERE submission_id = 'submission.weights'").get() as { match_json: string }).match_json)).toEqual({ runCodeEventWeight: { read: 6950, expected: 6270 } });
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE player_account_id = 'player.weights'").get()).toEqual({ count: 0 });
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs WHERE player_account_id = 'player.weights'").get()).toEqual({ count: 0 });
+    });
+
+    it("tolerates small drift between platform weights and the deployed build", async () => {
+      // 63.00 is within ±0.50 of the expected 62.70; 63.30 is not.
+      const within = await deliverRegularClear("1631-2408-5670");
+      expect(within.prepare("SELECT status FROM submissions WHERE id = 'submission.weights'").get()).toEqual({ status: "approved" });
+      const beyond = await deliverRegularClear("1631-2438-5670");
+      expect(beyond.prepare("SELECT status FROM submissions WHERE id = 'submission.weights'").get()).toEqual({ status: "ocr_review_required" });
+    });
+
     it("holds a screenshot whose mode label matches no configured mode for maintainer review", async () => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);
@@ -1210,6 +1267,7 @@ describe("map title rule model – locked invariants", () => {
       installSchema(sqlite);
       seedMap(sqlite, "map.rialto");
       sqlite.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, mode, game_version, created_at, updated_at) VALUES ('revision:map.rialto:mirror', 'map.rialto', 'selectable', NULL, '2026镜中回响', '99.0101.1', ?, ?)").run(now, now);
+      seedEventPools(sqlite);
       seedTitle(sqlite, "CONQUEROR");
       seedTitle(sqlite, "DOMINATOR");
       seedTitle(sqlite, "PROPHET");
@@ -1226,7 +1284,7 @@ describe("map title rule model – locked invariants", () => {
         ok: true,
         layout_version: "1280x720-v7",
         fields: Object.fromEntries(["challenge_completed", "map_name", "difficulty", "achievement_titles", "version", "run_code", "duration_seconds", "deaths", "skips"].map((field) => [field, { status: "ok", confidence: 0.99 }])),
-        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.rialto", difficulty: "地狱", mode: "2026镜中回响", achievement_titles: ["称号 PROPHET"], version: "99.0101.1", run_code: "1234-5678-9012", duration_seconds: 600, deaths: 0, skips: 0 },
+        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.rialto", difficulty: "地狱", mode: "2026镜中回响", achievement_titles: ["称号 PROPHET"], version: "99.0101.1", run_code: "9695-1153-2370", duration_seconds: 600, deaths: 0, skips: 0 },
       };
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
       try {
@@ -2193,6 +2251,7 @@ describe("maintainer Challenge confirmation during submission review", () => {
     installSchema(sqlite);
     seedMap(sqlite, "map.rialto");
     sqlite.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, mode, game_version, created_at, updated_at) VALUES ('revision:map.rialto:mirror', 'map.rialto', 'selectable', NULL, '2026镜中回响', '2026.10.01', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO standalone_modes (mode, event_weight_total, created_at, updated_at) VALUES ('2026镜中回响', NULL, ?, ?)").run(now, now);
     seedTitle(sqlite, "DOMINATOR");
     seedRule(sqlite, "rule.dominator", "DOMINATOR", "dominator", { slot: "dominator" });
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.link', 'link-1', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);

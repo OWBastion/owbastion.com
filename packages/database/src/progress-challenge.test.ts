@@ -85,6 +85,8 @@ const hashRequest = async (value: unknown) => {
 const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   CREATE TABLE player_accounts (id TEXT PRIMARY KEY NOT NULL, player_id TEXT NOT NULL, player_name TEXT NOT NULL, normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'active', banned_at INTEGER, banned_by TEXT, ban_reason TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
   CREATE TABLE maps (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, game_version TEXT NOT NULL, status TEXT NOT NULL, introduced_version TEXT NOT NULL, retired_version TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+  CREATE TABLE random_event_versions (game_version TEXT PRIMARY KEY NOT NULL, availability TEXT NOT NULL DEFAULT 'available', mode TEXT, suspended_at INTEGER, suspended_by TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+  CREATE TABLE standalone_modes (mode TEXT PRIMARY KEY NOT NULL, event_weight_total REAL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
   CREATE TABLE gameplay_revisions (
     id TEXT PRIMARY KEY NOT NULL,
     map_id TEXT NOT NULL REFERENCES maps(id),
@@ -432,6 +434,7 @@ describe("verified-run progress challenges", () => {
       INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, mode, copied_from_revision_id, reset_reason, game_version, created_at, updated_at) VALUES
         ('revision:map.alpha:mirror', 'map.alpha', 'selectable', NULL, '2026镜中回响', NULL, NULL, '26.1001.1', 1, 1),
         ('revision:map.beta:mirror', 'map.beta', 'selectable', NULL, '2026镜中回响', NULL, NULL, '26.1001.1', 1, 1);
+      INSERT INTO standalone_modes (mode, event_weight_total, created_at, updated_at) VALUES ('2026镜中回响', NULL, 1, 1);
     `);
     await services.createAdminAchievement(achievementInput({ progressRule: { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"], mode: "2026 镜中回响" } }), admin, "create.mode");
     insertSubmission(sqlite, "submission-1", "account-1", 500);
@@ -451,6 +454,33 @@ describe("verified-run progress challenges", () => {
     expect((await services.listCurrentPlayerChallengeProgress({ sessionToken: "session-token" }))!.items[0]).toMatchObject({
       progressRule: { mode: "2026镜中回响" },
       satisfied: true,
+    });
+  });
+
+  it("follows every map of its standalone mode when the rule lists none", async () => {
+    const { sqlite, services } = setup();
+    const save = (mapIds: string[], key: string) => services.upsertAdminStandaloneMode({ contractVersion: "1", mode: "2026镜中回响", mapIds, eventPools: [], eventWeightTotal: null }, admin, key);
+    await expect(services.createAdminAchievement(achievementInput({ progressRule: { type: "required_maps_completed", mode: "2026镜中回响" } }), admin, "create.unknown-mode")).rejects.toThrow("STANDALONE_MODE_NOT_FOUND");
+    await save(["map.alpha", "map.beta"], "mode.two");
+    await services.createAdminAchievement(achievementInput({ progressRule: { type: "required_maps_completed", mode: "2026镜中回响" } }), admin, "create.follow");
+    const mirror = (mapId: string) => (sqlite.prepare("SELECT id FROM gameplay_revisions WHERE map_id = ? AND mode = '2026镜中回响'").get(mapId) as { id: string }).id;
+    insertSubmission(sqlite, "submission-1", "account-1", 500);
+    insertSubmission(sqlite, "submission-2", "account-1", 600);
+    await services.recordVerifiedRun(runInput({ mapId: "map.alpha", gameplayRevisionId: mirror("map.alpha"), sourceSubmissionId: "submission-1" }));
+    await services.recordVerifiedRun(runInput({ mapId: "map.beta", gameplayRevisionId: mirror("map.beta"), sourceSubmissionId: "submission-2", matchCode: "2345-6789-1234" }));
+    expect(progressCompletion(sqlite)).toMatchObject([{ status: "active" }]);
+    expect(JSON.parse(canonicalChallengeIds(sqlite)[0]!.conditions_json)).toEqual({ operator: "and", conditions: [{ type: "required_maps_completed", mode: "2026镜中回响" }] });
+
+    // A map added to the mode joins the requirement and the follow-on rule is reconciled at once.
+    await save(["map.alpha", "map.beta", "map.gamma"], "mode.three");
+    expect(progressCompletion(sqlite)).toMatchObject([{ status: "invalidated" }]);
+    // The rule keeps one canonical identity while its maps follow the mode.
+    expect(canonicalChallengeIds(sqlite)).toHaveLength(1);
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at) VALUES ('session-1', 'account-1', ?, ?)").run(await hashRequest("session-token"), Date.now() + 60_000);
+    expect((await services.listCurrentPlayerChallengeProgress({ sessionToken: "session-token" }))!.items[0]).toMatchObject({
+      maps: [{ mapId: "map.alpha", completed: true }, { mapId: "map.beta", completed: true }, { mapId: "map.gamma", completed: false }],
+      completedMaps: 2,
+      satisfied: false,
     });
   });
 

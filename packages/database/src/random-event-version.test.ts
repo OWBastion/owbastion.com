@@ -32,8 +32,9 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     game_version TEXT NOT NULL, event_group TEXT, effect_tags_json TEXT NOT NULL DEFAULT '[]', release_status TEXT NOT NULL,
     archived_at INTEGER, archived_by TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
   );
+  CREATE TABLE standalone_modes (mode TEXT PRIMARY KEY NOT NULL, event_weight_total REAL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
   CREATE TABLE random_event_versions (
-    game_version TEXT PRIMARY KEY NOT NULL, availability TEXT NOT NULL DEFAULT 'available',
+    game_version TEXT PRIMARY KEY NOT NULL, availability TEXT NOT NULL DEFAULT 'available', mode TEXT,
     suspended_at INTEGER, suspended_by TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
   );
   CREATE TABLE random_event_map_challenges (event_id TEXT NOT NULL, challenge_id TEXT NOT NULL, PRIMARY KEY (event_id, challenge_id));
@@ -97,18 +98,18 @@ describe("random-event version availability", () => {
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
 
     await services.updateAdminRandomEventVersion({ contractVersion: "1", gameVersion: "26.0901.1", availability: "suspended" }, auth, "suspend-1");
-    await expect(services.updateAdminRandomEventVersion({ contractVersion: "1", gameVersion: "26.0901.1", availability: "suspended" }, auth, "suspend-1")).resolves.toEqual({ gameVersion: "26.0901.1", availability: "suspended", eventCount: 1 });
+    await expect(services.updateAdminRandomEventVersion({ contractVersion: "1", gameVersion: "26.0901.1", availability: "suspended" }, auth, "suspend-1")).resolves.toEqual({ gameVersion: "26.0901.1", availability: "suspended", mode: null, eventCount: 1 });
     await expect(services.updateAdminRandomEventVersion({ contractVersion: "1", gameVersion: "26.0901.1", availability: "available" }, auth, "suspend-1")).rejects.toThrow("IDEMPOTENCY_CONFLICT");
     await expect(services.getAgentEvent({ eventId: "event.suspended" })).resolves.toBeNull();
     await expect(services.getAgentEvent({ eventId: "event.available" })).resolves.toMatchObject({ eventId: "event.available", weight: 2 });
     await expect(services.listAgentEvents({ page: 1, pageSize: 10 })).resolves.toMatchObject({ total: 1, items: [{ eventId: "event.available" }] });
 
     const restored = await services.updateAdminRandomEventVersion({ contractVersion: "1", gameVersion: "26.0901.1", availability: "available" }, auth, "restore-1");
-    expect(restored).toEqual({ gameVersion: "26.0901.1", availability: "available", eventCount: 1 });
+    expect(restored).toEqual({ gameVersion: "26.0901.1", availability: "available", mode: null, eventCount: 1 });
     await expect(services.getAgentEvent({ eventId: "event.suspended" })).resolves.toMatchObject({ eventId: "event.suspended", description: "原始说明", durationSeconds: 30, cooldownSeconds: 0.32, weight: 0.7 });
     expect(await services.listAdminRandomEventVersions(auth)).toEqual({ contractVersion: "1", items: [
-      { gameVersion: "26.0902.1", availability: "available", eventCount: 1 },
-      { gameVersion: "26.0901.1", availability: "available", eventCount: 1 },
+      { gameVersion: "26.0902.1", availability: "available", mode: null, eventCount: 1 },
+      { gameVersion: "26.0901.1", availability: "available", mode: null, eventCount: 1 },
     ] });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'admin.random-event-version.availability'").get()).toEqual({ count: 2 });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM idempotency_keys WHERE operation = 'admin.random-event-version.availability'").get()).toEqual({ count: 2 });

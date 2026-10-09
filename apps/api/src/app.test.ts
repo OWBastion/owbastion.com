@@ -39,7 +39,9 @@ const services: PlatformServices = {
   previewAdminRandomEventImport: async () => ({ sourceHash: "hash", validRowCount: 0, errors: [], rows: [] }),
   importAdminRandomEvents: async () => ({ importedCount: 0 }),
   listAdminRandomEventVersions: async () => ({ contractVersion: "1" as const, items: [] }),
-  updateAdminRandomEventVersion: async ({ gameVersion, availability }) => ({ gameVersion, availability, eventCount: 0 }),
+  updateAdminRandomEventVersion: async ({ gameVersion, availability }) => ({ gameVersion, availability, mode: null, eventCount: 0 }),
+  listAdminStandaloneModes: async () => ({ contractVersion: "1" as const, items: [] }),
+  upsertAdminStandaloneMode: async ({ mode, mapIds, eventPools, eventWeightTotal }) => ({ mode, mapIds, eventPools, eventWeightTotal, createdAt: 0, updatedAt: 0 }),
   listMaps: async () => [],
   updateAdminMapMetadata: async () => { throw new Error("MAP_NOT_FOUND"); },
   getAdminMapEditor: async () => { throw new Error("MAP_NOT_FOUND"); },
@@ -637,8 +639,8 @@ describe("API", () => {
     const calls: Array<{ gameVersion: string; availability: string; key: string }> = [];
     const maintainerApp = createApp({ authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({
       ...services,
-      listAdminRandomEventVersions: async () => ({ contractVersion: "1" as const, items: [{ gameVersion: "26.0901.1", availability: "available" as const, eventCount: 2 }] }),
-      updateAdminRandomEventVersion: async (input, _auth, key) => { calls.push({ gameVersion: input.gameVersion, availability: input.availability, key }); return { gameVersion: input.gameVersion, availability: input.availability, eventCount: 2 }; },
+      listAdminRandomEventVersions: async () => ({ contractVersion: "1" as const, items: [{ gameVersion: "26.0901.1", availability: "available" as const, mode: null, eventCount: 2 }] }),
+      updateAdminRandomEventVersion: async (input, _auth, key) => { calls.push({ gameVersion: input.gameVersion, availability: input.availability, key }); return { gameVersion: input.gameVersion, availability: input.availability, mode: null, eventCount: 2 }; },
     }) });
     const listed = await maintainerApp.request("http://localhost/v1/admin/event-versions", {}, env);
     const updated = await maintainerApp.request("http://localhost/v1/admin/event-versions/26.0901.1/availability", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "version-1" }, body: JSON.stringify({ contractVersion: "1", availability: "suspended" }) }, env);

@@ -5,7 +5,8 @@ export type ChallengeCondition =
   | { type: "completed" }
   | { type: "difficulty_at_least"; difficulty: string }
   | { type: "map_variant"; variant: "classic" }
-  | { type: "required_maps_completed"; mapIds: string[]; difficultyAtLeast?: string; mode?: string };
+  // Without mapIds the rule follows every map of its standalone mode.
+  | { type: "required_maps_completed"; mapIds?: string[]; difficultyAtLeast?: string; mode?: string };
 
 export type ChallengeProgressRule = Extract<ChallengeCondition, { type: "required_maps_completed" }>;
 
@@ -51,11 +52,10 @@ const parseCondition = (value: unknown): ChallengeCondition | null => {
     case "difficulty_at_least": return typeof condition.difficulty === "string" && condition.difficulty.trim() ? { type: condition.type, difficulty: condition.difficulty } : null;
     case "map_variant": return condition.variant === "classic" ? { type: condition.type, variant: condition.variant } : null;
     case "required_maps_completed": {
-      if (!Array.isArray(condition.mapIds)) return null;
-      const mapIds = [...new Set(condition.mapIds.filter((mapId): mapId is string => typeof mapId === "string" && Boolean(mapId.trim())))];
-      if (!mapIds.length) return null;
       const mode = typeof condition.mode === "string" ? normalizeGameMode(condition.mode) : null;
-      return { type: condition.type, mapIds, ...(typeof condition.difficultyAtLeast === "string" && condition.difficultyAtLeast.trim() ? { difficultyAtLeast: condition.difficultyAtLeast } : {}), ...(mode ? { mode } : {}) };
+      const mapIds = Array.isArray(condition.mapIds) ? [...new Set(condition.mapIds.filter((mapId): mapId is string => typeof mapId === "string" && Boolean(mapId.trim())))] : [];
+      if (!mapIds.length && !mode) return null;
+      return { type: condition.type, ...(mapIds.length ? { mapIds } : {}), ...(typeof condition.difficultyAtLeast === "string" && condition.difficultyAtLeast.trim() ? { difficultyAtLeast: condition.difficultyAtLeast } : {}), ...(mode ? { mode } : {}) };
     }
     default: return null;
   }

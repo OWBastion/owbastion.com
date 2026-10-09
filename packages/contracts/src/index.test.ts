@@ -51,7 +51,7 @@ describe("v1 platform contracts", () => {
   it("validates version-level random-event availability", () => {
     expect(adminRandomEventVersionAvailabilityRequestSchema.safeParse({ contractVersion: "1", availability: "suspended" }).success).toBe(true);
     expect(adminRandomEventVersionAvailabilityRequestSchema.safeParse({ contractVersion: "1", availability: "disabled" }).success).toBe(false);
-    expect(adminRandomEventVersionListResponseSchema.safeParse({ contractVersion: "1", items: [{ gameVersion: "26.0901.1", availability: "available", eventCount: 2 }] }).success).toBe(true);
+    expect(adminRandomEventVersionListResponseSchema.safeParse({ contractVersion: "1", items: [{ gameVersion: "26.0901.1", availability: "available", mode: null, eventCount: 2 }] }).success).toBe(true);
   });
   it("accepts stable QQ binding metadata", () => {
     expect(qqBindingRequestSchema.safeParse({ contractVersion: "1", provider: "qq", groupOpenId: "group-1", memberOpenId: "user-1", playerName: "Player", playerId: "1234" }).success).toBe(true);
