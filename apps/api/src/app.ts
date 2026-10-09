@@ -80,7 +80,7 @@ type AppDependencies = {
 };
 
 type RequestRouteClass = "admin" | "agents" | "catalog" | "health" | "local" | "ocrkit" | "portal" | "qq" | "unknown";
-type Variables = { requestId: string };
+type Variables = { requestId: string; platformServices: PlatformServices };
 
 // Constant-time Bearer comparison for private service tokens: a plain ===
 // leaks match progress through early-exit timing.
@@ -245,6 +245,19 @@ const adminVerifiedRunQuery = (request: Request) => {
 
 export const createApp = (dependencies: AppDependencies) => {
   const app = new Hono<{ Bindings: RuntimeEnv; Variables: Variables }>();
+
+  // One services instance per request: each creation re-instruments the D1
+  // binding and re-pins cache versions, so route guards and handlers sharing
+  // the instance avoid duplicate KV version lookups and double invalidation
+  // bumps when a request writes after its auth check.
+  const servicesFor = (c: any): PlatformServices => {
+    let services: PlatformServices | undefined = c.get("platformServices");
+    if (!services) {
+      services = dependencies.services(c.env);
+      c.set("platformServices", services);
+    }
+    return services;
+  };
 
   // Middleware 1: bind and echo X-Request-ID on every response.
   app.use("*", async (c, next) => {
@@ -427,7 +440,7 @@ export const createApp = (dependencies: AppDependencies) => {
     let auth = await dependencies.authenticate(c.req.raw, c.env);
     if (!auth) {
       const sessionToken = portalSessionToken(c.req.raw);
-      const player = sessionToken ? await dependencies.services(c.env).getPortalSessionIdentity({ sessionToken }) : null;
+      const player = sessionToken ? await servicesFor(c).getPortalSessionIdentity({ sessionToken }) : null;
       if (player?.player.isAdmin) auth = { actorType: "user", subject: player.player.playerId, roles: ["maintainer"], provider: "portal-session" };
       else if (player) return { error: errorResponse(c, 403, "FORBIDDEN", "The player cannot manage administrative data") };
     }
@@ -452,7 +465,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = ocrkitJobCallbackSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success || ("result" in parsed.data && parsed.data.result.request_id !== jobId)) return errorResponse(c, 400, "INVALID_REQUEST", "The callback does not match the job contract");
     try {
-      await dependencies.services(c.env).completeOcrJob({ jobId, payload: parsed.data });
+      await servicesFor(c).completeOcrJob({ jobId, payload: parsed.data });
       return c.body(null, 204);
     } catch {
       return errorResponse(c, 503, "OCR_CALLBACK_RETRY", "Retry delivery of this callback");
@@ -464,7 +477,7 @@ export const createApp = (dependencies: AppDependencies) => {
     c.header("Cache-Control", "private, no-store");
     const sessionToken = portalSessionToken(c.req.raw);
     if (!sessionToken) return { error: errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required") };
-    const player = await dependencies.services(c.env).getPortalSessionIdentity({ sessionToken });
+    const player = await servicesFor(c).getPortalSessionIdentity({ sessionToken });
     if (!player) return { error: errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required") };
     return { sessionToken, player };
   };
@@ -498,7 +511,7 @@ export const createApp = (dependencies: AppDependencies) => {
     allowPortal(c);
     const parsed = bindingInviteRedeemRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).redeemBindingInvite(parsed.data), 201); }
+    try { return c.json(await servicesFor(c).redeemBindingInvite(parsed.data), 201); }
     catch (error) { if (error instanceof Error && error.message === "INVITE_INVALID") return errorResponse(c, 422, "INVITE_INVALID", "The invitation cannot be used"); throw error; }
   });
 
@@ -507,7 +520,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const claimId = c.req.param("claimId");
     const claimToken = c.req.header("x-claim-token");
     if (!/^[0-9a-f-]{36}$/.test(claimId) || !claimToken) return errorResponse(c, 422, "INVALID_CLAIM", "The binding claim is invalid");
-    try { return c.json(await dependencies.services(c.env).getBindingClaimStatus({ claimId, claimToken })); }
+    try { return c.json(await servicesFor(c).getBindingClaimStatus({ claimId, claimToken })); }
     catch (error) {
       if (error instanceof Error && error.message === "BINDING_CLAIM_NOT_FOUND") return errorResponse(c, 404, "BINDING_CLAIM_NOT_FOUND", "The binding claim does not exist");
       if (error instanceof Error && error.message === "BINDING_CLAIM_FORBIDDEN") return errorResponse(c, 403, "BINDING_CLAIM_FORBIDDEN", "The binding claim token is invalid");
@@ -521,7 +534,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const claimToken = c.req.header("x-claim-token");
     if (!/^[0-9a-f-]{36}$/.test(claimId) || !claimToken) return errorResponse(c, 422, "INVALID_CLAIM", "The binding claim is invalid");
     try {
-      const result = await dependencies.services(c.env).exchangeBindingClaimSession({ claimId, claimToken });
+      const result = await servicesFor(c).exchangeBindingClaimSession({ claimId, claimToken });
       c.header("Set-Cookie", sessionCookie(c.req.raw, result.sessionToken, 2592000));
       return c.json({ contractVersion: "1" as const, status: result.status });
     } catch (error) {
@@ -536,7 +549,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
     const idempotencyKey = c.req.header("idempotency-key"); if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminBindingInviteRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).createAdminBindingInvite(parsed.data, access.auth!, idempotencyKey), 201); }
+    try { return c.json(await servicesFor(c).createAdminBindingInvite(parsed.data, access.auth!, idempotencyKey), 201); }
     catch (error) { if (error instanceof Error && error.message === "HISTORICAL_TITLE_GRANT_NOT_AVAILABLE") return errorResponse(c, 409, "HISTORICAL_TITLE_GRANT_NOT_AVAILABLE", "One or more historical titles are no longer unclaimed"); throw error; }
   });
 
@@ -544,30 +557,30 @@ export const createApp = (dependencies: AppDependencies) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
     const idempotencyKey = c.req.header("idempotency-key"); if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminBindingInviteBatchRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).createAdminBindingInviteBatch(parsed.data, access.auth!, idempotencyKey), 201); }
+    try { return c.json(await servicesFor(c).createAdminBindingInviteBatch(parsed.data, access.auth!, idempotencyKey), 201); }
     catch (error) { if (error instanceof Error && error.message === "HISTORICAL_TITLE_GRANT_NOT_AVAILABLE") return errorResponse(c, 409, "HISTORICAL_TITLE_GRANT_NOT_AVAILABLE", "One or more historical titles are no longer unclaimed"); throw error; }
   });
 
   app.get("/v1/admin/binding-invites", async (c) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
-    return c.json(await dependencies.services(c.env).listAdminBindingInvites(access.auth!));
+    return c.json(await servicesFor(c).listAdminBindingInvites(access.auth!));
   });
 
   app.get("/v1/admin/bindings", async (c) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
-    return c.json(await dependencies.services(c.env).listAdminBindings(access.auth!));
+    return c.json(await servicesFor(c).listAdminBindings(access.auth!));
   });
 
   app.post("/v1/admin/binding-invites/:inviteId/historical-migration/retry", async (c) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
     const idempotencyKey = c.req.header("idempotency-key"); if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    try { await dependencies.services(c.env).retryHistoricalTitleMigration({ inviteId: c.req.param("inviteId") }, access.auth!, idempotencyKey); return c.body(null, 204); }
+    try { await servicesFor(c).retryHistoricalTitleMigration({ inviteId: c.req.param("inviteId") }, access.auth!, idempotencyKey); return c.body(null, 204); }
     catch (error) { if (error instanceof Error && error.message === "HISTORICAL_MIGRATION_NOT_READY") return errorResponse(c, 409, "HISTORICAL_MIGRATION_NOT_READY", "The binding is not ready for historical title migration"); throw error; }
   });
 
   app.get("/v1/admin/binding-invites/:inviteId/code", async (c) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
-    try { return c.json(await dependencies.services(c.env).getAdminBindingInviteCode({ inviteId: c.req.param("inviteId") }, access.auth!)); }
+    try { return c.json(await servicesFor(c).getAdminBindingInviteCode({ inviteId: c.req.param("inviteId") }, access.auth!)); }
     catch (error) { if (error instanceof Error && error.message === "BINDING_INVITE_CODE_UNAVAILABLE") return errorResponse(c, 422, "BINDING_INVITE_CODE_UNAVAILABLE", "The invitation code cannot be retrieved"); throw error; }
   });
 
@@ -575,23 +588,23 @@ export const createApp = (dependencies: AppDependencies) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
     const idempotencyKey = c.req.header("idempotency-key"); if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminBindingInviteRevokeRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { await dependencies.services(c.env).revokeAdminBindingInvite({ ...parsed.data, inviteId: c.req.param("inviteId") }, access.auth!, idempotencyKey); return c.body(null, 204); }
+    try { await servicesFor(c).revokeAdminBindingInvite({ ...parsed.data, inviteId: c.req.param("inviteId") }, access.auth!, idempotencyKey); return c.body(null, 204); }
     catch (error) { if (error instanceof Error && error.message === "BINDING_INVITE_NOT_REVOCABLE") return errorResponse(c, 422, "BINDING_INVITE_NOT_REVOCABLE", "The invitation cannot be revoked"); throw error; }
   });
 
-  app.get("/v1/admin/binding-claims", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; return c.json(await dependencies.services(c.env).listAdminBindingClaims(access.auth!)); });
+  app.get("/v1/admin/binding-claims", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; return c.json(await servicesFor(c).listAdminBindingClaims(access.auth!)); });
   app.post("/v1/admin/binding-claims/:claimId/decision", async (c) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
     const idempotencyKey = c.req.header("idempotency-key"); if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminBindingClaimDecisionRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { await dependencies.services(c.env).decideAdminBindingClaim({ ...parsed.data, claimId: c.req.param("claimId") }, access.auth!, idempotencyKey); return c.body(null, 204); }
+    try { await servicesFor(c).decideAdminBindingClaim({ ...parsed.data, claimId: c.req.param("claimId") }, access.auth!, idempotencyKey); return c.body(null, 204); }
     catch (error) { if (error instanceof Error && error.message === "BINDING_CLAIM_NOT_REVIEWABLE") return errorResponse(c, 422, "BINDING_CLAIM_NOT_REVIEWABLE", "The claim cannot be reviewed"); throw error; }
   });
 
   app.get("/v1/__local/accounts", async (c) => {
     allowPortal(c);
     if (c.env.LOCAL_DEV_AUTH !== "true") return errorResponse(c, 404, "NOT_FOUND", "The local development API is disabled");
-    return c.json({ contractVersion: "1" as const, accounts: await dependencies.services(c.env).listLocalDevAccounts() });
+    return c.json({ contractVersion: "1" as const, accounts: await servicesFor(c).listLocalDevAccounts() });
   });
 
   app.post("/v1/__local/login", async (c) => {
@@ -600,7 +613,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const body = await parseBody(c.req.raw) as { accountId?: unknown };
     if (typeof body?.accountId !== "string") return errorResponse(c, 422, "INVALID_REQUEST", "The local account is required");
     try {
-      const result = await dependencies.services(c.env).createLocalDevSession({ accountId: body.accountId });
+      const result = await servicesFor(c).createLocalDevSession({ accountId: body.accountId });
       c.header("Set-Cookie", sessionCookie(c.req.raw, result.sessionToken, 2592000));
       return c.json({ contractVersion: "1" as const, status: "authenticated" as const });
     } catch (error) {
@@ -613,7 +626,7 @@ export const createApp = (dependencies: AppDependencies) => {
     allowPortal(c);
     const parsed = qqLoginAttemptRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    return c.json(await dependencies.services(c.env).createQqLoginAttempt(parsed.data), 201);
+    return c.json(await servicesFor(c).createQqLoginAttempt(parsed.data), 201);
   });
 
   app.get("/v1/auth/qq/login-attempt/:attemptId", async (c) => {
@@ -622,7 +635,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const attemptToken = c.req.header("x-login-attempt-token");
     if (!/^[0-9a-f-]{36}$/.test(attemptId) || !attemptToken) return errorResponse(c, 422, "INVALID_LOGIN_ATTEMPT", "The login attempt is invalid");
     try {
-      const result = await dependencies.services(c.env).getQqLoginStatus({ attemptId, attemptToken });
+      const result = await servicesFor(c).getQqLoginStatus({ attemptId, attemptToken });
       if (result.sessionToken) c.header("Set-Cookie", sessionCookie(c.req.raw, result.sessionToken, 2592000));
       return c.json(result);
     } catch (error) {
@@ -639,7 +652,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!origin) return errorResponse(c, 403, "ORIGIN_NOT_ALLOWED", "The request origin is not allowed");
     const parsed = passkeyLoginOptionsRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    return c.json(await dependencies.services(c.env).createPasskeyLoginOptions({ rpId: origin.rpId }), 201);
+    return c.json(await servicesFor(c).createPasskeyLoginOptions({ rpId: origin.rpId }), 201);
   });
 
   app.post("/v1/auth/passkeys/login/verify", async (c) => {
@@ -649,7 +662,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = passkeyLoginVerifyRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      const result = await dependencies.services(c.env).completePasskeyLogin({ ...parsed.data, ...origin });
+      const result = await servicesFor(c).completePasskeyLogin({ ...parsed.data, ...origin });
       c.header("Set-Cookie", sessionCookie(c.req.raw, result.sessionToken, 2592000));
       return c.json({ contractVersion: "1" as const, status: "authenticated" as const });
     } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
@@ -658,7 +671,7 @@ export const createApp = (dependencies: AppDependencies) => {
   app.get("/v1/me/passkeys", async (c) => {
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
-    const result = await dependencies.services(c.env).listCurrentPlayerPasskeys({ sessionToken: access.sessionToken! });
+    const result = await servicesFor(c).listCurrentPlayerPasskeys({ sessionToken: access.sessionToken! });
     return result ? c.json(result) : errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
   });
 
@@ -669,7 +682,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (access.error) return access.error;
     const parsed = passkeyAuthenticatedRegistrationOptionsRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).createCurrentPlayerPasskeyRegistrationOptions({ ...parsed.data, sessionToken: access.sessionToken!, rpId: origin.rpId }), 201); }
+    try { return c.json(await servicesFor(c).createCurrentPlayerPasskeyRegistrationOptions({ ...parsed.data, sessionToken: access.sessionToken!, rpId: origin.rpId }), 201); }
     catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
   });
 
@@ -681,7 +694,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = passkeyRegistrationVerifyRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      await dependencies.services(c.env).completeCurrentPlayerPasskeyRegistration({ ...parsed.data, sessionToken: access.sessionToken!, ...origin });
+      await servicesFor(c).completeCurrentPlayerPasskeyRegistration({ ...parsed.data, sessionToken: access.sessionToken!, ...origin });
       return c.body(null, 204);
     } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
   });
@@ -694,7 +707,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const passkeyId = c.req.param("passkeyId");
     if (!/^[0-9a-f-]{36}$/i.test(passkeyId)) return errorResponse(c, 422, "INVALID_PASSKEY", "The passkey id is invalid");
     try {
-      await dependencies.services(c.env).removeCurrentPlayerPasskey({ sessionToken: access.sessionToken!, passkeyId });
+      await servicesFor(c).removeCurrentPlayerPasskey({ sessionToken: access.sessionToken!, passkeyId });
       return c.json({ contractVersion: "1" as const, removed: true as const });
     } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
   });
@@ -709,7 +722,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminPasskeyRecoveryRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      const result = await dependencies.services(c.env).createAdminPasskeyRecovery({ ...parsed.data, playerAccountId: c.req.param("playerAccountId") }, access.auth!, idempotencyKey);
+      const result = await servicesFor(c).createAdminPasskeyRecovery({ ...parsed.data, playerAccountId: c.req.param("playerAccountId") }, access.auth!, idempotencyKey);
       const recoveryUrl = new URL("/recover", origin.origin);
       recoveryUrl.hash = new URLSearchParams({ token: result.token }).toString();
       return c.json({ contractVersion: "1" as const, recoveryUrl: recoveryUrl.toString(), expiresAt: result.expiresAt }, 201);
@@ -722,7 +735,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!origin) return errorResponse(c, 403, "ORIGIN_NOT_ALLOWED", "The request origin is not allowed");
     const parsed = passkeyPublicRegistrationOptionsRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).createPasskeyRecoveryOptions({ ...parsed.data, rpId: origin.rpId }), 201); }
+    try { return c.json(await servicesFor(c).createPasskeyRecoveryOptions({ ...parsed.data, rpId: origin.rpId }), 201); }
     catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
   });
 
@@ -733,7 +746,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = passkeyPublicRegistrationVerifyRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      const result = await dependencies.services(c.env).completePasskeyRecoveryRegistration({ ...parsed.data, ...origin });
+      const result = await servicesFor(c).completePasskeyRecoveryRegistration({ ...parsed.data, ...origin });
       c.header("Set-Cookie", sessionCookie(c.req.raw, result.sessionToken, 2592000));
       return c.json({ contractVersion: "1" as const, status: "authenticated" as const });
     } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
@@ -748,11 +761,11 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = qqLoginVerifyRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      return c.json(await dependencies.services(c.env).verifyQqLogin(parsed.data, auth, idempotencyKey));
+      return c.json(await servicesFor(c).verifyQqLogin(parsed.data, auth, idempotencyKey));
     } catch (error) {
       const code = error instanceof Error ? error.message : "LOGIN_FAILED";
       if (code === "LOGIN_CODE_INVALID") {
-        try { return c.json(await dependencies.services(c.env).verifyBindingClaim(parsed.data, auth, idempotencyKey)); }
+        try { return c.json(await servicesFor(c).verifyBindingClaim(parsed.data, auth, idempotencyKey)); }
         catch (claimError) {
           const claimCode = claimError instanceof Error ? claimError.message : "LOGIN_FAILED";
           if (["BINDING_CLAIM_CODE_INVALID", "LOGIN_GROUP_NOT_ALLOWED", "INVITE_INVALID"].includes(claimCode)) return errorResponse(c, 422, claimCode, "The verification code cannot be used");
@@ -775,7 +788,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = qqScreenshotSubmissionRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      return c.json(await dependencies.services(c.env).submitQqScreenshot(parsed.data, auth, idempotencyKey, c.get("requestId")), 201);
+      return c.json(await servicesFor(c).submitQqScreenshot(parsed.data, auth, idempotencyKey, c.get("requestId")), 201);
     } catch (error) {
       const code = error instanceof Error ? error.message : "QQ_SUBMISSION_FAILED";
       if (["LOGIN_GROUP_NOT_ALLOWED", "BINDING_NOT_FOUND", "PLAYER_BANNED", "SOURCE_ATTACHMENT_UNAVAILABLE", "UNSUPPORTED_ATTACHMENT_TYPE", "ATTACHMENT_SIZE_INVALID"].includes(code)) return errorResponse(c, 422, code, "The screenshot cannot be submitted");
@@ -795,7 +808,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = qqGroupRegistrationRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      await dependencies.services(c.env).registerQqGroup(parsed.data, auth, idempotencyKey);
+      await servicesFor(c).registerQqGroup(parsed.data, auth, idempotencyKey);
       return c.body(null, 204);
     } catch (error) {
       if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, error.message, "The idempotency key was used with a different request");
@@ -807,7 +820,7 @@ export const createApp = (dependencies: AppDependencies) => {
     allowPortal(c);
     c.header("Cache-Control", "private, no-store");
     const sessionToken = portalSessionToken(c.req.raw);
-    const player = sessionToken ? await dependencies.services(c.env).getCurrentPlayer({ sessionToken }) : null;
+    const player = sessionToken ? await servicesFor(c).getCurrentPlayer({ sessionToken }) : null;
     return player ? c.json(player) : errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
   });
 
@@ -817,7 +830,7 @@ export const createApp = (dependencies: AppDependencies) => {
     c.header("Cache-Control", "private, no-store");
     const query = playerMasteryQuery(c.req.raw);
     if (!query) return errorResponse(c, 422, "INVALID_REQUEST", "The mastery query is invalid");
-    const mastery = await dependencies.services(c.env).getCurrentPlayerMastery({ sessionToken: access.sessionToken!, ...query });
+    const mastery = await servicesFor(c).getCurrentPlayerMastery({ sessionToken: access.sessionToken!, ...query });
     if (!mastery) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
     return c.json(mastery);
   });
@@ -826,7 +839,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
     c.header("Cache-Control", "private, no-store");
-    const activity = await dependencies.services(c.env).getCurrentPlayerActivity({ sessionToken: access.sessionToken! });
+    const activity = await servicesFor(c).getCurrentPlayerActivity({ sessionToken: access.sessionToken! });
     if (!activity) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
     return c.json({ contractVersion: "1", ...activity });
   });
@@ -835,7 +848,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
     c.header("Cache-Control", "private, no-store");
-    const progress = await dependencies.services(c.env).listCurrentPlayerChallengeProgress({ sessionToken: access.sessionToken! });
+    const progress = await servicesFor(c).listCurrentPlayerChallengeProgress({ sessionToken: access.sessionToken! });
     if (!progress) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
     return c.json(progress);
   });
@@ -845,7 +858,7 @@ export const createApp = (dependencies: AppDependencies) => {
     c.header("Cache-Control", "private, no-store");
     const sessionToken = portalSessionToken(c.req.raw);
     if (!sessionToken) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
-    const titles = await dependencies.services(c.env).listCurrentPlayerTitles({ sessionToken });
+    const titles = await servicesFor(c).listCurrentPlayerTitles({ sessionToken });
     if (!titles) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
     return c.json({ contractVersion: "1", ...titles });
   });
@@ -857,7 +870,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = playerEquippedTitlesRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).replaceCurrentPlayerEquippedTitles({ ...parsed.data, sessionToken }, idempotencyKey)); }
+    try { return c.json(await servicesFor(c).replaceCurrentPlayerEquippedTitles({ ...parsed.data, sessionToken }, idempotencyKey)); }
     catch (error) {
       const code = error instanceof Error ? error.message : "EQUIPPED_TITLES_UPDATE_FAILED";
       if (code === "UNAUTHENTICATED") return errorResponse(c, 401, code, "Authentication is required");
@@ -875,7 +888,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminPlayerEquippedTitlesRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      return c.json(await dependencies.services(c.env).replaceAdminPlayerEquippedTitles({ playerAccountId: c.req.param("playerAccountId"), grantIds: parsed.data.grantIds }, access.auth!, idempotencyKey));
+      return c.json(await servicesFor(c).replaceAdminPlayerEquippedTitles({ playerAccountId: c.req.param("playerAccountId"), grantIds: parsed.data.grantIds }, access.auth!, idempotencyKey));
     } catch (error) {
       const code = error instanceof Error ? error.message : "EQUIPPED_TITLES_UPDATE_FAILED";
       if (code === "PLAYER_NOT_FOUND") return errorResponse(c, 404, code, "The player does not exist");
@@ -892,7 +905,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const target = parseReviewTarget(c);
     if (!target.success) return errorResponse(c, 422, "INVALID_REVIEW_TARGET", "The review target is invalid");
     try {
-      const review = await dependencies.services(c.env).getPlayerReview(target.data, portalPlayerAuth(access.player!));
+      const review = await servicesFor(c).getPlayerReview(target.data, portalPlayerAuth(access.player!));
       return c.json({ contractVersion: "1", review: review?.status === "active" ? playerReviewView(review) : null });
     } catch (error) {
       const code = error instanceof Error ? error.message : "PLAYER_REVIEW_READ_FAILED";
@@ -914,7 +927,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The review content does not match contract v1");
     const { contractVersion: _contractVersion, ...reviewInput } = parsed.data;
     try {
-      const review = await dependencies.services(c.env).upsertReview({ ...target.data, ...reviewInput, rating: reviewInput.rating as 1 | 2 | 3 | 4 | 5 }, portalPlayerAuth(access.player!), idempotencyKey);
+      const review = await servicesFor(c).upsertReview({ ...target.data, ...reviewInput, rating: reviewInput.rating as 1 | 2 | 3 | 4 | 5 }, portalPlayerAuth(access.player!), idempotencyKey);
       return c.json({ contractVersion: "1", review: playerReviewView(review) });
     } catch (error) {
       const code = error instanceof Error ? error.message : "PLAYER_REVIEW_UPSERT_FAILED";
@@ -940,7 +953,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = playerReviewWithdrawRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      await dependencies.services(c.env).withdrawReview({ reviewId }, portalPlayerAuth(access.player!), idempotencyKey);
+      await servicesFor(c).withdrawReview({ reviewId }, portalPlayerAuth(access.player!), idempotencyKey);
       return c.json({ contractVersion: "1", review: null });
     } catch (error) {
       const code = error instanceof Error ? error.message : "PLAYER_REVIEW_WITHDRAW_FAILED";
@@ -956,7 +969,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
     try {
-      return c.json(await dependencies.services(c.env).getPlayerSubmission({ submissionId: c.req.param("submissionId") }, access.sessionToken!));
+      return c.json(await servicesFor(c).getPlayerSubmission({ submissionId: c.req.param("submissionId") }, access.sessionToken!));
     } catch (error) {
       if (error instanceof Error && error.message === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist");
       throw error;
@@ -974,7 +987,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = ocrAccuracyFeedbackRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      const response = await dependencies.services(c.env).submitPlayerOcrFeedback({ ...parsed.data, submissionId: c.req.param("submissionId") }, access.sessionToken!, idempotencyKey);
+      const response = await servicesFor(c).submitPlayerOcrFeedback({ ...parsed.data, submissionId: c.req.param("submissionId") }, access.sessionToken!, idempotencyKey);
       return c.json(response);
     } catch (error) {
       const code = error instanceof Error ? error.message : "OCR_FEEDBACK_SUBMIT_FAILED";
@@ -990,7 +1003,7 @@ export const createApp = (dependencies: AppDependencies) => {
   app.post("/v1/auth/logout", async (c) => {
     allowPortal(c);
     const sessionToken = portalSessionToken(c.req.raw);
-    if (sessionToken) await dependencies.services(c.env).logoutPortalSession({ sessionToken });
+    if (sessionToken) await servicesFor(c).logoutPortalSession({ sessionToken });
     c.header("Set-Cookie", sessionCookie(c.req.raw, "", 0));
     return c.body(null, 204);
   });
@@ -1004,7 +1017,7 @@ export const createApp = (dependencies: AppDependencies) => {
       cacheKey: publicCacheKey(c.req.raw),
       eligible: cacheable,
       identityIndependent: true,
-      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_achievements", () => dependencies.services(c.env).listChallenges({ family: "achievement" })) }),
+      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_achievements", () => servicesFor(c).listChallenges({ family: "achievement" })) }),
       decorateHit: decoratePortalCacheHit(c),
     });
   });
@@ -1035,7 +1048,7 @@ export const createApp = (dependencies: AppDependencies) => {
       return errorResponse(c, 422, "INVALID_REQUEST", "The review summary targets are invalid");
     }
     try {
-      const items = await logServiceOperation(c, "review_public_summary_batch", () => dependencies.services(c.env).getReviewSummaries(
+      const items = await logServiceOperation(c, "review_public_summary_batch", () => servicesFor(c).getReviewSummaries(
         targetType.data === "map" ? { targetType: "map", targets: targets.map(({ targetId, gameplayRevisionId }) => ({ targetId, gameplayRevisionId: gameplayRevisionId! })) } : { targetType: "event", targetIds },
       ));
       return c.json({ contractVersion: "1", targetType: targetType.data, items });
@@ -1051,7 +1064,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const target = parseReviewTarget(c);
     if (!target.success) return errorResponse(c, 422, "INVALID_REVIEW_TARGET", "The review target is invalid");
     try {
-      const summary = await logServiceOperation(c, "review_public_summary", () => dependencies.services(c.env).getReviewSummary(target.data));
+      const summary = await logServiceOperation(c, "review_public_summary", () => servicesFor(c).getReviewSummary(target.data));
       return c.json({ contractVersion: "1", summary });
     } catch (error) {
       if (error instanceof Error && error.message === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, error.message, "The review target does not exist");
@@ -1066,7 +1079,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const page = parsePublicReviewPage(c);
     if (!target.success || !page) return errorResponse(c, 422, "INVALID_REQUEST", "The review comment request is invalid");
     try {
-      const comments = await logServiceOperation(c, "review_public_comments", () => dependencies.services(c.env).listPublicReviewComments({ ...target.data, ...page }));
+      const comments = await logServiceOperation(c, "review_public_comments", () => servicesFor(c).listPublicReviewComments({ ...target.data, ...page }));
       return c.json({ contractVersion: "1", ...comments });
     } catch (error) {
       if (error instanceof Error && error.message === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, error.message, "The review target does not exist");
@@ -1076,7 +1089,7 @@ export const createApp = (dependencies: AppDependencies) => {
 
   app.get("/v1/public/achievement-icons/:titleKey/:version", async (c) => {
     allowPortal(c);
-    const icon = await dependencies.services(c.env).getPublicTitleIcon({ titleKey: c.req.param("titleKey"), version: c.req.param("version") });
+    const icon = await servicesFor(c).getPublicTitleIcon({ titleKey: c.req.param("titleKey"), version: c.req.param("version") });
     if (!icon) return errorResponse(c, 404, "ICON_NOT_FOUND", "The achievement icon does not exist");
     c.header("Cache-Control", "public, max-age=31536000, immutable");
     if (icon.etag) c.header("ETag", icon.etag);
@@ -1088,7 +1101,7 @@ export const createApp = (dependencies: AppDependencies) => {
   // than `immutable`: the bytes behind this exact URL can change on the next upload.
   app.get("/v1/public/achievement-icons/:titleKey", async (c) => {
     allowPortal(c);
-    const icon = await dependencies.services(c.env).getPublicTitleIcon({ titleKey: c.req.param("titleKey") });
+    const icon = await servicesFor(c).getPublicTitleIcon({ titleKey: c.req.param("titleKey") });
     if (!icon) return errorResponse(c, 404, "ICON_NOT_FOUND", "The achievement icon does not exist");
     c.header("Cache-Control", "public, max-age=300");
     if (icon.etag) c.header("ETag", icon.etag);
@@ -1107,21 +1120,21 @@ export const createApp = (dependencies: AppDependencies) => {
         cacheKey: publicCacheKey(c.req.raw, { family: "map" }),
         eligible: cacheable,
         identityIndependent: true,
-        response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_map_challenges", () => dependencies.services(c.env).listChallenges({ family: "map" })) }),
+        response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_map_challenges", () => servicesFor(c).listChallenges({ family: "map" })) }),
         decorateHit: decoratePortalCacheHit(c),
       });
     }
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
     c.header("Cache-Control", "private, no-store");
-    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_challenges", () => dependencies.services(c.env).listChallenges({ family: family as "map" | "achievement" | undefined })) });
+    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_challenges", () => servicesFor(c).listChallenges({ family: family as "map" | "achievement" | undefined })) });
   });
 
   app.get("/v1/titles", async (c) => {
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
     c.header("Cache-Control", "private, no-store");
-    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_titles", () => dependencies.services(c.env).listTitles({ mapId: c.req.query("mapId") || undefined })) });
+    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_titles", () => servicesFor(c).listTitles({ mapId: c.req.query("mapId") || undefined })) });
   });
 
   app.get("/v1/maps", async (c) => {
@@ -1133,7 +1146,7 @@ export const createApp = (dependencies: AppDependencies) => {
       cacheKey: publicCacheKey(c.req.raw),
       eligible: cacheable,
       identityIndependent: true,
-      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_maps", () => dependencies.services(c.env).listMaps()) }),
+      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_maps", () => servicesFor(c).listMaps()) }),
       decorateHit: decoratePortalCacheHit(c),
     });
   });
@@ -1148,7 +1161,7 @@ export const createApp = (dependencies: AppDependencies) => {
       cacheKey: publicCacheKey(c.req.raw),
       eligible: cacheable,
       identityIndependent: true,
-      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_events", () => dependencies.services(c.env).listRandomEvents({ query: c.req.query("query")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, status: status as "implemented" | "removed" | undefined })) }),
+      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_events", () => servicesFor(c).listRandomEvents({ query: c.req.query("query")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, status: status as "implemented" | "removed" | undefined })) }),
       decorateHit: decoratePortalCacheHit(c),
     });
   });
@@ -1162,7 +1175,7 @@ export const createApp = (dependencies: AppDependencies) => {
       eligible: cacheable,
       identityIndependent: true,
       response: async () => {
-        const event = await logServiceOperation(c, "catalog_get_event", () => dependencies.services(c.env).getRandomEvent({ eventId: c.req.param("eventId") }));
+        const event = await logServiceOperation(c, "catalog_get_event", () => servicesFor(c).getRandomEvent({ eventId: c.req.param("eventId") }));
         return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist");
       },
       decorateHit: decoratePortalCacheHit(c),
@@ -1178,7 +1191,7 @@ export const createApp = (dependencies: AppDependencies) => {
       cacheKey: publicCacheKey(c.req.raw, { page: String(page.page), pageSize: String(page.pageSize) }),
       eligible: cacheable,
       identityIndependent: true,
-      response: async () => c.json({ ...await logServiceOperation(c, "agents_list_events", () => dependencies.services(c.env).listAgentEvents({ ...page, query: c.req.query("q")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, status: status as "development" | "implemented" | "removed" | undefined })) }),
+      response: async () => c.json({ ...await logServiceOperation(c, "agents_list_events", () => servicesFor(c).listAgentEvents({ ...page, query: c.req.query("q")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, status: status as "development" | "implemented" | "removed" | undefined })) }),
     });
   });
   app.get("/v1/agents/events/:eventId", async (c) => {
@@ -1191,7 +1204,7 @@ export const createApp = (dependencies: AppDependencies) => {
       eligible: cacheable,
       identityIndependent: true,
       response: async () => {
-        const event = await logServiceOperation(c, "agents_get_event", () => dependencies.services(c.env).getAgentEvent({ eventId: c.req.param("eventId"), status: status as "development" | "implemented" | "removed" | undefined }));
+        const event = await logServiceOperation(c, "agents_get_event", () => servicesFor(c).getAgentEvent({ eventId: c.req.param("eventId"), status: status as "development" | "implemented" | "removed" | undefined }));
         return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist");
       },
     });
@@ -1205,7 +1218,7 @@ export const createApp = (dependencies: AppDependencies) => {
       cacheKey: publicCacheKey(c.req.raw, { page: String(page.page), pageSize: String(page.pageSize) }),
       eligible: cacheable,
       identityIndependent: true,
-      response: async () => c.json(await logServiceOperation(c, "agents_list_maps", () => dependencies.services(c.env).listAgentMaps({ ...page, query: c.req.query("q")?.trim() || undefined, mechanic: c.req.query("mechanic")?.trim() || undefined }))),
+      response: async () => c.json(await logServiceOperation(c, "agents_list_maps", () => servicesFor(c).listAgentMaps({ ...page, query: c.req.query("q")?.trim() || undefined, mechanic: c.req.query("mechanic")?.trim() || undefined }))),
     });
   });
   app.get("/v1/agents/maps/:mapId", async (c) => {
@@ -1218,38 +1231,38 @@ export const createApp = (dependencies: AppDependencies) => {
       eligible: cacheable,
       identityIndependent: true,
       response: async () => {
-        const map = await logServiceOperation(c, "agents_get_map", () => dependencies.services(c.env).getAgentMap({ mapId: c.req.param("mapId") }));
+        const map = await logServiceOperation(c, "agents_get_map", () => servicesFor(c).getAgentMap({ mapId: c.req.param("mapId") }));
         return map ? c.json({ contractVersion: "1", item: map }) : errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist");
       },
     });
   });
   app.get("/v1/agents/achievements", async (c) => {
     allowAgents(c); const page = agentPage(c); const status = c.req.query("status"); if (!page || (status && status !== "active" && status !== "sunsetting")) return errorResponse(c, 422, "INVALID_REQUEST", "The request parameters are invalid");
-    return c.json(await logServiceOperation(c, "agents_list_achievements", () => dependencies.services(c.env).listAgentAchievements({ ...page, query: c.req.query("q")?.trim() || undefined, status: status as "active" | "sunsetting" | undefined, mapId: c.req.query("mapId")?.trim() || undefined })));
+    return c.json(await logServiceOperation(c, "agents_list_achievements", () => servicesFor(c).listAgentAchievements({ ...page, query: c.req.query("q")?.trim() || undefined, status: status as "active" | "sunsetting" | undefined, mapId: c.req.query("mapId")?.trim() || undefined })));
   });
   app.get("/v1/agents/achievements/:achievementId", async (c) => {
     allowAgents(c);
-    const achievement = await logServiceOperation(c, "agents_get_achievement", () => dependencies.services(c.env).getAgentAchievement({ challengeId: c.req.param("achievementId"), mapId: c.req.query("mapId")?.trim() || undefined, gameplayRevisionId: c.req.query("gameplayRevisionId")?.trim() || undefined }));
+    const achievement = await logServiceOperation(c, "agents_get_achievement", () => servicesFor(c).getAgentAchievement({ challengeId: c.req.param("achievementId"), mapId: c.req.query("mapId")?.trim() || undefined, gameplayRevisionId: c.req.query("gameplayRevisionId")?.trim() || undefined }));
     return achievement ? c.json({ contractVersion: "1", item: achievement }) : errorResponse(c, 404, "ACHIEVEMENT_NOT_FOUND", "The achievement does not exist");
   });
   app.get("/v1/agents/titles", async (c) => {
     allowAgents(c); const page = agentPage(c); const scope = c.req.query("scope"); if (!page || (scope && scope !== "global" && scope !== "map")) return errorResponse(c, 422, "INVALID_REQUEST", "The request parameters are invalid");
-    return c.json(await logServiceOperation(c, "agents_list_titles", () => dependencies.services(c.env).listAgentTitles({ ...page, query: c.req.query("q")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, scope: scope as "global" | "map" | undefined, mapId: c.req.query("mapId")?.trim() || undefined })));
+    return c.json(await logServiceOperation(c, "agents_list_titles", () => servicesFor(c).listAgentTitles({ ...page, query: c.req.query("q")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, scope: scope as "global" | "map" | undefined, mapId: c.req.query("mapId")?.trim() || undefined })));
   });
   app.get("/v1/agents/titles/:titleKey", async (c) => {
     allowAgents(c);
-    const title = await logServiceOperation(c, "agents_get_title", () => dependencies.services(c.env).getAgentTitle({ titleKey: c.req.param("titleKey") }));
+    const title = await logServiceOperation(c, "agents_get_title", () => servicesFor(c).getAgentTitle({ titleKey: c.req.param("titleKey") }));
     return title ? c.json({ contractVersion: "1", item: title }) : errorResponse(c, 404, "TITLE_NOT_FOUND", "The title does not exist");
   });
   app.get("/v1/agents/player-title-grants", async (c) => {
     const includePlayerIds = allowAgents(c); const page = agentPage(c); if (!page) return errorResponse(c, 422, "INVALID_REQUEST", "The pagination parameters are invalid"); setAgentsCache(c, includePlayerIds, true);
-    return c.json(publicAgentPlayerTitleGrants(await logServiceOperation(c, "agents_list_player_title_grants", () => dependencies.services(c.env).listAgentPlayerTitleGrants(page)), includePlayerIds));
+    return c.json(publicAgentPlayerTitleGrants(await logServiceOperation(c, "agents_list_player_title_grants", () => servicesFor(c).listAgentPlayerTitleGrants(page)), includePlayerIds));
   });
   app.get("/v1/agents/map-title-holders", async (c) => {
     const includePlayerIds = allowAgents(c); const page = agentPage(c); const mapId = c.req.query("mapId")?.trim(); if (!page || !mapId) return errorResponse(c, 422, "INVALID_REQUEST", "The mapId and pagination parameters are required"); setAgentsCache(c, includePlayerIds, true);
-    if (!(await dependencies.services(c.env).getAgentMap({ mapId }))) return errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist");
+    if (!(await servicesFor(c).getAgentMap({ mapId }))) return errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist");
     try {
-      return c.json(publicAgentMapTitleHolders(await logServiceOperation(c, "agents_list_map_title_holders", () => dependencies.services(c.env).listAgentMapTitleHolders({ ...page, mapId })), includePlayerIds));
+      return c.json(publicAgentMapTitleHolders(await logServiceOperation(c, "agents_list_map_title_holders", () => servicesFor(c).listAgentMapTitleHolders({ ...page, mapId })), includePlayerIds));
     } catch (error) {
       const code = error instanceof Error ? error.message : "AGENT_MAP_TITLE_PROJECTION_FAILED";
       if (code === "AGENT_MAP_TITLE_PROJECTION_UNAVAILABLE") {
@@ -1262,7 +1275,7 @@ export const createApp = (dependencies: AppDependencies) => {
   });
   app.get("/v1/agents/search", async (c) => {
     allowAgents(c); const page = agentPage(c); const query = c.req.query("q")?.trim(); const kind = c.req.query("kind"); const status = c.req.query("status"); if (!page || !query || (kind && !["event", "map", "achievement", "title"].includes(kind)) || (status && !["development", "implemented", "removed"].includes(status))) return errorResponse(c, 422, "INVALID_REQUEST", "The search parameters are invalid");
-    return c.json(await logServiceOperation(c, "agents_search", () => dependencies.services(c.env).searchAgentContent({ ...page, query, kind: kind as "event" | "map" | "achievement" | "title" | undefined, status: status as "development" | "implemented" | "removed" | undefined })));
+    return c.json(await logServiceOperation(c, "agents_search", () => servicesFor(c).searchAgentContent({ ...page, query, kind: kind as "event" | "map" | "achievement" | "title" | undefined, status: status as "development" | "implemented" | "removed" | undefined })));
   });
 
   app.post("/v1/player/uploads/session", async (c) => {
@@ -1270,21 +1283,21 @@ export const createApp = (dependencies: AppDependencies) => {
     if (access.error) return access.error;
     const parsed = playerUploadSessionRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).createPlayerUploadSession(parsed.data, access.sessionToken!), 201); }
+    try { return c.json(await servicesFor(c).createPlayerUploadSession(parsed.data, access.sessionToken!), 201); }
     catch (error) { const code = error instanceof Error ? error.message : "UPLOAD_SESSION_FAILED"; if (["CHALLENGE_NOT_FOUND", "GAMEPLAY_REVISION_REQUIRED"].includes(code)) return errorResponse(c, 422, code, "The challenge revision is not available"); if (code === "CHALLENGE_AUTOMATIC") return errorResponse(c, 422, code, "该称号满足条件后自动获得，无需提交截图。"); if (code === "PLAYER_BANNED") return errorResponse(c, 403, code, "The player account is banned"); throw error; }
   });
 
   app.put("/v1/uploads/:uploadId", async (c) => {
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
-    try { await dependencies.services(c.env).uploadEvidence({ uploadId: c.req.param("uploadId"), body: await c.req.raw.arrayBuffer(), contentType: c.req.header("content-type") ?? "" }, access.sessionToken!); return c.body(null, 204); }
+    try { await servicesFor(c).uploadEvidence({ uploadId: c.req.param("uploadId"), body: await c.req.raw.arrayBuffer(), contentType: c.req.header("content-type") ?? "" }, access.sessionToken!); return c.body(null, 204); }
     catch (error) { const code = error instanceof Error ? error.message : "UPLOAD_FAILED"; if (["UPLOAD_SESSION_INVALID", "UPLOAD_METADATA_MISMATCH", "UPLOAD_HASH_MISMATCH"].includes(code)) return errorResponse(c, 422, code, "The upload is invalid or expired"); throw error; }
   });
 
   app.post("/v1/player/uploads/:uploadId/complete", async (c) => {
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
-    try { return c.json(await dependencies.services(c.env).completePlayerUpload({ uploadId: c.req.param("uploadId") }, access.sessionToken!, c.get("requestId"))); }
+    try { return c.json(await servicesFor(c).completePlayerUpload({ uploadId: c.req.param("uploadId") }, access.sessionToken!, c.get("requestId"))); }
     catch (error) { if (error instanceof Error && error.message === "UPLOAD_SESSION_INVALID") return errorResponse(c, 422, "UPLOAD_SESSION_INVALID", "The upload is invalid or expired"); if (error instanceof Error && error.message === "UPLOAD_COMPLETION_IN_PROGRESS") return errorResponse(c, 409, error.message, "Upload completion is already in progress"); throw error; }
   });
 
@@ -1292,7 +1305,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
     try {
-      await dependencies.services(c.env).requestManualReview({ submissionId: c.req.param("submissionId") }, access.sessionToken!);
+      await servicesFor(c).requestManualReview({ submissionId: c.req.param("submissionId") }, access.sessionToken!);
       return c.body(null, 204);
     } catch (error) {
       const code = error instanceof Error ? error.message : "MANUAL_REVIEW_FAILED";
@@ -1311,7 +1324,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = qqGroupAccessRequestSchema.safeParse({ ...(await parseBody(c.req.raw) as object), groupOpenId: c.req.param("groupOpenId") });
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      await dependencies.services(c.env).upsertQqGroupAccess(parsed.data, auth, idempotencyKey);
+      await servicesFor(c).upsertQqGroupAccess(parsed.data, auth, idempotencyKey);
       return c.body(null, 204);
     } catch (error) {
       if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, error.message, "The idempotency key was used with a different request");
@@ -1323,12 +1336,12 @@ export const createApp = (dependencies: AppDependencies) => {
     let auth = await dependencies.authenticate(c.req.raw, c.env);
     if (!auth) {
       const sessionToken = portalSessionToken(c.req.raw);
-      const player = sessionToken ? await dependencies.services(c.env).getPortalSessionIdentity({ sessionToken }) : null;
+      const player = sessionToken ? await servicesFor(c).getPortalSessionIdentity({ sessionToken }) : null;
       if (player?.player.isAdmin) auth = { actorType: "user", subject: player.player.playerId, roles: ["maintainer"], provider: "portal-session" };
     }
     if (!auth) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
     if (!auth.roles.includes("maintainer") && !auth.roles.includes("channel:read")) return errorResponse(c, 403, "FORBIDDEN", "The actor cannot read group access");
-    return c.json({ contractVersion: "1", items: await dependencies.services(c.env).listQqGroupAccess(auth) });
+    return c.json({ contractVersion: "1", items: await servicesFor(c).listQqGroupAccess(auth) });
   });
 
   app.get("/v1/admin/player-accounts", async (c) => {
@@ -1338,7 +1351,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const pageSize = Math.min(50, Math.max(1, Number(c.req.query("pageSize") ?? 25) || 25));
     const status = c.req.query("status");
     if (status && status !== "active" && status !== "banned") return errorResponse(c, 422, "INVALID_REQUEST", "The status is invalid");
-    return c.json(await dependencies.services(c.env).listAdminPlayers({ query: c.req.query("query")?.trim() || undefined, status: status as "active" | "banned" | undefined, page, pageSize }, access.auth!));
+    return c.json(await servicesFor(c).listAdminPlayers({ query: c.req.query("query")?.trim() || undefined, status: status as "active" | "banned" | undefined, page, pageSize }, access.auth!));
   });
 
   app.get("/v1/admin/achievements", async (c) => {
@@ -1349,7 +1362,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const family = type === "map_completion" || type === "map" ? "map" : type === "title_achievement" || type === "achievement" ? "achievement" : undefined;
     if (type && !family) return errorResponse(c, 422, "INVALID_REQUEST", "The achievement type is invalid");
     if (status && !["draft", "scheduled", "active", "sunsetting", "retired"].includes(status)) return errorResponse(c, 422, "INVALID_REQUEST", "The achievement status is invalid");
-    return c.json(await logServiceOperation(c, "admin_list_achievements", () => dependencies.services(c.env).listAdminChallenges({ family: family as "map" | "achievement" | undefined, status }, access.auth!)));
+    return c.json(await logServiceOperation(c, "admin_list_achievements", () => servicesFor(c).listAdminChallenges({ family: family as "map" | "achievement" | undefined, status }, access.auth!)));
   });
 
   app.post("/v1/admin/achievements", async (c) => {
@@ -1360,7 +1373,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminAchievementCreateRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      return c.json(await dependencies.services(c.env).createAdminAchievement(parsed.data, access.auth!, idempotencyKey), 201);
+      return c.json(await servicesFor(c).createAdminAchievement(parsed.data, access.auth!, idempotencyKey), 201);
     } catch (error) {
       const code = error instanceof Error ? error.message : "ACHIEVEMENT_CREATE_FAILED";
       if (code === "TITLE_KEY_CONFLICT") return errorResponse(c, 409, code, "The title key already exists");
@@ -1376,20 +1389,20 @@ export const createApp = (dependencies: AppDependencies) => {
   app.get("/v1/admin/maps", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
-    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "admin_list_maps", () => dependencies.services(c.env).listMaps()) });
+    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "admin_list_maps", () => servicesFor(c).listMaps()) });
   });
 
   app.get("/v1/admin/map-title-rules", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
-    return c.json(await dependencies.services(c.env).listAdminMapTitleRules(access.auth!));
+    return c.json(await servicesFor(c).listAdminMapTitleRules(access.auth!));
   });
   app.post("/v1/admin/map-title-rules", async (c) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
     const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminMapTitleRuleCreateRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).createAdminMapTitleRule(parsed.data, access.auth!, key), 201); }
+    try { return c.json(await servicesFor(c).createAdminMapTitleRule(parsed.data, access.auth!, key), 201); }
     catch (error) { const code = error instanceof Error ? error.message : "MAP_TITLE_RULE_CREATE_FAILED"; if (["MAP_TITLE_NOT_FOUND", "PIONEER_RULE_SCOPE_MUST_BE_EXPLICIT"].includes(code)) return errorResponse(c, 422, code, code === "PIONEER_RULE_SCOPE_MUST_BE_EXPLICIT" ? "Pioneer rules can only use explicit map exceptions" : "The map title is unavailable"); if (["MAP_TITLE_RULE_KIND_CONFLICT", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The map title rule conflicts with an existing record"); throw error; }
   });
   app.put("/v1/admin/map-title-rules/:ruleId", async (c) => {
@@ -1397,12 +1410,12 @@ export const createApp = (dependencies: AppDependencies) => {
     const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminMapTitleRuleUpdateRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).updateAdminMapTitleRule({ ...parsed.data, ruleId: c.req.param("ruleId") }, access.auth!, key)); }
+    try { return c.json(await servicesFor(c).updateAdminMapTitleRule({ ...parsed.data, ruleId: c.req.param("ruleId") }, access.auth!, key)); }
     catch (error) { const code = error instanceof Error ? error.message : "MAP_TITLE_RULE_UPDATE_FAILED"; if (code === "MAP_TITLE_RULE_NOT_FOUND") return errorResponse(c, 404, code, "The map title rule does not exist"); if (["MAP_TITLE_NOT_FOUND", "PIONEER_RULE_SCOPE_MUST_BE_EXPLICIT"].includes(code)) return errorResponse(c, 422, code, code === "PIONEER_RULE_SCOPE_MUST_BE_EXPLICIT" ? "Pioneer rules can only use explicit map exceptions" : "The map title is unavailable"); if (["MAP_TITLE_RULE_KIND_CONFLICT", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The map title rule conflicts with an existing record"); throw error; }
   });
   app.get("/v1/admin/maps/:mapId/map-title-inheritance", async (c) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
-    try { return c.json(await dependencies.services(c.env).listAdminMapTitleInheritance({ mapId: c.req.param("mapId") }, access.auth!)); }
+    try { return c.json(await servicesFor(c).listAdminMapTitleInheritance({ mapId: c.req.param("mapId") }, access.auth!)); }
     catch (error) { if (error instanceof Error && error.message === "MAP_NOT_FOUND") return errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist"); throw error; }
   });
   app.put("/v1/admin/maps/:mapId/map-title-rules/:ruleId/exception", async (c) => {
@@ -1410,14 +1423,14 @@ export const createApp = (dependencies: AppDependencies) => {
     const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminMapTitleRuleExceptionUpsertRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { await dependencies.services(c.env).upsertAdminMapTitleRuleException({ ...parsed.data, mapId: c.req.param("mapId"), ruleId: c.req.param("ruleId") }, access.auth!, key); return c.body(null, 204); }
+    try { await servicesFor(c).upsertAdminMapTitleRuleException({ ...parsed.data, mapId: c.req.param("mapId"), ruleId: c.req.param("ruleId") }, access.auth!, key); return c.body(null, 204); }
     catch (error) { const code = error instanceof Error ? error.message : "MAP_TITLE_EXCEPTION_UPDATE_FAILED"; if (["MAP_NOT_FOUND", "MAP_TITLE_RULE_NOT_FOUND"].includes(code)) return errorResponse(c, 404, code, "The map or map title rule does not exist"); if (code === "PIONEER_EXCEPTION_SCHEDULE_REQUIRED") return errorResponse(c, 422, code, "Pioneer map exceptions require a valid start and end time"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
   });
 
   app.get("/v1/admin/titles", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
-    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "admin_list_titles", () => dependencies.services(c.env).listTitles({ mapId: c.req.query("mapId")?.trim() || undefined })) });
+    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "admin_list_titles", () => servicesFor(c).listTitles({ mapId: c.req.query("mapId")?.trim() || undefined })) });
   });
 
   app.get("/v1/admin/events", async (c) => {
@@ -1425,7 +1438,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (access.error) return access.error;
     return c.json({
       contractVersion: "1",
-      items: await logServiceOperation(c, "admin_list_events", () => dependencies.services(c.env).listRandomEvents({
+      items: await logServiceOperation(c, "admin_list_events", () => servicesFor(c).listRandomEvents({
         query: c.req.query("query")?.trim() || undefined,
         category: c.req.query("category")?.trim() || undefined,
         rarity: c.req.query("rarity")?.trim() || undefined,
@@ -1433,30 +1446,30 @@ export const createApp = (dependencies: AppDependencies) => {
       })),
     });
   });
-  app.post("/v1/admin/events", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required"); const parsed = adminRandomEventCreateRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); try { return c.json(await dependencies.services(c.env).createAdminRandomEvent(parsed.data, access.auth!, key), 201); } catch (error) { const code = error instanceof Error ? error.message : "EVENT_CREATE_FAILED"; if (code === "CHALLENGE_NOT_FOUND") return errorResponse(c, 422, code, "The challenge does not exist"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; } });
+  app.post("/v1/admin/events", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required"); const parsed = adminRandomEventCreateRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); try { return c.json(await servicesFor(c).createAdminRandomEvent(parsed.data, access.auth!, key), 201); } catch (error) { const code = error instanceof Error ? error.message : "EVENT_CREATE_FAILED"; if (code === "CHALLENGE_NOT_FOUND") return errorResponse(c, 422, code, "The challenge does not exist"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; } });
   app.post("/v1/admin/events/batch", async (c) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
     const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminRandomEventBatchRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json({ contractVersion: "1" as const, items: await dependencies.services(c.env).batchUpdateAdminRandomEvents(parsed.data, access.auth!, key) }); } catch (error) {
+    try { return c.json({ contractVersion: "1" as const, items: await servicesFor(c).batchUpdateAdminRandomEvents(parsed.data, access.auth!, key) }); } catch (error) {
       const code = error instanceof Error ? error.message : "EVENT_BATCH_FAILED";
       if (code === "EVENT_NOT_FOUND") return errorResponse(c, 404, code, "An event in the batch does not exist");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
     }
   });
-  app.put("/v1/admin/events/:eventId", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required"); const parsed = adminRandomEventUpdateRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); try { return c.json(await dependencies.services(c.env).updateAdminRandomEvent({ ...parsed.data, eventId: c.req.param("eventId") }, access.auth!, key)); } catch (error) { const code = error instanceof Error ? error.message : "EVENT_UPDATE_FAILED"; if (code === "EVENT_NOT_FOUND") return errorResponse(c, 404, code, "The event does not exist"); if (code === "CHALLENGE_NOT_FOUND") return errorResponse(c, 422, code, "The challenge does not exist"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; } });
-  app.delete("/v1/admin/events/:eventId", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required"); try { await dependencies.services(c.env).archiveAdminRandomEvent({ eventId: c.req.param("eventId") }, access.auth!, key); return c.body(null, 204); } catch (error) { const code = error instanceof Error ? error.message : "EVENT_ARCHIVE_FAILED"; if (code === "EVENT_NOT_FOUND") return errorResponse(c, 404, code, "The event does not exist"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; } });
-  app.post("/v1/admin/events/imports/preview", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const parsed = adminRandomEventImportRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); return c.json(await dependencies.services(c.env).previewAdminRandomEventImport(parsed.data, access.auth!)); });
-  app.post("/v1/admin/events/imports", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required"); const parsed = adminRandomEventImportRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); try { return c.json(await dependencies.services(c.env).importAdminRandomEvents(parsed.data, access.auth!, key), 201); } catch (error) { const code = error instanceof Error ? error.message : "EVENT_IMPORT_FAILED"; if (["EVENT_IMPORT_INVALID", "EVENT_IMPORT_NAME_CONFLICT", "CHALLENGE_NOT_FOUND"].includes(code)) return errorResponse(c, 422, code, "The import data is invalid"); if (code === "EVENT_IMPORT_DUPLICATE" || code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The import was already processed"); throw error; } });
-  app.get("/v1/admin/event-versions", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; return c.json(await logServiceOperation(c, "admin_list_event_versions", () => dependencies.services(c.env).listAdminRandomEventVersions(access.auth!))); });
-  app.put("/v1/admin/event-versions/:gameVersion/availability", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required"); const parsed = adminRandomEventVersionAvailabilityRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); try { return c.json(await dependencies.services(c.env).updateAdminRandomEventVersion({ ...parsed.data, gameVersion: decodeURIComponent(c.req.param("gameVersion")) }, access.auth!, key)); } catch (error) { const code = error instanceof Error ? error.message : "EVENT_VERSION_UPDATE_FAILED"; if (code === "EVENT_VERSION_NOT_FOUND") return errorResponse(c, 404, code, "The event version does not exist"); if (code === "EVENT_VERSION_MODE_REQUIRED") return errorResponse(c, 422, code, "A weight total needs a standalone mode"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; } });
-  app.get("/v1/admin/standalone-modes", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; return c.json(await logServiceOperation(c, "admin_list_standalone_modes", () => dependencies.services(c.env).listAdminStandaloneModes(access.auth!))); });
+  app.put("/v1/admin/events/:eventId", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required"); const parsed = adminRandomEventUpdateRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); try { return c.json(await servicesFor(c).updateAdminRandomEvent({ ...parsed.data, eventId: c.req.param("eventId") }, access.auth!, key)); } catch (error) { const code = error instanceof Error ? error.message : "EVENT_UPDATE_FAILED"; if (code === "EVENT_NOT_FOUND") return errorResponse(c, 404, code, "The event does not exist"); if (code === "CHALLENGE_NOT_FOUND") return errorResponse(c, 422, code, "The challenge does not exist"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; } });
+  app.delete("/v1/admin/events/:eventId", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required"); try { await servicesFor(c).archiveAdminRandomEvent({ eventId: c.req.param("eventId") }, access.auth!, key); return c.body(null, 204); } catch (error) { const code = error instanceof Error ? error.message : "EVENT_ARCHIVE_FAILED"; if (code === "EVENT_NOT_FOUND") return errorResponse(c, 404, code, "The event does not exist"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; } });
+  app.post("/v1/admin/events/imports/preview", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const parsed = adminRandomEventImportRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); return c.json(await servicesFor(c).previewAdminRandomEventImport(parsed.data, access.auth!)); });
+  app.post("/v1/admin/events/imports", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required"); const parsed = adminRandomEventImportRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); try { return c.json(await servicesFor(c).importAdminRandomEvents(parsed.data, access.auth!, key), 201); } catch (error) { const code = error instanceof Error ? error.message : "EVENT_IMPORT_FAILED"; if (["EVENT_IMPORT_INVALID", "EVENT_IMPORT_NAME_CONFLICT", "CHALLENGE_NOT_FOUND"].includes(code)) return errorResponse(c, 422, code, "The import data is invalid"); if (code === "EVENT_IMPORT_DUPLICATE" || code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The import was already processed"); throw error; } });
+  app.get("/v1/admin/event-versions", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; return c.json(await logServiceOperation(c, "admin_list_event_versions", () => servicesFor(c).listAdminRandomEventVersions(access.auth!))); });
+  app.put("/v1/admin/event-versions/:gameVersion/availability", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required"); const parsed = adminRandomEventVersionAvailabilityRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); try { return c.json(await servicesFor(c).updateAdminRandomEventVersion({ ...parsed.data, gameVersion: decodeURIComponent(c.req.param("gameVersion")) }, access.auth!, key)); } catch (error) { const code = error instanceof Error ? error.message : "EVENT_VERSION_UPDATE_FAILED"; if (code === "EVENT_VERSION_NOT_FOUND") return errorResponse(c, 404, code, "The event version does not exist"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; } });
+  app.get("/v1/admin/standalone-modes", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; return c.json(await logServiceOperation(c, "admin_list_standalone_modes", () => servicesFor(c).listAdminStandaloneModes(access.auth!))); });
   app.put("/v1/admin/standalone-modes/:mode", async (c) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
     const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminStandaloneModeUpsertRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).upsertAdminStandaloneMode({ ...parsed.data, mode: decodeURIComponent(c.req.param("mode")) }, access.auth!, key)); } catch (error) {
+    try { return c.json(await servicesFor(c).upsertAdminStandaloneMode({ ...parsed.data, mode: decodeURIComponent(c.req.param("mode")) }, access.auth!, key)); } catch (error) {
       const code = error instanceof Error ? error.message : "STANDALONE_MODE_UPDATE_FAILED";
       if (code === "STANDALONE_MODE_INVALID") return errorResponse(c, 422, code, "A standalone mode needs a non-regular mode name");
       if (code === "MAP_NOT_FOUND" || code === "MAP_NOT_ACTIVE" || code === "EVENT_VERSION_NOT_FOUND") return errorResponse(c, 422, code, "One or more maps or event pools are unavailable");
@@ -1469,7 +1482,7 @@ export const createApp = (dependencies: AppDependencies) => {
   app.get("/v1/admin/maps/:mapId/editor", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
-    try { return c.json(await logServiceOperation(c, "admin_get_map_editor", () => dependencies.services(c.env).getAdminMapEditor({ mapId: c.req.param("mapId") }, access.auth!))); }
+    try { return c.json(await logServiceOperation(c, "admin_get_map_editor", () => servicesFor(c).getAdminMapEditor({ mapId: c.req.param("mapId") }, access.auth!))); }
     catch (error) {
       const code = error instanceof Error ? error.message : "MAP_EDITOR_READ_FAILED";
       if (code === "MAP_NOT_FOUND") return errorResponse(c, 404, code, "The map does not exist");
@@ -1484,7 +1497,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminMapRevisionCreateRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).createAdminMapRevision({ ...parsed.data, mapId: c.req.param("mapId") }, access.auth!, idempotencyKey), 201); }
+    try { return c.json(await servicesFor(c).createAdminMapRevision({ ...parsed.data, mapId: c.req.param("mapId") }, access.auth!, idempotencyKey), 201); }
     catch (error) {
       const code = error instanceof Error ? error.message : "MAP_REVISION_CREATE_FAILED";
       if (code === "MAP_NOT_FOUND") return errorResponse(c, 404, code, "The map does not exist");
@@ -1501,7 +1514,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminMapRevisionUpdateRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).updateAdminMapRevision({ ...parsed.data, mapId: c.req.param("mapId"), revisionId: c.req.param("revisionId") }, access.auth!, idempotencyKey)); }
+    try { return c.json(await servicesFor(c).updateAdminMapRevision({ ...parsed.data, mapId: c.req.param("mapId"), revisionId: c.req.param("revisionId") }, access.auth!, idempotencyKey)); }
     catch (error) {
       const code = error instanceof Error ? error.message : "MAP_REVISION_UPDATE_FAILED";
       if (code === "REVISION_NOT_FOUND") return errorResponse(c, 404, code, "The map revision does not exist");
@@ -1520,7 +1533,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminMapRevisionPromotionRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The promotion request does not match contract v1");
     try {
-      return c.json(await dependencies.services(c.env).promoteAdminMapRevision({
+      return c.json(await servicesFor(c).promoteAdminMapRevision({
         ...parsed.data,
         mapId: c.req.param("mapId"),
         revisionId: c.req.param("revisionId"),
@@ -1545,7 +1558,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminMapMetadataUpdateRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).updateAdminMapMetadata({ ...parsed.data, mapId: c.req.param("mapId") }, access.auth!, idempotencyKey)); }
+    try { return c.json(await servicesFor(c).updateAdminMapMetadata({ ...parsed.data, mapId: c.req.param("mapId") }, access.auth!, idempotencyKey)); }
     catch (error) {
       const code = error instanceof Error ? error.message : "MAP_METADATA_UPDATE_FAILED";
       if (code === "MAP_NOT_FOUND") return errorResponse(c, 404, code, "The map does not exist");
@@ -1562,7 +1575,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminCatalogTitleUpdateRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      await dependencies.services(c.env).updateAdminCatalogTitle({ ...parsed.data, titleKey: c.req.param("titleKey") }, access.auth!, idempotencyKey);
+      await servicesFor(c).updateAdminCatalogTitle({ ...parsed.data, titleKey: c.req.param("titleKey") }, access.auth!, idempotencyKey);
       return c.body(null, 204);
     } catch (error) {
       const code = error instanceof Error ? error.message : "TITLE_UPDATE_FAILED";
@@ -1581,7 +1594,7 @@ export const createApp = (dependencies: AppDependencies) => {
       const form = await c.req.raw.formData();
       const file = form.get("file");
       if (!(file instanceof File)) return errorResponse(c, 422, "ICON_FILE_REQUIRED", "An icon file is required");
-      const result = await dependencies.services(c.env).uploadAdminTitleIcon({ titleKey: c.req.param("titleKey"), body: await file.arrayBuffer(), contentType: file.type }, access.auth!);
+      const result = await servicesFor(c).uploadAdminTitleIcon({ titleKey: c.req.param("titleKey"), body: await file.arrayBuffer(), contentType: file.type }, access.auth!);
       return c.json({ contractVersion: "1", ...result });
     } catch (error) {
       const code = error instanceof Error ? error.message : "ICON_UPLOAD_FAILED";
@@ -1600,14 +1613,14 @@ export const createApp = (dependencies: AppDependencies) => {
     const body = await parseBody(c.req.raw) as Record<string, unknown> | null;
     const parsed = adminChallengeUpdateRequestSchema.safeParse({ ...body, family: body?.family ?? (c.req.param("challengeId").startsWith("title.") ? "achievement" : "map") });
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).updateAdminChallenge({ ...parsed.data, challengeId: c.req.param("challengeId") }, access.auth!, idempotencyKey)); }
-    catch (error) { const code = error instanceof Error ? error.message : "ACHIEVEMENT_UPDATE_FAILED"; if (code === "CHALLENGE_NOT_FOUND") return errorResponse(c, 404, code, "The achievement does not exist"); if (["MAP_NOT_FOUND", "MAP_NOT_ACTIVE", "INVALID_MAP_SCOPE", "ACHIEVEMENT_GAME_VERSION_REQUIRED", "STANDALONE_MODE_NOT_FOUND"].includes(code)) return errorResponse(c, 422, code, "The challenge lifecycle metadata is invalid"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
+    try { return c.json(await servicesFor(c).updateAdminChallenge({ ...parsed.data, challengeId: c.req.param("challengeId") }, access.auth!, idempotencyKey)); }
+    catch (error) { const code = error instanceof Error ? error.message : "ACHIEVEMENT_UPDATE_FAILED"; if (code === "CHALLENGE_NOT_FOUND") return errorResponse(c, 404, code, "The achievement does not exist"); if (["MAP_NOT_FOUND", "MAP_NOT_ACTIVE", "INVALID_MAP_SCOPE", "ACHIEVEMENT_GAME_VERSION_REQUIRED"].includes(code)) return errorResponse(c, 422, code, "The challenge lifecycle metadata is invalid"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
   });
 
   app.get("/v1/admin/player-accounts/:playerAccountId", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
-    try { return c.json(await dependencies.services(c.env).getAdminPlayer({ playerAccountId: c.req.param("playerAccountId") }, access.auth!)); }
+    try { return c.json(await servicesFor(c).getAdminPlayer({ playerAccountId: c.req.param("playerAccountId") }, access.auth!)); }
     catch (error) { if (error instanceof Error && error.message === "PLAYER_NOT_FOUND") return errorResponse(c, 404, "PLAYER_NOT_FOUND", "The player does not exist"); throw error; }
   });
 
@@ -1618,7 +1631,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminPlayerStatusRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { await dependencies.services(c.env).setAdminPlayerStatus({ playerAccountId: c.req.param("playerAccountId"), status: parsed.data.status, reason: parsed.data.reason }, access.auth!, idempotencyKey); return c.body(null, 204); }
+    try { await servicesFor(c).setAdminPlayerStatus({ playerAccountId: c.req.param("playerAccountId"), status: parsed.data.status, reason: parsed.data.reason }, access.auth!, idempotencyKey); return c.body(null, 204); }
     catch (error) { if (error instanceof Error && error.message === "PLAYER_NOT_FOUND") return errorResponse(c, 404, "PLAYER_NOT_FOUND", "The player does not exist"); if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, "IDEMPOTENCY_CONFLICT", "The idempotency key was used with a different request"); throw error; }
   });
 
@@ -1630,7 +1643,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminPlayerIdentityRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      await dependencies.services(c.env).updateAdminPlayerIdentity({ ...parsed.data, playerAccountId: c.req.param("playerAccountId") }, access.auth!, idempotencyKey);
+      await servicesFor(c).updateAdminPlayerIdentity({ ...parsed.data, playerAccountId: c.req.param("playerAccountId") }, access.auth!, idempotencyKey);
       return c.body(null, 204);
     } catch (error) {
       const code = error instanceof Error ? error.message : "PLAYER_IDENTITY_UPDATE_FAILED";
@@ -1646,7 +1659,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (access.error) return access.error;
     const idempotencyKey = c.req.header("idempotency-key");
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    try { await dependencies.services(c.env).removeAdminBinding({ bindingId: c.req.param("bindingId") }, access.auth!, idempotencyKey); return c.body(null, 204); }
+    try { await servicesFor(c).removeAdminBinding({ bindingId: c.req.param("bindingId") }, access.auth!, idempotencyKey); return c.body(null, 204); }
     catch (error) { if (error instanceof Error && error.message === "BINDING_NOT_FOUND") return errorResponse(c, 404, "BINDING_NOT_FOUND", "The binding does not exist"); if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, "IDEMPOTENCY_CONFLICT", "The idempotency key was used with a different request"); throw error; }
   });
 
@@ -1657,7 +1670,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const pageSize = Math.min(50, Math.max(1, Number(c.req.query("pageSize") ?? "20") || 20));
     const filter = c.req.query("filter")?.trim() || "all";
     if (filter !== "all" && filter !== "pending" && filter !== "completed") return errorResponse(c, 422, "INVALID_REQUEST", "The filter is invalid");
-    return c.json(await dependencies.services(c.env).listHistoricalTitleGrants({ query: c.req.query("query")?.trim() || undefined, filter, page, pageSize }, access.auth!));
+    return c.json(await servicesFor(c).listHistoricalTitleGrants({ query: c.req.query("query")?.trim() || undefined, filter, page, pageSize }, access.auth!));
   });
 
   app.get("/v1/admin/title-grants/holder", async (c) => {
@@ -1670,7 +1683,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const grantStatus = c.req.query("grantStatus")?.trim() || "all";
     if (grantStatus !== "all" && grantStatus !== "unclaimed" && grantStatus !== "active" && grantStatus !== "revoked") return errorResponse(c, 422, "INVALID_REQUEST", "The grantStatus is invalid");
     try {
-      return c.json(await dependencies.services(c.env).getHistoricalTitleHolder({ holderName, page, pageSize, grantStatus }, access.auth!));
+      return c.json(await servicesFor(c).getHistoricalTitleHolder({ holderName, page, pageSize, grantStatus }, access.auth!));
     } catch (error) {
       if (error instanceof Error && error.message === "HISTORICAL_HOLDER_NOT_FOUND") return errorResponse(c, 404, "HISTORICAL_HOLDER_NOT_FOUND", "The historical holder does not exist");
       throw error;
@@ -1684,7 +1697,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminTitleGrantRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { await dependencies.services(c.env).createAdminTitleGrant(parsed.data, access.auth!, idempotencyKey); return c.body(null, 204); }
+    try { await servicesFor(c).createAdminTitleGrant(parsed.data, access.auth!, idempotencyKey); return c.body(null, 204); }
     catch (error) { const code = error instanceof Error ? error.message : "TITLE_GRANT_FAILED"; if (["HISTORICAL_TITLE_GRANT_NOT_FOUND", "PLAYER_NOT_FOUND"].includes(code)) return errorResponse(c, 404, code, "The requested record does not exist"); if (code === "HISTORICAL_TITLE_GRANT_CLAIMED") return errorResponse(c, 409, code, "The historical title is already linked"); if (["TITLE_GRANT_ADMINISTRATIVELY_REVOKED", "TITLE_GRANT_EVIDENCE_INVALIDATED", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The title grant cannot be created in its current state"); throw error; }
   });
 
@@ -1695,7 +1708,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminTitleGrantBulkRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).createAdminTitleGrantBulk(parsed.data, access.auth!, idempotencyKey)); }
+    try { return c.json(await servicesFor(c).createAdminTitleGrantBulk(parsed.data, access.auth!, idempotencyKey)); }
     catch (error) { const code = error instanceof Error ? error.message : "TITLE_GRANT_BULK_FAILED"; if (code === "PLAYER_NOT_FOUND") return errorResponse(c, 404, code, "The requested player does not exist"); if (["TITLE_GRANT_ADMINISTRATIVELY_REVOKED", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The title grant cannot be created in its current state"); throw error; }
   });
 
@@ -1706,7 +1719,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminManualTitleGrantRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).createAdminManualTitleGrant(parsed.data, access.auth!, idempotencyKey)); }
+    try { return c.json(await servicesFor(c).createAdminManualTitleGrant(parsed.data, access.auth!, idempotencyKey)); }
     catch (error) {
       const code = error instanceof Error ? error.message : "MANUAL_TITLE_GRANT_FAILED";
       if (["PLAYER_NOT_FOUND", "TITLE_NOT_FOUND", "MAP_NOT_FOUND"].includes(code)) return errorResponse(c, 404, code, "The requested player, title, or map does not exist");
@@ -1723,7 +1736,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminManualTitleGrantBatchRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).createAdminManualTitleGrantBatch(parsed.data, access.auth!, idempotencyKey)); }
+    try { return c.json(await servicesFor(c).createAdminManualTitleGrantBatch(parsed.data, access.auth!, idempotencyKey)); }
     catch (error) {
       const code = error instanceof Error ? error.message : "MANUAL_TITLE_GRANT_BATCH_FAILED";
       if (code === "PLAYER_NOT_FOUND" || code === "TITLE_NOT_FOUND" || code === "MAP_NOT_FOUND") return errorResponse(c, 404, code, "The requested player, title, or map does not exist");
@@ -1740,7 +1753,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminTitleGrantRevokeRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { await dependencies.services(c.env).revokeAdminTitleGrant({ grantId: c.req.param("grantId"), reason: parsed.data.reason }, access.auth!, idempotencyKey); return c.body(null, 204); }
+    try { await servicesFor(c).revokeAdminTitleGrant({ grantId: c.req.param("grantId"), reason: parsed.data.reason }, access.auth!, idempotencyKey); return c.body(null, 204); }
     catch (error) { const code = error instanceof Error ? error.message : "TITLE_GRANT_REVOKE_FAILED"; if (code === "TITLE_GRANT_NOT_FOUND") return errorResponse(c, 404, code, "The title grant does not exist"); if (["TITLE_GRANT_NOT_ACTIVE", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The title grant cannot be revoked in its current state"); throw error; }
   });
 
@@ -1752,7 +1765,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminTitleGrantRestoreRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      await dependencies.services(c.env).restoreAdminTitleGrant({ grantId: c.req.param("grantId"), reason: parsed.data.reason }, access.auth!, idempotencyKey);
+      await servicesFor(c).restoreAdminTitleGrant({ grantId: c.req.param("grantId"), reason: parsed.data.reason }, access.auth!, idempotencyKey);
       return c.body(null, 204);
     } catch (error) {
       const code = error instanceof Error ? error.message : "TITLE_GRANT_RESTORE_FAILED";
@@ -1786,7 +1799,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!page || !pageSize || (targetTypeValue && !targetType?.success) || (status && !allowedStatuses.includes(status as typeof allowedStatuses[number])) || (commentStatus && !allowedCommentStatuses.includes(commentStatus as typeof allowedCommentStatuses[number])) || (rating !== undefined && (!Number.isInteger(rating) || rating < 1 || rating > 5)) || (from !== undefined && (!Number.isInteger(from) || from < 0)) || (to !== undefined && (!Number.isInteger(to) || to < 0)) || (from !== undefined && to !== undefined && from > to) || !targetIdValid) {
       return errorResponse(c, 422, "INVALID_REQUEST", "The review query is invalid");
     }
-    return c.json(await dependencies.services(c.env).listAdminReviews({ page, pageSize, ...(targetType?.success ? { targetType: targetType.data } : {}), ...(targetId ? { targetId } : {}), ...(status ? { status: status as typeof allowedStatuses[number] } : {}), ...(commentStatus ? { commentStatus: commentStatus as typeof allowedCommentStatuses[number] } : {}), ...(rating !== undefined ? { rating: rating as 1 | 2 | 3 | 4 | 5 } : {}), ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}) }, access.auth!));
+    return c.json(await servicesFor(c).listAdminReviews({ page, pageSize, ...(targetType?.success ? { targetType: targetType.data } : {}), ...(targetId ? { targetId } : {}), ...(status ? { status: status as typeof allowedStatuses[number] } : {}), ...(commentStatus ? { commentStatus: commentStatus as typeof allowedCommentStatuses[number] } : {}), ...(rating !== undefined ? { rating: rating as 1 | 2 | 3 | 4 | 5 } : {}), ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}) }, access.auth!));
   });
 
   app.get("/v1/admin/reviews/:reviewId", async (c) => {
@@ -1794,7 +1807,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (access.error) return access.error;
     const reviewId = c.req.param("reviewId");
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(reviewId)) return errorResponse(c, 422, "INVALID_REVIEW_ID", "The review ID is invalid");
-    try { return c.json(await dependencies.services(c.env).getAdminReview({ reviewId }, access.auth!)); }
+    try { return c.json(await servicesFor(c).getAdminReview({ reviewId }, access.auth!)); }
     catch (error) { if (error instanceof Error && error.message === "REVIEW_NOT_FOUND") return errorResponse(c, 404, "REVIEW_NOT_FOUND", "The review does not exist"); if (error instanceof Error && error.message === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, "REVIEW_TARGET_NOT_FOUND", "The review target does not exist"); throw error; }
   });
 
@@ -1809,9 +1822,9 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
       const input = parsed.data.reason === undefined ? { reviewId } : { reviewId, reason: parsed.data.reason };
-      if (parsed.data.action === "hide") await dependencies.services(c.env).hideReviewComment(input, access.auth!, idempotencyKey);
-      else await dependencies.services(c.env).restoreReviewComment(input, access.auth!, idempotencyKey);
-      return c.json(await dependencies.services(c.env).getAdminReview({ reviewId }, access.auth!));
+      if (parsed.data.action === "hide") await servicesFor(c).hideReviewComment(input, access.auth!, idempotencyKey);
+      else await servicesFor(c).restoreReviewComment(input, access.auth!, idempotencyKey);
+      return c.json(await servicesFor(c).getAdminReview({ reviewId }, access.auth!));
     } catch (error) {
       const code = error instanceof Error ? error.message : "REVIEW_COMMENT_MODERATION_FAILED";
       if (code === "REVIEW_NOT_FOUND") return errorResponse(c, 404, code, "The review does not exist");
@@ -1832,9 +1845,9 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
       const input = parsed.data.reason === undefined ? { reviewId } : { reviewId, reason: parsed.data.reason };
-      if (parsed.data.action === "invalidate") await dependencies.services(c.env).invalidateReview(input, access.auth!, idempotencyKey);
-      else await dependencies.services(c.env).restoreReview(input, access.auth!, idempotencyKey);
-      return c.json(await dependencies.services(c.env).getAdminReview({ reviewId }, access.auth!));
+      if (parsed.data.action === "invalidate") await servicesFor(c).invalidateReview(input, access.auth!, idempotencyKey);
+      else await servicesFor(c).restoreReview(input, access.auth!, idempotencyKey);
+      return c.json(await servicesFor(c).getAdminReview({ reviewId }, access.auth!));
     } catch (error) {
       const code = error instanceof Error ? error.message : "REVIEW_STATE_MODERATION_FAILED";
       if (code === "REVIEW_NOT_FOUND") return errorResponse(c, 404, code, "The review does not exist");
@@ -1848,7 +1861,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (access.error) return access.error;
     const query = adminVerifiedRunQuery(c.req.raw);
     if (!query) return errorResponse(c, 422, "INVALID_REQUEST", "The verified run query is invalid");
-    return c.json(await dependencies.services(c.env).listAdminVerifiedRuns(query, access.auth!));
+    return c.json(await servicesFor(c).listAdminVerifiedRuns(query, access.auth!));
   });
 
   app.get("/v1/admin/verified-runs/:verifiedRunId", async (c) => {
@@ -1857,7 +1870,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const verifiedRunId = c.req.param("verifiedRunId");
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(verifiedRunId)) return errorResponse(c, 422, "INVALID_VERIFIED_RUN_ID", "The verified run ID is invalid");
     try {
-      return c.json(await dependencies.services(c.env).getAdminVerifiedRun({ verifiedRunId }, access.auth!));
+      return c.json(await servicesFor(c).getAdminVerifiedRun({ verifiedRunId }, access.auth!));
     } catch (error) {
       const code = error instanceof Error ? error.message : "VERIFIED_RUN_LOOKUP_FAILED";
       if (["VERIFIED_RUN_NOT_FOUND", "VERIFIED_RUN_SUBMISSION_NOT_FOUND"].includes(code)) return errorResponse(c, 404, code, "The verified run does not exist");
@@ -1875,7 +1888,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminVerifiedRunStateRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      return c.json(await dependencies.services(c.env).transitionAdminVerifiedRun({ ...parsed.data, verifiedRunId }, access.auth!, idempotencyKey));
+      return c.json(await servicesFor(c).transitionAdminVerifiedRun({ ...parsed.data, verifiedRunId }, access.auth!, idempotencyKey));
     } catch (error) {
       const code = error instanceof Error ? error.message : "VERIFIED_RUN_STATE_UPDATE_FAILED";
       if (code === "VERIFIED_RUN_NOT_FOUND") return errorResponse(c, 404, code, "The verified run does not exist");
@@ -1897,7 +1910,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminVerifiedRunConflictResolutionRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      return c.json(await dependencies.services(c.env).resolveAdminVerifiedRunConflict({ ...parsed.data, verifiedRunId, submissionId }, access.auth!, idempotencyKey));
+      return c.json(await servicesFor(c).resolveAdminVerifiedRunConflict({ ...parsed.data, verifiedRunId, submissionId }, access.auth!, idempotencyKey));
     } catch (error) {
       const code = error instanceof Error ? error.message : "VERIFIED_RUN_CONFLICT_RESOLUTION_FAILED";
       if (code === "VERIFIED_RUN_NOT_FOUND") return errorResponse(c, 404, code, "The verified run does not exist");
@@ -1917,7 +1930,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminVerifiedRunCorrectionRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      return c.json(await dependencies.services(c.env).correctAdminVerifiedRun({ ...parsed.data, verifiedRunId }, access.auth!, idempotencyKey));
+      return c.json(await servicesFor(c).correctAdminVerifiedRun({ ...parsed.data, verifiedRunId }, access.auth!, idempotencyKey));
     } catch (error) {
       const code = error instanceof Error ? error.message : "VERIFIED_RUN_CORRECTION_FAILED";
       if (code === "VERIFIED_RUN_NOT_FOUND") return errorResponse(c, 404, code, "The verified run does not exist");
@@ -1939,13 +1952,13 @@ export const createApp = (dependencies: AppDependencies) => {
     if (statuses.some((status) => !allowedStatuses.includes(status as typeof allowedStatuses[number]))) return errorResponse(c, 422, "INVALID_REQUEST", "The submission status is invalid");
     if (spotCheck && !["pending", "confirmed", "revoked"].includes(spotCheck)) return errorResponse(c, 422, "INVALID_REQUEST", "The spot-check status is invalid");
     if (order && order !== "oldest" && order !== "newest") return errorResponse(c, 422, "INVALID_REQUEST", "The submission order is invalid");
-    return c.json(await dependencies.services(c.env).listAdminSubmissions({ statuses: statuses as typeof allowedStatuses[number][], ...(spotCheck ? { spotCheck: spotCheck as "pending" | "confirmed" | "revoked" } : {}), ...(order ? { order: order as "oldest" | "newest" } : {}), page, pageSize }, access.auth!));
+    return c.json(await servicesFor(c).listAdminSubmissions({ statuses: statuses as typeof allowedStatuses[number][], ...(spotCheck ? { spotCheck: spotCheck as "pending" | "confirmed" | "revoked" } : {}), ...(order ? { order: order as "oldest" | "newest" } : {}), page, pageSize }, access.auth!));
   });
 
   app.get("/v1/admin/submissions/:submissionId", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
-    try { return c.json(await dependencies.services(c.env).getAdminSubmission({ submissionId: c.req.param("submissionId") }, access.auth!)); }
+    try { return c.json(await servicesFor(c).getAdminSubmission({ submissionId: c.req.param("submissionId") }, access.auth!)); }
     catch (error) { if (error instanceof Error && error.message === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist"); throw error; }
   });
 
@@ -1961,7 +1974,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (access.error) return access.error;
     const parsed = adminSubmissionReviewPreviewRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).previewSubmissionReview({ submissionId: c.req.param("submissionId"), fieldCorrections: parsed.data.fieldCorrections, confirmedChallengeIds: parsed.data.confirmedChallengeIds }, access.auth!)); }
+    try { return c.json(await servicesFor(c).previewSubmissionReview({ submissionId: c.req.param("submissionId"), fieldCorrections: parsed.data.fieldCorrections, confirmedChallengeIds: parsed.data.confirmedChallengeIds }, access.auth!)); }
     catch (error) {
       const code = error instanceof Error ? error.message : "REVIEW_PREVIEW_FAILED";
       if (code === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, code, "The submission does not exist");
@@ -1977,7 +1990,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminSubmissionReviewRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).reviewSubmission({ submissionId: c.req.param("submissionId"), decision: parsed.data.decision, reason: parsed.data.reason, fieldCorrections: parsed.data.fieldCorrections, confirmedChallengeIds: parsed.data.confirmedChallengeIds }, access.auth!, idempotencyKey)); }
+    try { return c.json(await servicesFor(c).reviewSubmission({ submissionId: c.req.param("submissionId"), decision: parsed.data.decision, reason: parsed.data.reason, fieldCorrections: parsed.data.fieldCorrections, confirmedChallengeIds: parsed.data.confirmedChallengeIds }, access.auth!, idempotencyKey)); }
     catch (error) { const code = error instanceof Error ? error.message : "REVIEW_FAILED"; if (code === "SUBMISSION_NOT_FOUND" || submissionReviewErrorCodes.includes(code)) return errorResponse(c, 422, code, submissionReviewErrorMessage(code)); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
   });
 
@@ -1988,7 +2001,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminSubmissionOcrRetryRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).requestAdminOcr({ submissionId: c.req.param("submissionId") }, access.auth!, idempotencyKey, c.get("requestId"))); }
+    try { return c.json(await servicesFor(c).requestAdminOcr({ submissionId: c.req.param("submissionId") }, access.auth!, idempotencyKey, c.get("requestId"))); }
     catch (error) {
       const code = error instanceof Error ? error.message : "OCR_RETRY_FAILED";
       if (code === "SUBMISSION_NOT_FOUND" || code === "EVIDENCE_NOT_FOUND") return errorResponse(c, 404, code, code === "EVIDENCE_NOT_FOUND" ? "The submission has no evidence" : "The submission does not exist");
@@ -2009,7 +2022,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = ocrAccuracyFeedbackRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      return c.json(await dependencies.services(c.env).submitAdminOcrAccuracy({ ...parsed.data, submissionId: c.req.param("submissionId") }, access.auth!, idempotencyKey));
+      return c.json(await servicesFor(c).submitAdminOcrAccuracy({ ...parsed.data, submissionId: c.req.param("submissionId") }, access.auth!, idempotencyKey));
     } catch (error) {
       const code = error instanceof Error ? error.message : "OCR_ACCURACY_FAILED";
       if (code === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, code, "The submission does not exist");
@@ -2029,7 +2042,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const pageSize = Number.isInteger(pageSizeValue) && pageSizeValue > 0 && pageSizeValue <= 100 ? pageSizeValue : 0;
     const status = c.req.query("status");
     if (!page || !pageSize || (status && !screenshotSetStatusSchema.safeParse(status).success)) return errorResponse(c, 422, "INVALID_REQUEST", "The screenshot set query is invalid");
-    return c.json(await dependencies.services(c.env).listAdminScreenshotSets({ page, pageSize, ...(status ? { status: status as "draft" | "finalized" | "discarded" } : {}) }, access.auth!));
+    return c.json(await servicesFor(c).listAdminScreenshotSets({ page, pageSize, ...(status ? { status: status as "draft" | "finalized" | "discarded" } : {}) }, access.auth!));
   });
 
   app.get("/v1/admin/screenshot-sets/candidates", async (c) => {
@@ -2040,7 +2053,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const page = Number.isInteger(pageValue) && pageValue > 0 ? pageValue : 0;
     const pageSize = Number.isInteger(pageSizeValue) && pageSizeValue > 0 && pageSizeValue <= 100 ? pageSizeValue : 0;
     if (!page || !pageSize) return errorResponse(c, 422, "INVALID_REQUEST", "The screenshot set candidate query is invalid");
-    return c.json(await dependencies.services(c.env).listAdminScreenshotSetCandidates({ page, pageSize }, access.auth!));
+    return c.json(await servicesFor(c).listAdminScreenshotSetCandidates({ page, pageSize }, access.auth!));
   });
 
   app.post("/v1/admin/screenshot-sets", async (c) => {
@@ -2052,7 +2065,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
       const { contractVersion: _contractVersion, ...input } = parsed.data;
-      return c.json(await dependencies.services(c.env).createAdminScreenshotSet(input, access.auth!, idempotencyKey), 201);
+      return c.json(await servicesFor(c).createAdminScreenshotSet(input, access.auth!, idempotencyKey), 201);
     } catch (error) {
       const code = error instanceof Error ? error.message : "SCREENSHOT_SET_CREATE_FAILED";
       if (code === "SCREENSHOT_SET_EXCLUSION_INVALID") return errorResponse(c, 422, code, "An excluded screenshot is not eligible for this set");
@@ -2066,7 +2079,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (access.error) return access.error;
     const setId = c.req.param("setId");
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(setId)) return errorResponse(c, 422, "INVALID_SCREENSHOT_SET_ID", "The screenshot set ID is invalid");
-    try { return c.json(await dependencies.services(c.env).getAdminScreenshotSet({ setId }, access.auth!)); }
+    try { return c.json(await servicesFor(c).getAdminScreenshotSet({ setId }, access.auth!)); }
     catch (error) { if (error instanceof Error && error.message === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, "SCREENSHOT_SET_NOT_FOUND", "The screenshot set does not exist"); throw error; }
   });
 
@@ -2081,7 +2094,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     const input = parsed.data.note === undefined ? { setId } : { setId, note: parsed.data.note };
     try {
-      return c.json(await dependencies.services(c.env).finalizeAdminScreenshotSet(input, access.auth!, idempotencyKey));
+      return c.json(await servicesFor(c).finalizeAdminScreenshotSet(input, access.auth!, idempotencyKey));
     } catch (error) {
       const code = error instanceof Error ? error.message : "SCREENSHOT_SET_FINALIZE_FAILED";
       if (code === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, code, "The screenshot set does not exist");
@@ -2102,7 +2115,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     const input = parsed.data.note === undefined ? { setId } : { setId, note: parsed.data.note };
     try {
-      return c.json(await dependencies.services(c.env).discardAdminScreenshotSet(input, access.auth!, idempotencyKey));
+      return c.json(await servicesFor(c).discardAdminScreenshotSet(input, access.auth!, idempotencyKey));
     } catch (error) {
       const code = error instanceof Error ? error.message : "SCREENSHOT_SET_DISCARD_FAILED";
       if (code === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, code, "The screenshot set does not exist");
@@ -2118,7 +2131,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const version = Number(c.req.param("version"));
     if (!Number.isInteger(version) || version < 1) return errorResponse(c, 422, "INVALID_SCREENSHOT_SET_VERSION", "The screenshot set version is invalid");
     try {
-      return c.json(await dependencies.services(c.env).getOcrkitScreenshotSet({ version }));
+      return c.json(await servicesFor(c).getOcrkitScreenshotSet({ version }));
     } catch (error) {
       const code = error instanceof Error ? error.message : "OCRKIT_SCREENSHOT_SET_READ_FAILED";
       if (code === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, code, "The screenshot set does not exist");
@@ -2134,7 +2147,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminSubmissionSpotCheckRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).resolveAdminSubmissionSpotCheck({ ...parsed.data, submissionId: c.req.param("submissionId") }, access.auth!, idempotencyKey)); }
+    try { return c.json(await servicesFor(c).resolveAdminSubmissionSpotCheck({ ...parsed.data, submissionId: c.req.param("submissionId") }, access.auth!, idempotencyKey)); }
     catch (error) {
       const code = error instanceof Error ? error.message : "SPOT_CHECK_FAILED";
       if (["SUBMISSION_NOT_FOUND", "SPOT_CHECK_NOT_FOUND"].includes(code)) return errorResponse(c, 404, code, "The spot check does not exist");
@@ -2165,7 +2178,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!/^[0-9a-f-]{36}$/.test(submissionId)) return errorResponse(c, 422, "INVALID_SUBMISSION_ID", "The submission ID is invalid");
 
     try {
-      const submission = await dependencies.services(c.env).getSubmission({ submissionId }, { actorType: "user", subject: "public-status", roles: [], provider: "public" });
+      const submission = await servicesFor(c).getSubmission({ submissionId }, { actorType: "user", subject: "public-status", roles: [], provider: "public" });
       return c.json(submission);
     } catch (error) {
       if (error instanceof Error && error.message === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist");

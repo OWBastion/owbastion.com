@@ -770,14 +770,16 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       .where(and(isNull(qqGroupPolicyOutbox.deliveredAt), or(isNull(qqGroupPolicyOutbox.enqueuedAt), lt(qqGroupPolicyOutbox.enqueuedAt, timestamp - 5 * 60 * 1000))))
       .orderBy(qqGroupPolicyOutbox.createdAt)
       .limit(25);
+    const sent: string[] = [];
     for (const event of events) {
       try {
         await qqPolicyQueue.send({ version: 1 as const, eventId: event.id });
-        await db.update(qqGroupPolicyOutbox).set({ enqueuedAt: timestamp }).where(and(eq(qqGroupPolicyOutbox.id, event.id), isNull(qqGroupPolicyOutbox.deliveredAt)));
+        sent.push(event.id);
       } catch {
         // The outbox remains pending for the scheduled repair pass.
       }
     }
+    if (sent.length) await db.update(qqGroupPolicyOutbox).set({ enqueuedAt: timestamp }).where(and(inArray(qqGroupPolicyOutbox.id, sent), isNull(qqGroupPolicyOutbox.deliveredAt)));
   };
 
   const reconcileStaleOcrJobs = async (input: { olderThan: number }) => {
@@ -786,11 +788,18 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       .where(and(eq(submissions.status, "ocr_pending"), lte(submissions.updatedAt, input.olderThan)))
       .orderBy(asc(submissions.updatedAt), asc(submissions.id))
       .limit(100);
+    // Fetch every pending OCR result once instead of one select per
+    // submission; the per-submission batch then carries only writes.
+    const pendingRows = staleSubmissions.length
+      ? await db.select({ id: ocrResults.id, submissionId: ocrResults.submissionId })
+        .from(ocrResults)
+        .where(and(inArray(ocrResults.submissionId, staleSubmissions.map((submission) => submission.id)), eq(ocrResults.status, "pending")))
+      : [];
+    const pendingBySubmission = new globalThis.Map<string, string[]>();
+    for (const row of pendingRows) pendingBySubmission.set(row.submissionId, [...(pendingBySubmission.get(row.submissionId) ?? []), row.id]);
     let recoveredCount = 0;
     for (const submission of staleSubmissions) {
-      const pendingResults = await db.select({ id: ocrResults.id })
-        .from(ocrResults)
-        .where(and(eq(ocrResults.submissionId, submission.id), eq(ocrResults.status, "pending")));
+      const pendingResults = pendingBySubmission.get(submission.id) ?? [];
       const timestamp = Math.max(now(), submission.updatedAt + 1);
       const recoveryResultId = crypto.randomUUID();
       const statements = [
@@ -807,14 +816,16 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           SET status = 'resubmission_required', review_reason = ?, ocr_fail_count = ocr_fail_count + 1, updated_at = ?
           WHERE id = ? AND status = 'ocr_pending' AND updated_at <= ?`)
           .bind("截图暂时无法处理，请重新提交截图。", timestamp, submission.id, input.olderThan),
-        ...pendingResults.map(({ id }) => database.prepare(`DELETE FROM idempotency_keys
+        ...pendingResults.map((id) => database.prepare(`DELETE FROM idempotency_keys
           WHERE operation = 'submission.ocr.retry' AND response_json = ?
             AND EXISTS (SELECT 1 FROM ocr_results WHERE id = ? AND status = 'error' AND error_code = 'OCR_QUEUE_STALLED')`)
           .bind(`${ocrRetryEnqueueingPrefix}${id}`, id)),
       ];
-      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
-      const recovered = await db.select({ id: ocrResults.id }).from(ocrResults).where(eq(ocrResults.id, recoveryResultId)).get();
-      if (recovered) {
+      // The recovery INSERT is statement index 1; meta.changes tells whether
+      // this submission was still stale when the batch executed, replacing the
+      // former verify-by-select round trip.
+      const results = await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      if ((results[1]?.meta.changes ?? 0) > 0) {
         recoveredCount += 1;
         logOcrEvent("stale_job_recovered", { submissionId: submission.id, errorCode: "OCR_QUEUE_STALLED" });
       }
@@ -1756,7 +1767,26 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   const annotateEffects = async (tags: string[]) => { const terms = await glossary(); const byLabel = new Map(terms.flatMap((term) => [term.nameZh, ...term.aliases].map((label) => [label, term] as const))); return tags.flatMap((tag) => { const term = byLabel.get(tag); return term ? [{ tag, term }] : []; }); };
   const asRandomEvent = async (row: typeof randomEvents.$inferSelect): Promise<RandomEvent> => { const effectTags = JSON.parse(row.effectTagsJson) as string[]; return { eventId: row.id, name: row.name, category: row.category, rarity: row.rarity, description: row.description, durationSeconds: row.durationSeconds, cooldownSeconds: row.cooldownSeconds, weight: row.weight, gameVersion: row.gameVersion, eventGroup: row.eventGroup, effectTags, effectAnnotations: await annotateEffects(effectTags), releaseStatus: row.releaseStatus as RandomEvent["releaseStatus"], archived: row.archivedAt !== null, challenges: await publicEventChallenges(row.id) }; };
   const suspendedEventVersions = async () => new Set((await platformCache.cached("catalog", "suspended-event-versions", () => db.select({ gameVersion: randomEventVersions.gameVersion }).from(randomEventVersions).where(eq(randomEventVersions.availability, "suspended")))).map((row) => row.gameVersion));
-  const validateEventLinks = async (links: EventImportRow["challengeLinks"]) => { for (const link of links) { const table = link.family === "map" ? achievementChallenges : titleChallenges; const found = await db.select({ id: table.id }).from(table).where(eq(table.id, link.challengeId)).get(); if (!found) throw new Error("CHALLENGE_NOT_FOUND"); } };
+  // Two membership lookups per link batch instead of one select per link;
+  // chunked so a large import cannot exceed the SQLite variable limit.
+  const d1InChunk = 500;
+  const chunked = <T>(items: T[]): T[][] => { const out: T[][] = []; for (let i = 0; i < items.length; i += d1InChunk) out.push(items.slice(i, i + d1InChunk)); return out; };
+  const loadEventLinkIndex = async (links: EventImportRow["challengeLinks"]) => {
+    const mapIds = [...new Set(links.filter((link) => link.family === "map").map((link) => link.challengeId))];
+    const titleIds = [...new Set(links.filter((link) => link.family !== "map").map((link) => link.challengeId))];
+    const [mapRows, titleRows] = await Promise.all([
+      Promise.all(chunked(mapIds).map((ids) => db.select({ id: achievementChallenges.id }).from(achievementChallenges).where(inArray(achievementChallenges.id, ids)))).then((parts) => parts.flat()),
+      Promise.all(chunked(titleIds).map((ids) => db.select({ id: titleChallenges.id }).from(titleChallenges).where(inArray(titleChallenges.id, ids)))).then((parts) => parts.flat()),
+    ]);
+    return { map: new Set(mapRows.map((row) => row.id)), title: new Set(titleRows.map((row) => row.id)) };
+  };
+  const validateEventLinks = async (links: EventImportRow["challengeLinks"]) => {
+    const index = await loadEventLinkIndex(links);
+    for (const link of links) {
+      const found = link.family === "map" ? index.map.has(link.challengeId) : index.title.has(link.challengeId);
+      if (!found) throw new Error("CHALLENGE_NOT_FOUND");
+    }
+  };
   const replaceEventLinks = async (eventId: string, links: EventImportRow["challengeLinks"]) => { await db.delete(randomEventMapChallenges).where(eq(randomEventMapChallenges.eventId, eventId)); await db.delete(randomEventTitleChallenges).where(eq(randomEventTitleChallenges.eventId, eventId)); const mapsLinks = links.filter((link) => link.family === "map"); const titleLinks = links.filter((link) => link.family === "achievement"); if (mapsLinks.length) await db.insert(randomEventMapChallenges).values(mapsLinks.map((link) => ({ eventId, challengeId: link.challengeId }))); if (titleLinks.length) await db.insert(randomEventTitleChallenges).values(titleLinks.map((link) => ({ eventId, challengeId: link.challengeId }))); };
 
   const getPlayerOwnedSubmission = async (submissionId: string, sessionToken: string) => {
@@ -3837,88 +3867,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     if (!existing || (!existing.root && award.root)) awards.set(key, award);
   };
 
-  const challengeCompletionChain = async (input: {
-    playerAccountId: string;
-    challengeId: string;
-    slot: string | null;
-    eligibilityAt: number;
-    overlay?: CanonicalChallengeOverlay | null;
-  }): Promise<ChallengeCompletionAward[]> => {
-    const overlay = input.overlay ?? null;
-    const root = await loadCanonicalChallenge(input.challengeId, overlay);
-    if (!root) throw new Error("CHALLENGE_NOT_FOUND");
-    const result: ChallengeCompletionAward[] = [];
-    const seen = new Set<string>();
-    const pending: Array<{ challenge: typeof challenges.$inferSelect; root: boolean }> = [{ challenge: root, root: true }];
-    while (pending.length) {
-      const batch = pending.splice(0, 80);
-      for (const entry of batch) {
-        const challenge = entry.challenge;
-        if (seen.has(challenge.id)) continue;
-        seen.add(challenge.id);
-        const preArchiveSubmission = challenge.status === "archived" && challenge.endsAt !== null && input.eligibilityAt < challenge.endsAt;
-        const title = await db.select({ lifecycle: titleCatalog.lifecycle }).from(titleCatalog).where(eq(titleCatalog.key, challenge.titleKey)).get();
-        if (!title || title.lifecycle !== "active" || challenge.manual === 1 || (challenge.status !== "active" && !preArchiveSubmission)) continue;
-        if ((challenge.startsAt !== null && input.eligibilityAt < challenge.startsAt) || (challenge.endsAt !== null && input.eligibilityAt >= challenge.endsAt)) continue;
-        const mapId = entry.root ? root.mapId : challenge.mapId;
-        const gameplayRevisionId = entry.root ? root.gameplayRevisionId : challenge.gameplayRevisionId;
-        const owned = await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).where(and(
-          eq(playerTitleGrants.playerAccountId, input.playerAccountId),
-          eq(playerTitleGrants.titleKey, challenge.titleKey),
-          eq(playerTitleGrants.status, "active"),
-          mapId ? eq(playerTitleGrants.mapId, mapId) : isNull(playerTitleGrants.mapId),
-          gameplayRevisionId ? eq(playerTitleGrants.gameplayRevisionId, gameplayRevisionId) : isNull(playerTitleGrants.gameplayRevisionId),
-        )).get();
-        if (owned) continue;
-        const administrativelyRevoked = await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).where(and(
-          eq(playerTitleGrants.playerAccountId, input.playerAccountId),
-          eq(playerTitleGrants.titleKey, challenge.titleKey),
-          eq(playerTitleGrants.status, "revoked"),
-          eq(playerTitleGrants.revocationType, "administrator"),
-          mapId ? eq(playerTitleGrants.mapId, mapId) : isNull(playerTitleGrants.mapId),
-          gameplayRevisionId ? eq(playerTitleGrants.gameplayRevisionId, gameplayRevisionId) : isNull(playerTitleGrants.gameplayRevisionId),
-        )).get();
-        const relation = challenge.sourceFamily === "map_title_rule" && mapId
-          ? await db.select({ ruleId: mapTitleRuleCompat.ruleId }).from(mapTitleRuleCompat).where(and(eq(mapTitleRuleCompat.legacyChallengeId, challenge.sourceId), eq(mapTitleRuleCompat.mapId, mapId))).get()
-          : null;
-        const assignmentFamily = challenge.sourceFamily;
-        const assignmentId = relation?.ruleId ?? challenge.sourceId;
-        const assignment = mapId && gameplayRevisionId
-          ? await db.select({ slot: gameplayRevisionChallengeAssignments.slot }).from(gameplayRevisionChallengeAssignments).where(and(
-            eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, gameplayRevisionId),
-            eq(gameplayRevisionChallengeAssignments.mapId, mapId),
-            eq(gameplayRevisionChallengeAssignments.challengeFamily, assignmentFamily),
-            eq(gameplayRevisionChallengeAssignments.challengeId, assignmentId),
-          )).get()
-          : null;
-        const ruleSlot = assignmentFamily === "map_title_rule"
-          ? await db.select({ slot: mapTitleRules.slot }).from(mapTitleRules).where(eq(mapTitleRules.id, assignmentId)).get()
-          : null;
-        const mapReward = mapId
-          ? await db.select({ slot: mapTitleRewards.slot }).from(mapTitleRewards).where(and(eq(mapTitleRewards.mapId, mapId), eq(mapTitleRewards.titleKey, challenge.titleKey))).get()
-          : null;
-        result.push({
-          challengeId: challenge.id,
-          titleKey: challenge.titleKey,
-          mapId,
-          gameplayRevisionId,
-          slot: entry.root ? input.slot : assignment?.slot ?? ruleSlot?.slot ?? mapReward?.slot ?? null,
-          completionSourceType: entry.root ? "submission" : "challenge_satisfies",
-          satisfiedBy: entry.root ? null : input.challengeId,
-          root: entry.root,
-          grantable: !administrativelyRevoked,
-        });
-        const satisfied = await db.select({ satisfiedChallengeId: challengeSatisfies.satisfiedChallengeId }).from(challengeSatisfies).where(eq(challengeSatisfies.challengeId, challenge.id));
-        for (const relationRow of satisfied) {
-          if (seen.has(relationRow.satisfiedChallengeId)) continue;
-          const target = await loadCanonicalChallenge(relationRow.satisfiedChallengeId, overlay);
-          if (target) pending.push({ challenge: target, root: false });
-        }
-      }
-    }
-    return result;
-  };
-
   const challengeCompletionChains = async (input: {
     playerAccountId: string;
     roots: Array<{ challengeId: string; slot: string | null }>;
@@ -4978,7 +4926,14 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     async importAdminRandomEvents(input, auth, idempotencyKey) {
       const replay = await replayOrConflict<{ importedCount: number }>(db, auth.subject, "admin.random-event.import", idempotencyKey, input); if (replay) return replay;
       const parsed = await parseEventImport(input); if (parsed.errors.length) throw new Error("EVENT_IMPORT_INVALID"); const duplicate = await db.select().from(randomEventImports).where(eq(randomEventImports.sourceHash, parsed.sourceHash)).get(); if (duplicate) throw new Error("EVENT_IMPORT_DUPLICATE");
-      for (const item of parsed.rows) { await validateEventLinks(item.challengeLinks); const exists = await db.select({ id: randomEvents.id }).from(randomEvents).where(eq(randomEvents.name, item.name)).get(); if (exists) throw new Error("EVENT_IMPORT_NAME_CONFLICT"); }
+      // Validate every row's links and name conflicts up front: the import
+      // aborts on the first error, so a single batched membership check per
+      // family plus one name lookup preserves semantics with O(1) queries
+      // instead of O(rows × links).
+      const importLinkIndex = await loadEventLinkIndex(parsed.rows.flatMap((item) => item.challengeLinks));
+      const importNames = [...new Set(parsed.rows.map((item) => item.name))];
+      const existingNames = new Set((await Promise.all(chunked(importNames).map((names) => db.select({ name: randomEvents.name }).from(randomEvents).where(inArray(randomEvents.name, names))))).flat().map((row) => row.name));
+      for (const item of parsed.rows) { for (const link of item.challengeLinks) { if (!(link.family === "map" ? importLinkIndex.map.has(link.challengeId) : importLinkIndex.title.has(link.challengeId))) throw new Error("CHALLENGE_NOT_FOUND"); } if (existingNames.has(item.name)) throw new Error("EVENT_IMPORT_NAME_CONFLICT"); }
       const timestamp = now(); const response = { importedCount: parsed.rows.length }; const statements: D1PreparedStatement[] = [];
       for (const item of parsed.rows) { const eventId = `event.${crypto.randomUUID()}`; statements.push(database.prepare("INSERT INTO random_events (id,name,category,rarity,description,duration_seconds,cooldown_seconds,weight,game_version,event_group,effect_tags_json,release_status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(eventId, item.name, item.category, randomEventRarityForWeight(item.weight), item.description, item.durationSeconds, item.cooldownSeconds, item.weight, item.gameVersion, item.eventGroup ?? null, JSON.stringify(item.effectTags), item.releaseStatus, timestamp, timestamp)); for (const link of item.challengeLinks) statements.push(database.prepare(link.family === "map" ? "INSERT INTO random_event_map_challenges (event_id,challenge_id) VALUES (?,?)" : "INSERT INTO random_event_title_challenges (event_id,challenge_id) VALUES (?,?)").bind(eventId, link.challengeId)); }
       statements.push(database.prepare("INSERT INTO random_event_imports (id,source_hash,file_name,row_count,imported_by,imported_at) VALUES (?,?,?,?,?,?)").bind(crypto.randomUUID(), parsed.sourceHash, input.fileName, parsed.rows.length, auth.subject, timestamp)); statements.push(database.prepare("INSERT INTO idempotency_keys (id,actor_id,operation,request_hash,response_json,created_at) VALUES (?,?,?,?,?,?)").bind(`${auth.subject}:admin.random-event.import:${idempotencyKey}`, auth.subject, "admin.random-event.import", await hashRequest(input), JSON.stringify(response), timestamp)); statements.push(database.prepare("INSERT INTO audit_events (id,correlation_id,actor_type,actor_id,operation,entity_type,entity_id,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, "admin.random-event.import", "random_event_import", parsed.sourceHash, JSON.stringify({ fileName: input.fileName, importedCount: parsed.rows.length }), timestamp));
@@ -7148,7 +7103,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           : null;
         const completionAwards = new Map<string, ChallengeCompletionAward>();
         if (reward && canonicalChallengeId && !alreadyOwned) {
-          const chain = await challengeCompletionChain({ playerAccountId: row.playerAccountId, challengeId: canonicalChallengeId, slot: reward.slot, eligibilityAt: row.createdAt });
+          const [chain] = await challengeCompletionChains({ playerAccountId: row.playerAccountId, roots: [{ challengeId: canonicalChallengeId, slot: reward.slot }], eligibilityAt: row.createdAt });
           if (!chain.some((award) => award.root)) throw new Error("CHALLENGE_NOT_COMPLETABLE");
           if (chain.some((award) => award.root && !award.grantable)) throw new Error("TITLE_GRANT_ADMINISTRATIVELY_REVOKED");
           for (const award of chain) completionAwards.set(`${award.challengeId}:${award.mapId ?? ""}:${award.gameplayRevisionId ?? ""}`, award);
