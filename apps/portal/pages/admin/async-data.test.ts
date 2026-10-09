@@ -80,4 +80,40 @@ describe("admin page async data", () => {
     expect(wrapper.text()).toContain("A revalidated result");
     wrapper.unmount();
   });
+
+  it("still fetches a fresh key after the previous load failed", async () => {
+    let attempts = 0;
+    const load = vi.fn((key: string) => {
+      attempts += 1;
+      if (attempts === 1) return Promise.reject(new Error("network down"));
+      return Promise.resolve(key === "a" ? "A recovered result" : "B result");
+    });
+    const selectedKey = ref("a");
+    const Page = defineComponent({
+      setup() {
+        const displayed = ref("");
+        const failed = ref(false);
+        useAdminAsyncData("failed-load-test", () => load(selectedKey.value), {
+          cacheKey: selectedKey,
+          onData: (value) => { displayed.value = value; failed.value = false; },
+          onError: () => { failed.value = true; },
+        });
+        return () => h("div", [
+          h("button", { id: "select-b", onClick: () => { selectedKey.value = "b"; } }, "B"),
+          h("p", displayed.value || (failed.value ? "load failed" : "empty")),
+        ]);
+      },
+    });
+
+    const wrapper = await mountSuspended(Page);
+    await flushPromises();
+    expect(wrapper.text()).toContain("load failed");
+    expect(load).toHaveBeenCalledTimes(1);
+
+    await wrapper.get("#select-b").trigger("click");
+    await flushPromises();
+    expect(wrapper.text()).toContain("B result");
+    expect(load).toHaveBeenCalledTimes(2);
+    wrapper.unmount();
+  });
 });
