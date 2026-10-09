@@ -770,14 +770,16 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       .where(and(isNull(qqGroupPolicyOutbox.deliveredAt), or(isNull(qqGroupPolicyOutbox.enqueuedAt), lt(qqGroupPolicyOutbox.enqueuedAt, timestamp - 5 * 60 * 1000))))
       .orderBy(qqGroupPolicyOutbox.createdAt)
       .limit(25);
+    const sent: string[] = [];
     for (const event of events) {
       try {
         await qqPolicyQueue.send({ version: 1 as const, eventId: event.id });
-        await db.update(qqGroupPolicyOutbox).set({ enqueuedAt: timestamp }).where(and(eq(qqGroupPolicyOutbox.id, event.id), isNull(qqGroupPolicyOutbox.deliveredAt)));
+        sent.push(event.id);
       } catch {
         // The outbox remains pending for the scheduled repair pass.
       }
     }
+    if (sent.length) await db.update(qqGroupPolicyOutbox).set({ enqueuedAt: timestamp }).where(and(inArray(qqGroupPolicyOutbox.id, sent), isNull(qqGroupPolicyOutbox.deliveredAt)));
   };
 
   const reconcileStaleOcrJobs = async (input: { olderThan: number }) => {
@@ -786,11 +788,18 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       .where(and(eq(submissions.status, "ocr_pending"), lte(submissions.updatedAt, input.olderThan)))
       .orderBy(asc(submissions.updatedAt), asc(submissions.id))
       .limit(100);
+    // Fetch every pending OCR result once instead of one select per
+    // submission; the per-submission batch then carries only writes.
+    const pendingRows = staleSubmissions.length
+      ? await db.select({ id: ocrResults.id, submissionId: ocrResults.submissionId })
+        .from(ocrResults)
+        .where(and(inArray(ocrResults.submissionId, staleSubmissions.map((submission) => submission.id)), eq(ocrResults.status, "pending")))
+      : [];
+    const pendingBySubmission = new globalThis.Map<string, string[]>();
+    for (const row of pendingRows) pendingBySubmission.set(row.submissionId, [...(pendingBySubmission.get(row.submissionId) ?? []), row.id]);
     let recoveredCount = 0;
     for (const submission of staleSubmissions) {
-      const pendingResults = await db.select({ id: ocrResults.id })
-        .from(ocrResults)
-        .where(and(eq(ocrResults.submissionId, submission.id), eq(ocrResults.status, "pending")));
+      const pendingResults = pendingBySubmission.get(submission.id) ?? [];
       const timestamp = Math.max(now(), submission.updatedAt + 1);
       const recoveryResultId = crypto.randomUUID();
       const statements = [
@@ -807,14 +816,16 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           SET status = 'resubmission_required', review_reason = ?, ocr_fail_count = ocr_fail_count + 1, updated_at = ?
           WHERE id = ? AND status = 'ocr_pending' AND updated_at <= ?`)
           .bind("截图暂时无法处理，请重新提交截图。", timestamp, submission.id, input.olderThan),
-        ...pendingResults.map(({ id }) => database.prepare(`DELETE FROM idempotency_keys
+        ...pendingResults.map((id) => database.prepare(`DELETE FROM idempotency_keys
           WHERE operation = 'submission.ocr.retry' AND response_json = ?
             AND EXISTS (SELECT 1 FROM ocr_results WHERE id = ? AND status = 'error' AND error_code = 'OCR_QUEUE_STALLED')`)
           .bind(`${ocrRetryEnqueueingPrefix}${id}`, id)),
       ];
-      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
-      const recovered = await db.select({ id: ocrResults.id }).from(ocrResults).where(eq(ocrResults.id, recoveryResultId)).get();
-      if (recovered) {
+      // The recovery INSERT is statement index 1; meta.changes tells whether
+      // this submission was still stale when the batch executed, replacing the
+      // former verify-by-select round trip.
+      const results = await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      if ((results[1]?.meta.changes ?? 0) > 0) {
         recoveredCount += 1;
         logOcrEvent("stale_job_recovered", { submissionId: submission.id, errorCode: "OCR_QUEUE_STALLED" });
       }
@@ -961,6 +972,106 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       .get();
     if (!compat) return null;
     return resolveMapTitleProjection(compat.ruleId, mapId, gameplayRevisionId, eligibilityAt);
+  };
+
+  // Batched equivalent of `resolveMapTitleProjection` for review approval,
+  // where one submission can carry many compat-resolved selections. Prefetches
+  // maps, rules, revisions, assignments, and exceptions in five grouped reads
+  // and resolves every input in memory, preserving the same guard order:
+  // inactive map/rule, pioneer default-scope, revision applicability,
+  // assignment enabled, pioneer submission window.
+  const resolveMapTitleProjections = async (
+    inputs: Array<{ ruleId: string; mapId: string; gameplayRevisionId?: string | null; eligibilityAt?: number }>,
+  ): Promise<Array<MapTitleRuleSnapshot | null>> => {
+    const eligibilityAt = inputs[0]?.eligibilityAt ?? now();
+    const mapIds = [...new Set(inputs.map(({ mapId }) => mapId))];
+    const ruleIds = [...new Set(inputs.map(({ ruleId }) => ruleId))];
+    const [mapRows, ruleRows] = await Promise.all([
+      mapIds.length ? db.select({ id: maps.id, status: maps.status }).from(maps).where(inArray(maps.id, mapIds)) : Promise.resolve([]),
+      ruleIds.length ? db.select().from(mapTitleRules).where(inArray(mapTitleRules.id, ruleIds)) : Promise.resolve([]),
+    ]);
+    const mapById = new globalThis.Map(mapRows.map((row) => [row.id, row]));
+    const ruleById = new globalThis.Map(ruleRows.map((row) => [row.id, row]));
+
+    const revisionIds = [...new Set(inputs.flatMap(({ gameplayRevisionId }) => gameplayRevisionId ? [gameplayRevisionId] : []))];
+    const revisionRows = mapIds.length ? await db.select().from(gameplayRevisions).where(and(
+      inArray(gameplayRevisions.mapId, mapIds),
+      or(
+        inArray(gameplayRevisions.lifecycle, ["default", "selectable"]),
+        revisionIds.length ? inArray(gameplayRevisions.id, revisionIds) : undefined,
+      ),
+    )) : [];
+    const revisionById = new globalThis.Map(revisionRows.map((row) => [row.id, row]));
+    const defaultRevisionByMap = new globalThis.Map<string, typeof gameplayRevisions.$inferSelect>();
+    const classicRevisionByMap = new globalThis.Map<string, typeof gameplayRevisions.$inferSelect>();
+    for (const row of revisionRows) {
+      if (row.lifecycle === "default" && row.legacyMapVariant === null) defaultRevisionByMap.set(row.mapId, row);
+      if (row.lifecycle === "selectable" && row.legacyMapVariant === "classic") classicRevisionByMap.set(row.mapId, row);
+    }
+    const pickRevision = (input: { mapId: string; mapVariant: "classic" | null; gameplayRevisionId?: string | null; allowHistorical: boolean }) => {
+      if (input.gameplayRevisionId) {
+        const revision = revisionById.get(input.gameplayRevisionId);
+        if (!revision || revision.mapId !== input.mapId) return null;
+        if (!input.allowHistorical && !["default", "selectable"].includes(revision.lifecycle)) return null;
+        return revision;
+      }
+      return input.mapVariant === "classic" ? (classicRevisionByMap.get(input.mapId) ?? null) : (defaultRevisionByMap.get(input.mapId) ?? null);
+    };
+
+    const usedRevisionIds = new Set<string>();
+    const revisionPlan = inputs.map((input) => {
+      const rule = ruleById.get(input.ruleId);
+      const mapVariant = (rule?.mapVariant as "classic" | null) ?? null;
+      const revision = pickRevision({ mapId: input.mapId, mapVariant, gameplayRevisionId: input.gameplayRevisionId ?? null, allowHistorical: Boolean(input.gameplayRevisionId) });
+      if (revision) usedRevisionIds.add(revision.id);
+      return { revision, mapVariant };
+    });
+    const [assignmentRows, exceptionRows] = await Promise.all([
+      usedRevisionIds.size ? db.select().from(gameplayRevisionChallengeAssignments).where(and(
+        inArray(gameplayRevisionChallengeAssignments.gameplayRevisionId, [...usedRevisionIds]),
+        inArray(gameplayRevisionChallengeAssignments.mapId, mapIds),
+        eq(gameplayRevisionChallengeAssignments.challengeFamily, "map_title_rule"),
+        inArray(gameplayRevisionChallengeAssignments.challengeId, ruleIds),
+      )) : Promise.resolve([]),
+      ruleIds.length && mapIds.length ? db.select().from(mapTitleRuleExceptions).where(and(
+        inArray(mapTitleRuleExceptions.ruleId, ruleIds),
+        inArray(mapTitleRuleExceptions.mapId, mapIds),
+      )) : Promise.resolve([]),
+    ]);
+    const assignmentByKey = new globalThis.Map(assignmentRows.map((row) => [`${row.gameplayRevisionId}:${row.mapId}:${row.challengeId}`, row]));
+    const exceptionByKey = new globalThis.Map(exceptionRows.map((row) => [`${row.ruleId}:${row.mapId}`, row]));
+
+    return inputs.map((input, index) => {
+      const map = mapById.get(input.mapId);
+      if (!map || map.status !== "active") return null;
+      const rule = ruleById.get(input.ruleId);
+      if (!rule || rule.status === "inactive") return null;
+      if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && rule.defaultScope !== "explicit") return null;
+      const { revision } = revisionPlan[index];
+      if (!revision) return null;
+      const assignment = assignmentByKey.get(`${revision.id}:${input.mapId}:${rule.id}`);
+      if (!assignment || assignment.enabled === 0) return null;
+      const exception = exceptionByKey.get(`${rule.id}:${input.mapId}`);
+      if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && !pioneerExceptionIsSubmittable(exception?.enabled ?? 0, exception?.startsAt ?? null, exception?.endsAt ?? null, input.eligibilityAt ?? eligibilityAt)) return null;
+      const activeException = exception?.enabled === 1 ? exception : null;
+      return {
+        ruleId: rule.id,
+        ruleRevision: Math.max(rule.updatedAt, assignment.updatedAt, exception?.updatedAt ?? 0),
+        mapId: input.mapId,
+        gameplayRevisionId: revision.id,
+        titleKey: rule.titleKey,
+        mapVariant: revisionPlan[index].mapVariant,
+        slot: activeException?.slot ?? assignment.slot ?? rule.slot ?? null,
+        displayKind: rule.displayKind,
+        condition: activeException?.condition ?? assignment.condition ?? rule.condition,
+        evidenceRule: activeException?.evidenceRule ?? assignment.evidenceRule ?? rule.evidenceRule,
+        submissionMode: activeException?.submissionMode ?? assignment.submissionMode ?? rule.submissionMode,
+        defaultScope: rule.defaultScope,
+        exceptionId: activeException?.id ?? null,
+        startsAt: activeException?.startsAt ?? null,
+        endsAt: activeException?.endsAt ?? null,
+      };
+    });
   };
 
   const resolveLegacyProjection = async (legacyChallengeId: string, mapId?: string, gameplayRevisionId?: string | null, eligibilityAt = now()): Promise<MapTitleRuleSnapshot | null> => {
@@ -1756,7 +1867,26 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   const annotateEffects = async (tags: string[]) => { const terms = await glossary(); const byLabel = new Map(terms.flatMap((term) => [term.nameZh, ...term.aliases].map((label) => [label, term] as const))); return tags.flatMap((tag) => { const term = byLabel.get(tag); return term ? [{ tag, term }] : []; }); };
   const asRandomEvent = async (row: typeof randomEvents.$inferSelect): Promise<RandomEvent> => { const effectTags = JSON.parse(row.effectTagsJson) as string[]; return { eventId: row.id, name: row.name, category: row.category, rarity: row.rarity, description: row.description, durationSeconds: row.durationSeconds, cooldownSeconds: row.cooldownSeconds, weight: row.weight, gameVersion: row.gameVersion, eventGroup: row.eventGroup, effectTags, effectAnnotations: await annotateEffects(effectTags), releaseStatus: row.releaseStatus as RandomEvent["releaseStatus"], archived: row.archivedAt !== null, challenges: await publicEventChallenges(row.id) }; };
   const suspendedEventVersions = async () => new Set((await platformCache.cached("catalog", "suspended-event-versions", () => db.select({ gameVersion: randomEventVersions.gameVersion }).from(randomEventVersions).where(eq(randomEventVersions.availability, "suspended")))).map((row) => row.gameVersion));
-  const validateEventLinks = async (links: EventImportRow["challengeLinks"]) => { for (const link of links) { const table = link.family === "map" ? achievementChallenges : titleChallenges; const found = await db.select({ id: table.id }).from(table).where(eq(table.id, link.challengeId)).get(); if (!found) throw new Error("CHALLENGE_NOT_FOUND"); } };
+  // Two membership lookups per link batch instead of one select per link;
+  // chunked so a large import cannot exceed the SQLite variable limit.
+  const d1InChunk = 500;
+  const chunked = <T>(items: T[]): T[][] => { const out: T[][] = []; for (let i = 0; i < items.length; i += d1InChunk) out.push(items.slice(i, i + d1InChunk)); return out; };
+  const loadEventLinkIndex = async (links: EventImportRow["challengeLinks"]) => {
+    const mapIds = [...new Set(links.filter((link) => link.family === "map").map((link) => link.challengeId))];
+    const titleIds = [...new Set(links.filter((link) => link.family !== "map").map((link) => link.challengeId))];
+    const [mapRows, titleRows] = await Promise.all([
+      Promise.all(chunked(mapIds).map((ids) => db.select({ id: achievementChallenges.id }).from(achievementChallenges).where(inArray(achievementChallenges.id, ids)))).then((parts) => parts.flat()),
+      Promise.all(chunked(titleIds).map((ids) => db.select({ id: titleChallenges.id }).from(titleChallenges).where(inArray(titleChallenges.id, ids)))).then((parts) => parts.flat()),
+    ]);
+    return { map: new Set(mapRows.map((row) => row.id)), title: new Set(titleRows.map((row) => row.id)) };
+  };
+  const validateEventLinks = async (links: EventImportRow["challengeLinks"]) => {
+    const index = await loadEventLinkIndex(links);
+    for (const link of links) {
+      const found = link.family === "map" ? index.map.has(link.challengeId) : index.title.has(link.challengeId);
+      if (!found) throw new Error("CHALLENGE_NOT_FOUND");
+    }
+  };
   const replaceEventLinks = async (eventId: string, links: EventImportRow["challengeLinks"]) => { await db.delete(randomEventMapChallenges).where(eq(randomEventMapChallenges.eventId, eventId)); await db.delete(randomEventTitleChallenges).where(eq(randomEventTitleChallenges.eventId, eventId)); const mapsLinks = links.filter((link) => link.family === "map"); const titleLinks = links.filter((link) => link.family === "achievement"); if (mapsLinks.length) await db.insert(randomEventMapChallenges).values(mapsLinks.map((link) => ({ eventId, challengeId: link.challengeId }))); if (titleLinks.length) await db.insert(randomEventTitleChallenges).values(titleLinks.map((link) => ({ eventId, challengeId: link.challengeId }))); };
 
   const getPlayerOwnedSubmission = async (submissionId: string, sessionToken: string) => {
@@ -2934,25 +3064,39 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   const progressRuleMapIds = async (rule: ChallengeProgressRule) =>
     [...new Set(rule.mapIds ?? (rule.mode ? (await standaloneModeMapIds([rule.mode])).get(rule.mode) ?? [] : []))];
 
-  const loadEligibleProgressRunMaps = async (input: { playerAccountId: string; rule: ChallengeProgressRule; startsAt: number | null; endsAt: number | null }) => {
+  // One grouped read for every affected player instead of a per-player query;
+  // the reconciliation loop pairs each player with their precomputed set. The
+  // map list resolves through progressRuleMapIds so a rule without explicit
+  // mapIds follows every map of its standalone mode.
+  const loadEligibleProgressRunMaps = async (input: { playerAccountIds: string[]; rule: ChallengeProgressRule; startsAt: number | null; endsAt: number | null }) => {
     const requiredMapIds = await progressRuleMapIds(input.rule);
-    if (!requiredMapIds.length) return { completed: new Set<string>(), satisfied: false };
-    const rows = await db.select({ mapId: verifiedRuns.mapId, difficulty: verifiedRuns.difficulty })
+    const empty = new globalThis.Map(input.playerAccountIds.map((id) => [id, { completed: new Set<string>(), satisfied: false }]));
+    if (!requiredMapIds.length || !input.playerAccountIds.length) return empty;
+    // `chunked` keeps IN (...) under the SQLite variable limit for large
+    // player sets; slices of a static list are safe to run in parallel.
+    const rows = (await Promise.all(chunked(input.playerAccountIds).map((playerAccountIds) => db.select({ playerAccountId: verifiedRuns.playerAccountId, mapId: verifiedRuns.mapId, difficulty: verifiedRuns.difficulty })
       .from(verifiedRuns)
       .innerJoin(submissions, eq(verifiedRuns.sourceSubmissionId, submissions.id))
       .innerJoin(gameplayRevisions, eq(verifiedRuns.gameplayRevisionId, gameplayRevisions.id))
       .where(and(
-        eq(verifiedRuns.playerAccountId, input.playerAccountId),
+        inArray(verifiedRuns.playerAccountId, playerAccountIds),
         eq(verifiedRuns.status, "active"),
         inArray(verifiedRuns.mapId, requiredMapIds),
         input.rule.mode ? eq(gameplayRevisions.mode, input.rule.mode) : isNull(gameplayRevisions.mode),
         input.startsAt !== null ? gte(submissions.createdAt, input.startsAt) : undefined,
         input.endsAt !== null ? lt(submissions.createdAt, input.endsAt) : undefined,
-      ));
-    const completed = new Set(rows
-      .filter((run) => !input.rule.difficultyAtLeast || difficultyAtLeastSatisfied(run.difficulty, input.rule.difficultyAtLeast))
-      .map((run) => run.mapId));
-    return { completed, satisfied: requiredMapIds.every((mapId) => completed.has(mapId)) };
+      ))))).flat();
+    const byPlayer = new globalThis.Map<string, Set<string>>();
+    for (const run of rows) {
+      if (input.rule.difficultyAtLeast && !difficultyAtLeastSatisfied(run.difficulty, input.rule.difficultyAtLeast)) continue;
+      byPlayer.set(run.playerAccountId, (byPlayer.get(run.playerAccountId) ?? new Set()).add(run.mapId));
+    }
+    const result = new globalThis.Map<string, { completed: Set<string>; satisfied: boolean }>();
+    for (const playerAccountId of input.playerAccountIds) {
+      const completed = byPlayer.get(playerAccountId) ?? new Set<string>();
+      result.set(playerAccountId, { completed, satisfied: requiredMapIds.every((mapId) => completed.has(mapId)) });
+    }
+    return result;
   };
 
   const loadProgressChallenges = async (challengeId?: string) => (await db.select({ challenge: titleChallenges })
@@ -2974,7 +3118,65 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   // skipped while the title is already owned at global scope or was
   // administratively revoked (matching the chain's `owned`/`grantable` rules).
   // Every statement is idempotent and lands in a single D1 batch.
-  const reconcilePlayerProgressChallenge = async (input: {
+  // Prefetched per-player facts for one progress Challenge: the completion
+  // mirror rows, the global-scope grants, and the eligible run map sets. One
+  // bulk read each replaces the per-(challenge, player) round trips.
+  type ProgressChallengeFacts = {
+    // globalThis.Map/Set: the imported contracts `Map` type shadows the builtins.
+    completions: globalThis.Map<string, Array<{ id: string; challengeId: string; status: string }>>;
+    grants: globalThis.Map<string, { activeGrant: { id: string; completionId: string | null } | null; administrativelyRevoked: boolean }>;
+    eligibility: globalThis.Map<string, { completed: Set<string>; satisfied: boolean }>;
+  };
+
+  const loadProgressChallengeFacts = async (input: {
+    playerAccountIds: string[];
+    challenge: typeof titleChallenges.$inferSelect;
+    rule: ChallengeProgressRule;
+  }): Promise<ProgressChallengeFacts> => {
+    const { playerAccountIds, challenge, rule } = input;
+    if (!playerAccountIds.length) return { completions: new Map(), grants: new Map(), eligibility: new Map() };
+    // Chunk the player list: a popular map rule can concern more accounts than
+    // the SQLite variable limit a single IN (...) accepts.
+    const playerChunks = chunked(playerAccountIds);
+    const [eligibility, completionRows, grantRows] = await Promise.all([
+      loadEligibleProgressRunMaps({ playerAccountIds, rule, startsAt: challenge.startsAt, endsAt: challenge.endsAt }),
+      // Derived completions from every canonical rule version of this legacy
+      // Challenge, not only the current one: an admin edit mints a new
+      // canonical identity, and completions recorded under a superseded
+      // identity still mirror satisfaction and hold the grant chain.
+      Promise.all(playerChunks.map((ids) => db.select({ playerAccountId: challengeCompletions.playerAccountId, id: challengeCompletions.id, challengeId: challengeCompletions.challengeId, status: challengeCompletions.status })
+        .from(challengeCompletions)
+        .innerJoin(challenges, eq(challengeCompletions.challengeId, challenges.id))
+        .where(and(
+          inArray(challengeCompletions.playerAccountId, ids),
+          eq(challengeCompletions.sourceType, "verified_run_progress"),
+          eq(challenges.sourceFamily, "title_challenge"),
+          eq(challenges.sourceId, challenge.id),
+        )))).then((parts) => parts.flat()),
+      Promise.all(playerChunks.map((ids) => db.select({ playerAccountId: playerTitleGrants.playerAccountId, id: playerTitleGrants.id, completionId: playerTitleGrants.completionId, status: playerTitleGrants.status, revocationType: playerTitleGrants.revocationType })
+        .from(playerTitleGrants)
+        .where(and(
+          inArray(playerTitleGrants.playerAccountId, ids),
+          eq(playerTitleGrants.titleKey, challenge.titleKey),
+          isNull(playerTitleGrants.mapId),
+          isNull(playerTitleGrants.gameplayRevisionId),
+        )))).then((parts) => parts.flat()),
+    ]);
+    const completions = new globalThis.Map<string, Array<{ id: string; challengeId: string; status: string }>>();
+    for (const row of completionRows) completions.set(row.playerAccountId, [...(completions.get(row.playerAccountId) ?? []), row]);
+    const grants = new globalThis.Map<string, { activeGrant: { id: string; completionId: string | null } | null; administrativelyRevoked: boolean }>();
+    for (const playerAccountId of playerAccountIds) if (!grants.has(playerAccountId)) grants.set(playerAccountId, { activeGrant: null, administrativelyRevoked: false });
+    for (const row of grantRows) {
+      const entry = grants.get(row.playerAccountId)!;
+      if (row.status === "active" && !entry.activeGrant) entry.activeGrant = { id: row.id, completionId: row.completionId };
+      else if (row.status === "revoked" && row.revocationType === "administrator") entry.administrativelyRevoked = true;
+    }
+    return { completions, grants, eligibility };
+  };
+
+  // Pure statement emission from prefetched facts; keeps the original
+  // per-(challenge, player) ordering so batched writes land identically.
+  const planPlayerProgressChallenge = (input: {
     playerAccountId: string;
     challenge: typeof titleChallenges.$inferSelect;
     rule: ChallengeProgressRule;
@@ -2982,33 +3184,13 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     actorId: string;
     reason: string | null;
     timestamp: number;
+    facts: ProgressChallengeFacts;
     statements: D1PreparedStatement[];
   }) => {
-    const { playerAccountId, challenge, rule, canonicalChallengeId, actorId, reason, timestamp, statements } = input;
-    const eligibility = await loadEligibleProgressRunMaps({ playerAccountId, rule, startsAt: challenge.startsAt, endsAt: challenge.endsAt });
-    const grantScope = and(
-      eq(playerTitleGrants.playerAccountId, playerAccountId),
-      eq(playerTitleGrants.titleKey, challenge.titleKey),
-      isNull(playerTitleGrants.mapId),
-      isNull(playerTitleGrants.gameplayRevisionId),
-    );
-    // Derived completions from every canonical rule version of this legacy
-    // Challenge, not only the current one: an admin edit mints a new canonical
-    // identity, and completions recorded under a superseded identity still
-    // mirror satisfaction and hold the grant chain.
-    const [completions, activeGrant, administrativelyRevoked] = await Promise.all([
-      db.select({ id: challengeCompletions.id, challengeId: challengeCompletions.challengeId, status: challengeCompletions.status })
-        .from(challengeCompletions)
-        .innerJoin(challenges, eq(challengeCompletions.challengeId, challenges.id))
-        .where(and(
-          eq(challengeCompletions.playerAccountId, playerAccountId),
-          eq(challengeCompletions.sourceType, "verified_run_progress"),
-          eq(challenges.sourceFamily, "title_challenge"),
-          eq(challenges.sourceId, challenge.id),
-        )),
-      db.select({ id: playerTitleGrants.id, completionId: playerTitleGrants.completionId }).from(playerTitleGrants).where(and(grantScope, eq(playerTitleGrants.status, "active"))).get(),
-      db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).where(and(grantScope, eq(playerTitleGrants.status, "revoked"), eq(playerTitleGrants.revocationType, "administrator"))).get(),
-    ]);
+    const { playerAccountId, challenge, rule, canonicalChallengeId, actorId, reason, timestamp, facts, statements } = input;
+    const eligibility = facts.eligibility.get(playerAccountId) ?? { completed: new Set<string>(), satisfied: false };
+    const completions = facts.completions.get(playerAccountId) ?? [];
+    const { activeGrant, administrativelyRevoked } = facts.grants.get(playerAccountId) ?? { activeGrant: null, administrativelyRevoked: false };
     const activeCompletions = completions.filter((completion) => completion.status === "active");
     const staleCompletions = activeCompletions.filter((completion) => completion.challengeId !== canonicalChallengeId);
     const currentCompletion = completions.find((completion) => completion.challengeId === canonicalChallengeId);
@@ -3094,8 +3276,11 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         gameplayRevisionId: null,
         timestamp,
       }));
+      // Bulk-prefetch every player's facts once per challenge: 3 grouped reads
+      // replace the ~4 queries each player used to pay.
+      const facts = await loadProgressChallengeFacts({ playerAccountIds: playerIds, challenge, rule });
       for (const playerAccountId of playerIds) {
-        await reconcilePlayerProgressChallenge({ playerAccountId, challenge, rule, canonicalChallengeId, actorId: input.actorId, reason, timestamp, statements });
+        planPlayerProgressChallenge({ playerAccountId, challenge, rule, canonicalChallengeId, actorId: input.actorId, reason, timestamp, facts, statements });
       }
     }
     if (statements.length) await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
@@ -3132,8 +3317,9 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     const players = [...new Set([...runPlayers, ...completionPlayers].map(({ playerAccountId }) => playerAccountId))];
     if (!players.length) return;
     const statements: D1PreparedStatement[] = [];
+    const facts = await loadProgressChallengeFacts({ playerAccountIds: players, challenge: input.challenge, rule: input.rule });
     for (const playerAccountId of players) {
-      await reconcilePlayerProgressChallenge({ playerAccountId, challenge: input.challenge, rule: input.rule, canonicalChallengeId, actorId: input.actorId, reason: input.reason?.trim() || null, timestamp, statements });
+      planPlayerProgressChallenge({ playerAccountId, challenge: input.challenge, rule: input.rule, canonicalChallengeId, actorId: input.actorId, reason: input.reason?.trim() || null, timestamp, facts, statements });
     }
     if (statements.length) await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
   };
@@ -3837,88 +4023,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     if (!existing || (!existing.root && award.root)) awards.set(key, award);
   };
 
-  const challengeCompletionChain = async (input: {
-    playerAccountId: string;
-    challengeId: string;
-    slot: string | null;
-    eligibilityAt: number;
-    overlay?: CanonicalChallengeOverlay | null;
-  }): Promise<ChallengeCompletionAward[]> => {
-    const overlay = input.overlay ?? null;
-    const root = await loadCanonicalChallenge(input.challengeId, overlay);
-    if (!root) throw new Error("CHALLENGE_NOT_FOUND");
-    const result: ChallengeCompletionAward[] = [];
-    const seen = new Set<string>();
-    const pending: Array<{ challenge: typeof challenges.$inferSelect; root: boolean }> = [{ challenge: root, root: true }];
-    while (pending.length) {
-      const batch = pending.splice(0, 80);
-      for (const entry of batch) {
-        const challenge = entry.challenge;
-        if (seen.has(challenge.id)) continue;
-        seen.add(challenge.id);
-        const preArchiveSubmission = challenge.status === "archived" && challenge.endsAt !== null && input.eligibilityAt < challenge.endsAt;
-        const title = await db.select({ lifecycle: titleCatalog.lifecycle }).from(titleCatalog).where(eq(titleCatalog.key, challenge.titleKey)).get();
-        if (!title || title.lifecycle !== "active" || challenge.manual === 1 || (challenge.status !== "active" && !preArchiveSubmission)) continue;
-        if ((challenge.startsAt !== null && input.eligibilityAt < challenge.startsAt) || (challenge.endsAt !== null && input.eligibilityAt >= challenge.endsAt)) continue;
-        const mapId = entry.root ? root.mapId : challenge.mapId;
-        const gameplayRevisionId = entry.root ? root.gameplayRevisionId : challenge.gameplayRevisionId;
-        const owned = await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).where(and(
-          eq(playerTitleGrants.playerAccountId, input.playerAccountId),
-          eq(playerTitleGrants.titleKey, challenge.titleKey),
-          eq(playerTitleGrants.status, "active"),
-          mapId ? eq(playerTitleGrants.mapId, mapId) : isNull(playerTitleGrants.mapId),
-          gameplayRevisionId ? eq(playerTitleGrants.gameplayRevisionId, gameplayRevisionId) : isNull(playerTitleGrants.gameplayRevisionId),
-        )).get();
-        if (owned) continue;
-        const administrativelyRevoked = await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).where(and(
-          eq(playerTitleGrants.playerAccountId, input.playerAccountId),
-          eq(playerTitleGrants.titleKey, challenge.titleKey),
-          eq(playerTitleGrants.status, "revoked"),
-          eq(playerTitleGrants.revocationType, "administrator"),
-          mapId ? eq(playerTitleGrants.mapId, mapId) : isNull(playerTitleGrants.mapId),
-          gameplayRevisionId ? eq(playerTitleGrants.gameplayRevisionId, gameplayRevisionId) : isNull(playerTitleGrants.gameplayRevisionId),
-        )).get();
-        const relation = challenge.sourceFamily === "map_title_rule" && mapId
-          ? await db.select({ ruleId: mapTitleRuleCompat.ruleId }).from(mapTitleRuleCompat).where(and(eq(mapTitleRuleCompat.legacyChallengeId, challenge.sourceId), eq(mapTitleRuleCompat.mapId, mapId))).get()
-          : null;
-        const assignmentFamily = challenge.sourceFamily;
-        const assignmentId = relation?.ruleId ?? challenge.sourceId;
-        const assignment = mapId && gameplayRevisionId
-          ? await db.select({ slot: gameplayRevisionChallengeAssignments.slot }).from(gameplayRevisionChallengeAssignments).where(and(
-            eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, gameplayRevisionId),
-            eq(gameplayRevisionChallengeAssignments.mapId, mapId),
-            eq(gameplayRevisionChallengeAssignments.challengeFamily, assignmentFamily),
-            eq(gameplayRevisionChallengeAssignments.challengeId, assignmentId),
-          )).get()
-          : null;
-        const ruleSlot = assignmentFamily === "map_title_rule"
-          ? await db.select({ slot: mapTitleRules.slot }).from(mapTitleRules).where(eq(mapTitleRules.id, assignmentId)).get()
-          : null;
-        const mapReward = mapId
-          ? await db.select({ slot: mapTitleRewards.slot }).from(mapTitleRewards).where(and(eq(mapTitleRewards.mapId, mapId), eq(mapTitleRewards.titleKey, challenge.titleKey))).get()
-          : null;
-        result.push({
-          challengeId: challenge.id,
-          titleKey: challenge.titleKey,
-          mapId,
-          gameplayRevisionId,
-          slot: entry.root ? input.slot : assignment?.slot ?? ruleSlot?.slot ?? mapReward?.slot ?? null,
-          completionSourceType: entry.root ? "submission" : "challenge_satisfies",
-          satisfiedBy: entry.root ? null : input.challengeId,
-          root: entry.root,
-          grantable: !administrativelyRevoked,
-        });
-        const satisfied = await db.select({ satisfiedChallengeId: challengeSatisfies.satisfiedChallengeId }).from(challengeSatisfies).where(eq(challengeSatisfies.challengeId, challenge.id));
-        for (const relationRow of satisfied) {
-          if (seen.has(relationRow.satisfiedChallengeId)) continue;
-          const target = await loadCanonicalChallenge(relationRow.satisfiedChallengeId, overlay);
-          if (target) pending.push({ challenge: target, root: false });
-        }
-      }
-    }
-    return result;
-  };
-
   const challengeCompletionChains = async (input: {
     playerAccountId: string;
     roots: Array<{ challengeId: string; slot: string | null }>;
@@ -4092,26 +4196,68 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   // without writing it. Throws the same business errors approval must surface.
   const planApprovalRewards = async (row: typeof submissions.$inferSelect, selectedRows: readonly ReviewEvidenceSelection[], timestamp: number, canonicalChallenges: CanonicalChallengeResolver = materializingCanonicalChallenges, preparedPlans?: ReadonlyMap<string, CanonicalChallengePlan>) => {
     const snapshotsBySelection = selectedRows.map((selection) => selection.ruleSnapshotJson ? JSON.parse(selection.ruleSnapshotJson) as MapTitleRuleSnapshot : null);
-    const snapshotTitleKeys = [...new Set(snapshotsBySelection.flatMap((snapshot) => snapshot ? [snapshot.titleKey] : []))];
-    const snapshotTitleRows = snapshotTitleKeys.length ? await db.select({ key: titleCatalog.key, label: titleCatalog.label }).from(titleCatalog).where(sql`${titleCatalog.key} IN (SELECT value FROM json_each(${JSON.stringify(snapshotTitleKeys)}))`) : [];
-    const snapshotTitleNames = new globalThis.Map(snapshotTitleRows.map(({ key, label }) => [key, label]));
+
+    // Prefetch every resolution input the selection loop needs so the per-row
+    // work below is pure lookups: 4 grouped reads instead of ~3-7 round trips
+    // per selection.
+    const titleAchievementIds = [...new Set(selectedRows.filter((selection, index) => !snapshotsBySelection[index] && selection.challengeType === "title_achievement").map((selection) => selection.challengeId))];
+    const legacyCandidates = selectedRows.filter((selection, index) => !snapshotsBySelection[index] && selection.challengeType !== "title_achievement");
+    const legacyIds = [...new Set(legacyCandidates.map((selection) => selection.challengeId))];
+    const compatRows = legacyIds.length ? await db.select({ legacyChallengeId: mapTitleRuleCompat.legacyChallengeId, mapId: mapTitleRuleCompat.mapId, ruleId: mapTitleRuleCompat.ruleId })
+      .from(mapTitleRuleCompat)
+      .where(inArray(mapTitleRuleCompat.legacyChallengeId, legacyIds)) : [];
+    // Keyed by challengeId + targetMapId: the same legacy challenge can serve
+    // several selections pointing at different maps.
+    const compatKeyOf = (selection: ReviewEvidenceSelection) => `${selection.challengeId}:${selection.targetMapId ?? ""}`;
+    const compatBySelection = new globalThis.Map(legacyCandidates.flatMap((selection) => {
+      const row = compatRows.find((compat) => compat.legacyChallengeId === selection.challengeId && compat.mapId === selection.targetMapId);
+      return row && selection.targetMapId ? [[compatKeyOf(selection), row] as const] : [];
+    }));
+    const compatSnaps = await resolveMapTitleProjections(legacyCandidates.flatMap((selection) => {
+      const compat = compatBySelection.get(compatKeyOf(selection));
+      return compat ? [{ ruleId: compat.ruleId, mapId: selection.targetMapId!, gameplayRevisionId: selection.gameplayRevisionId, eligibilityAt: row.createdAt }] : [];
+    }));
+    const compatSnapBySelection = new globalThis.Map<string, MapTitleRuleSnapshot>();
+    {
+      let compatIndex = 0;
+      for (const selection of legacyCandidates) {
+        if (!compatBySelection.has(compatKeyOf(selection))) continue;
+        const snap = compatSnaps[compatIndex++];
+        if (snap) compatSnapBySelection.set(compatKeyOf(selection), snap);
+      }
+    }
+
+    const [titleChallengeRows, titleNameRows, mapChallengeRows] = await Promise.all([
+      titleAchievementIds.length ? db.select({ id: titleChallenges.id, titleKey: titleChallenges.titleKey, titleName: titleCatalog.label, scope: titleChallenges.scope }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(inArray(titleChallenges.id, titleAchievementIds)) : Promise.resolve([]),
+      (() => {
+        const titleKeys = [...new Set([
+          ...snapshotsBySelection.flatMap((snapshot) => snapshot ? [snapshot.titleKey] : []),
+          ...[...compatSnapBySelection.values()].map((snap) => snap.titleKey),
+        ])];
+        return titleKeys.length ? db.select({ key: titleCatalog.key, label: titleCatalog.label }).from(titleCatalog).where(sql`${titleCatalog.key} IN (SELECT value FROM json_each(${JSON.stringify(titleKeys)}))`) : Promise.resolve([]);
+      })(),
+      legacyIds.length ? db.select({ id: achievementChallenges.id, titleKey: achievementChallenges.rewardTitleKey, titleName: titleCatalog.label, mapId: achievementChallenges.mapId, slot: mapTitleRewards.slot }).from(achievementChallenges).leftJoin(titleCatalog, eq(achievementChallenges.rewardTitleKey, titleCatalog.key)).leftJoin(mapTitleRewards, and(eq(mapTitleRewards.mapId, achievementChallenges.mapId), eq(mapTitleRewards.titleKey, achievementChallenges.rewardTitleKey))).where(inArray(achievementChallenges.id, legacyIds)) : Promise.resolve([]),
+    ]);
+    const titleChallengeById = new globalThis.Map(titleChallengeRows.map((challenge) => [challenge.id, challenge]));
+    const titleNames = new globalThis.Map(titleNameRows.map(({ key, label }) => [key, label]));
+    const mapChallengeById = new globalThis.Map(mapChallengeRows.map((challenge) => [challenge.id, challenge]));
+
     const rewards: ReviewReward[] = [];
     for (const [selectionIndex, selection] of selectedRows.entries()) {
       let reward: ReviewReward | null = null;
       const snapshot = snapshotsBySelection[selectionIndex];
       if (snapshot) {
-        reward = { challengeId: selection.challengeId, titleKey: snapshot.titleKey, titleName: snapshotTitleNames.get(snapshot.titleKey) ?? snapshot.titleKey, mapId: snapshot.mapId, gameplayRevisionId: snapshot.gameplayRevisionId ?? selection.gameplayRevisionId ?? null, slot: snapshot.slot, snapshot };
+        reward = { challengeId: selection.challengeId, titleKey: snapshot.titleKey, titleName: titleNames.get(snapshot.titleKey) ?? snapshot.titleKey, mapId: snapshot.mapId, gameplayRevisionId: snapshot.gameplayRevisionId ?? selection.gameplayRevisionId ?? null, slot: snapshot.slot, snapshot };
       } else if (selection.challengeType === "title_achievement") {
-        const challenge = await db.select({ titleKey: titleChallenges.titleKey, titleName: titleCatalog.label, scope: titleChallenges.scope }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, selection.challengeId)).get();
+        const challenge = titleChallengeById.get(selection.challengeId);
         if (!challenge || challenge.scope === "map" || !challenge.titleKey) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
         reward = { challengeId: selection.challengeId, titleKey: challenge.titleKey, titleName: challenge.titleName, mapId: null, gameplayRevisionId: null, slot: null, snapshot: null };
       } else {
-        const snap = selection.targetMapId ? await resolveCompatProjection(selection.challengeId, selection.targetMapId, selection.gameplayRevisionId, row.createdAt) : null;
+        const snap = selection.targetMapId ? compatSnapBySelection.get(compatKeyOf(selection)) ?? null : null;
         if (snap) {
-          const catalogRow = await db.select({ label: titleCatalog.label }).from(titleCatalog).where(eq(titleCatalog.key, snap.titleKey)).get();
-          reward = { challengeId: selection.challengeId, titleKey: snap.titleKey, titleName: catalogRow?.label ?? snap.titleKey, mapId: snap.mapId, gameplayRevisionId: snap.gameplayRevisionId, slot: snap.slot, snapshot: snap };
+          reward = { challengeId: selection.challengeId, titleKey: snap.titleKey, titleName: titleNames.get(snap.titleKey) ?? snap.titleKey, mapId: snap.mapId, gameplayRevisionId: snap.gameplayRevisionId, slot: snap.slot, snapshot: snap };
         } else {
-          const challenge = await db.select({ titleKey: achievementChallenges.rewardTitleKey, titleName: titleCatalog.label, mapId: achievementChallenges.mapId, slot: mapTitleRewards.slot }).from(achievementChallenges).leftJoin(titleCatalog, eq(achievementChallenges.rewardTitleKey, titleCatalog.key)).leftJoin(mapTitleRewards, and(eq(mapTitleRewards.mapId, achievementChallenges.mapId), eq(mapTitleRewards.titleKey, achievementChallenges.rewardTitleKey))).where(eq(achievementChallenges.id, selection.challengeId)).get();
+          const challenge = mapChallengeById.get(selection.challengeId);
           if (!challenge?.titleKey || !challenge.titleName) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
           reward = { challengeId: selection.challengeId, titleKey: challenge.titleKey, titleName: challenge.titleName, mapId: challenge.mapId, gameplayRevisionId: selection.gameplayRevisionId, slot: challenge.slot, snapshot: null };
         }
@@ -4978,7 +5124,14 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     async importAdminRandomEvents(input, auth, idempotencyKey) {
       const replay = await replayOrConflict<{ importedCount: number }>(db, auth.subject, "admin.random-event.import", idempotencyKey, input); if (replay) return replay;
       const parsed = await parseEventImport(input); if (parsed.errors.length) throw new Error("EVENT_IMPORT_INVALID"); const duplicate = await db.select().from(randomEventImports).where(eq(randomEventImports.sourceHash, parsed.sourceHash)).get(); if (duplicate) throw new Error("EVENT_IMPORT_DUPLICATE");
-      for (const item of parsed.rows) { await validateEventLinks(item.challengeLinks); const exists = await db.select({ id: randomEvents.id }).from(randomEvents).where(eq(randomEvents.name, item.name)).get(); if (exists) throw new Error("EVENT_IMPORT_NAME_CONFLICT"); }
+      // Validate every row's links and name conflicts up front: the import
+      // aborts on the first error, so a single batched membership check per
+      // family plus one name lookup preserves semantics with O(1) queries
+      // instead of O(rows × links).
+      const importLinkIndex = await loadEventLinkIndex(parsed.rows.flatMap((item) => item.challengeLinks));
+      const importNames = [...new Set(parsed.rows.map((item) => item.name))];
+      const existingNames = new Set((await Promise.all(chunked(importNames).map((names) => db.select({ name: randomEvents.name }).from(randomEvents).where(inArray(randomEvents.name, names))))).flat().map((row) => row.name));
+      for (const item of parsed.rows) { for (const link of item.challengeLinks) { if (!(link.family === "map" ? importLinkIndex.map.has(link.challengeId) : importLinkIndex.title.has(link.challengeId))) throw new Error("CHALLENGE_NOT_FOUND"); } if (existingNames.has(item.name)) throw new Error("EVENT_IMPORT_NAME_CONFLICT"); }
       const timestamp = now(); const response = { importedCount: parsed.rows.length }; const statements: D1PreparedStatement[] = [];
       for (const item of parsed.rows) { const eventId = `event.${crypto.randomUUID()}`; statements.push(database.prepare("INSERT INTO random_events (id,name,category,rarity,description,duration_seconds,cooldown_seconds,weight,game_version,event_group,effect_tags_json,release_status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(eventId, item.name, item.category, randomEventRarityForWeight(item.weight), item.description, item.durationSeconds, item.cooldownSeconds, item.weight, item.gameVersion, item.eventGroup ?? null, JSON.stringify(item.effectTags), item.releaseStatus, timestamp, timestamp)); for (const link of item.challengeLinks) statements.push(database.prepare(link.family === "map" ? "INSERT INTO random_event_map_challenges (event_id,challenge_id) VALUES (?,?)" : "INSERT INTO random_event_title_challenges (event_id,challenge_id) VALUES (?,?)").bind(eventId, link.challengeId)); }
       statements.push(database.prepare("INSERT INTO random_event_imports (id,source_hash,file_name,row_count,imported_by,imported_at) VALUES (?,?,?,?,?,?)").bind(crypto.randomUUID(), parsed.sourceHash, input.fileName, parsed.rows.length, auth.subject, timestamp)); statements.push(database.prepare("INSERT INTO idempotency_keys (id,actor_id,operation,request_hash,response_json,created_at) VALUES (?,?,?,?,?,?)").bind(`${auth.subject}:admin.random-event.import:${idempotencyKey}`, auth.subject, "admin.random-event.import", await hashRequest(input), JSON.stringify(response), timestamp)); statements.push(database.prepare("INSERT INTO audit_events (id,correlation_id,actor_type,actor_id,operation,entity_type,entity_id,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, "admin.random-event.import", "random_event_import", parsed.sourceHash, JSON.stringify({ fileName: input.fileName, importedCount: parsed.rows.length }), timestamp));
@@ -7148,7 +7301,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           : null;
         const completionAwards = new Map<string, ChallengeCompletionAward>();
         if (reward && canonicalChallengeId && !alreadyOwned) {
-          const chain = await challengeCompletionChain({ playerAccountId: row.playerAccountId, challengeId: canonicalChallengeId, slot: reward.slot, eligibilityAt: row.createdAt });
+          const [chain] = await challengeCompletionChains({ playerAccountId: row.playerAccountId, roots: [{ challengeId: canonicalChallengeId, slot: reward.slot }], eligibilityAt: row.createdAt });
           if (!chain.some((award) => award.root)) throw new Error("CHALLENGE_NOT_COMPLETABLE");
           if (chain.some((award) => award.root && !award.grantable)) throw new Error("TITLE_GRANT_ADMINISTRATIVELY_REVOKED");
           for (const award of chain) completionAwards.set(`${award.challengeId}:${award.mapId ?? ""}:${award.gameplayRevisionId ?? ""}`, award);
