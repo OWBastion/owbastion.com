@@ -71,3 +71,15 @@ export function editorialToc(body: unknown): EditorialTocEntry[] {
   walk(links);
   return flat;
 }
+
+// "8月1日", for rows already grouped under their year.
+export function formatEditorialMonthDay(value: string | Date): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", timeZone: "UTC" }).format(date);
+}
+
+export const editorialYear = (value: string | Date) => new Date(value).getUTCFullYear();
+
+// Every development log carries the 开发日志 tag; it says nothing next to the kind that is already shown.
+export const editorialTags = (tags?: string[]) => (tags ?? []).filter((tag) => tag !== "开发日志");
