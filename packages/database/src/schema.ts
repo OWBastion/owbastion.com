@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { type AnySQLiteColumn, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { type AnySQLiteColumn, index, integer, primaryKey, real, sqliteTable, text, unique, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const identities = sqliteTable("identities", {
   id: text("id").primaryKey(),
@@ -19,19 +19,21 @@ export const bindings = sqliteTable("bindings", {
   revokedBy: text("revoked_by"),
   createdAt: integer("created_at").notNull(),
 }, (table) => ({
-  providerExternalUser: uniqueIndex("bindings_provider_member_idx").on(table.provider, table.memberOpenId),
+  activePlayer: uniqueIndex("bindings_active_player_idx").on(table.playerAccountId).where(sql`status = 'active'`),
+  activeProviderMember: uniqueIndex("bindings_active_provider_member_idx").on(table.provider, table.memberOpenId).where(sql`status = 'active'`),
 }));
 
 export const bindingInvites = sqliteTable("binding_invites", {
-  id: text("id").primaryKey(), codeHash: text("code_hash").notNull(), codeCiphertext: text("code_ciphertext"), playerName: text("player_name").notNull(), normalizedPlayerName: text("normalized_player_name").notNull(), playerId: text("player_id").notNull(), createdBy: text("created_by").notNull(), createdAt: integer("created_at").notNull(), expiresAt: integer("expires_at").notNull(), redeemedAt: integer("redeemed_at"), legacyPasskeyPlayerAccountId: text("legacy_passkey_player_account_id"), legacyPasskeyChallengeId: text("legacy_passkey_challenge_id"), revokedAt: integer("revoked_at"), revokedBy: text("revoked_by"),
-}, (table) => ({ code: uniqueIndex("binding_invites_code_idx").on(table.codeHash) }));
+  id: text("id").primaryKey(), codeHash: text("code_hash").notNull().unique(), codeCiphertext: text("code_ciphertext"), playerName: text("player_name").notNull(), normalizedPlayerName: text("normalized_player_name").notNull(), playerId: text("player_id").notNull(), createdBy: text("created_by").notNull(), createdAt: integer("created_at").notNull(), expiresAt: integer("expires_at").notNull(), redeemedAt: integer("redeemed_at"), legacyPasskeyPlayerAccountId: text("legacy_passkey_player_account_id"), legacyPasskeyChallengeId: text("legacy_passkey_challenge_id"), revokedAt: integer("revoked_at"), revokedBy: text("revoked_by"),
+});
 
 export const bindingClaims = sqliteTable("binding_claims", {
-  id: text("id").primaryKey(), inviteId: text("invite_id").notNull().references(() => bindingInvites.id), tokenHash: text("token_hash").notNull(), codeHash: text("code_hash").notNull(), playerName: text("player_name").notNull(), normalizedPlayerName: text("normalized_player_name").notNull(), playerId: text("player_id").notNull(), status: text("status").notNull(), memberOpenId: text("member_open_id"), groupOpenId: text("group_open_id"), messageId: text("message_id"), expiresAt: integer("expires_at").notNull(), createdAt: integer("created_at").notNull(), verifiedAt: integer("verified_at"), decidedAt: integer("decided_at"), decidedBy: text("decided_by"), decisionReason: text("decision_reason"),
+  id: text("id").primaryKey(), inviteId: text("invite_id").notNull().references(() => bindingInvites.id), tokenHash: text("token_hash").notNull(), codeHash: text("code_hash").notNull().unique(), playerName: text("player_name").notNull(), normalizedPlayerName: text("normalized_player_name").notNull(), playerId: text("player_id").notNull(), status: text("status").notNull(), memberOpenId: text("member_open_id"), groupOpenId: text("group_open_id"), messageId: text("message_id"), expiresAt: integer("expires_at").notNull(), createdAt: integer("created_at").notNull(), verifiedAt: integer("verified_at"), decidedAt: integer("decided_at"), decidedBy: text("decided_by"), decisionReason: text("decision_reason"),
 }, (table) => ({
-  code: uniqueIndex("binding_claims_code_idx").on(table.codeHash),
   activeInvite: uniqueIndex("binding_claims_active_invite_idx").on(table.inviteId).where(sql`status = 'pending_confirmation'`),
   expiry: index("binding_claims_expiry_idx").on(table.status, table.expiresAt),
+  member: index("binding_claims_member_idx").on(table.memberOpenId, table.status),
+  pending: index("binding_claims_pending_idx").on(table.status, table.createdAt),
 }));
 
 export const playerAccounts = sqliteTable("player_accounts", {
@@ -59,7 +61,9 @@ export const maps = sqliteTable("maps", {
   retiredVersion: text("retired_version"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
-});
+}, (table) => ({
+  statusIdx: index("maps_status_idx").on(table.status, table.name),
+}));
 
 export const playerTitleEntitlements = sqliteTable("player_title_entitlements", {
   playerAccountId: text("player_account_id").primaryKey().references(() => playerAccounts.id),
@@ -126,7 +130,9 @@ export const randomEvents = sqliteTable("random_events", {
   description: text("description").notNull(), durationSeconds: integer("duration_seconds"), cooldownSeconds: real("cooldown_seconds"), weight: real("weight"),
   gameVersion: text("game_version").notNull(), effectTagsJson: text("effect_tags_json").notNull().default("[]"), eventGroup: text("event_group"),
   releaseStatus: text("release_status").notNull(), archivedAt: integer("archived_at"), archivedBy: text("archived_by"), createdAt: integer("created_at").notNull(), updatedAt: integer("updated_at").notNull(),
-});
+}, (table) => ({
+  visibleIdx: index("random_events_visible_idx").on(table.archivedAt, table.releaseStatus, table.name),
+}));
 export const standaloneModes = sqliteTable("standalone_modes", {
   mode: text("mode").primaryKey(),
   eventWeightTotal: real("event_weight_total"),
@@ -144,7 +150,9 @@ export const randomEventVersions = sqliteTable("random_event_versions", {
 });
 export const effectGlossaryTerms = sqliteTable("effect_glossary_terms", {
   key: text("key").primaryKey(), nameZh: text("name_zh").notNull(), aliasesJson: text("aliases_json").notNull().default("[]"), category: text("category").notNull(), summary: text("summary").notNull(), definition: text("definition").notNull(), rulesJson: text("rules_json").notNull().default("[]"), sourceVersion: text("source_version").notNull(), updatedAt: integer("updated_at").notNull(),
-});
+}, (table) => ({
+  nameIdx: index("effect_glossary_terms_name_idx").on(table.nameZh),
+}));
 export const randomEventMapChallenges = sqliteTable("random_event_map_challenges", { eventId: text("event_id").notNull().references(() => randomEvents.id), challengeId: text("challenge_id").notNull().references(() => achievementChallenges.id) }, (table) => ({ primary: primaryKey({ columns: [table.eventId, table.challengeId] }) }));
 export const randomEventTitleChallenges = sqliteTable("random_event_title_challenges", { eventId: text("event_id").notNull().references(() => randomEvents.id), challengeId: text("challenge_id").notNull().references(() => titleChallenges.id) }, (table) => ({ primary: primaryKey({ columns: [table.eventId, table.challengeId] }) }));
 export const randomEventImports = sqliteTable("random_event_imports", { id: text("id").primaryKey(), sourceHash: text("source_hash").notNull(), fileName: text("file_name").notNull(), rowCount: integer("row_count").notNull(), importedBy: text("imported_by").notNull(), importedAt: integer("imported_at").notNull() });
@@ -163,7 +171,9 @@ export const titleCatalog = sqliteTable("title_catalog", {
   displayKind: text("display_kind").notNull(),
   colorJson: text("color_json").notNull().default("null"),
   gameVersion: text("game_version"),
-});
+}, (table) => ({
+  scopeIdx: index("title_catalog_scope_idx").on(table.scope, table.lifecycle),
+}));
 
 export const mapTitleRewards = sqliteTable("map_title_rewards", {
   mapId: text("map_id").notNull().references(() => maps.id),
@@ -172,7 +182,8 @@ export const mapTitleRewards = sqliteTable("map_title_rewards", {
   pioneerPrefixesJson: text("pioneer_prefixes_json").notNull(),
 }, (table) => ({
   mapSlot: primaryKey({ columns: [table.mapId, table.slot] }),
-  mapTitle: uniqueIndex("map_title_rewards_map_title_idx").on(table.mapId, table.titleKey),
+  mapTitle: unique().on(table.mapId, table.titleKey),
+  mapIdx: index("map_title_rewards_map_idx").on(table.mapId, table.slot),
 }));
 
 // Reusable map title rule entity. One row per rule kind (e.g. conqueror).
@@ -246,7 +257,9 @@ export const historicalTitleGrants = sqliteTable("historical_title_grants", {
   holderName: text("holder_name").notNull(),
   sourceVersion: text("source_version").notNull(),
 }, (table) => ({
-  holder: uniqueIndex("historical_title_grants_holder_idx").on(table.scope, table.mapId, table.slot, table.titleKey, table.holderName),
+  holder: unique().on(table.scope, table.mapId, table.slot, table.titleKey, table.holderName),
+  mapIdx: index("historical_title_grants_map_idx").on(table.mapId, table.titleKey),
+  mapRevisionIdx: index("historical_title_grants_map_revision_idx").on(table.mapId, table.gameplayRevisionId),
 }));
 
 export const bindingInviteHistoricalTitleGrants = sqliteTable("binding_invite_historical_title_grants", {
@@ -260,20 +273,19 @@ export const bindingInviteHistoricalTitleGrants = sqliteTable("binding_invite_hi
   createdAt: integer("created_at").notNull(),
   processedAt: integer("processed_at"),
 }, (table) => ({
-  inviteGrant: uniqueIndex("binding_invite_historical_title_grants_invite_grant_idx").on(table.inviteId, table.historicalTitleGrantId),
+  inviteGrant: unique().on(table.inviteId, table.historicalTitleGrantId),
+  inviteIdx: index("binding_invite_historical_title_grants_invite_idx").on(table.inviteId, table.status),
+  sourceIdx: index("binding_invite_historical_title_grants_source_idx").on(table.historicalTitleGrantId, table.status),
 }));
 
 export const catalogImports = sqliteTable("catalog_imports", {
   id: text("id").primaryKey(),
-  sourceVersion: text("source_version").notNull(),
-  snapshotHash: text("snapshot_hash").notNull(),
+  sourceVersion: text("source_version").notNull().unique(),
+  snapshotHash: text("snapshot_hash").notNull().unique(),
   status: text("status").notNull(),
   rowCountsJson: text("row_counts_json").notNull(),
   importedAt: integer("imported_at").notNull(),
-}, (table) => ({
-  sourceVersion: uniqueIndex("catalog_imports_source_version_idx").on(table.sourceVersion),
-  snapshotHash: uniqueIndex("catalog_imports_snapshot_hash_idx").on(table.snapshotHash),
-}));
+});
 
 export const achievementChallenges = sqliteTable("achievement_challenges", {
   id: text("id").primaryKey(),
@@ -291,7 +303,9 @@ export const achievementChallenges = sqliteTable("achievement_challenges", {
   retiredVersion: text("retired_version"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
-});
+}, (table) => ({
+  mapStatusIdx: index("achievement_challenges_map_status_idx").on(table.mapId, table.status, table.name),
+}));
 
 export const playerTitleGrants = sqliteTable("player_title_grants", {
   id: text("id").primaryKey(),
@@ -312,13 +326,19 @@ export const playerTitleGrants = sqliteTable("player_title_grants", {
   revocationType: text("revocation_type"),
 }, (table) => ({
   sourceIdx: uniqueIndex("player_title_grants_source_idx").on(table.sourceType, table.sourceId, table.titleKey),
+  playerStatusIdx: index("player_title_grants_player_status_idx").on(table.playerAccountId, table.status),
+  activePlayerTitleRevisionIdx: index("player_title_grants_active_player_title_revision_idx").on(table.playerAccountId, table.titleKey, table.mapId, table.gameplayRevisionId).where(sql`${table.status} = 'active'`),
+  activeIdentityIdx: uniqueIndex("player_title_grants_active_identity_idx").on(table.playerAccountId, table.titleKey, sql`COALESCE(${table.mapId}, '')`, sql`COALESCE(${table.gameplayRevisionId}, '')`).where(sql`${table.status} = 'active'`),
+  completionIdx: uniqueIndex("player_title_grants_completion_idx").on(table.completionId).where(sql`${table.completionId} IS NOT NULL`),
 }));
 
 export const playerEquippedTitles = sqliteTable("player_equipped_titles", {
   grantId: text("grant_id").primaryKey().references(() => playerTitleGrants.id),
   playerAccountId: text("player_account_id").notNull().references(() => playerAccounts.id),
   equippedAt: integer("equipped_at").notNull(),
-});
+}, (table) => ({
+  playerIdx: index("player_equipped_titles_player_idx").on(table.playerAccountId),
+}));
 
 export const titleChallenges = sqliteTable("title_challenges", {
   id: text("id").primaryKey(),
@@ -338,7 +358,9 @@ export const titleChallenges = sqliteTable("title_challenges", {
   progressRule: text("progress_rule"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
-});
+}, (table) => ({
+  statusIdx: index("title_challenges_status_idx").on(table.status, table.titleKey),
+}));
 
 export const challenges = sqliteTable("challenges", {
   id: text("id").primaryKey(),
@@ -380,6 +402,7 @@ export const challengeCompletions = sqliteTable("challenge_completions", {
 }, (table) => ({
   playerChallengeIdx: uniqueIndex("challenge_completions_player_challenge_idx").on(table.playerAccountId, table.challengeId, sql`COALESCE(${table.gameplayRevisionId}, '')`).where(sql`${table.status} = 'active'`),
   sourceIdx: uniqueIndex("challenge_completions_source_idx").on(table.sourceType, table.sourceId, table.challengeId),
+  playerIdx: index("challenge_completions_player_idx").on(table.playerAccountId, sql`${table.completedAt} DESC`),
 }));
 
 export const challengeSatisfies = sqliteTable("challenge_satisfies", {
@@ -395,7 +418,7 @@ export const achievementChallengeMaps = sqliteTable("achievement_challenge_maps"
   mapId: text("map_id").notNull().references(() => maps.id, { onDelete: "cascade" }),
 }, (table) => ({
   primary: primaryKey({ columns: [table.challengeId, table.mapId] }),
-  mapIdx: uniqueIndex("achievement_challenge_maps_map_challenge_idx").on(table.mapId, table.challengeId),
+  mapIdx: index("achievement_challenge_maps_map_idx").on(table.mapId, table.challengeId),
 }));
 
 export const submissions = sqliteTable("submissions", {
@@ -422,7 +445,13 @@ export const submissions = sqliteTable("submissions", {
   sourceMessageId: text("source_message_id").notNull(),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
-});
+}, (table) => ({
+  bindingIdx: index("submissions_binding_idx").on(table.bindingId),
+  mapIdx: index("submissions_map_idx").on(table.mapName),
+  playerAccountIdx: index("submissions_player_account_idx").on(table.playerAccountId, sql`${table.createdAt} DESC`),
+  reviewStatusIdx: index("submissions_review_status_idx").on(table.status, table.updatedAt),
+  targetMapIdx: index("submissions_target_map_idx").on(table.targetMapId),
+}));
 
 export const submissionChallengeSelections = sqliteTable("submission_challenge_selections", {
   id: text("id").primaryKey(),
@@ -438,7 +467,7 @@ export const submissionChallengeSelections = sqliteTable("submission_challenge_s
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, (table) => ({
-  submissionPositionIdx: uniqueIndex("submission_challenge_selections_submission_position_idx").on(table.submissionId, table.position),
+  submissionPositionIdx: unique().on(table.submissionId, table.position),
   submissionIdx: index("submission_challenge_selections_submission_idx").on(table.submissionId),
 }));
 
@@ -470,7 +499,8 @@ export const verifiedRuns = sqliteTable("mastery_runs", {
   sourceSubmissionIdx: uniqueIndex("mastery_runs_source_submission_idx").on(table.sourceSubmissionId),
   playerAcceptedIdx: index("mastery_runs_player_accepted_idx").on(table.playerAccountId, sql`${table.acceptedAt} DESC`, sql`${table.id} DESC`),
   activePlayerRunCodeIdx: uniqueIndex("mastery_runs_active_player_run_code_idx").on(table.playerAccountId, table.matchCode).where(sql`${table.status} = 'active'`),
-  activePlayerMapAcceptedIdx: index("mastery_runs_active_player_map_revision_accepted_idx").on(table.playerAccountId, table.mapId, table.gameplayRevisionId, table.acceptedAt).where(sql`${table.status} = 'active'`),
+  activePlayerMapRevisionAcceptedIdx: index("mastery_runs_active_player_map_revision_accepted_idx").on(table.playerAccountId, table.mapId, table.gameplayRevisionId, table.acceptedAt).where(sql`${table.status} = 'active'`),
+  activePlayerMapAcceptedIdx: index("mastery_runs_active_player_map_accepted_idx").on(table.playerAccountId, table.mapId, sql`${table.acceptedAt} DESC`).where(sql`${table.status} = 'active'`),
 }));
 
 export const verifiedRunLifecycleEvents = sqliteTable("mastery_run_lifecycle_events", {
@@ -527,7 +557,9 @@ export const uploadSessions = sqliteTable("upload_sessions", {
   status: text("status").notNull(),
   expiresAt: integer("expires_at").notNull(),
   createdAt: integer("created_at").notNull(),
-});
+}, (table) => ({
+  submissionIdx: index("upload_sessions_submission_idx").on(table.submissionId),
+}));
 
 export const ocrResults = sqliteTable("ocr_results", {
   manual: integer("manual").notNull().default(0),
@@ -541,7 +573,10 @@ export const ocrResults = sqliteTable("ocr_results", {
   matchJson: text("match_json"),
   errorCode: text("error_code"),
   createdAt: integer("created_at").notNull(),
-});
+}, (table) => ({
+  submissionIdx: index("ocr_results_submission_idx").on(table.submissionId, table.createdAt),
+  submissionRequestIdx: uniqueIndex("ocr_results_submission_request_idx").on(table.submissionId, table.requestId),
+}));
 
 export const submissionReviews = sqliteTable("submission_reviews", {
   id: text("id").primaryKey(),
@@ -563,7 +598,10 @@ export const submissionSpotChecks = sqliteTable("submission_spot_checks", {
   resolvedAt: integer("resolved_at"),
   reviewer: text("reviewer"),
   reason: text("reason"),
-}, (table) => ({ submissionIdIdx: uniqueIndex("submission_spot_checks_submission_id_idx").on(table.submissionId) }));
+}, (table) => ({
+  submissionIdIdx: uniqueIndex("submission_spot_checks_submission_id_idx").on(table.submissionId),
+  statusIdx: index("submission_spot_checks_status_idx").on(table.status, table.sampledAt),
+}));
 
 // Player OCR-result feedback proposals. One row per safe field per recognition.
 // A proposal is an annotation proposal, never ground truth by itself: it does
@@ -741,7 +779,9 @@ export const attachments = sqliteTable("attachments", {
   objectKey: text("object_key"),
   uploadStatus: text("upload_status").notNull(),
   createdAt: integer("created_at").notNull(),
-});
+}, (table) => ({
+  submissionIdx: index("attachments_submission_idx").on(table.submissionId),
+}));
 
 export const idempotencyKeys = sqliteTable("idempotency_keys", {
   id: text("id").primaryKey(),
@@ -762,7 +802,9 @@ export const auditEvents = sqliteTable("audit_events", {
   entityId: text("entity_id").notNull(),
   payloadJson: text("payload_json").notNull(),
   createdAt: integer("created_at").notNull(),
-});
+}, (table) => ({
+  entityIdx: index("audit_events_entity_idx").on(table.entityType, table.entityId),
+}));
 
 export const qqGroupAccess = sqliteTable("qq_group_access", {
   groupOpenId: text("group_open_id").primaryKey(),
@@ -774,7 +816,9 @@ export const qqGroupAccess = sqliteTable("qq_group_access", {
   lifecycleOccurredAt: integer("lifecycle_occurred_at").notNull().default(0),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
-});
+}, (table) => ({
+  oneActiveIdx: uniqueIndex("qq_group_access_one_active_idx").on(table.status).where(sql`status = 'active'`),
+}));
 
 export const qqGroupPolicyOutbox = sqliteTable("qq_group_policy_outbox", {
   id: text("id").primaryKey(),
@@ -782,7 +826,9 @@ export const qqGroupPolicyOutbox = sqliteTable("qq_group_policy_outbox", {
   createdAt: integer("created_at").notNull(),
   enqueuedAt: integer("enqueued_at"),
   deliveredAt: integer("delivered_at"),
-});
+}, (table) => ({
+  pendingIdx: index("qq_group_policy_outbox_pending_idx").on(table.enqueuedAt).where(sql`${table.deliveredAt} IS NULL`),
+}));
 
 export const passkeyCredentials = sqliteTable("passkey_credentials", {
   id: text("id").primaryKey(),
@@ -845,6 +891,9 @@ export const qqLoginAttempts = sqliteTable("qq_login_attempts", {
   verifiedAt: integer("verified_at"),
 }, (table) => ({
   pendingCode: uniqueIndex("qq_login_attempts_pending_code_idx").on(table.codeHash).where(sql`status = 'pending'`),
+  tokenHash: uniqueIndex("qq_login_attempts_token_idx").on(table.tokenHash),
+  expiry: index("qq_login_attempts_expiry_idx").on(table.expiresAt, table.status),
+  targetGroup: index("qq_login_attempts_target_group_idx").on(table.targetGroupOpenId, table.status),
 }));
 
 export const portalSessions = sqliteTable("portal_sessions", {
