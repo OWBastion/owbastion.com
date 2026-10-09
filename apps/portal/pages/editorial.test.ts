@@ -47,8 +47,6 @@ function setCollection(rows: unknown[], failure?: Error) {
 }
 
 const stubs = {
-  UBlogPosts: { props: ["posts"], template: "<div><a v-for='post in posts' :key='post.to' :href='post.to'>{{ post.title }}</a></div>" },
-  UChangelogVersions: { props: ["versions"], template: "<div><a v-for='version in versions' :key='version.to' :href='version.to'>{{ version.badge }} {{ version.title }}</a></div>" },
   UEmpty: { props: ["title"], template: "<p>{{ title }}</p>" },
   UAlert: { props: ["title", "description"], template: "<div role='alert'><strong>{{ title }}</strong><p>{{ description }}</p><slot name='actions' /></div>" },
   UButton: { props: ["label"], template: "<button type='button'>{{ label }}</button>" },
@@ -77,7 +75,7 @@ describe("public editorial surfaces", () => {
     await flushPromises();
 
     expect(wrapper.get("h1").text()).toBe("版本更新");
-    expect(wrapper.get('a[href="/changelog/26.0801.1"]').text()).toContain("版本 26.0801.1");
+    expect(wrapper.get('a[href="/changelog/26.0801.1"]').text()).toContain("26.0801.1");
   });
 
   it("renders Markdown content through ContentRenderer on detail pages", async () => {
