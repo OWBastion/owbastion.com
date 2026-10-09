@@ -974,6 +974,106 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     return resolveMapTitleProjection(compat.ruleId, mapId, gameplayRevisionId, eligibilityAt);
   };
 
+  // Batched equivalent of `resolveMapTitleProjection` for review approval,
+  // where one submission can carry many compat-resolved selections. Prefetches
+  // maps, rules, revisions, assignments, and exceptions in five grouped reads
+  // and resolves every input in memory, preserving the same guard order:
+  // inactive map/rule, pioneer default-scope, revision applicability,
+  // assignment enabled, pioneer submission window.
+  const resolveMapTitleProjections = async (
+    inputs: Array<{ ruleId: string; mapId: string; gameplayRevisionId?: string | null; eligibilityAt?: number }>,
+  ): Promise<Array<MapTitleRuleSnapshot | null>> => {
+    const eligibilityAt = inputs[0]?.eligibilityAt ?? now();
+    const mapIds = [...new Set(inputs.map(({ mapId }) => mapId))];
+    const ruleIds = [...new Set(inputs.map(({ ruleId }) => ruleId))];
+    const [mapRows, ruleRows] = await Promise.all([
+      mapIds.length ? db.select({ id: maps.id, status: maps.status }).from(maps).where(inArray(maps.id, mapIds)) : Promise.resolve([]),
+      ruleIds.length ? db.select().from(mapTitleRules).where(inArray(mapTitleRules.id, ruleIds)) : Promise.resolve([]),
+    ]);
+    const mapById = new globalThis.Map(mapRows.map((row) => [row.id, row]));
+    const ruleById = new globalThis.Map(ruleRows.map((row) => [row.id, row]));
+
+    const revisionIds = [...new Set(inputs.flatMap(({ gameplayRevisionId }) => gameplayRevisionId ? [gameplayRevisionId] : []))];
+    const revisionRows = mapIds.length ? await db.select().from(gameplayRevisions).where(and(
+      inArray(gameplayRevisions.mapId, mapIds),
+      or(
+        inArray(gameplayRevisions.lifecycle, ["default", "selectable"]),
+        revisionIds.length ? inArray(gameplayRevisions.id, revisionIds) : undefined,
+      ),
+    )) : [];
+    const revisionById = new globalThis.Map(revisionRows.map((row) => [row.id, row]));
+    const defaultRevisionByMap = new globalThis.Map<string, typeof gameplayRevisions.$inferSelect>();
+    const classicRevisionByMap = new globalThis.Map<string, typeof gameplayRevisions.$inferSelect>();
+    for (const row of revisionRows) {
+      if (row.lifecycle === "default" && row.legacyMapVariant === null) defaultRevisionByMap.set(row.mapId, row);
+      if (row.lifecycle === "selectable" && row.legacyMapVariant === "classic") classicRevisionByMap.set(row.mapId, row);
+    }
+    const pickRevision = (input: { mapId: string; mapVariant: "classic" | null; gameplayRevisionId?: string | null; allowHistorical: boolean }) => {
+      if (input.gameplayRevisionId) {
+        const revision = revisionById.get(input.gameplayRevisionId);
+        if (!revision || revision.mapId !== input.mapId) return null;
+        if (!input.allowHistorical && !["default", "selectable"].includes(revision.lifecycle)) return null;
+        return revision;
+      }
+      return input.mapVariant === "classic" ? (classicRevisionByMap.get(input.mapId) ?? null) : (defaultRevisionByMap.get(input.mapId) ?? null);
+    };
+
+    const usedRevisionIds = new Set<string>();
+    const revisionPlan = inputs.map((input) => {
+      const rule = ruleById.get(input.ruleId);
+      const mapVariant = (rule?.mapVariant as "classic" | null) ?? null;
+      const revision = pickRevision({ mapId: input.mapId, mapVariant, gameplayRevisionId: input.gameplayRevisionId ?? null, allowHistorical: Boolean(input.gameplayRevisionId) });
+      if (revision) usedRevisionIds.add(revision.id);
+      return { revision, mapVariant };
+    });
+    const [assignmentRows, exceptionRows] = await Promise.all([
+      usedRevisionIds.size ? db.select().from(gameplayRevisionChallengeAssignments).where(and(
+        inArray(gameplayRevisionChallengeAssignments.gameplayRevisionId, [...usedRevisionIds]),
+        inArray(gameplayRevisionChallengeAssignments.mapId, mapIds),
+        eq(gameplayRevisionChallengeAssignments.challengeFamily, "map_title_rule"),
+        inArray(gameplayRevisionChallengeAssignments.challengeId, ruleIds),
+      )) : Promise.resolve([]),
+      ruleIds.length && mapIds.length ? db.select().from(mapTitleRuleExceptions).where(and(
+        inArray(mapTitleRuleExceptions.ruleId, ruleIds),
+        inArray(mapTitleRuleExceptions.mapId, mapIds),
+      )) : Promise.resolve([]),
+    ]);
+    const assignmentByKey = new globalThis.Map(assignmentRows.map((row) => [`${row.gameplayRevisionId}:${row.mapId}:${row.challengeId}`, row]));
+    const exceptionByKey = new globalThis.Map(exceptionRows.map((row) => [`${row.ruleId}:${row.mapId}`, row]));
+
+    return inputs.map((input, index) => {
+      const map = mapById.get(input.mapId);
+      if (!map || map.status !== "active") return null;
+      const rule = ruleById.get(input.ruleId);
+      if (!rule || rule.status === "inactive") return null;
+      if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && rule.defaultScope !== "explicit") return null;
+      const { revision } = revisionPlan[index];
+      if (!revision) return null;
+      const assignment = assignmentByKey.get(`${revision.id}:${input.mapId}:${rule.id}`);
+      if (!assignment || assignment.enabled === 0) return null;
+      const exception = exceptionByKey.get(`${rule.id}:${input.mapId}`);
+      if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && !pioneerExceptionIsSubmittable(exception?.enabled ?? 0, exception?.startsAt ?? null, exception?.endsAt ?? null, input.eligibilityAt ?? eligibilityAt)) return null;
+      const activeException = exception?.enabled === 1 ? exception : null;
+      return {
+        ruleId: rule.id,
+        ruleRevision: Math.max(rule.updatedAt, assignment.updatedAt, exception?.updatedAt ?? 0),
+        mapId: input.mapId,
+        gameplayRevisionId: revision.id,
+        titleKey: rule.titleKey,
+        mapVariant: revisionPlan[index].mapVariant,
+        slot: activeException?.slot ?? assignment.slot ?? rule.slot ?? null,
+        displayKind: rule.displayKind,
+        condition: activeException?.condition ?? assignment.condition ?? rule.condition,
+        evidenceRule: activeException?.evidenceRule ?? assignment.evidenceRule ?? rule.evidenceRule,
+        submissionMode: activeException?.submissionMode ?? assignment.submissionMode ?? rule.submissionMode,
+        defaultScope: rule.defaultScope,
+        exceptionId: activeException?.id ?? null,
+        startsAt: activeException?.startsAt ?? null,
+        endsAt: activeException?.endsAt ?? null,
+      };
+    });
+  };
+
   const resolveLegacyProjection = async (legacyChallengeId: string, mapId?: string, gameplayRevisionId?: string | null, eligibilityAt = now()): Promise<MapTitleRuleSnapshot | null> => {
     const rows = await db.select({ ruleId: mapTitleRuleCompat.ruleId, mapId: mapTitleRuleCompat.mapId })
       .from(mapTitleRuleCompat)
@@ -4096,26 +4196,68 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   // without writing it. Throws the same business errors approval must surface.
   const planApprovalRewards = async (row: typeof submissions.$inferSelect, selectedRows: readonly ReviewEvidenceSelection[], timestamp: number, canonicalChallenges: CanonicalChallengeResolver = materializingCanonicalChallenges, preparedPlans?: ReadonlyMap<string, CanonicalChallengePlan>) => {
     const snapshotsBySelection = selectedRows.map((selection) => selection.ruleSnapshotJson ? JSON.parse(selection.ruleSnapshotJson) as MapTitleRuleSnapshot : null);
-    const snapshotTitleKeys = [...new Set(snapshotsBySelection.flatMap((snapshot) => snapshot ? [snapshot.titleKey] : []))];
-    const snapshotTitleRows = snapshotTitleKeys.length ? await db.select({ key: titleCatalog.key, label: titleCatalog.label }).from(titleCatalog).where(sql`${titleCatalog.key} IN (SELECT value FROM json_each(${JSON.stringify(snapshotTitleKeys)}))`) : [];
-    const snapshotTitleNames = new globalThis.Map(snapshotTitleRows.map(({ key, label }) => [key, label]));
+
+    // Prefetch every resolution input the selection loop needs so the per-row
+    // work below is pure lookups: 4 grouped reads instead of ~3-7 round trips
+    // per selection.
+    const titleAchievementIds = [...new Set(selectedRows.filter((selection, index) => !snapshotsBySelection[index] && selection.challengeType === "title_achievement").map((selection) => selection.challengeId))];
+    const legacyCandidates = selectedRows.filter((selection, index) => !snapshotsBySelection[index] && selection.challengeType !== "title_achievement");
+    const legacyIds = [...new Set(legacyCandidates.map((selection) => selection.challengeId))];
+    const compatRows = legacyIds.length ? await db.select({ legacyChallengeId: mapTitleRuleCompat.legacyChallengeId, mapId: mapTitleRuleCompat.mapId, ruleId: mapTitleRuleCompat.ruleId })
+      .from(mapTitleRuleCompat)
+      .where(inArray(mapTitleRuleCompat.legacyChallengeId, legacyIds)) : [];
+    // Keyed by challengeId + targetMapId: the same legacy challenge can serve
+    // several selections pointing at different maps.
+    const compatKeyOf = (selection: ReviewEvidenceSelection) => `${selection.challengeId}:${selection.targetMapId ?? ""}`;
+    const compatBySelection = new globalThis.Map(legacyCandidates.flatMap((selection) => {
+      const row = compatRows.find((compat) => compat.legacyChallengeId === selection.challengeId && compat.mapId === selection.targetMapId);
+      return row && selection.targetMapId ? [[compatKeyOf(selection), row] as const] : [];
+    }));
+    const compatSnaps = await resolveMapTitleProjections(legacyCandidates.flatMap((selection) => {
+      const compat = compatBySelection.get(compatKeyOf(selection));
+      return compat ? [{ ruleId: compat.ruleId, mapId: selection.targetMapId!, gameplayRevisionId: selection.gameplayRevisionId, eligibilityAt: row.createdAt }] : [];
+    }));
+    const compatSnapBySelection = new globalThis.Map<string, MapTitleRuleSnapshot>();
+    {
+      let compatIndex = 0;
+      for (const selection of legacyCandidates) {
+        if (!compatBySelection.has(compatKeyOf(selection))) continue;
+        const snap = compatSnaps[compatIndex++];
+        if (snap) compatSnapBySelection.set(compatKeyOf(selection), snap);
+      }
+    }
+
+    const [titleChallengeRows, titleNameRows, mapChallengeRows] = await Promise.all([
+      titleAchievementIds.length ? db.select({ id: titleChallenges.id, titleKey: titleChallenges.titleKey, titleName: titleCatalog.label, scope: titleChallenges.scope }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(inArray(titleChallenges.id, titleAchievementIds)) : Promise.resolve([]),
+      (() => {
+        const titleKeys = [...new Set([
+          ...snapshotsBySelection.flatMap((snapshot) => snapshot ? [snapshot.titleKey] : []),
+          ...[...compatSnapBySelection.values()].map((snap) => snap.titleKey),
+        ])];
+        return titleKeys.length ? db.select({ key: titleCatalog.key, label: titleCatalog.label }).from(titleCatalog).where(sql`${titleCatalog.key} IN (SELECT value FROM json_each(${JSON.stringify(titleKeys)}))`) : Promise.resolve([]);
+      })(),
+      legacyIds.length ? db.select({ id: achievementChallenges.id, titleKey: achievementChallenges.rewardTitleKey, titleName: titleCatalog.label, mapId: achievementChallenges.mapId, slot: mapTitleRewards.slot }).from(achievementChallenges).leftJoin(titleCatalog, eq(achievementChallenges.rewardTitleKey, titleCatalog.key)).leftJoin(mapTitleRewards, and(eq(mapTitleRewards.mapId, achievementChallenges.mapId), eq(mapTitleRewards.titleKey, achievementChallenges.rewardTitleKey))).where(inArray(achievementChallenges.id, legacyIds)) : Promise.resolve([]),
+    ]);
+    const titleChallengeById = new globalThis.Map(titleChallengeRows.map((challenge) => [challenge.id, challenge]));
+    const titleNames = new globalThis.Map(titleNameRows.map(({ key, label }) => [key, label]));
+    const mapChallengeById = new globalThis.Map(mapChallengeRows.map((challenge) => [challenge.id, challenge]));
+
     const rewards: ReviewReward[] = [];
     for (const [selectionIndex, selection] of selectedRows.entries()) {
       let reward: ReviewReward | null = null;
       const snapshot = snapshotsBySelection[selectionIndex];
       if (snapshot) {
-        reward = { challengeId: selection.challengeId, titleKey: snapshot.titleKey, titleName: snapshotTitleNames.get(snapshot.titleKey) ?? snapshot.titleKey, mapId: snapshot.mapId, gameplayRevisionId: snapshot.gameplayRevisionId ?? selection.gameplayRevisionId ?? null, slot: snapshot.slot, snapshot };
+        reward = { challengeId: selection.challengeId, titleKey: snapshot.titleKey, titleName: titleNames.get(snapshot.titleKey) ?? snapshot.titleKey, mapId: snapshot.mapId, gameplayRevisionId: snapshot.gameplayRevisionId ?? selection.gameplayRevisionId ?? null, slot: snapshot.slot, snapshot };
       } else if (selection.challengeType === "title_achievement") {
-        const challenge = await db.select({ titleKey: titleChallenges.titleKey, titleName: titleCatalog.label, scope: titleChallenges.scope }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, selection.challengeId)).get();
+        const challenge = titleChallengeById.get(selection.challengeId);
         if (!challenge || challenge.scope === "map" || !challenge.titleKey) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
         reward = { challengeId: selection.challengeId, titleKey: challenge.titleKey, titleName: challenge.titleName, mapId: null, gameplayRevisionId: null, slot: null, snapshot: null };
       } else {
-        const snap = selection.targetMapId ? await resolveCompatProjection(selection.challengeId, selection.targetMapId, selection.gameplayRevisionId, row.createdAt) : null;
+        const snap = selection.targetMapId ? compatSnapBySelection.get(compatKeyOf(selection)) ?? null : null;
         if (snap) {
-          const catalogRow = await db.select({ label: titleCatalog.label }).from(titleCatalog).where(eq(titleCatalog.key, snap.titleKey)).get();
-          reward = { challengeId: selection.challengeId, titleKey: snap.titleKey, titleName: catalogRow?.label ?? snap.titleKey, mapId: snap.mapId, gameplayRevisionId: snap.gameplayRevisionId, slot: snap.slot, snapshot: snap };
+          reward = { challengeId: selection.challengeId, titleKey: snap.titleKey, titleName: titleNames.get(snap.titleKey) ?? snap.titleKey, mapId: snap.mapId, gameplayRevisionId: snap.gameplayRevisionId, slot: snap.slot, snapshot: snap };
         } else {
-          const challenge = await db.select({ titleKey: achievementChallenges.rewardTitleKey, titleName: titleCatalog.label, mapId: achievementChallenges.mapId, slot: mapTitleRewards.slot }).from(achievementChallenges).leftJoin(titleCatalog, eq(achievementChallenges.rewardTitleKey, titleCatalog.key)).leftJoin(mapTitleRewards, and(eq(mapTitleRewards.mapId, achievementChallenges.mapId), eq(mapTitleRewards.titleKey, achievementChallenges.rewardTitleKey))).where(eq(achievementChallenges.id, selection.challengeId)).get();
+          const challenge = mapChallengeById.get(selection.challengeId);
           if (!challenge?.titleKey || !challenge.titleName) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
           reward = { challengeId: selection.challengeId, titleKey: challenge.titleKey, titleName: challenge.titleName, mapId: challenge.mapId, gameplayRevisionId: selection.gameplayRevisionId, slot: challenge.slot, snapshot: null };
         }
