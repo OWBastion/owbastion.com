@@ -184,6 +184,51 @@ describe("platform cache", () => {
     expect(maps[0]?.gameVersion).toBe("2026.08.01");
   });
 
+  it("invalidates again for a second write by the same instance after another request cached the intermediate state", async () => {
+    const { database, sqlite } = createCountingD1();
+    installSchema(sqlite);
+    seedMaps(sqlite);
+    const { kv } = createFakeKv();
+    const create = () => createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, undefined, undefined, kv);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer" as const], provider: "portal-session" as const };
+    const update = (writer: ReturnType<typeof create>, gameVersion: string, key: string) =>
+      writer.updateAdminMapMetadata({ mapId: "map.a", gameVersion, difficultyRating: "T1", mechanics: ["机制"], coverUrl: null, backgroundUrl: null }, auth, key);
+
+    const writer = create();
+    await update(writer, "2026.08.01", "key-1");
+    expect((await create().listMaps())[0]?.gameVersion).toBe("2026.08.01");
+    await update(writer, "2026.09.01", "key-2");
+
+    expect((await create().listMaps())[0]?.gameVersion).toBe("2026.09.01");
+  });
+
+  it("keeps serving from D1 when KV reads and writes fail", async () => {
+    const { database, sqlite } = createCountingD1();
+    installSchema(sqlite);
+    seedMaps(sqlite);
+    const failing = { get: async () => { throw new Error("kv quota"); }, put: async () => { throw new Error("kv quota"); } } as unknown as KVNamespace;
+    const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, undefined, undefined, failing);
+    expect((await services.listMaps()).map((map) => map.mapId)).toEqual(["map.a"]);
+  });
+
+  it("does not serve pre-write entries to the writing instance when the version bump fails", async () => {
+    const { database, sqlite } = createCountingD1();
+    installSchema(sqlite);
+    seedMaps(sqlite);
+    const { kv, store } = createFakeKv();
+    const create = (cache: KVNamespace) => createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, undefined, undefined, cache);
+    await create(kv).listMaps();
+    const writeBlocked = { get: kv.get.bind(kv), put: async (key: string, value: string) => { if (key.includes(":ver:")) throw new Error("kv quota"); await kv.put(key, value); } } as unknown as KVNamespace;
+    const writer = create(writeBlocked);
+    await writer.updateAdminMapMetadata(
+      { mapId: "map.a", gameVersion: "2026.08.01", difficultyRating: "T1", mechanics: ["机制"], coverUrl: null, backgroundUrl: null },
+      { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" },
+      "key-1",
+    );
+    expect(store.size).toBeGreaterThan(0);
+    expect((await writer.listMaps())[0]?.gameVersion).toBe("2026.08.01");
+  });
+
   it("falls back to direct D1 reads when no KV namespace is bound", async () => {
     const { database, sqlite, resetCount, getCount } = createCountingD1();
     installSchema(sqlite);

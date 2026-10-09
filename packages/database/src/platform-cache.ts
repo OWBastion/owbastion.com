@@ -92,7 +92,6 @@ export const createPlatformCache = (kv?: KVNamespace): PlatformCache => {
   // Pinned per instance so one request reads a single consistent version.
   const versions = new Map<PlatformCacheScope, string | null>();
   const memos = new Map<PlatformCacheScope, Map<string, Promise<unknown>>>();
-  const bumped = new Set<PlatformCacheScope>();
 
   const enterBypass = (state: IsolateCacheState) => {
     state.bypassUntil = Date.now() + KV_BYPASS_MS;
@@ -177,8 +176,10 @@ export const createPlatformCache = (kv?: KVNamespace): PlatformCache => {
   };
 
   const invalidate = async (scope: PlatformCacheScope): Promise<void> => {
-    if (!kv || !shared || bumped.has(scope)) return;
-    bumped.add(scope);
+    // Bump on every write, not once per instance: a second write after reads
+    // cached the intermediate state would otherwise leave stale entries valid
+    // for the full entry TTL. Batch callers coalesce to one bump per scope.
+    if (!kv || !shared) return;
     memos.delete(scope);
     const token = `${Date.now().toString(36)}.${crypto.randomUUID()}`;
     try {
@@ -188,8 +189,9 @@ export const createPlatformCache = (kv?: KVNamespace): PlatformCache => {
       versions.set(scope, token);
       shared.versions.set(scope, { token, readAt: Date.now() });
     } catch (error) {
-      bumped.delete(scope);
-      // This isolate must not keep serving the pre-write version it memoized.
+      // This isolate must not keep serving the pre-write version it memoized,
+      // and other requests on it bypass cached entries briefly rather than
+      // reading under the old version.
       versions.set(scope, null);
       shared.versions.delete(scope);
       enterBypass(shared);
@@ -294,10 +296,8 @@ export const instrumentDatabase = (database: D1Database, cache: PlatformCache): 
     async batch<T = unknown>(statements: D1PreparedStatement[]) {
       const inner = statements.map((statement) => (statement as WrappedStatement).__inner ?? statement);
       const results = await database.batch<T>(inner as [D1PreparedStatement, ...D1PreparedStatement[]]);
-      for (const statement of statements) {
-        const sql = (statement as WrappedStatement).__sql;
-        if (sql) await invalidateFor(sql);
-      }
+      const scopes = new Set(statements.flatMap((statement) => scopesTouchedBy((statement as WrappedStatement).__sql ?? "")));
+      for (const scope of scopes) await cache.invalidate(scope);
       return results;
     },
     async exec(sql: string) {
