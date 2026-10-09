@@ -12,7 +12,7 @@ definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "事件管理 · 躲避堡垒 3" });
 
 type ImportPreview = { sourceHash: string; validRowCount: number; errors: Array<{ row: number; message: string }>; rows: Array<{ name: string; category: string; releaseStatus: string }> };
-type EventVersion = { gameVersion: string; availability: "available" | "suspended"; mode: string | null; modeWeightTotal: number | null; eventCount: number };
+type EventVersion = { gameVersion: string; availability: "available" | "suspended"; mode: string | null; eventCount: number };
 type StatusFilter = RandomEvent["releaseStatus"] | "all";
 const NO_GROUP = "__none";
 
@@ -43,7 +43,7 @@ const error = shallowRef("");
 
 const suspended = computed(() => new Set(versions.value.filter((version) => version.availability === "suspended").map((version) => version.gameVersion)));
 const effective = computed(() => applyDraft(events.value, draft.value));
-// Pools assigned to a standalone mode are not in the regular build, like suspended ones.
+// Pools a standalone mode owns are not in the regular build, like suspended ones.
 const outsideRegularPool = computed(() => new Set([...suspended.value, ...versions.value.filter((version) => version.mode).map((version) => version.gameVersion)]));
 const baseProbabilities = computed(() => calculatePoolProbabilities(events.value, outsideRegularPool.value));
 const nextProbabilities = computed(() => calculatePoolProbabilities(effective.value, outsideRegularPool.value));
@@ -182,30 +182,6 @@ async function archiveEvent(eventId: string, title = "事件已归档") {
   }
 }
 
-const modeTarget = shallowRef<EventVersion | null>(null);
-const modeInput = shallowRef("");
-const modeTotalInput = shallowRef("");
-function openVersionMode(version: EventVersion) { modeTarget.value = version; modeInput.value = version.mode ?? ""; modeTotalInput.value = version.modeWeightTotal === null ? "" : String(version.modeWeightTotal); }
-async function saveVersionMode() {
-  const version = modeTarget.value;
-  if (!version) return;
-  const mode = modeInput.value.trim() || null;
-  const total = modeTotalInput.value.trim() === "" ? null : Number(modeTotalInput.value);
-  if (total !== null && (!Number.isFinite(total) || total < 0)) { error.value = "模式总权重需为非负数。"; return; }
-  versionSaving.value = version.gameVersion;
-  error.value = "";
-  try {
-    const updated = await api<EventVersion>(`/v1/event-versions/${encodeURIComponent(version.gameVersion)}/availability`, { method: "PUT", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", availability: version.availability, mode, modeWeightTotal: mode ? total : null } });
-    versions.value = versions.value.map((item) => item.gameVersion === updated.gameVersion ? updated : item);
-    modeTarget.value = null;
-    toast.add({ title: `${version.gameVersion} 的模式已更新`, color: "success" });
-  } catch (cause) {
-    error.value = portalErrorDetails(cause, "无法更新事件池模式。").description;
-  } finally {
-    versionSaving.value = null;
-  }
-}
-
 async function setVersionAvailability(version: EventVersion, availability: EventVersion["availability"], undo = true) {
   versionSaving.value = version.gameVersion;
   error.value = "";
@@ -286,23 +262,7 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", warnBeforeUnloa
       </template>
     </UCollapsible>
 
-    <AdminEventPoolSummary :pool-size="pool.length" :pool-weight="poolWeight" :versions="versions" :saving="versionSaving" @toggle="setVersionAvailability" @configure="openVersionMode" />
-    <AdminResponsiveDialog :open="modeTarget !== null" title="事件池所属模式" :description="modeTarget?.gameVersion" size="sm" :dismissible="versionSaving === null" @update:open="(open) => { if (!open) modeTarget = null; }">
-      <template #body>
-        <div class="grid gap-4">
-          <UFormField label="独立模式" hint="只属于某个独立模式构建的事件池（如周年池）填写截图右上角的模式名，如 2026镜中回响；常规事件池留空。挂到独立模式的池不计入常规候选池。">
-            <UInput v-model="modeInput" :disabled="versionSaving !== null" />
-          </UFormField>
-          <UFormField label="该模式的事件总权重" hint="该模式构建里全部事件的权重合计，含返场和禁用的调整（如 69.5）。用于校验截图对局码；留空则不校验该模式。">
-            <UInput v-model="modeTotalInput" inputmode="decimal" :disabled="versionSaving !== null || !modeInput.trim()" />
-          </UFormField>
-        </div>
-      </template>
-      <template #footer>
-        <UButton label="保存" :loading="versionSaving !== null" @click="saveVersionMode" />
-        <UButton label="取消" color="neutral" variant="outline" :disabled="versionSaving !== null" @click="modeTarget = null" />
-      </template>
-    </AdminResponsiveDialog>
+    <AdminEventPoolSummary :pool-size="pool.length" :pool-weight="poolWeight" :versions="versions" :saving="versionSaving" @toggle="setVersionAvailability" />
 
     <div class="events-toolbar">
       <UInput v-model="query" class="events-toolbar__search" size="md" aria-label="搜索事件" placeholder="搜索名称、事件组、效果" icon="i-lucide-search" />

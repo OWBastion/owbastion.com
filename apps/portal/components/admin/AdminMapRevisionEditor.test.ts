@@ -83,7 +83,6 @@ describe("AdminMapRevisionEditor", () => {
         lifecycle: "preparing",
         gameVersion: "2026.08.13",
         mapVariant: null,
-        mode: null,
         spatialConfig: null,
         challengeAssignments: [{
           challengeFamily: "map_title_rule",

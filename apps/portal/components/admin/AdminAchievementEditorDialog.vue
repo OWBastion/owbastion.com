@@ -74,7 +74,7 @@ function setProgressMode(value: "none" | "required_maps_completed") {
     props.item.progressRule = null;
     return;
   }
-  props.item.progressRule = { type: "required_maps_completed", mapIds: props.item.progressRule?.mapIds ?? [] };
+  props.item.progressRule = { type: "required_maps_completed", ...(props.item.progressRule?.mapIds?.length ? { mapIds: props.item.progressRule.mapIds } : {}) };
   props.item.scope = "global";
   props.item.submissionMode = "manual";
   props.item.mapIds = [];
@@ -82,7 +82,9 @@ function setProgressMode(value: "none" | "required_maps_completed") {
 }
 function setProgressMapIds(value: string[]) {
   if (!props.item || !isChallengeTitle(props.item) || !props.item.progressRule) return;
-  props.item.progressRule = { ...props.item.progressRule, mapIds: value };
+  // No maps with a mode means the rule follows every map of that mode.
+  const { mapIds: _omitted, ...rest } = props.item.progressRule;
+  props.item.progressRule = value.length ? { ...rest, mapIds: value } : { ...rest };
 }
 function setProgressDifficulty(value: string | undefined) {
   if (!props.item || !isChallengeTitle(props.item) || !props.item.progressRule) return;
@@ -183,8 +185,8 @@ function onIconFile(value: File | null | undefined) {
             <USelect class="editor-control" :model-value="asChallenge(item)!.progressRule ? 'required_maps_completed' : 'none'" :items="progressModeItems" :disabled="saving" @update:model-value="setProgressMode($event as 'none' | 'required_maps_completed')" />
           </UFormField>
           <template v-if="asChallenge(item)!.progressRule">
-            <UFormField class="editor-field editor-field--wide" label="要求地图" required hint="玩家在活动时间内于每张地图各留下至少一条有效已验证通关即完成。">
-              <USelect class="editor-control" :model-value="asChallenge(item)!.progressRule!.mapIds" multiple :items="maps.map((map) => ({ label: map.mapName, value: map.mapId }))" :disabled="saving" @update:model-value="setProgressMapIds($event as string[])" />
+            <UFormField class="editor-field editor-field--wide" label="要求地图" hint="玩家在活动时间内于每张地图各留下至少一条有效已验证通关即完成。填了独立模式时可留空，自动跟随该模式的全部地图。">
+              <USelect class="editor-control" :model-value="asChallenge(item)!.progressRule!.mapIds ?? []" multiple :items="maps.map((map) => ({ label: map.mapName, value: map.mapId }))" :disabled="saving" @update:model-value="setProgressMapIds($event as string[])" />
             </UFormField>
             <UFormField class="editor-field" label="最低难度">
               <USelect class="editor-control" :model-value="asChallenge(item)!.progressRule!.difficultyAtLeast ?? ''" :items="progressDifficultyItems" :disabled="saving" @update:model-value="setProgressDifficulty(($event as string) || undefined)" />

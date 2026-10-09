@@ -63,7 +63,6 @@ export type AdminMapRevisionUpdateInput = {
   lifecycle: AdminMapRevisionLifecycle;
   gameVersion: string;
   mapVariant: "classic" | null;
-  mode: string | null;
   spatialConfig: Record<string, unknown> | null;
   challengeAssignments: AdminMapRevisionAssignmentInput[];
 };
