@@ -2964,25 +2964,39 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   const progressRuleMapIds = async (rule: ChallengeProgressRule) =>
     [...new Set(rule.mapIds ?? (rule.mode ? (await standaloneModeMapIds([rule.mode])).get(rule.mode) ?? [] : []))];
 
-  const loadEligibleProgressRunMaps = async (input: { playerAccountId: string; rule: ChallengeProgressRule; startsAt: number | null; endsAt: number | null }) => {
+  // One grouped read for every affected player instead of a per-player query;
+  // the reconciliation loop pairs each player with their precomputed set. The
+  // map list resolves through progressRuleMapIds so a rule without explicit
+  // mapIds follows every map of its standalone mode.
+  const loadEligibleProgressRunMaps = async (input: { playerAccountIds: string[]; rule: ChallengeProgressRule; startsAt: number | null; endsAt: number | null }) => {
     const requiredMapIds = await progressRuleMapIds(input.rule);
-    if (!requiredMapIds.length) return { completed: new Set<string>(), satisfied: false };
-    const rows = await db.select({ mapId: verifiedRuns.mapId, difficulty: verifiedRuns.difficulty })
+    const empty = new globalThis.Map(input.playerAccountIds.map((id) => [id, { completed: new Set<string>(), satisfied: false }]));
+    if (!requiredMapIds.length || !input.playerAccountIds.length) return empty;
+    // `chunked` keeps IN (...) under the SQLite variable limit for large
+    // player sets; slices of a static list are safe to run in parallel.
+    const rows = (await Promise.all(chunked(input.playerAccountIds).map((playerAccountIds) => db.select({ playerAccountId: verifiedRuns.playerAccountId, mapId: verifiedRuns.mapId, difficulty: verifiedRuns.difficulty })
       .from(verifiedRuns)
       .innerJoin(submissions, eq(verifiedRuns.sourceSubmissionId, submissions.id))
       .innerJoin(gameplayRevisions, eq(verifiedRuns.gameplayRevisionId, gameplayRevisions.id))
       .where(and(
-        eq(verifiedRuns.playerAccountId, input.playerAccountId),
+        inArray(verifiedRuns.playerAccountId, playerAccountIds),
         eq(verifiedRuns.status, "active"),
         inArray(verifiedRuns.mapId, requiredMapIds),
         input.rule.mode ? eq(gameplayRevisions.mode, input.rule.mode) : isNull(gameplayRevisions.mode),
         input.startsAt !== null ? gte(submissions.createdAt, input.startsAt) : undefined,
         input.endsAt !== null ? lt(submissions.createdAt, input.endsAt) : undefined,
-      ));
-    const completed = new Set(rows
-      .filter((run) => !input.rule.difficultyAtLeast || difficultyAtLeastSatisfied(run.difficulty, input.rule.difficultyAtLeast))
-      .map((run) => run.mapId));
-    return { completed, satisfied: requiredMapIds.every((mapId) => completed.has(mapId)) };
+      ))))).flat();
+    const byPlayer = new globalThis.Map<string, Set<string>>();
+    for (const run of rows) {
+      if (input.rule.difficultyAtLeast && !difficultyAtLeastSatisfied(run.difficulty, input.rule.difficultyAtLeast)) continue;
+      byPlayer.set(run.playerAccountId, (byPlayer.get(run.playerAccountId) ?? new Set()).add(run.mapId));
+    }
+    const result = new globalThis.Map<string, { completed: Set<string>; satisfied: boolean }>();
+    for (const playerAccountId of input.playerAccountIds) {
+      const completed = byPlayer.get(playerAccountId) ?? new Set<string>();
+      result.set(playerAccountId, { completed, satisfied: requiredMapIds.every((mapId) => completed.has(mapId)) });
+    }
+    return result;
   };
 
   const loadProgressChallenges = async (challengeId?: string) => (await db.select({ challenge: titleChallenges })
@@ -3004,7 +3018,65 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   // skipped while the title is already owned at global scope or was
   // administratively revoked (matching the chain's `owned`/`grantable` rules).
   // Every statement is idempotent and lands in a single D1 batch.
-  const reconcilePlayerProgressChallenge = async (input: {
+  // Prefetched per-player facts for one progress Challenge: the completion
+  // mirror rows, the global-scope grants, and the eligible run map sets. One
+  // bulk read each replaces the per-(challenge, player) round trips.
+  type ProgressChallengeFacts = {
+    // globalThis.Map/Set: the imported contracts `Map` type shadows the builtins.
+    completions: globalThis.Map<string, Array<{ id: string; challengeId: string; status: string }>>;
+    grants: globalThis.Map<string, { activeGrant: { id: string; completionId: string | null } | null; administrativelyRevoked: boolean }>;
+    eligibility: globalThis.Map<string, { completed: Set<string>; satisfied: boolean }>;
+  };
+
+  const loadProgressChallengeFacts = async (input: {
+    playerAccountIds: string[];
+    challenge: typeof titleChallenges.$inferSelect;
+    rule: ChallengeProgressRule;
+  }): Promise<ProgressChallengeFacts> => {
+    const { playerAccountIds, challenge, rule } = input;
+    if (!playerAccountIds.length) return { completions: new Map(), grants: new Map(), eligibility: new Map() };
+    // Chunk the player list: a popular map rule can concern more accounts than
+    // the SQLite variable limit a single IN (...) accepts.
+    const playerChunks = chunked(playerAccountIds);
+    const [eligibility, completionRows, grantRows] = await Promise.all([
+      loadEligibleProgressRunMaps({ playerAccountIds, rule, startsAt: challenge.startsAt, endsAt: challenge.endsAt }),
+      // Derived completions from every canonical rule version of this legacy
+      // Challenge, not only the current one: an admin edit mints a new
+      // canonical identity, and completions recorded under a superseded
+      // identity still mirror satisfaction and hold the grant chain.
+      Promise.all(playerChunks.map((ids) => db.select({ playerAccountId: challengeCompletions.playerAccountId, id: challengeCompletions.id, challengeId: challengeCompletions.challengeId, status: challengeCompletions.status })
+        .from(challengeCompletions)
+        .innerJoin(challenges, eq(challengeCompletions.challengeId, challenges.id))
+        .where(and(
+          inArray(challengeCompletions.playerAccountId, ids),
+          eq(challengeCompletions.sourceType, "verified_run_progress"),
+          eq(challenges.sourceFamily, "title_challenge"),
+          eq(challenges.sourceId, challenge.id),
+        )))).then((parts) => parts.flat()),
+      Promise.all(playerChunks.map((ids) => db.select({ playerAccountId: playerTitleGrants.playerAccountId, id: playerTitleGrants.id, completionId: playerTitleGrants.completionId, status: playerTitleGrants.status, revocationType: playerTitleGrants.revocationType })
+        .from(playerTitleGrants)
+        .where(and(
+          inArray(playerTitleGrants.playerAccountId, ids),
+          eq(playerTitleGrants.titleKey, challenge.titleKey),
+          isNull(playerTitleGrants.mapId),
+          isNull(playerTitleGrants.gameplayRevisionId),
+        )))).then((parts) => parts.flat()),
+    ]);
+    const completions = new globalThis.Map<string, Array<{ id: string; challengeId: string; status: string }>>();
+    for (const row of completionRows) completions.set(row.playerAccountId, [...(completions.get(row.playerAccountId) ?? []), row]);
+    const grants = new globalThis.Map<string, { activeGrant: { id: string; completionId: string | null } | null; administrativelyRevoked: boolean }>();
+    for (const playerAccountId of playerAccountIds) if (!grants.has(playerAccountId)) grants.set(playerAccountId, { activeGrant: null, administrativelyRevoked: false });
+    for (const row of grantRows) {
+      const entry = grants.get(row.playerAccountId)!;
+      if (row.status === "active" && !entry.activeGrant) entry.activeGrant = { id: row.id, completionId: row.completionId };
+      else if (row.status === "revoked" && row.revocationType === "administrator") entry.administrativelyRevoked = true;
+    }
+    return { completions, grants, eligibility };
+  };
+
+  // Pure statement emission from prefetched facts; keeps the original
+  // per-(challenge, player) ordering so batched writes land identically.
+  const planPlayerProgressChallenge = (input: {
     playerAccountId: string;
     challenge: typeof titleChallenges.$inferSelect;
     rule: ChallengeProgressRule;
@@ -3012,33 +3084,13 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     actorId: string;
     reason: string | null;
     timestamp: number;
+    facts: ProgressChallengeFacts;
     statements: D1PreparedStatement[];
   }) => {
-    const { playerAccountId, challenge, rule, canonicalChallengeId, actorId, reason, timestamp, statements } = input;
-    const eligibility = await loadEligibleProgressRunMaps({ playerAccountId, rule, startsAt: challenge.startsAt, endsAt: challenge.endsAt });
-    const grantScope = and(
-      eq(playerTitleGrants.playerAccountId, playerAccountId),
-      eq(playerTitleGrants.titleKey, challenge.titleKey),
-      isNull(playerTitleGrants.mapId),
-      isNull(playerTitleGrants.gameplayRevisionId),
-    );
-    // Derived completions from every canonical rule version of this legacy
-    // Challenge, not only the current one: an admin edit mints a new canonical
-    // identity, and completions recorded under a superseded identity still
-    // mirror satisfaction and hold the grant chain.
-    const [completions, activeGrant, administrativelyRevoked] = await Promise.all([
-      db.select({ id: challengeCompletions.id, challengeId: challengeCompletions.challengeId, status: challengeCompletions.status })
-        .from(challengeCompletions)
-        .innerJoin(challenges, eq(challengeCompletions.challengeId, challenges.id))
-        .where(and(
-          eq(challengeCompletions.playerAccountId, playerAccountId),
-          eq(challengeCompletions.sourceType, "verified_run_progress"),
-          eq(challenges.sourceFamily, "title_challenge"),
-          eq(challenges.sourceId, challenge.id),
-        )),
-      db.select({ id: playerTitleGrants.id, completionId: playerTitleGrants.completionId }).from(playerTitleGrants).where(and(grantScope, eq(playerTitleGrants.status, "active"))).get(),
-      db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).where(and(grantScope, eq(playerTitleGrants.status, "revoked"), eq(playerTitleGrants.revocationType, "administrator"))).get(),
-    ]);
+    const { playerAccountId, challenge, rule, canonicalChallengeId, actorId, reason, timestamp, facts, statements } = input;
+    const eligibility = facts.eligibility.get(playerAccountId) ?? { completed: new Set<string>(), satisfied: false };
+    const completions = facts.completions.get(playerAccountId) ?? [];
+    const { activeGrant, administrativelyRevoked } = facts.grants.get(playerAccountId) ?? { activeGrant: null, administrativelyRevoked: false };
     const activeCompletions = completions.filter((completion) => completion.status === "active");
     const staleCompletions = activeCompletions.filter((completion) => completion.challengeId !== canonicalChallengeId);
     const currentCompletion = completions.find((completion) => completion.challengeId === canonicalChallengeId);
@@ -3124,8 +3176,11 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         gameplayRevisionId: null,
         timestamp,
       }));
+      // Bulk-prefetch every player's facts once per challenge: 3 grouped reads
+      // replace the ~4 queries each player used to pay.
+      const facts = await loadProgressChallengeFacts({ playerAccountIds: playerIds, challenge, rule });
       for (const playerAccountId of playerIds) {
-        await reconcilePlayerProgressChallenge({ playerAccountId, challenge, rule, canonicalChallengeId, actorId: input.actorId, reason, timestamp, statements });
+        planPlayerProgressChallenge({ playerAccountId, challenge, rule, canonicalChallengeId, actorId: input.actorId, reason, timestamp, facts, statements });
       }
     }
     if (statements.length) await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
@@ -3162,8 +3217,9 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     const players = [...new Set([...runPlayers, ...completionPlayers].map(({ playerAccountId }) => playerAccountId))];
     if (!players.length) return;
     const statements: D1PreparedStatement[] = [];
+    const facts = await loadProgressChallengeFacts({ playerAccountIds: players, challenge: input.challenge, rule: input.rule });
     for (const playerAccountId of players) {
-      await reconcilePlayerProgressChallenge({ playerAccountId, challenge: input.challenge, rule: input.rule, canonicalChallengeId, actorId: input.actorId, reason: input.reason?.trim() || null, timestamp, statements });
+      planPlayerProgressChallenge({ playerAccountId, challenge: input.challenge, rule: input.rule, canonicalChallengeId, actorId: input.actorId, reason: input.reason?.trim() || null, timestamp, facts, statements });
     }
     if (statements.length) await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
   };
