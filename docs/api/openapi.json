@@ -1779,7 +1779,7 @@
   "/v1/admin/event-versions/{gameVersion}/availability": {
    "put": {
     "operationId": "updateAdminRandomEventVersionAvailability",
-    "description": "Atomically suspends or restores every random event in a game version. The change takes effect for the next Bastion sync/build/release; the platform does not trigger those operations. An optional mode assigns the version's event pool to a standalone mode (e.g. 2026镜中回响), which keeps it out of the regular pools when checking run-code event weights; modeWeightTotal records that mode build's own event-weight total and requires a mode. null clears a field and omitting it keeps the current value.",
+    "description": "Atomically suspends or restores every random event in a game version. The change takes effect for the next Bastion sync/build/release; the platform does not trigger those operations. A pool's standalone mode is set from that mode (PUT /v1/admin/standalone-modes/{mode}) and is only reported here.",
     "parameters": [
      {
       "name": "gameVersion",
@@ -2650,6 +2650,62 @@
      },
      "503": {
       "description": "Retryable processing failure or concurrent callback"
+     }
+    }
+   }
+  },
+  "/v1/admin/standalone-modes": {
+   "get": {
+    "operationId": "listAdminStandaloneModes",
+    "description": "Lists the configured standalone modes (limited-time builds such as 2026镜中回响) with the maps they currently play, the event pools their build owns, and their run-code event-weight total.",
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/admin/standalone-modes/{mode}": {
+   "put": {
+    "operationId": "upsertAdminStandaloneMode",
+    "description": "Creates or replaces a standalone mode in one save: each listed map gets the mode's own selectable Gameplay Revision (no spatial config; never projected to Bastion), maps no longer listed have theirs retired to historical, the listed event pools move to the mode and leave the regular pools, the run-code event-weight total is recorded, and progress rules that follow the mode's maps are reconciled. A regular (随机事件) name is rejected; a pool owned by another mode conflicts.",
+    "parameters": [
+     {
+      "name": "mode",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "$ref": "#/components/parameters/idempotencyKey"
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "404": {
+      "$ref": "#/components/responses/Json"
+     },
+     "409": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
      }
     }
    }

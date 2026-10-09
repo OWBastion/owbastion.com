@@ -35,7 +35,7 @@ import {
   adminMapTitleRuleCreateRequestSchema, adminMapTitleRuleUpdateRequestSchema, adminMapTitleRuleExceptionUpsertRequestSchema,
   adminMapMetadataUpdateRequestSchema,
   adminMapRevisionCreateRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapRevisionPromotionRequestSchema,
-  adminRandomEventCreateRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventBatchRequestSchema, adminRandomEventImportRequestSchema, adminRandomEventVersionAvailabilityRequestSchema,
+  adminRandomEventCreateRequestSchema, adminStandaloneModeUpsertRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventBatchRequestSchema, adminRandomEventImportRequestSchema, adminRandomEventVersionAvailabilityRequestSchema,
   reviewTargetSchema, reviewTargetTypeSchema, playerReviewUpsertRequestSchema, playerReviewWithdrawRequestSchema,
   adminReviewCommentModerationRequestSchema, adminReviewStateModerationRequestSchema,
   adminVerifiedRunStateRequestSchema, adminVerifiedRunConflictResolutionRequestSchema, adminVerifiedRunCorrectionRequestSchema,
@@ -1365,6 +1365,7 @@ export const createApp = (dependencies: AppDependencies) => {
       const code = error instanceof Error ? error.message : "ACHIEVEMENT_CREATE_FAILED";
       if (code === "TITLE_KEY_CONFLICT") return errorResponse(c, 409, code, "The title key already exists");
       if (code === "MAP_NOT_FOUND" || code === "MAP_NOT_ACTIVE") return errorResponse(c, 422, code, "One or more target maps are unavailable");
+      if (code === "STANDALONE_MODE_NOT_FOUND") return errorResponse(c, 422, code, "The progress rule names an unconfigured standalone mode");
       if (code === "ACHIEVEMENT_GAME_VERSION_REQUIRED") return errorResponse(c, 422, code, "Active, sunsetting, and retired challenges require a game version");
       if (code === "DEVELOPER_TITLE_CANNOT_BE_A_CHALLENGE") return errorResponse(c, 422, code, "A developer-retained title cannot become a player challenge");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
@@ -1450,6 +1451,20 @@ export const createApp = (dependencies: AppDependencies) => {
   app.post("/v1/admin/events/imports", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required"); const parsed = adminRandomEventImportRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); try { return c.json(await dependencies.services(c.env).importAdminRandomEvents(parsed.data, access.auth!, key), 201); } catch (error) { const code = error instanceof Error ? error.message : "EVENT_IMPORT_FAILED"; if (["EVENT_IMPORT_INVALID", "EVENT_IMPORT_NAME_CONFLICT", "CHALLENGE_NOT_FOUND"].includes(code)) return errorResponse(c, 422, code, "The import data is invalid"); if (code === "EVENT_IMPORT_DUPLICATE" || code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The import was already processed"); throw error; } });
   app.get("/v1/admin/event-versions", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; return c.json(await logServiceOperation(c, "admin_list_event_versions", () => dependencies.services(c.env).listAdminRandomEventVersions(access.auth!))); });
   app.put("/v1/admin/event-versions/:gameVersion/availability", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required"); const parsed = adminRandomEventVersionAvailabilityRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); try { return c.json(await dependencies.services(c.env).updateAdminRandomEventVersion({ ...parsed.data, gameVersion: decodeURIComponent(c.req.param("gameVersion")) }, access.auth!, key)); } catch (error) { const code = error instanceof Error ? error.message : "EVENT_VERSION_UPDATE_FAILED"; if (code === "EVENT_VERSION_NOT_FOUND") return errorResponse(c, 404, code, "The event version does not exist"); if (code === "EVENT_VERSION_MODE_REQUIRED") return errorResponse(c, 422, code, "A weight total needs a standalone mode"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; } });
+  app.get("/v1/admin/standalone-modes", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; return c.json(await logServiceOperation(c, "admin_list_standalone_modes", () => dependencies.services(c.env).listAdminStandaloneModes(access.auth!))); });
+  app.put("/v1/admin/standalone-modes/:mode", async (c) => {
+    const access = await requireMaintainer(c); if (access.error) return access.error;
+    const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminStandaloneModeUpsertRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await dependencies.services(c.env).upsertAdminStandaloneMode({ ...parsed.data, mode: decodeURIComponent(c.req.param("mode")) }, access.auth!, key)); } catch (error) {
+      const code = error instanceof Error ? error.message : "STANDALONE_MODE_UPDATE_FAILED";
+      if (code === "STANDALONE_MODE_INVALID") return errorResponse(c, 422, code, "A standalone mode needs a non-regular mode name");
+      if (code === "MAP_NOT_FOUND" || code === "MAP_NOT_ACTIVE" || code === "EVENT_VERSION_NOT_FOUND") return errorResponse(c, 422, code, "One or more maps or event pools are unavailable");
+      if (code === "STANDALONE_MODE_POOL_CONFLICT") return errorResponse(c, 409, code, "An event pool already belongs to another standalone mode");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
+  });
 
   app.get("/v1/admin/maps/:mapId/editor", async (c) => {
     const access = await requireMaintainer(c);
@@ -1586,7 +1601,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminChallengeUpdateRequestSchema.safeParse({ ...body, family: body?.family ?? (c.req.param("challengeId").startsWith("title.") ? "achievement" : "map") });
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { return c.json(await dependencies.services(c.env).updateAdminChallenge({ ...parsed.data, challengeId: c.req.param("challengeId") }, access.auth!, idempotencyKey)); }
-    catch (error) { const code = error instanceof Error ? error.message : "ACHIEVEMENT_UPDATE_FAILED"; if (code === "CHALLENGE_NOT_FOUND") return errorResponse(c, 404, code, "The achievement does not exist"); if (["MAP_NOT_FOUND", "MAP_NOT_ACTIVE", "INVALID_MAP_SCOPE", "ACHIEVEMENT_GAME_VERSION_REQUIRED"].includes(code)) return errorResponse(c, 422, code, "The challenge lifecycle metadata is invalid"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
+    catch (error) { const code = error instanceof Error ? error.message : "ACHIEVEMENT_UPDATE_FAILED"; if (code === "CHALLENGE_NOT_FOUND") return errorResponse(c, 404, code, "The achievement does not exist"); if (["MAP_NOT_FOUND", "MAP_NOT_ACTIVE", "INVALID_MAP_SCOPE", "ACHIEVEMENT_GAME_VERSION_REQUIRED", "STANDALONE_MODE_NOT_FOUND"].includes(code)) return errorResponse(c, 422, code, "The challenge lifecycle metadata is invalid"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
   });
 
   app.get("/v1/admin/player-accounts/:playerAccountId", async (c) => {

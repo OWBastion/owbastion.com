@@ -241,48 +241,44 @@ describe("Agents map projection readiness", () => {
     }, auth, "promote-legacy-composite")).rejects.toThrow("INVALID_SPATIAL_CONFIG");
   });
 
-  it("keeps a standalone-mode revision selectable, unique per map, and off the classic variant", async () => {
+  it("sets up a standalone mode's maps, event pools, and weight total in one save", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
-    seedMap(sqlite, "map.mode");
-    seedAgentSpatialConfig(sqlite, "revision:map.mode:initial");
+    for (const mapId of ["map.mode", "map.second"]) {
+      seedMap(sqlite, mapId);
+      seedAgentSpatialConfig(sqlite, `revision:${mapId}:initial`);
+    }
+    sqlite.prepare("INSERT INTO random_events (id, name, category, rarity, description, weight, game_version, release_status, created_at, updated_at) VALUES ('event.anniversary', '周年事件', '增益', 'N', '描述', 1, '2026周年', 'implemented', ?, ?)").run(now, now);
     const services = createPlatformServices(database);
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
-    const create = (mode: string, mapVariant: "classic" | null, key: string) => services.createAdminMapRevision({
-      contractVersion: "1",
-      mapId: "map.mode",
-      gameVersion: "2026.10.01",
-      mapVariant,
-      mode,
-      copyConfiguration: false,
-      spatialConfig: sharedCompositeSpatialConfig(),
-      challengeAssignments: [],
-    }, auth, key);
+    const save = (mapIds: string[], key: string, eventPools = ["2026周年"]) => services.upsertAdminStandaloneMode({ contractVersion: "1", mode: "2026 镜中回响", mapIds, eventPools, eventWeightTotal: 69.5 }, auth, key);
+    const modeRevisions = () => sqlite.prepare("SELECT map_id, lifecycle, spatial_config_json FROM gameplay_revisions WHERE mode = '2026镜中回响' ORDER BY map_id").all();
 
-    const mirror = await create("2026 镜中回响", null, "mode-create");
-    expect(mirror).toMatchObject({ lifecycle: "preparing", mode: "2026镜中回响", mapVariant: null });
-    await expect(create("2026镜中回响", null, "mode-duplicate")).rejects.toThrow("MODE_REVISION_CONFLICT");
-    await expect(create("其他模式", "classic", "mode-classic")).rejects.toThrow("MODE_REVISION_CANNOT_USE_CLASSIC_VARIANT");
-
-    const selectable = await services.updateAdminMapRevision({
-      contractVersion: "1",
-      mapId: "map.mode",
-      revisionId: mirror.revisionId,
-      lifecycle: "selectable",
-      gameVersion: "2026.10.01",
-      mapVariant: null,
-      spatialConfig: sharedCompositeSpatialConfig(),
-      challengeAssignments: [],
-    }, auth, "mode-selectable");
-    expect(selectable).toMatchObject({ lifecycle: "selectable", mode: "2026镜中回响" });
+    await expect(save(["map.mode", "map.second"], "mode-create")).resolves.toMatchObject({ mode: "2026镜中回响", mapIds: ["map.mode", "map.second"], eventPools: ["2026周年"], eventWeightTotal: 69.5 });
+    // Each map gets the mode's own selectable revision, without a spatial config.
+    expect(modeRevisions()).toEqual([
+      { map_id: "map.mode", lifecycle: "selectable", spatial_config_json: null },
+      { map_id: "map.second", lifecycle: "selectable", spatial_config_json: null },
+    ]);
+    expect(sqlite.prepare("SELECT mode FROM random_event_versions WHERE game_version = '2026周年'").get()).toEqual({ mode: "2026镜中回响" });
     // Bastion's regular build cannot select a standalone-mode layout, so the Agents projection omits it.
     expect((await services.getAgentMap({ mapId: "map.mode" }))!.gameplayRevisions.map((revision) => revision.gameplayRevisionId)).toEqual(["revision:map.mode:initial"]);
-    await expect(services.promoteAdminMapRevision({
-      contractVersion: "1",
-      mapId: "map.mode",
-      revisionId: mirror.revisionId,
-      replacedDefaultLifecycle: "selectable",
-    }, auth, "mode-promote")).rejects.toThrow("DEFAULT_REVISION_CANNOT_USE_MODE");
+    const [mirror] = sqlite.prepare("SELECT id FROM gameplay_revisions WHERE mode = '2026镜中回响' AND map_id = 'map.mode'").all() as Array<{ id: string }>;
+    await expect(services.promoteAdminMapRevision({ contractVersion: "1", mapId: "map.mode", revisionId: mirror!.id, replacedDefaultLifecycle: "selectable" }, auth, "mode-promote")).rejects.toThrow("DEFAULT_REVISION_CANNOT_USE_MODE");
+
+    // Dropping a map retires its revision; listing it again restores the same revision.
+    await save(["map.mode"], "mode-drop", []);
+    expect(modeRevisions()).toEqual([
+      { map_id: "map.mode", lifecycle: "selectable", spatial_config_json: null },
+      { map_id: "map.second", lifecycle: "historical", spatial_config_json: null },
+    ]);
+    expect(sqlite.prepare("SELECT mode FROM random_event_versions WHERE game_version = '2026周年'").get()).toEqual({ mode: null });
+    await save(["map.mode", "map.second"], "mode-restore");
+    expect(modeRevisions()).toHaveLength(2);
+    expect(await services.listAdminStandaloneModes(auth)).toMatchObject({ items: [{ mode: "2026镜中回响", mapIds: ["map.mode", "map.second"], eventPools: ["2026周年"] }] });
+
+    await expect(services.upsertAdminStandaloneMode({ contractVersion: "1", mode: "随机事件5.0", mapIds: [], eventPools: [], eventWeightTotal: null }, auth, "mode-regular")).rejects.toThrow("STANDALONE_MODE_INVALID");
+    await expect(services.upsertAdminStandaloneMode({ contractVersion: "1", mode: "另一个模式", mapIds: [], eventPools: ["2026周年"], eventWeightTotal: null }, auth, "mode-pool-conflict")).rejects.toThrow("STANDALONE_MODE_POOL_CONFLICT");
   });
 
   it("keeps preparing composite revisions out of the Agents projection", async () => {
@@ -981,7 +977,7 @@ const seedRule = (
 
 // Regular pools total 62.70; a removed event, a suspended pool, and the 2026镜中回响 pool stay out of
 // it. That mode's build returns and disables events, so its 69.50 total is recorded on its pool rather
-// than derived (62.70 + 4.80 would be 67.50).
+// than derived (62.70 + 4.80 would be 67.50); it is recorded on the mode.
 const seedEventPools = (sqlite: DatabaseSync) => {
   const insert = sqlite.prepare("INSERT INTO random_events (id, name, category, rarity, description, weight, game_version, release_status, created_at, updated_at) VALUES (?, ?, '增益', 'N', '描述', ?, ?, ?, ?, ?)");
   insert.run("event.regular.a", "常规甲", 60, "5.0", "implemented", now, now);
@@ -989,7 +985,8 @@ const seedEventPools = (sqlite: DatabaseSync) => {
   insert.run("event.regular.removed", "已移除", 5, "4.0", "removed", now, now);
   insert.run("event.suspended", "挂起池", 3, "3.0", "implemented", now, now);
   insert.run("event.anniversary", "周年事件", 4.8, "2026周年", "implemented", now, now);
-  sqlite.prepare("INSERT INTO random_event_versions (game_version, availability, mode, mode_weight_total, created_at, updated_at) VALUES ('2026周年', 'available', '2026镜中回响', 69.5, ?, ?), ('3.0', 'suspended', NULL, NULL, ?, ?)").run(now, now, now, now);
+  sqlite.prepare("INSERT INTO standalone_modes (mode, event_weight_total, created_at, updated_at) VALUES ('2026镜中回响', 69.5, ?, ?)").run(now, now);
+  sqlite.prepare("INSERT INTO random_event_versions (game_version, availability, mode, created_at, updated_at) VALUES ('2026周年', 'available', '2026镜中回响', ?, ?), ('3.0', 'suspended', NULL, ?, ?)").run(now, now, now, now);
 };
 
 const seedMapTitleChallenge = (sqlite: DatabaseSync, challengeId: string, titleKey: string, mapId: string) => {

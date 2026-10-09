@@ -14,7 +14,7 @@ type CreatePayload = {
   scope: "global" | "map";
   mapIds: string[];
   mapVariant?: "classic";
-  progressRule?: { type: "required_maps_completed"; mapIds: string[]; difficultyAtLeast?: string; mode?: string };
+  progressRule?: { type: "required_maps_completed"; mapIds?: string[]; difficultyAtLeast?: string; mode?: string };
   status: "scheduled" | "active" | "sunsetting" | "retired";
   gameVersion: string | null;
   categoryOverride: string | null;
@@ -66,7 +66,7 @@ watch(progressMode, (enabled) => {
   form.mapIds = [];
   form.mapVariant = undefined;
 });
-const canSubmit = computed(() => Boolean(form.titleKey.trim() && form.titleName.trim() && form.category.trim() && form.condition.trim() && form.evidenceRule.trim() && (form.status === "scheduled" || form.gameVersion.trim()) && (form.status !== "sunsetting" || form.retiredVersion.trim()) && (!progressMode.value || form.progressMapIds.length)));
+const canSubmit = computed(() => Boolean(form.titleKey.trim() && form.titleName.trim() && form.category.trim() && form.condition.trim() && form.evidenceRule.trim() && (form.status === "scheduled" || form.gameVersion.trim()) && (form.status !== "sunsetting" || form.retiredVersion.trim()) && (!progressMode.value || form.progressMapIds.length || form.progressGameMode.trim())));
 const setScheduleTime = (field: "startsAt" | "endsAt", value: number | null) => { form[field] = value; };
 
 function submit() {
@@ -83,7 +83,7 @@ function submit() {
     scope: form.scope,
     mapIds: form.scope === "map" ? [...form.mapIds] : [],
     ...(form.scope === "map" && form.mapVariant ? { mapVariant: form.mapVariant } : {}),
-    ...(progressMode.value ? { progressRule: { type: "required_maps_completed" as const, mapIds: [...form.progressMapIds], ...(form.progressDifficultyAtLeast ? { difficultyAtLeast: form.progressDifficultyAtLeast } : {}), ...(form.progressGameMode.trim() ? { mode: form.progressGameMode.trim() } : {}) } } : {}),
+    ...(progressMode.value ? { progressRule: { type: "required_maps_completed" as const, ...(form.progressMapIds.length ? { mapIds: [...form.progressMapIds] } : {}), ...(form.progressDifficultyAtLeast ? { difficultyAtLeast: form.progressDifficultyAtLeast } : {}), ...(form.progressGameMode.trim() ? { mode: form.progressGameMode.trim() } : {}) } } : {}),
     status: form.status,
     gameVersion: form.gameVersion.trim() || null,
     categoryOverride: form.categoryOverride.trim() || null,
@@ -107,7 +107,7 @@ function submit() {
         <UFormField class="editor-field editor-field--wide" label="截图规则" required><UTextarea v-model="form.evidenceRule" class="editor-control" :disabled="props.saving" required maxlength="2048" /></UFormField>
         <UFormField class="editor-field" label="完成规则" hint="集齐指定地图的进度型挑战以已验证通关为准，不走截图审核，必须保持全部地图与手动提交。"><USelect v-model="form.progressMode" class="editor-control" :disabled="props.saving" :items="progressModeItems" /></UFormField>
         <template v-if="progressMode">
-          <UFormField class="editor-field editor-field--wide" label="要求地图" required hint="玩家在活动时间内于每张地图各留下至少一条有效已验证通关即完成。"><USelect v-model="form.progressMapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
+          <UFormField class="editor-field editor-field--wide" label="要求地图" hint="玩家在活动时间内于每张地图各留下至少一条有效已验证通关即完成。填了独立模式时可留空，自动跟随该模式的全部地图。"><USelect v-model="form.progressMapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
           <UFormField class="editor-field" label="最低难度"><USelect v-model="form.progressDifficultyAtLeast" class="editor-control" :items="progressDifficultyItems" :disabled="props.saving" /></UFormField>
           <UFormField class="editor-field" label="独立模式" hint="只统计该模式（如 2026镜中回响）的通关；留空只统计常规模式。"><UInput v-model="form.progressGameMode" class="editor-control" :disabled="props.saving" /></UFormField>
         </template>

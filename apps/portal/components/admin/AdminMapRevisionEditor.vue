@@ -31,7 +31,6 @@ const replacementLifecycleItems = [{ value: "selectable", label: "保留为可�
 const lifecycle = shallowRef<AdminMapRevisionLifecycle>(props.revision.lifecycle);
 const replacedDefaultLifecycle = shallowRef<AdminMapRevisionReplacementLifecycle>("selectable");
 const mapVariant = shallowRef<"classic" | null>(props.revision.mapVariant);
-const mode = shallowRef(props.revision.mode ?? "");
 const gameVersion = shallowRef(props.revision.gameVersion);
 const spatialConfig = shallowRef<Record<string, unknown> | null>(props.revision.spatialConfig);
 const spatialInputValid = shallowRef(true);
@@ -42,7 +41,6 @@ const sync = (revision: AdminMapEditorRevision) => {
   lifecycle.value = revision.lifecycle;
   replacedDefaultLifecycle.value = "selectable";
   mapVariant.value = revision.mapVariant;
-  mode.value = revision.mode ?? "";
   gameVersion.value = revision.gameVersion;
   spatialConfig.value = revision.spatialConfig;
   spatialInputValid.value = true;
@@ -89,7 +87,6 @@ function save() {
     lifecycle: lifecycle.value,
     gameVersion: gameVersion.value.trim(),
     mapVariant: mapVariant.value,
-    mode: mode.value.trim() || null,
     spatialConfig: spatialConfig.value,
     challengeAssignments: Object.values(assignments.value),
   });
@@ -116,8 +113,8 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
         <UFormField label="地图变体" hint="默认版本修订必须使用正式版。">
           <USelect v-model="mapVariant" :items="mapVariantItems" :disabled="saving" />
         </UFormField>
-        <UFormField label="独立模式" hint="填写截图右上角的模式名（如 2026镜中回响），该模式的通关会记到这个可选版本；常规模式留空。">
-          <UInput v-model="mode" :disabled="saving" />
+        <UFormField v-if="revision.mode" label="独立模式" hint="该版本由独立模式管理，地图归属在「独立模式」页调整。">
+          <NuxtLink to="/admin/modes" class="revision-mode">{{ revision.mode }}</NuxtLink>
         </UFormField>
       </div>
 

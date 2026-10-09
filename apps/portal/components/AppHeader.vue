@@ -23,6 +23,7 @@ const adminNavigationItems = computed(() => {
     group("内容", "i-lucide-layers", [
       { label: "地图", description: "地图与玩法修订", icon: "i-lucide-map", to: "/admin/maps", active: adminPathActive("/admin/maps") },
       { label: "随机事件", description: "事件与平衡元数据", icon: "i-lucide-zap", to: "/admin/events", active: adminPathActive("/admin/events") },
+      { label: "独立模式", description: "限时模式的地图、事件池与权重", icon: "i-lucide-flip-horizontal-2", to: "/admin/modes", active: adminPathActive("/admin/modes") },
       { label: "称号与挑战", description: "称号目录、通用与地图挑战", icon: "i-lucide-award", to: "/admin/achievements/titles", active: adminPathActive("/admin/achievements") },
     ]),
     group("称号运营", "i-lucide-send", [
