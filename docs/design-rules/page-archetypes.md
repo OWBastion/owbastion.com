@@ -16,6 +16,25 @@
   required next action (see [`content-and-state.md`](content-and-state.md)).
 - Use the directory components and `UEmpty`.
 
+## Editorial article (开发日志 and 版本更新)
+
+- A page for reading and passing on, not a card: one centered column about
+  44rem wide on the page background, nothing boxed around the text.
+- Order: back link with 复制链接 / 分享 (native share where the browser has it), a
+  kicker (kind or version, date, reading time), the title balanced across lines,
+  the summary as a lead (development logs only; a release note's summary is a
+  fixed sentence and stays in the list and the share preview), tags, then the body.
+- A contents list (headings level 2–3, three or more) floats in the right gutter
+  with the section being read highlighted when the frame is wide enough, and folds
+  into an inline "本文目录" otherwise.
+- The body is set for reading (about 1.85 leading, level-2 headings with a rule above,
+  an opening quote rendered as a note). A release note is the same page with tighter
+  spacing, because it is scanned.
+- The end of the page repeats the share action and links to the previous and next
+  entry (the older and newer version for a release note).
+- Every article carries a canonical URL and Open Graph / Twitter metadata so a
+  shared link previews with its title and summary.
+
 ## Event directory
 
 - Search, then combinable chips with live counts: 事件组 and 常见效果 first (effects

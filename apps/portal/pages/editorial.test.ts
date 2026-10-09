@@ -32,11 +32,13 @@ const changelogEntry = {
 };
 
 function setCollection(rows: unknown[], failure?: Error) {
-  queryCollection.mockImplementation((name: string) => ({
-    order: () => ({ all: async () => {
-      if (failure) throw failure;
-      return name === "blog" ? rows : rows;
-    } }),
+  const list = { order: () => ({ all: async () => {
+    if (failure) throw failure;
+    return rows;
+  } }) };
+  queryCollection.mockImplementation(() => ({
+    ...list,
+    select: () => list,
     path: () => ({ first: async () => {
       if (failure) throw failure;
       return rows[0] ?? null;
@@ -119,6 +121,29 @@ describe("public editorial surfaces", () => {
     expect(wrapper.text().indexOf("26.0801.1")).toBeLessThan(wrapper.text().indexOf("随机事件调整"));
     expect(wrapper.get("h1").text()).toBe("随机事件调整");
     expect(wrapper.text()).toContain("复制链接");
+  });
+
+  it("links a blog entry to its neighbours and offers sharing at both ends", async () => {
+    const newer = { ...blogEntry, path: "/blog/newer", title: "较新的一篇", publishedAt: "2026-09-01T00:00:00.000Z" };
+    const older = { ...blogEntry, path: "/blog/older", title: "较旧的一篇", publishedAt: "2026-07-01T00:00:00.000Z" };
+    clearNuxtData("public-blog-entry");
+    clearNuxtData("public-blog-neighbours");
+    route.path = blogEntry.path;
+    route.fullPath = blogEntry.path;
+    route.params.slug = "rotation-challenges-map-mastery";
+    queryCollection.mockImplementation(() => ({
+      select: () => ({ order: () => ({ all: async () => [newer, blogEntry, older] }) }),
+      path: () => ({ first: async () => blogEntry }),
+    }));
+    const wrapper = await mountSuspended(BlogDetailPage, { global: { stubs } });
+    await flushPromises();
+
+    const neighbours = wrapper.get("nav[aria-label='上一篇和下一篇']");
+    expect(neighbours.text()).toContain("较旧的一篇");
+    expect(neighbours.text()).toContain("较新的一篇");
+    expect(neighbours.text()).toContain("上一篇");
+    expect(neighbours.text()).toContain("下一篇");
+    expect(wrapper.findAll("button").filter((button) => button.text() === "复制链接")).toHaveLength(2);
   });
 
   it("copies the changelog canonical URL", async () => {
