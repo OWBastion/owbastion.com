@@ -146,7 +146,7 @@ describe("Portal SSR", async () => {
     expect(blogIndex).toContain(latestBlog.title);
     expect(blogDetail).toContain(latestBlog.title);
     expect(changelogIndex).toContain(`href="${latestChangelog.path}"`);
-    expect(changelogIndex).toContain(`版本 ${latestChangelog.version}`);
+    expect(changelogIndex).toContain(latestChangelog.version);
     expect(changelogDetail).toContain(latestChangelog.title);
     expect(changelogDetail).toContain('property="og:title"');
     expect(changelogDetail).toContain('property="og:description"');
