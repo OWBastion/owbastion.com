@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { matchGameMode } from "@owbastion/domain";
 import type { AdminSubmission, AdminSubmissionReviewPreview } from "~/composables/useAdminApi";
 import { ocrStatusLabel, ocrStatusTone } from "~/utils/ocrStatus";
 import { mapVariantLabel } from "~/utils/map-variant";
@@ -153,7 +154,12 @@ const fieldRows = computed(() => annotatableFields.map((field) => {
   const unusable = !attested && unusableReadout(field.key, raw);
   const attention = !attested && (needed || unusable || (primary && (!recognized || (ocr?.status !== undefined && ocr.status !== "ok"))));
   const changed = attested && (correctionInputs[field.key] ?? "") !== (initialInputs[field.key] ?? "");
-  const text = isPanel ? achievementPanelLabel.value : ocrDisplayValue(field.key, raw);
+  // A mode matched to the nearest configured one still shows what OCR read, so a wrong match is visible.
+  // Results stored before the match existed carry only the raw label; the same match is applied here.
+  const nearMode = field.key === "mode" && typeof raw === "string" && !ocrPayload.value?.data?.mode_read ? matchGameMode(raw, props.preview?.knownModes ?? []) : null;
+  const modeRead = field.key === "mode" ? ocrPayload.value?.data?.mode_read ?? (nearMode?.approximate ? raw : null) : null;
+  const modeShown = nearMode?.approximate ? nearMode.mode : raw;
+  const text = isPanel ? achievementPanelLabel.value : modeRead ? `${ocrDisplayValue(field.key, modeShown)}（读到 ${modeRead}）` : ocrDisplayValue(field.key, raw);
   const state = changed ? "corrected" : attested ? "reviewed" : attention ? "attention" : "ok";
   return {
     ...field,

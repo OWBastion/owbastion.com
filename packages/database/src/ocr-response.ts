@@ -37,6 +37,8 @@ export type OcrResponse = {
     } | null;
     ai_mark_detected?: boolean | null;
     mode?: string | null;
+    // The label as OCR read it, kept when `mode` was matched to the nearest known mode.
+    mode_read?: string | null;
     restart_in_seconds?: number | null;
     uptime_seconds?: number | null;
     server_load?: number | null;

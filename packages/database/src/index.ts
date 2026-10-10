@@ -3,7 +3,7 @@ import { count, desc, eq, and, gt, gte, like, or, inArray, isNull, isNotNull, ne
 import { drizzle } from "drizzle-orm/d1";
 import { alias } from "drizzle-orm/sqlite-core";
 import { createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, passkeyUserHandleMatches, verifyPasskeyAuthentication, verifyPasskeyRegistration } from "@owbastion/auth";
-import { buildMasteryProfiles, calculateVerifiedRunXpV2, difficultyAtLeastSatisfied, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, isWellFormedGameVersion, normalizeGameMode, eventWeightTotalCode, runCodeEventWeightTotal, parseCanonicalChallengeConditions, parseChallengeProgressRule, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
+import { buildMasteryProfiles, calculateVerifiedRunXpV2, difficultyAtLeastSatisfied, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, isWellFormedGameVersion, matchGameMode, normalizeGameMode, eventWeightTotalCode, runCodeEventWeightTotal, parseCanonicalChallengeConditions, parseChallengeProgressRule, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
 import type { AdminVerifiedRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, ChallengeCondition, ChallengeProgressRule, VerifiedRunDifficulty, VerifiedRunEventCounters, VerifiedRunEvidenceCompatibilityV1, MasteryMapProfile, VerifiedRunActor, VerifiedRunConflictField, VerifiedRunForProjection, VerifiedRunXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
 import type { AdminRandomEventBatchRequest, AdminStandaloneMode, AdminStandaloneModeListResponse, AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerChallengeProgressListResponse, PlayerSubmissionStatus, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, QqScreenshotSubmissionRequest, QqScreenshotSubmissionResponse, RandomEvent, RandomEventVersion, ScreenshotSetStatus, Title } from "@owbastion/contracts";
@@ -4152,6 +4152,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       .where(eq(ocrResults.submissionId, row.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get();
     let rawResponse: OcrResponse | null = null;
     try { rawResponse = latestOcr?.responseJson ? JSON.parse(latestOcr.responseJson) as OcrResponse : null; } catch { rawResponse = null; }
+    if (rawResponse) rawResponse = await withCanonicalMode(rawResponse);
     // A failed recognition leaves no evidence; the reviewer's own field corrections then stand in for it.
     if (!rawResponse && !fieldCorrections?.length) throw new Error("SUBMISSION_NOT_REVIEWABLE");
     const correctedResponse = applySubmissionFieldCorrections(rawResponse ?? { ok: true, data: {}, fields: {} }, fieldCorrections);
@@ -4496,6 +4497,15 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
 
   // A non-regular mode label is trusted only when an administrator has configured that mode;
   // anything else is most likely a misread of the regular label and needs a maintainer.
+  // A mode label OCR misread by a character is matched to the configured mode it nearly spells; the
+  // label as read stays in `mode_read` so the evidence is never silently rewritten.
+  const withCanonicalMode = async (response: OcrResponse): Promise<OcrResponse> => {
+    if (!response.data?.mode) return response;
+    const known = (await db.select({ mode: standaloneModes.mode }).from(standaloneModes)).map((row) => row.mode);
+    const matched = matchGameMode(response.data.mode, known);
+    return matched.approximate ? { ...response, data: { ...response.data, mode: matched.mode, mode_read: response.data.mode } } : response;
+  };
+
   const isKnownStandaloneMode = async (mode: string) => Boolean(await db.select({ mode: standaloneModes.mode }).from(standaloneModes).where(eq(standaloneModes.mode, mode)).get());
 
   // The newest build the platform knows: the highest well-formed version among event pools.
@@ -4509,12 +4519,13 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     return newest ?? formatDayBuildVersion();
   };
 
-  const completeOcrResult = async (row: typeof submissions.$inferSelect, result: OcrResponse, input: { attempt: number; manual: boolean; requestId: string }) => {
+  const completeOcrResult = async (row: typeof submissions.$inferSelect, ocrResult: OcrResponse, input: { attempt: number; manual: boolean; requestId: string }) => {
     const ocrRequestId = input.requestId;
     const startedAt = Date.now();
     const context = { submissionId: row.id, ...input };
     let stage = "load_submission";
     try {
+      const result = await withCanonicalMode(ocrResult);
       stage = "check_game_mode";
       const mode = standaloneOcrMode(result);
       if (mode && !await isKnownStandaloneMode(mode)) {
