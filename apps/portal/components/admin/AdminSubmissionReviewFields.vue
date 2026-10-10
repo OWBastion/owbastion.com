@@ -134,6 +134,13 @@ const reviewedLabel = (key: string) => {
   const choice = fieldChoices(key).find((item) => typeof item === "object" && item.value === value);
   return typeof choice === "object" ? choice.label : value;
 };
+// A readout no Verified Run can use (a dropped digit in the version or run code) reads as needing a check even when OCR was confident.
+const unusableReadout = (key: string, raw: unknown) => {
+  if (raw === null || raw === undefined || raw === "") return false;
+  if (key === "version") return !/^\d{2}\.\d{4}\.\d+$/u.test(String(raw).trim());
+  if (key === "run_code") return !/^[1-9]\d{3}(?:-[1-9]\d{3}){2}$/u.test(String(raw).trim());
+  return false;
+};
 const fieldRows = computed(() => annotatableFields.map((field) => {
   const ocr = ocrPayload.value?.fields?.[field.key];
   const raw = ocr?.value ?? ocrPayload.value?.data?.[field.key];
@@ -143,13 +150,14 @@ const fieldRows = computed(() => annotatableFields.map((field) => {
   // The panel, map version and mode always read as something ("无", the standard version, the regular mode); only truly absent values invite typing one in.
   const recognized = isPanel || field.key === "map_variant" || field.key === "mode" || (raw !== null && raw !== undefined);
   const needed = neededFields.value.has(field.key) && !attested;
-  const attention = !attested && (needed || (primary && (!recognized || (ocr?.status !== undefined && ocr.status !== "ok"))));
+  const unusable = !attested && unusableReadout(field.key, raw);
+  const attention = !attested && (needed || unusable || (primary && (!recognized || (ocr?.status !== undefined && ocr.status !== "ok"))));
   const changed = attested && (correctionInputs[field.key] ?? "") !== (initialInputs[field.key] ?? "");
   const text = isPanel ? achievementPanelLabel.value : ocrDisplayValue(field.key, raw);
   const state = changed ? "corrected" : attested ? "reviewed" : attention ? "attention" : "ok";
   return {
     ...field,
-    primary, text, recognized, needed, attested, changed, state,
+    primary, text, recognized, needed, unusable, attested, changed, state,
     confidence: ocr?.confidence,
     status: ocr?.status,
     shown: attested ? reviewedLabel(field.key) || text : text,
@@ -157,7 +165,7 @@ const fieldRows = computed(() => annotatableFields.map((field) => {
     icon: { corrected: "i-lucide-pencil", reviewed: "i-lucide-check-check", attention: "i-lucide-circle-help", ok: "i-lucide-check" }[state],
   };
 }));
-const visibleFieldRows = computed(() => fieldRows.value.filter((row) => row.primary || showExtraFields.value || row.attested || row.needed));
+const visibleFieldRows = computed(() => fieldRows.value.filter((row) => row.primary || showExtraFields.value || row.attested || row.needed || row.unusable));
 const extraFieldCount = computed(() => fieldRows.value.filter((row) => !row.primary).length);
 const attentionCount = computed(() => visibleFieldRows.value.filter((row) => row.state === "attention").length);
 const summaryText = computed(() => {
@@ -167,7 +175,7 @@ const summaryText = computed(() => {
 const openRow = computed(() => visibleFieldRows.value.find((row) => row.key === openKey.value) ?? null);
 const toggleOpen = (key: string) => { openKey.value = openKey.value === key ? null : key; };
 // Open the first field a Challenge is waiting for, so the common case needs no hunting.
-watch(() => fieldRows.value.find((row) => row.needed)?.key, (key) => { if (key && openKey.value === null) openKey.value = key; }, { immediate: true });
+watch(() => fieldRows.value.find((row) => row.needed || row.unusable)?.key, (key) => { if (key && openKey.value === null) openKey.value = key; }, { immediate: true });
 const confirmField = (key: string) => toggleFieldConfirmation(key, true);
 </script>
 

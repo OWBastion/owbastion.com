@@ -25,6 +25,7 @@ const navigate = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 let ocrResultReady = false;
 let queueItems: Array<{ submissionId: string }> | Error = [];
 let ocrMarkedInaccurate = false;
+let ocrVersion: string | null = null;
 const dialogStub = { AdminResponsiveDialog: { props: ["open", "title", "description"], template: '<div v-if="open" role="dialog" :aria-label="title"><p>{{ description }}</p><slot name="body" /><slot name="footer" /></div>' } };
 const adminApi = vi.fn((path: string, options?: { method?: string; body?: unknown }) => {
   if (path === "/v1/submissions/submission-5") return Promise.resolve({ submissionId: "submission-5", mapName: "釜山", difficulty: "专家", playerName: "他又", status: "resubmission_required", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: null, review: { decision: "resubmission_required", automatic: false, reason: null, reviewedAt: 1 }, activeTitleGrants: [{ grantId: "grant-5", titleKey: "OVERWATCH", titleName: "守望先锋" }], verifiedRunOutcome: { status: "created", verifiedRunId: null, awardedXp: 0, reason: null, conflictFields: [] } });
@@ -39,7 +40,7 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: unknow
   if (path === "/v1/submissions/submission-1/review/preview" && options?.method === "POST") return Promise.resolve(reviewPreview(options.body as PreviewBody));
   if (path === "/v1/submissions/submission-4/review/preview" && options?.method === "POST") return Promise.resolve({ ...reviewPreview(), submissionId: "submission-4", candidates: [], titles: [], approvable: false, blockingCode: "SUBMISSION_OUTCOME_NOT_CONFIGURED", knownModes: [] });
   if (path === "/v1/submissions/submission-4") return Promise.resolve({ submissionId: "submission-4", mapName: "釜山", difficulty: "", playerName: "他又", status: "ocr_review_required", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "review_required", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: { data: { map_name: "釜山" }, fields: {} } });
-  if (path === "/v1/submissions/submission-1") return Promise.resolve({ submissionId: "submission-1", mapName: "成就挑战", difficulty: "", playerName: "他又", status: "ready_for_review", createdAt: 0, updatedAt: 1, challenge: { family: "achievement", titleName: "守望先锋", category: "战绩", condition: "完成挑战", evidenceRule: "完整截图" }, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, ocrResultId: "ocr-result-1", ocrAccuracy: ocrMarkedInaccurate ? "inaccurate" : null, evidenceUrl: "https://evidence.owbastion.codes/uploads/submissions/test/high-entropy-key.png", ocr: { model_version: "v1", request_id: "ocr-request-1", data: { map_name: "帕拉伊苏", difficulty: "地狱", viewer_player: "他又", challenge_completed: true, ai_mark_detected: false, mode: "挑战模式", restart_in_seconds: 0, uptime_seconds: 120, server_load: null, event: { name: "测试事件", duration_seconds: 30, description: ["提高伤害", "持续生效"], numbers: [{ text: "伤害", value: 25, unit: "%" }], text: "测试事件 持续 30 秒" } }, fields: { map_name: { confidence: 0.98, status: "ok" }, difficulty: { confidence: 0.97, status: "ok" }, viewer_player: { confidence: 0.96, status: "ok" }, challenge_completed: { confidence: 0.99, status: "ok" } }, warnings: ["right_panel.version_missing"] }, match: { outcome: "review", candidates: [{ challengeId: "title.legacy", challengeType: "title_achievement", titleName: "旧匹配称号", quality: { accepted: false, reasons: ["achievement_evidence:low_confidence", "achievement_evidence:title_not_checked"] } }] } });
+  if (path === "/v1/submissions/submission-1") return Promise.resolve({ submissionId: "submission-1", mapName: "成就挑战", difficulty: "", playerName: "他又", status: "ready_for_review", createdAt: 0, updatedAt: 1, challenge: { family: "achievement", titleName: "守望先锋", category: "战绩", condition: "完成挑战", evidenceRule: "完整截图" }, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, ocrResultId: "ocr-result-1", ocrAccuracy: ocrMarkedInaccurate ? "inaccurate" : null, evidenceUrl: "https://evidence.owbastion.codes/uploads/submissions/test/high-entropy-key.png", ocr: { model_version: "v1", request_id: "ocr-request-1", data: { map_name: "帕拉伊苏", difficulty: "地狱", viewer_player: "他又", challenge_completed: true, ai_mark_detected: false, ...(ocrVersion ? { version: ocrVersion } : {}), mode: "挑战模式", restart_in_seconds: 0, uptime_seconds: 120, server_load: null, event: { name: "测试事件", duration_seconds: 30, description: ["提高伤害", "持续生效"], numbers: [{ text: "伤害", value: 25, unit: "%" }], text: "测试事件 持续 30 秒" } }, fields: { map_name: { confidence: 0.98, status: "ok" }, difficulty: { confidence: 0.97, status: "ok" }, viewer_player: { confidence: 0.96, status: "ok" }, challenge_completed: { confidence: 0.99, status: "ok" }, ...(ocrVersion ? { version: { confidence: 0.98, status: "ok" } } : {}) }, warnings: ["right_panel.version_missing"] }, match: { outcome: "review", candidates: [{ challengeId: "title.legacy", challengeType: "title_achievement", titleName: "旧匹配称号", quality: { accepted: false, reasons: ["achievement_evidence:low_confidence", "achievement_evidence:title_not_checked"] } }] } });
   if (path === "/v1/submissions/submission-2") return Promise.resolve({ submissionId: "submission-2", mapName: "釜山", difficulty: "专家", playerName: "他又", status: "approved", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: null });
   if (path === "/v1/submissions/submission-3") return Promise.resolve({ submissionId: "submission-3", mapName: "绿洲城", difficulty: "困难", playerName: "他又", status: "approved", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: null, spotCheck: { status: "pending", sampledAt: 1, resolvedAt: null, reviewer: null, reason: null } });
   if (path === "/v1/submissions/submission-1/review" && options?.method === "POST") return Promise.resolve({ decision: "approved", titleName: "守望先锋", alreadyOwned: false });
@@ -62,7 +63,7 @@ const mountPage = async (options: Parameters<typeof mountSuspended<typeof Review
   mountedPages.push(wrapper);
   return wrapper;
 };
-afterEach(() => { for (const wrapper of mountedPages.splice(0)) wrapper.unmount(); });
+afterEach(() => { ocrVersion = null; for (const wrapper of mountedPages.splice(0)) wrapper.unmount(); });
 
 describe("admin review detail page", () => {
   it("shows evidence, challenge, OCR data, and review actions", async () => {
@@ -250,6 +251,14 @@ describe("admin review detail page", () => {
       expect(chip(wrapper, "地图").attributes("aria-label")).toBe("地图：帕拉伊苏，一致");
       expect(chip(wrapper, "难度").attributes("aria-label")).toBe("难度：地狱，一致");
       expect(chip(wrapper, "通关标记").attributes("aria-label")).toContain("待确认");
+    });
+
+    it("flags a confidently read game version that is not YY.MMDD.N", async () => {
+      ocrVersion = "26.1003";
+      const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
+      await flushPromises();
+      // A dropped digit blocks the Verified Run, so it must not read as "一致" just because OCR was confident.
+      expect(chip(wrapper, "游戏版本").attributes("aria-label")).toContain("待确认");
     });
 
     it("opens the field a Challenge is waiting for and shows what was recognized there", async () => {
