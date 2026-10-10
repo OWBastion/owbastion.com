@@ -19,6 +19,7 @@ import {
   adminPlayerIdentityRequestSchema,
   adminSubmissionReviewPreviewRequestSchema,
   adminSubmissionReviewRequestSchema,
+  adminSubmissionOcrReevaluateRequestSchema,
   adminSubmissionOcrRetryRequestSchema,
   adminScreenshotSetCreateRequestSchema,
   adminScreenshotSetFinalizeRequestSchema,
@@ -2023,6 +2024,23 @@ export const createApp = (dependencies: AppDependencies) => {
       if (code === "OCR_NOT_CONFIGURED") return errorResponse(c, 503, code, "OCRKit is not configured");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       if (code === "OCR_RETRY_IN_PROGRESS") return errorResponse(c, 409, code, "An OCR retry is already in progress for this submission");
+      throw error;
+    }
+  });
+
+  app.post("/v1/admin/submissions/:submissionId/ocr/reevaluate", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminSubmissionOcrReevaluateRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await servicesFor(c).reevaluateAdminSubmissionOcr({ submissionId: c.req.param("submissionId") }, access.auth!, idempotencyKey)); }
+    catch (error) {
+      const code = error instanceof Error ? error.message : "OCR_REEVALUATE_FAILED";
+      if (code === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, code, "The submission does not exist");
+      if (code === "SUBMISSION_NOT_REEVALUABLE") return errorResponse(c, 409, code, "Only submissions awaiting review with a stored recognition can be re-evaluated");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
     }
   });

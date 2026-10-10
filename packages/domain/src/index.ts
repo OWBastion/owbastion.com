@@ -35,6 +35,7 @@ import type {
   AdminSubmissionReviewRequest,
   AdminSubmissionReviewPreviewResponse,
   AdminSubmissionReviewResponse,
+  AdminSubmissionOcrReevaluateResponse,
   AdminSubmissionOcrRetryResponse,
   AdminSubmissionSpotCheckRequest,
   AdminSubmissionSpotCheckResponse,
@@ -248,6 +249,7 @@ export type PlatformServices = {
   uploadEvidence(input: { uploadId: string; body: ArrayBuffer; contentType: string }, sessionToken: string): Promise<void>;
   listAdminSubmissions(input: { statuses?: AdminSubmission["status"][]; spotCheck?: "pending" | "confirmed" | "revoked"; order?: "oldest" | "newest"; page: number; pageSize: number }, auth: AuthContext): Promise<AdminSubmissionListResponse>;
   getAdminSubmission(input: { submissionId: string }, auth: AuthContext): Promise<AdminSubmission>;
+  reevaluateAdminSubmissionOcr(input: { submissionId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionOcrReevaluateResponse>;
   requestAdminOcr(input: { submissionId: string }, auth: AuthContext, idempotencyKey: string, requestId?: string): Promise<AdminSubmissionOcrRetryResponse>;
   resolveAdminSubmissionSpotCheck(input: { submissionId: string } & AdminSubmissionSpotCheckRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionSpotCheckResponse>;
   completeOcrJob(input: { jobId: string; payload: import("@owbastion/contracts").OcrkitJobCallback }): Promise<void>;

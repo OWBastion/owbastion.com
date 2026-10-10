@@ -6,6 +6,7 @@ import { ocrStatusLabel, ocrStatusTone } from "~/utils/ocrStatus";
 import type { AdminSubmission } from "~/composables/useAdminApi";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { reviewQueueStatuses } from "~/utils/reviewQueue";
+import { createRequestId } from "~/utils/request-id";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "截图审核 · 躲避堡垒 3" });
@@ -97,7 +98,27 @@ const columns: TableColumn<AdminSubmission>[] = [
   { accessorKey: "updatedAt", header: "最近更新" },
   { id: "actions", header: "", enableHiding: false },
 ];
-const { loading } = useAdminAsyncData("submission-review-list", async () => {
+const toast = useToast();
+const reevaluating = ref(false);
+const reevaluable = computed(() => submissions.value.filter((item) => item.status === "ocr_review_required"));
+// Re-runs the decision from each stored recognition so items held under older rules or data settle without opening them one by one.
+async function reevaluatePage() {
+  if (reevaluating.value || !reevaluable.value.length) return;
+  reevaluating.value = true;
+  const items = [...reevaluable.value];
+  let failed = 0;
+  let settled = 0;
+  for (const item of items) {
+    try {
+      const result = await api<{ status: string }>(`/v1/submissions/${encodeURIComponent(item.submissionId)}/ocr/reevaluate`, { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1" } });
+      if (result.status !== "ocr_review_required") settled += 1;
+    } catch { failed += 1; }
+  }
+  reevaluating.value = false;
+  toast.add({ title: `已重新评估 ${items.length} 条，${settled} 条状态已更新${failed ? `，${failed} 条失败` : ""}`, color: failed ? "warning" : "success" });
+  await refresh();
+}
+const { loading, refresh } = useAdminAsyncData("submission-review-list", async () => {
     const statusQuery = reviewStatus.value === "all" ? "" : reviewStatus.value === "queue" ? `&status=${reviewQueueStatuses}` : `&status=${encodeURIComponent(reviewStatus.value)}`;
     const spotCheckQuery = spotCheckFilter.value === "all" ? "" : `&spotCheck=${spotCheckFilter.value}`;
     const response = await api<{ items: AdminSubmission[]; total: number }>(`/v1/submissions?page=${page.value}&pageSize=20${statusQuery}${spotCheckQuery}&order=${reviewOrder.value}`);
@@ -140,8 +161,8 @@ watch(() => route.fullPath, (path) => { queuePath.value = path; }, { immediate: 
   <AdminWorkspace title="截图审核" :count="loading ? '读取中…' : `${total} 条`">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <section aria-label="提交记录"><AdminDataTable v-model:sorting="reviewSorting" :sorting-options="reviewSortingOptions" :default-sorting="defaultReviewSorting" :data="submissions" :columns="columns" :mobile-columns="[{ id: 'ocrContent', priority: 'primary', order: 0 }, { id: 'status', priority: 'primary', order: 1 }, { id: 'playerName', priority: 'detail', order: 2 }, { id: 'spotCheck', priority: 'detail', order: 3 }]" row-key="submissionId" :mobile-row-link="(row) => `/admin/reviews/${encodeURIComponent(row.submissionId)}`" :loading="loading" empty="暂无提交记录。" table-key="reviews" :reset-scroll-key="`${page}-${reviewStatus}-${spotCheckFilter}-${reviewOrder}`" class="admin-table">
-      <template #filters><div class="review-filters"><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /><USelect v-model="spotCheckFilter" aria-label="筛选抽检状态" :items="spotCheckOptions" /><USelect v-model="reviewOrder" aria-label="队列顺序" :items="reviewOrderOptions" /></div></template>
-      <template #mobile-secondary><div class="review-filters"><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /><USelect v-model="spotCheckFilter" aria-label="筛选抽检状态" :items="spotCheckOptions" /><USelect v-model="reviewOrder" aria-label="队列顺序" :items="reviewOrderOptions" /></div></template>
+      <template #filters><div class="review-filters"><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /><USelect v-model="spotCheckFilter" aria-label="筛选抽检状态" :items="spotCheckOptions" /><USelect v-model="reviewOrder" aria-label="队列顺序" :items="reviewOrderOptions" /><UButton v-if="reevaluable.length" label="重新评估本页待核对项" size="sm" color="neutral" variant="outline" :loading="reevaluating" @click="reevaluatePage" /></div></template>
+      <template #mobile-secondary><div class="review-filters"><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /><USelect v-model="spotCheckFilter" aria-label="筛选抽检状态" :items="spotCheckOptions" /><USelect v-model="reviewOrder" aria-label="队列顺序" :items="reviewOrderOptions" /><UButton v-if="reevaluable.length" label="重新评估本页待核对项" size="sm" color="neutral" variant="outline" :loading="reevaluating" @click="reevaluatePage" /></div></template>
       <template #ocrContent-cell="{ row }"><strong>{{ ocrMapName(row.original) }}</strong><small class="table-meta">成就挑战：{{ ocrAchievementTitles(row.original) }}</small></template>
       <template #ocrConfidence-cell="{ row }"><span class="table-meta">地图 {{ ocrConfidence(row.original, "map_name") }}</span><span class="table-meta">成就 {{ ocrConfidence(row.original, "achievement_titles") }}</span></template>
       <template #playerName-cell="{ row }"><NuxtLink class="player-link" :to="`/admin/players/${encodeURIComponent(row.original.playerAccountId)}`">{{ row.original.playerName }}</NuxtLink></template>
