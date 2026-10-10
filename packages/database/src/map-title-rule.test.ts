@@ -281,6 +281,30 @@ describe("Agents map projection readiness", () => {
     await expect(services.upsertAdminStandaloneMode({ contractVersion: "1", mode: "另一个模式", mapIds: [], eventPools: ["2026周年"], eventWeightTotal: null }, auth, "mode-pool-conflict")).rejects.toThrow("STANDALONE_MODE_POOL_CONFLICT");
   });
 
+  it("adds a new map with an empty default revision that carries the all-map title rules", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.rialto");
+    seedTitle(sqlite, "DOMINATOR");
+    seedRule(sqlite, "rule.dominator", "DOMINATOR", "dominator", { slot: "dominator" });
+    seedTitle(sqlite, "PIONEER_X");
+    seedRule(sqlite, "rule.pioneer", "PIONEER_X", "pioneer", { slot: "pioneer", defaultScope: "explicit" });
+    sqlite.exec("INSERT INTO random_event_versions (game_version, availability, mode, created_at, updated_at) VALUES ('26.1003.2', 'available', NULL, 1, 1)");
+    const services = createPlatformServices(database);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
+
+    const created = await services.createAdminMap({ contractVersion: "1", mapName: "新地图" }, auth, "map-create");
+
+    expect(created).toMatchObject({ mapName: "新地图", gameVersion: "26.1003.2", mechanics: [] });
+    expect(created.mapId).toMatch(/^map\.new_[0-9a-f]{8}$/);
+    expect(sqlite.prepare("SELECT status, introduced_version FROM maps WHERE id = ?").get(created.mapId)).toEqual({ status: "active", introduced_version: "26.1003.2" });
+    expect(sqlite.prepare("SELECT lifecycle, spatial_config_json FROM gameplay_revisions WHERE map_id = ?").all(created.mapId)).toEqual([{ lifecycle: "default", spatial_config_json: null }]);
+    // Only the all-map rule is carried; the explicit-scope pioneer rule stays opt-in.
+    expect(sqlite.prepare("SELECT challenge_id FROM gameplay_revision_challenge_assignments WHERE map_id = ?").all(created.mapId)).toEqual([{ challenge_id: "rule.dominator" }]);
+    await expect(services.createAdminMap({ contractVersion: "1", mapName: "新地图" }, auth, "map-create-again")).rejects.toThrow("MAP_NAME_CONFLICT");
+    await expect(services.createAdminMap({ contractVersion: "1", mapName: "另一张", mapId: created.mapId }, auth, "map-create-id")).rejects.toThrow("MAP_ID_CONFLICT");
+  });
+
   it("keeps editing a standalone-mode revision without a spatial config", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);

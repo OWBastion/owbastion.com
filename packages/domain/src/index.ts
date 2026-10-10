@@ -50,7 +50,7 @@ import type {
   Map,
   Title,
   OwnedTitle, HistoricalTitleGrant, AdminTitleGrantListResponse, AdminTitleGrantHolderDetailResponse, AdminHistoricalTitleHolderFilter, AdminTitleGrantRequest, AdminTitleGrantBulkRequest, AdminTitleGrantBulkResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse,
-  AdminChallenge, AdminChallengeListResponse, AdminChallengeUpdateRequest, AdminAchievementCreateRequest, AdminMapMetadataUpdateRequest,
+  AdminChallenge, AdminChallengeListResponse, AdminChallengeUpdateRequest, AdminAchievementCreateRequest, AdminMapMetadataUpdateRequest, AdminMapCreateRequest,
   AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapRevisionPromotionRequest,
   AdminCatalogTitleUpdateRequest,
   AdminMapTitleRule, AdminMapTitleRuleListResponse, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleInheritanceResponse, AdminMapTitleRuleExceptionUpsertRequest,
@@ -213,6 +213,7 @@ export type PlatformServices = {
   listAdminStandaloneModes(auth: AuthContext): Promise<AdminStandaloneModeListResponse>;
   upsertAdminStandaloneMode(input: AdminStandaloneModeUpsertRequest & { mode: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminStandaloneMode>;
   listMaps(): Promise<Map[]>;
+  createAdminMap(input: AdminMapCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<Map>;
   updateAdminMapMetadata(input: AdminMapMetadataUpdateRequest & { mapId: string }, auth: AuthContext, idempotencyKey: string): Promise<Map>;
   getAdminMapEditor(input: { mapId: string }, auth: AuthContext): Promise<AdminMapEditorResponse>;
   createAdminMapRevision(input: AdminMapRevisionCreateRequest & { mapId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminMapRevision>;

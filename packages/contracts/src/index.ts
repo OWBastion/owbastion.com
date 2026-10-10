@@ -589,6 +589,14 @@ export const adminReviewDetailResponseSchema = z.object({ contractVersion, revie
 export const adminReviewCommentModerationRequestSchema = z.object({ contractVersion, action: z.enum(["hide", "restore"]), reason: z.string().trim().max(512).optional() }).strict();
 export const adminReviewStateModerationRequestSchema = z.object({ contractVersion, action: z.enum(["invalidate", "restore"]), reason: z.string().trim().max(512).optional() }).strict();
 
+// A new map starts active with an empty default revision; the id is generated when omitted.
+export const adminMapCreateRequestSchema = z.object({
+  contractVersion,
+  mapName: z.string().trim().min(1).max(128),
+  mapId: z.string().trim().regex(/^map\.[a-z0-9_]{1,64}$/).optional(),
+  gameVersion: z.string().trim().min(1).max(64).optional(),
+}).strict();
+
 export const adminMapMetadataUpdateRequestSchema = z.object({
   contractVersion,
   gameVersion: z.string().trim().min(1).max(64),
@@ -1711,6 +1719,7 @@ export type AdminRandomEventVersionAvailabilityRequest = z.infer<typeof adminRan
 export type AdminStandaloneMode = z.infer<typeof adminStandaloneModeSchema>;
 export type AdminStandaloneModeListResponse = z.infer<typeof adminStandaloneModeListResponseSchema>;
 export type AdminStandaloneModeUpsertRequest = z.infer<typeof adminStandaloneModeUpsertRequestSchema>;
+export type AdminMapCreateRequest = z.infer<typeof adminMapCreateRequestSchema>;
 export type AdminMapMetadataUpdateRequest = z.infer<typeof adminMapMetadataUpdateRequestSchema>;
 export type AdminMapRevisionChallengeAssignment = z.infer<typeof adminMapRevisionChallengeAssignmentSchema>;
 export type AdminMapRevisionCreateRequest = z.infer<typeof adminMapRevisionCreateRequestSchema>;
