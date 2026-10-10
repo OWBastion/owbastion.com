@@ -1277,13 +1277,13 @@ describe("map title rule model – locked invariants", () => {
       sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.garbled', 'binding.garbled', 'ocr_pending', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'garbled.1', ?, ?)").run(now, now);
       sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, byte_size, sha256, object_key, upload_status, created_at) VALUES ('attachment.garbled', 'submission.garbled', 'portal', 'external.garbled', 'image/png', 1, 'hash', 'evidence/garbled.png', 'stored', ?)").run(now);
 
-      // A regular clear whose 随机事件 label OCR misread: neither regular nor any configured standalone mode.
+      // A label that is neither regular nor any configured standalone mode, and not a near-miss of one.
       const ocrResponse = {
         schema_version: "1",
         ok: true,
         layout_version: "1280x720-v7",
         fields: Object.fromEntries(["challenge_completed", "map_name", "difficulty"].map((field) => [field, { status: "ok", confidence: 0.99 }])),
-        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.rialto", difficulty: "地狱", mode: "随机事仵5.0" },
+        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.rialto", difficulty: "地狱", mode: "乱码模式" },
       };
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
       try {
@@ -1297,7 +1297,7 @@ describe("map title rule model – locked invariants", () => {
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE player_account_id = 'player.garbled'").get()).toEqual({ count: 0 });
     });
 
-    it("records a standalone-mode clear on that mode's revision and settles only the checked limited title", async () => {
+    it.each(["2026镜中回响", "202S镜中回响"])("records a standalone-mode clear read as %s on that mode's revision and settles only the checked limited title", async (modeLabel) => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);
       seedMap(sqlite, "map.rialto");
@@ -1319,7 +1319,7 @@ describe("map title rule model – locked invariants", () => {
         ok: true,
         layout_version: "1280x720-v7",
         fields: Object.fromEntries(["challenge_completed", "map_name", "difficulty", "achievement_titles", "version", "run_code", "duration_seconds", "deaths", "skips"].map((field) => [field, { status: "ok", confidence: 0.99 }])),
-        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.rialto", difficulty: "地狱", mode: "2026镜中回响", achievement_titles: ["称号 PROPHET"], version: "99.0101.1", run_code: "9695-1153-2370", duration_seconds: 600, deaths: 0, skips: 0 },
+        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.rialto", difficulty: "地狱", mode: modeLabel, achievement_titles: ["称号 PROPHET"], version: "99.0101.1", run_code: "9695-1153-2370", duration_seconds: 600, deaths: 0, skips: 0 },
       };
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
       try {
@@ -1336,6 +1336,9 @@ describe("map title rule model – locked invariants", () => {
       expect(sqlite.prepare("SELECT gameplay_revision_id, status FROM mastery_runs WHERE player_account_id = 'player.mirror'").all()).toEqual([
         { gameplay_revision_id: "revision:map.rialto:mirror", status: "active" },
       ]);
+      // A misread label is matched to the mode but the evidence keeps what OCR actually read.
+      expect(sqlite.prepare("SELECT json_extract(response_json, '$.data.mode') AS mode, json_extract(response_json, '$.data.mode_read') AS mode_read FROM ocr_results WHERE submission_id = 'submission.mirror'").get())
+        .toEqual({ mode: "2026镜中回响", mode_read: modeLabel === "2026镜中回响" ? null : modeLabel });
     });
 
     it("preserves each matched challenge completion while granting a shared title once", async () => {
@@ -2251,7 +2254,7 @@ describe("maintainer Challenge confirmation during submission review", () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
     seedIncompleteMapEvidence(sqlite);
-    sqlite.prepare("UPDATE ocr_results SET response_json = ? WHERE id = 'ocr.confirm'").run(JSON.stringify({ schema_version: "1", ok: true, layout_version: "1280x720-v7", data: { map_name: "地图 map.paris", difficulty: "地狱", mode: "随机事仵5.0" } }));
+    sqlite.prepare("UPDATE ocr_results SET response_json = ? WHERE id = 'ocr.confirm'").run(JSON.stringify({ schema_version: "1", ok: true, layout_version: "1280x720-v7", data: { map_name: "地图 map.paris", difficulty: "地狱", mode: "乱码模式" } }));
     const services = createPlatformServices(database);
 
     // With the misread mode the map Challenge is only manually linkable; the corrected mode makes it evidence again.
