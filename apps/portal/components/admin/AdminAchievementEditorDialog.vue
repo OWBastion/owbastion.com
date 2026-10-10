@@ -218,7 +218,7 @@ function onIconFile(value: File | null | undefined) {
             <USelect class="editor-control" :model-value="asChallenge(item)!.mapIds ?? []" multiple :items="[{ label: '全部有效地图', value: '' }, ...maps.map((map) => ({ label: map.mapName, value: map.mapId }))]" :disabled="saving" @update:model-value="setMapIds(($event as string[]).filter(Boolean))" />
           </UFormField>
           <UFormField v-if="asChallenge(item)!.scope === 'map'" class="editor-field" label="地图版本">
-            <USelect class="editor-control" :model-value="asChallenge(item)!.mapVariant" :items="[{ label: '正式版', value: undefined }, { label: '经典版', value: 'classic' }]" :disabled="saving" @update:model-value="setMapVariant($event as 'classic' | undefined)" />
+            <USelect class="editor-control" :model-value="asChallenge(item)!.mapVariant" :items="[{ label: '标准版', value: undefined }, { label: '经典版', value: 'classic' }]" :disabled="saving" @update:model-value="setMapVariant($event as 'classic' | undefined)" />
           </UFormField>
         </template>
 

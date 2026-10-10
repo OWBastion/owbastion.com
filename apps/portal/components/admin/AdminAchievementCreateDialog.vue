@@ -137,7 +137,7 @@ function submit() {
               <UFormField class="editor-field" label="称号适用范围"><USelect v-model="form.scope" class="editor-control" :disabled="props.saving" :items="[{ label: '全部地图', value: 'global' }, { label: '指定地图', value: 'map' }]" /></UFormField>
               <template v-if="form.scope === 'map'">
                 <UFormField class="editor-field editor-field--wide" label="指定地图" hint="留空作用于全部有效地图。"><USelect v-model="form.mapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
-                <UFormField class="editor-field" label="地图版本"><USelect v-model="form.mapVariant" class="editor-control" :items="[{ label: '正式版', value: undefined }, { label: '经典版', value: 'classic' }]" :disabled="props.saving" /></UFormField>
+                <UFormField class="editor-field" label="地图版本"><USelect v-model="form.mapVariant" class="editor-control" :items="[{ label: '标准版', value: undefined }, { label: '经典版', value: 'classic' }]" :disabled="props.saving" /></UFormField>
               </template>
             </template>
             <UFormField class="editor-field editor-field--wide" label="自定义图标" hint="留空使用默认图标。">
