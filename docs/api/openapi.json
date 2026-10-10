@@ -1484,6 +1484,32 @@
       "$ref": "#/components/responses/Json"
      }
     }
+   },
+   "post": {
+    "operationId": "createAdminMap",
+    "description": "Adds a map that Blizzard released after the original catalog. The map starts active with an empty default gameplay revision (no spatial configuration) that carries every active all-map title rule; the id is generated when omitted and the game version defaults to the newest known Bastion build in YY.MMDD.N format. Map names must be unique.",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/idempotencyKey"
+     }
+    ],
+    "responses": {
+     "201": {
+      "$ref": "#/components/responses/Json"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "409": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
    }
   },
   "/v1/admin/maps/{mapId}/editor": {

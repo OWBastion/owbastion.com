@@ -14,7 +14,10 @@ const mapsPayload = {
     backgroundUrl: null as string | null,
   }],
 };
-const adminApi = vi.fn(async (path: string) => {
+const navigateTo = vi.hoisted(() => vi.fn());
+mockNuxtImport("navigateTo", () => navigateTo);
+const adminApi = vi.fn(async (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+  if (path === "/v1/maps" && options?.method === "POST") return { mapId: "map.new_1", mapName: options.body?.mapName, gameVersion: "26.1003.1" };
   if (path === "/v1/maps") return mapsPayload;
   if (path === "/v1/achievements?type=map") return { items: [{ mapId: "map.samoa" }] };
   throw new Error(`Unexpected request: ${path}`);
@@ -49,5 +52,19 @@ describe("admin maps directory", () => {
     expect(adminApi).toHaveBeenCalledWith("/v1/maps");
     expect(adminApi).toHaveBeenCalledWith("/v1/achievements?type=map");
     expect(adminApi.mock.calls.some(([path]) => path === "/v1/maps/map.samoa/metadata")).toBe(false);
+  });
+
+  it("adds a map by name only and opens its editor", async () => {
+    const wrapper = await mountPage();
+    await wrapper.findAll("button").find((button) => button.text() === "新增地图")!.trigger("click");
+    await flushPromises();
+    const name = document.body.querySelector<HTMLInputElement>("form#map-create-form input")!;
+    name.value = "新地图";
+    name.dispatchEvent(new Event("input"));
+    document.body.querySelector<HTMLFormElement>("form#map-create-form")!.dispatchEvent(new Event("submit", { cancelable: true }));
+    await flushPromises();
+    expect(adminApi).toHaveBeenCalledWith("/v1/maps", expect.objectContaining({ method: "POST", body: { contractVersion: "1", mapName: "新地图" } }));
+    expect(navigateTo).toHaveBeenCalledWith("/admin/maps/map.new_1");
+    wrapper.unmount();
   });
 });

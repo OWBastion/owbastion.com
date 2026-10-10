@@ -2,6 +2,7 @@
 import type { TableColumn } from "@nuxt/ui";
 import type { SortingState } from "@tanstack/vue-table";
 import type { Map } from "~/types/challenge";
+import { createRequestId } from "~/utils/request-id";
 import { portalErrorDetails } from "~/utils/portal-error";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
@@ -57,10 +58,46 @@ const { loading } = useAdminAsyncData("maps", async () => {
   });
 
 watch(query, (value) => { globalFilter.value = value; });
+
+const toast = useToast();
+const createOpen = shallowRef(false);
+const creating = shallowRef(false);
+const createForm = reactive({ mapName: "", mapId: "", gameVersion: "" });
+
+function openCreate() {
+  Object.assign(createForm, { mapName: "", mapId: "", gameVersion: "" });
+  createOpen.value = true;
+}
+
+async function createMap() {
+  if (!createForm.mapName.trim() || creating.value) return;
+  creating.value = true;
+  errorMessage.value = "";
+  try {
+    const created = await api<Map>("/v1/maps", {
+      method: "POST",
+      headers: { "Idempotency-Key": createRequestId() },
+      body: {
+        contractVersion: "1",
+        mapName: createForm.mapName.trim(),
+        ...(createForm.mapId.trim() ? { mapId: createForm.mapId.trim() } : {}),
+        ...(createForm.gameVersion.trim() ? { gameVersion: createForm.gameVersion.trim() } : {}),
+      },
+    });
+    toast.add({ title: `「${created.mapName}」已添加`, description: "已创建默认版本，可继续配置地图评级与空间配置。", color: "success" });
+    createOpen.value = false;
+    await navigateTo(`/admin/maps/${encodeURIComponent(created.mapId)}`);
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法添加地图，请稍后重试。").description;
+  } finally {
+    creating.value = false;
+  }
+}
 </script>
 
 <template>
   <AdminWorkspace title="地图管理" :count="loading ? '读取中…' : `${maps.length} 张`">
+    <template #actions><UButton class="pressable" label="新增地图" icon="i-lucide-plus" @click="openCreate" /></template>
     <template #messages>
       <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
     </template>
@@ -113,10 +150,36 @@ watch(query, (value) => { globalFilter.value = value; });
         </template>
       </AdminDataTable>
     </section>
+    <AdminResponsiveDialog v-model:open="createOpen" title="新增地图" size="md" :dismissible="!creating">
+      <template #body>
+        <form id="map-create-form" class="grid gap-4" @submit.prevent="createMap">
+          <UFormField label="地图名称" required hint="与截图中的地图名一致，如 皇家赛道。">
+            <UInput v-model="createForm.mapName" :disabled="creating" required maxlength="128" />
+          </UFormField>
+          <details class="more-settings">
+            <summary>更多设置</summary>
+            <div class="grid gap-4 pt-3">
+              <UFormField label="地图标识" hint="留空自动生成；也可填 map.xxx（小写字母、数字、下划线）。">
+                <UInput v-model="createForm.mapId" placeholder="例如 map.new_york" :disabled="creating" />
+              </UFormField>
+              <UFormField label="游戏版本" hint="留空使用最新版本，格式 YY.MMDD.序号。">
+                <UInput v-model="createForm.gameVersion" placeholder="例如 26.1003.1" :disabled="creating" />
+              </UFormField>
+            </div>
+          </details>
+        </form>
+      </template>
+      <template #footer>
+        <UButton type="submit" form="map-create-form" label="添加" :loading="creating" :disabled="!createForm.mapName.trim()" />
+        <UButton label="取消" color="neutral" variant="outline" :disabled="creating" @click="createOpen = false" />
+      </template>
+    </AdminResponsiveDialog>
   </AdminWorkspace>
 </template>
 
 <style scoped>
+.more-settings { border-top: 1px solid var(--line); color: var(--muted); }
+.more-settings summary { padding: var(--space-3) 0; cursor: pointer; }
 .table-meta { color: var(--quiet); font-size: var(--type-caption-size); }
 .maps-table :deep(table[data-slot="base"]) { width: 100%; table-layout: fixed; }
 .maps-table :deep(th:nth-child(1)), .maps-table :deep(td:nth-child(1)) { width: 24%; }

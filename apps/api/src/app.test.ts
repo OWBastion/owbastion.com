@@ -43,6 +43,7 @@ const services: PlatformServices = {
   listAdminStandaloneModes: async () => ({ contractVersion: "1" as const, items: [] }),
   upsertAdminStandaloneMode: async ({ mode, mapIds, eventPools, eventWeightTotal }) => ({ mode, mapIds, eventPools, eventWeightTotal, createdAt: 0, updatedAt: 0 }),
   listMaps: async () => [],
+  createAdminMap: async () => { throw new Error("MAP_NAME_CONFLICT"); },
   updateAdminMapMetadata: async () => { throw new Error("MAP_NOT_FOUND"); },
   getAdminMapEditor: async () => { throw new Error("MAP_NOT_FOUND"); },
   createAdminMapRevision: async () => { throw new Error("MAP_NOT_FOUND"); },
@@ -1661,6 +1662,10 @@ describe("API", () => {
     expect(adminMapTitles.status).toBe(200);
     expect(await adminMapTitles.json()).toMatchObject({ contractVersion: "1", items: [{ titleKey: "PIONEER", scope: "map", mapId: "map.samoa" }] });
     expect((await adminCatalogApp.request("http://localhost/v1/admin/maps/map.samoa/metadata", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", difficultyRating: "T3", mechanics: ["动态掩体"] }) }, env)).status).toBe(422);
+    const createMapRequest = (body: unknown, key?: string) => adminCatalogApp.request("http://localhost/v1/admin/maps", { method: "POST", headers: { "content-type": "application/json", ...(key ? { "idempotency-key": key } : {}) }, body: JSON.stringify(body) }, env);
+    expect((await createMapRequest({ contractVersion: "1", mapName: "新地图" })).status).toBe(422);
+    expect((await createMapRequest({ contractVersion: "1", mapName: "新地图", mapId: "Bad Id" }, "map-create-1")).status).toBe(422);
+    expect((await createMapRequest({ contractVersion: "1", mapName: "新地图" }, "map-create-2")).status).toBe(409);
     const metadataUpdate = await adminCatalogApp.request("http://localhost/v1/admin/maps/map.samoa/metadata", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "map-metadata-1" }, body: JSON.stringify({ contractVersion: "1", gameVersion: "2026.08.13", difficultyRating: "T3", mechanics: ["动态掩体"], coverUrl: null, backgroundUrl: null }) }, env);
     expect(metadataUpdate.status).toBe(200);
     expect(await metadataUpdate.json()).toMatchObject({ mapId: "map.samoa", gameVersion: "2026.08.13", difficultyRating: "T3", mechanics: ["动态掩体"] });

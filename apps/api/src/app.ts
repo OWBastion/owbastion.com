@@ -33,6 +33,7 @@ import {
   adminAchievementCreateRequestSchema,
   adminCatalogTitleUpdateRequestSchema,
   adminMapTitleRuleCreateRequestSchema, adminMapTitleRuleUpdateRequestSchema, adminMapTitleRuleExceptionUpsertRequestSchema,
+  adminMapCreateRequestSchema,
   adminMapMetadataUpdateRequestSchema,
   adminMapRevisionCreateRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapRevisionPromotionRequestSchema,
   adminRandomEventCreateRequestSchema, adminStandaloneModeUpsertRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventBatchRequestSchema, adminRandomEventImportRequestSchema, adminRandomEventVersionAvailabilityRequestSchema,
@@ -1386,6 +1387,20 @@ export const createApp = (dependencies: AppDependencies) => {
     }
   });
 
+  app.post("/v1/admin/maps", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminMapCreateRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await servicesFor(c).createAdminMap(parsed.data, access.auth!, idempotencyKey), 201); }
+    catch (error) {
+      const code = error instanceof Error ? error.message : "MAP_CREATE_FAILED";
+      if (["MAP_NAME_CONFLICT", "MAP_ID_CONFLICT", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The map conflicts with an existing record");
+      throw error;
+    }
+  });
   app.get("/v1/admin/maps", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
