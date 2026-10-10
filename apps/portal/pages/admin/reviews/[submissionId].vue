@@ -161,6 +161,20 @@ async function resolveSpotCheck(decision: "confirmed" | "revoked", reason?: stri
   } finally { actionLoading.value = false; }
 }
 
+async function reopenSubmission(reason?: string) {
+  if (!submission.value || actionLoading.value) return;
+  actionLoading.value = true;
+  spotCheckError.value = "";
+  try {
+    const result = await api<{ revokedGrantCount: number }>(`/v1/submissions/${encodeURIComponent(submission.value.submissionId)}/reopen`, { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", ...(reason ? { reason } : {}) } });
+    toast.add({ title: `已重新打开核对，撤销 ${result.revokedGrantCount} 个称号`, color: "success" });
+    await load();
+  } catch (error) {
+    const details = portalErrorDetails(error, "重新打开失败，请稍后重试。");
+    spotCheckError.value = details.code ? `重新打开失败（${details.code}）：${details.description}` : details.description;
+  } finally { actionLoading.value = false; }
+}
+
 async function retryOcr() {
   if (!submission.value || actionLoading.value || ocrRetryLoading.value) return;
   ocrRetryLoading.value = true;
@@ -196,7 +210,7 @@ useSeoMeta({ title: () => `${pageTitle.value} · 躲避堡垒 3` });
   <AdminWorkspace :title="pageTitle">
     <template #actions><UButton :to="queuePath" label="返回队列" icon="i-lucide-arrow-left" color="neutral" variant="ghost" /></template>
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /><USkeleton v-else-if="loading" class="detail-loading" /><UAlert v-if="refreshError" color="warning" variant="subtle" :description="refreshError" role="status" /></template>
-    <AdminSubmissionReviewDetail v-if="submission" :submission="submission" :evidence-src="evidenceSrc" :evidence-error="evidenceError" :review-error="reviewError || spotCheckError" :action-loading="actionLoading" :ocr-retry-error="ocrRetryError" :ocr-retry-loading="ocrRetryLoading" :ocr-accuracy-error="ocrAccuracyError" :ocr-accuracy-loading="ocrAccuracyLoading" :preview="preview" :preview-loading="previewLoading" :preview-error="previewError" :preview-current="previewKey === reviewInputKey" @review="review" @review-input="updateReviewInput" @retry-preview="loadPreview" @spot-check="resolveSpotCheck" @retry-ocr="retryOcr" @ocr-accuracy="markOcrAccuracy" @evidence-error="evidenceError = true" />
+    <AdminSubmissionReviewDetail v-if="submission" :submission="submission" :evidence-src="evidenceSrc" :evidence-error="evidenceError" :review-error="reviewError || spotCheckError" :action-loading="actionLoading" :ocr-retry-error="ocrRetryError" :ocr-retry-loading="ocrRetryLoading" :ocr-accuracy-error="ocrAccuracyError" :ocr-accuracy-loading="ocrAccuracyLoading" :preview="preview" :preview-loading="previewLoading" :preview-error="previewError" :preview-current="previewKey === reviewInputKey" @review="review" @review-input="updateReviewInput" @retry-preview="loadPreview" @spot-check="resolveSpotCheck" @reopen="reopenSubmission" @retry-ocr="retryOcr" @ocr-accuracy="markOcrAccuracy" @evidence-error="evidenceError = true" />
     <UEmpty v-else-if="!loading" title="找不到该提交" />
   </AdminWorkspace>
 </template>

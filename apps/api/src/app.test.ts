@@ -78,6 +78,7 @@ const services: PlatformServices = {
   completePlayerUpload: async () => ({ submissionId: "00000000-0000-0000-0000-000000000003", status: "processing" }),
   listAdminSubmissions: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 50, total: 0, hasMore: false }),
   getAdminSubmission: async () => { throw new Error("SUBMISSION_NOT_FOUND"); },
+  reopenAdminSubmission: async ({ submissionId }) => ({ contractVersion: "1", submissionId, status: "ocr_review_required", revokedGrantCount: 0, verifiedRunId: null }),
   reevaluateAdminSubmissionOcr: async ({ submissionId }) => ({ contractVersion: "1", submissionId, status: "approved" }),
   requestAdminOcr: async ({ submissionId }) => ({ contractVersion: "1", submissionId, status: "ocr_pending" }),
   resolveAdminSubmissionSpotCheck: async ({ submissionId, decision }) => ({ contractVersion: "1", submissionId, status: decision, grantId: null, verifiedRunId: null }),
@@ -1974,6 +1975,16 @@ describe("API", () => {
     expect(await ok.json()).toMatchObject({ status: "approved" });
     const rejected = await call(async () => { throw new Error("SUBMISSION_NOT_REEVALUABLE"); });
     expect(rejected.status).toBe(409);
+  });
+
+  it("reopens an approved submission and rejects one that is not approved", async () => {
+    const id = "00000000-0000-0000-0000-000000000000";
+    const call = (reopen: () => Promise<unknown>) => createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, reopenAdminSubmission: reopen as never }) })
+      .request(`http://localhost/v1/admin/submissions/${id}/reopen`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "reopen-1" }, body: JSON.stringify({ contractVersion: "1" }) }, env);
+    const ok = await call(async () => ({ contractVersion: "1", submissionId: id, status: "ocr_review_required", revokedGrantCount: 2, verifiedRunId: null }));
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toMatchObject({ status: "ocr_review_required", revokedGrantCount: 2 });
+    expect((await call(async () => { throw new Error("SUBMISSION_NOT_REOPENABLE"); })).status).toBe(409);
   });
 
   it("does not expose player or maintainer challenge selection routes", async () => {

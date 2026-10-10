@@ -36,6 +36,7 @@ import type {
   AdminSubmissionReviewPreviewResponse,
   AdminSubmissionReviewResponse,
   AdminSubmissionOcrReevaluateResponse,
+  AdminSubmissionReopenResponse,
   AdminSubmissionOcrRetryResponse,
   AdminSubmissionSpotCheckRequest,
   AdminSubmissionSpotCheckResponse,
@@ -249,6 +250,7 @@ export type PlatformServices = {
   uploadEvidence(input: { uploadId: string; body: ArrayBuffer; contentType: string }, sessionToken: string): Promise<void>;
   listAdminSubmissions(input: { statuses?: AdminSubmission["status"][]; spotCheck?: "pending" | "confirmed" | "revoked"; order?: "oldest" | "newest"; page: number; pageSize: number }, auth: AuthContext): Promise<AdminSubmissionListResponse>;
   getAdminSubmission(input: { submissionId: string }, auth: AuthContext): Promise<AdminSubmission>;
+  reopenAdminSubmission(input: { submissionId: string; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionReopenResponse>;
   reevaluateAdminSubmissionOcr(input: { submissionId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionOcrReevaluateResponse>;
   requestAdminOcr(input: { submissionId: string }, auth: AuthContext, idempotencyKey: string, requestId?: string): Promise<AdminSubmissionOcrRetryResponse>;
   resolveAdminSubmissionSpotCheck(input: { submissionId: string } & AdminSubmissionSpotCheckRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionSpotCheckResponse>;

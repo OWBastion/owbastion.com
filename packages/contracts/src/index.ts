@@ -1108,6 +1108,8 @@ export const adminSubmissionReviewResponseSchema = z.object({
   contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grant: z.null(), verifiedRunOutcome: playerVerifiedRunSubmissionOutcomeSchema,
 })).or(z.object({ contractVersion, submissionId: z.string().uuid(), decision: z.enum(["rejected", "resubmission_required"]), grant: z.null() }));
 export const adminSubmissionOcrRetryRequestSchema = z.object({ contractVersion });
+export const adminSubmissionReopenRequestSchema = z.object({ contractVersion, reason: z.string().trim().max(500).optional() });
+export const adminSubmissionReopenResponseSchema = z.object({ contractVersion, submissionId: z.string().uuid(), status: z.literal("ocr_review_required"), revokedGrantCount: z.number().int().nonnegative(), verifiedRunId: z.string().nullable() });
 export const adminSubmissionOcrReevaluateRequestSchema = z.object({ contractVersion });
 export const adminSubmissionOcrReevaluateResponseSchema = z.object({ contractVersion, submissionId: z.string().uuid(), status: z.string().min(1) });
 export const adminSubmissionOcrRetryResponseSchema = z.object({ contractVersion, submissionId: z.string().uuid(), status: z.literal("ocr_pending") });
@@ -1775,6 +1777,7 @@ export type AdminSubmissionReviewResponse = z.infer<typeof adminSubmissionReview
 export type AdminSubmissionReviewPreviewRequest = z.infer<typeof adminSubmissionReviewPreviewRequestSchema>;
 export type AdminSubmissionReviewPreviewResponse = z.infer<typeof adminSubmissionReviewPreviewResponseSchema>;
 export type AdminSubmissionReviewCandidate = z.infer<typeof adminSubmissionReviewCandidateSchema>;
+export type AdminSubmissionReopenResponse = z.infer<typeof adminSubmissionReopenResponseSchema>;
 export type AdminSubmissionOcrReevaluateResponse = z.infer<typeof adminSubmissionOcrReevaluateResponseSchema>;
 export type AdminSubmissionOcrRetryResponse = z.infer<typeof adminSubmissionOcrRetryResponseSchema>;
 export type AdminSubmissionSpotCheckRequest = z.infer<typeof adminSubmissionSpotCheckRequestSchema>;
