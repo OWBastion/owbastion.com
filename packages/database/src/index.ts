@@ -1574,17 +1574,17 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     const exceptionByRule = new globalThis.Map(exceptionRows.map((exception) => [exception.ruleId, exception]));
     return [
       ...mapChallengeRows.map((challenge): AdminMapEditorChallengeOption => ({
-        challengeFamily: "map_challenge", challengeId: challenge.id, label: challenge.name, kind: challenge.type, status: challenge.status, gameVersion: challenge.gameVersion,
+        challengeFamily: "map_challenge", challengeId: challenge.id, label: challenge.name, kind: challenge.type, titleKey: challenge.rewardTitleKey, status: challenge.status, gameVersion: challenge.gameVersion,
       })),
       ...ruleRows.filter(({ rule }) => {
         if (rule.kind.trim().toLocaleLowerCase() !== "pioneer") return true;
         const exception = exceptionByRule.get(rule.id);
         return rule.defaultScope === "explicit" && exception?.enabled === 1 && pioneerExceptionHasValidWindow(exception.startsAt, exception.endsAt) && exception.endsAt! > now();
       }).map(({ rule, title }): AdminMapEditorChallengeOption => ({
-        challengeFamily: "map_title_rule", challengeId: rule.id, label: title.label, kind: rule.kind, status: rule.status, gameVersion: rule.introducedVersion,
+        challengeFamily: "map_title_rule", challengeId: rule.id, label: title.label, kind: rule.kind, titleKey: rule.titleKey, status: rule.status, gameVersion: rule.introducedVersion,
       })),
       ...titleChallengeRows.filter(({ challenge, title }) => challenge.gameVersion?.trim() && title.gameVersion?.trim()).map(({ challenge, title }): AdminMapEditorChallengeOption => ({
-        challengeFamily: "title_challenge", challengeId: challenge.id, label: title.label, kind: "title_challenge", status: challenge.status, gameVersion: challenge.gameVersion!,
+        challengeFamily: "title_challenge", challengeId: challenge.id, label: title.label, kind: "title_challenge", titleKey: challenge.titleKey, status: challenge.status, gameVersion: challenge.gameVersion!,
       })),
     ].sort((left, right) => compareText(`${left.challengeFamily}:${left.label}:${left.challengeId}`, `${right.challengeFamily}:${right.label}:${right.challengeId}`));
   };

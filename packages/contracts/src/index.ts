@@ -787,6 +787,7 @@ export const adminMapEditorChallengeOptionSchema = z.object({
   challengeId: externalId,
   label: z.string().trim().min(1).max(256),
   kind: z.string().trim().min(1).max(64),
+  titleKey: externalId.nullable(),
   status: z.string().trim().min(1).max(32),
   gameVersion: z.string().trim().min(1).max(64),
 }).strict();

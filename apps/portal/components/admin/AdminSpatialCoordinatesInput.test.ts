@@ -60,6 +60,10 @@ Modify Global Variable(controlRespawnPosition, Append To Array, Vector(19, 20, 2
 Modify Global Variable(portalPosition, Append To Array, Vector(22, 23, 24));
 `;
 
+const expandDetails = async (wrapper: Awaited<ReturnType<typeof mountSuspended>>) => {
+  await wrapper.findAll("button").find((btn) => btn.text().includes("展开坐标明细"))?.trigger("click");
+};
+
 describe("AdminSpatialCoordinatesInput", () => {
   it("formats an existing spatial configuration and displays recognition summary", async () => {
     const wrapper = await mountSuspended(AdminSpatialCoordinatesInput, {
@@ -74,6 +78,8 @@ describe("AdminSpatialCoordinatesInput", () => {
     expect(wrapper.text()).toContain("已识别 6 个点位");
     expect(wrapper.text()).toContain("Bastion 出生点 2");
     expect(wrapper.text()).toContain("重置点 1");
+    expect(wrapper.text()).not.toContain("-121.979");
+    await expandDetails(wrapper);
     expect(wrapper.text()).toContain("核心点位");
     expect(wrapper.text()).toContain("-121.979");
   });
@@ -153,6 +159,7 @@ describe("AdminSpatialCoordinatesInput", () => {
 
     const textarea = wrapper.get("textarea");
     await textarea.setValue(sampleControlText);
+    await expandDetails(wrapper);
 
     expect(wrapper.text()).toContain("传送与跳板");
     expect(wrapper.text()).toContain("占领机制");
@@ -168,6 +175,7 @@ describe("AdminSpatialCoordinatesInput", () => {
     expect(routeWrapper.text()).toContain("全路线共享点位代码");
     expect(routeWrapper.text()).toContain("全路线共享点位");
     expect(routeWrapper.text()).toContain("已识别 4 个点位");
+    await expandDetails(routeWrapper);
     expect(routeWrapper.text()).toContain("重生轴：X 轴");
     expect((routeWrapper.get("textarea").element as HTMLTextAreaElement).value).toContain("Global.controlRespawnAxis = 0;");
 
@@ -194,13 +202,15 @@ describe("AdminSpatialCoordinatesInput", () => {
       },
     });
 
+    expect(wrapper.text()).not.toContain("-121.979");
+    expect(wrapper.text()).toContain("展开坐标明细");
+    await expandDetails(wrapper);
     expect(wrapper.text()).toContain("-121.979");
     const toggleButton = wrapper.findAll("button").find((btn) => btn.text().includes("收起坐标明细"));
     expect(toggleButton).toBeDefined();
 
     await toggleButton?.trigger("click");
     expect(wrapper.text()).not.toContain("-121.979");
-    expect(wrapper.text()).toContain("展开坐标明细");
 
     const expandButton = wrapper.findAll("button").find((btn) => btn.text().includes("展开坐标明细"));
     await expandButton?.trigger("click");

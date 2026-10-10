@@ -3,7 +3,7 @@ import { agentSpatialConfigSchema } from "@owbastion/contracts";
 import AdminCompositeSpatialConfigInput from "./AdminCompositeSpatialConfigInput.vue";
 import AdminLegacyCompositeSpatialConfigInput from "./AdminLegacyCompositeSpatialConfigInput.vue";
 import AdminSpatialCoordinatesInput from "./AdminSpatialCoordinatesInput.vue";
-import { parseSpatialConfigSource, type SpatialConfigValue } from "~/utils/spatial-config-import";
+import type { SpatialConfigValue } from "~/utils/spatial-config-import";
 
 const props = withDefaults(defineProps<{
   modelValue: SpatialConfigValue | null;
@@ -19,8 +19,8 @@ const emit = defineEmits<{
 type SpatialMode = "single" | "composite";
 
 const modeItems = [
-  { value: "single", label: "单一路线" },
-  { value: "composite", label: "组合路线" },
+  { value: "single", label: "单一地图" },
+  { value: "composite", label: "多合一（每局随机抽几段）" },
 ];
 
 const isComposite = (value: SpatialConfigValue | null): value is SpatialConfigValue =>
@@ -55,21 +55,12 @@ const singleDraft = shallowRef<SpatialConfigValue | null>(mode.value === "single
 const compositeDraft = shallowRef<SpatialConfigValue | null>(mode.value === "composite" ? props.modelValue : null);
 const singleCoordinatesValid = shallowRef(true);
 const compositeValid = shallowRef(true);
-const advancedJson = shallowRef("");
-const advancedJsonError = shallowRef("");
-
-function writeAdvancedJson(value: SpatialConfigValue | null) {
-  advancedJson.value = value ? JSON.stringify(value, null, 2) : "";
-  advancedJsonError.value = "";
-}
-
 function sync() {
   mode.value = isComposite(props.modelValue) ? "composite" : "single";
   singleDraft.value = mode.value === "single" ? props.modelValue : null;
   compositeDraft.value = mode.value === "composite" ? props.modelValue : null;
   singleCoordinatesValid.value = true;
   compositeValid.value = true;
-  writeAdvancedJson(props.modelValue);
   emit("valid", props.modelValue === null || agentSpatialConfigSchema.safeParse(props.modelValue).success);
 }
 
@@ -78,15 +69,12 @@ watch(() => props.revisionKey, sync, { immediate: true });
 function updateMode(value: SpatialMode) {
   if (value === mode.value) return;
   mode.value = value;
-  advancedJsonError.value = "";
   if (value === "composite") {
     compositeDraft.value ??= createEmptyCompositeConfig();
-    writeAdvancedJson(compositeDraft.value);
     emit("update:modelValue", compositeDraft.value);
     emit("valid", compositeValid.value && agentSpatialConfigSchema.safeParse(compositeDraft.value).success);
   } else {
     singleCoordinatesValid.value = true;
-    writeAdvancedJson(singleDraft.value);
     emit("update:modelValue", singleDraft.value);
     emit("valid", singleDraft.value === null || (singleCoordinatesValid.value && agentSpatialConfigSchema.safeParse(singleDraft.value).success));
   }
@@ -94,7 +82,6 @@ function updateMode(value: SpatialMode) {
 
 function updateSingle(value: SpatialConfigValue | null) {
   singleDraft.value = value;
-  writeAdvancedJson(value);
   emit("update:modelValue", value);
   emit("valid", value === null || (singleCoordinatesValid.value && agentSpatialConfigSchema.safeParse(value).success));
 }
@@ -106,7 +93,6 @@ function updateSingleValidity(value: boolean) {
 
 function updateComposite(value: SpatialConfigValue) {
   compositeDraft.value = value;
-  writeAdvancedJson(value);
   emit("update:modelValue", value);
   emit("valid", compositeValid.value && agentSpatialConfigSchema.safeParse(value).success);
 }
@@ -115,49 +101,21 @@ function updateCompositeValidity(value: boolean) {
   compositeValid.value = value;
   emit("valid", value && agentSpatialConfigSchema.safeParse(compositeDraft.value).success);
 }
-
-function updateAdvancedJson(value: string) {
-  advancedJson.value = value;
-  advancedJsonError.value = "";
-  if (!value.trim().startsWith("{")) {
-    advancedJsonError.value = "请粘贴完整空间配置 JSON。";
-    emit("valid", false);
-    return;
-  }
-  const result = parseSpatialConfigSource(value);
-  if (!result.ok) {
-    advancedJsonError.value = result.error;
-    emit("valid", false);
-    return;
-  }
-  const validated = agentSpatialConfigSchema.safeParse(result.config);
-  if (!validated.success) {
-    advancedJsonError.value = "空间配置 JSON 无效，请检查点位、阶段 ID、选择数量和检测配置。";
-    emit("valid", false);
-    return;
-  }
-  const config = validated.data as SpatialConfigValue;
-  mode.value = isComposite(config) ? "composite" : "single";
-  singleDraft.value = mode.value === "single" ? config : null;
-  compositeDraft.value = mode.value === "composite" ? config : null;
-  singleCoordinatesValid.value = true;
-  compositeValid.value = true;
-  emit("update:modelValue", config);
-  emit("valid", true);
-}
 </script>
 
 <template>
   <div class="spatial-config-editor">
-    <UFormField label="路线类型">
-      <USelect
-        :model-value="mode"
-        :items="modeItems"
+    <div class="spatial-mode" role="group" aria-label="路线类型">
+      <button
+        v-for="item in modeItems"
+        :key="item.value"
+        type="button"
+        class="spatial-mode__option"
+        :aria-pressed="mode === item.value"
         :disabled="disabled"
-        aria-label="路线类型"
-        @update:model-value="updateMode($event as SpatialMode)"
-      />
-    </UFormField>
+        @click="updateMode(item.value as SpatialMode)"
+      >{{ item.label }}</button>
+    </div>
 
     <AdminSpatialCoordinatesInput
       v-if="mode === 'single'"
@@ -184,20 +142,6 @@ function updateAdvancedJson(value: string) {
       @valid="updateCompositeValidity"
     />
 
-    <details class="spatial-json-advanced" :open="Boolean(advancedJsonError)">
-      <summary>高级：导入完整空间配置 JSON</summary>
-      <UFormField label="空间配置 JSON">
-        <UTextarea
-          :model-value="advancedJson"
-          :rows="8"
-          :disabled="disabled"
-          spellcheck="false"
-          aria-label="空间配置 JSON"
-          @update:model-value="updateAdvancedJson"
-        />
-        <p v-if="advancedJsonError" class="spatial-json-advanced__error" role="alert">{{ advancedJsonError }}</p>
-      </UFormField>
-    </details>
   </div>
 </template>
 
@@ -207,21 +151,8 @@ function updateAdvancedJson(value: string) {
   gap: 0.875rem;
   min-width: 0;
 }
-.spatial-json-advanced {
-  display: grid;
-  gap: 0.75rem;
-  min-width: 0;
-  padding: 0.75rem 0.875rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-}
-.spatial-json-advanced summary {
-  cursor: pointer;
-  font-weight: 600;
-}
-.spatial-json-advanced__error {
-  margin: 0.5rem 0 0;
-  color: var(--danger);
-  font-size: var(--type-caption-size);
-}
+.spatial-mode { display: inline-flex; justify-self: start; padding: 0.1875rem; border-radius: var(--radius-control); background: var(--surface-raised); }
+.spatial-mode__option { padding: 0.375rem 0.875rem; border: 0; border-radius: var(--radius-control); color: var(--muted); background: transparent; font-size: 0.875rem; font-weight: 500; }
+.spatial-mode__option[aria-pressed="true"] { color: var(--text); background: var(--surface); box-shadow: 0 1px 2px var(--shadow); }
+.spatial-mode__option:disabled { opacity: 0.6; }
 </style>
