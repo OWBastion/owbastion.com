@@ -73,9 +73,11 @@ describe("AdminPlayerTitles", () => {
     toastAdd.mockClear();
     const wrapper = await mountTitles([grantOf()]);
     await flushPromises();
-    adminApi.mockImplementationOnce(() => Promise.reject(new Error("boom")));
+    let fail: (error: Error) => void = () => {};
+    adminApi.mockImplementationOnce(() => new Promise((_, reject) => { fail = reject; }));
     await wrapper.findAll("button").find((button) => button.text() === "回收")!.trigger("click");
     expect(wrapper.text()).toContain("已回收");
+    fail(new Error("boom"));
     await flushPromises();
     expect(wrapper.text()).not.toContain("已回收");
     expect(wrapper.findAll("button").some((button) => button.text() === "回收")).toBe(true);
