@@ -49,7 +49,7 @@ function grantTitle() { tab.value = "titles"; void nextTick(() => titlesRef.valu
       <UAlert v-if="player.pendingSubmissionCount" color="info" variant="subtle" :title="`有 ${player.pendingSubmissionCount} 条提交等待审核`" :actions="[{ label: '去审核', to: '/admin/reviews', color: 'neutral', variant: 'outline' }]" />
     </div>
 
-    <div class="player__tabs" role="tablist" aria-label="玩家详情分区">
+    <div class="player__tabs" role="tablist" aria-label="玩家详情分区" :style="{ '--tab-index': tabs.findIndex((item) => item.id === tab) }">
       <button v-for="item in tabs" :id="`player-tab-${item.id}`" :key="item.id" type="button" role="tab" class="player__tab" :aria-selected="tab === item.id" :aria-controls="`player-panel-${item.id}`" @click="tab = item.id">{{ item.label }}</button>
     </div>
 
@@ -99,9 +99,14 @@ function grantTitle() { tab.value = "titles"; void nextTick(() => titlesRef.valu
 .player__actions > :first-child { flex: 1; }
 .player__alerts { display: grid; gap: var(--space-2); }
 .player__alerts:empty { display: none; }
-.player__tabs { display: flex; gap: var(--space-1); border-bottom: 1px solid var(--line); }
-.player__tab { min-height: 2.75rem; padding: 0 var(--space-4); border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font-weight: 600; cursor: pointer; }
-.player__tab[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--text); }
+.player__tabs { position: relative; display: grid; grid-template-columns: repeat(3, 5.5rem); border-bottom: 1px solid var(--line); }
+.player__tabs::after { content: ""; position: absolute; bottom: -1px; left: 0; width: 5.5rem; height: 2px; background: var(--accent); transform: translateX(calc(var(--tab-index) * 100%)); transition: transform 320ms cubic-bezier(.2, .9, .3, 1); }
+.player__tab { min-height: 2.75rem; border: 0; background: transparent; color: var(--muted); font-weight: 600; cursor: pointer; transition: color 140ms ease, transform 100ms ease-out; }
+.player__tab:active { transform: scale(.96); }
+.player__tab[aria-selected="true"] { color: var(--text); }
+[role="tabpanel"] { animation: panel-in 180ms ease-out; }
+@keyframes panel-in { from { opacity: 0; transform: translateY(.25rem); } }
+@media (prefers-reduced-motion: reduce) { [role="tabpanel"] { animation: none; } .player__tabs::after { transition: none; } .player__tab { transition: none; } .player__tab:active { transform: none; } }
 .player__empty { margin: 0; color: var(--quiet); }
 .timeline { display: grid; margin: 0; padding: 0; list-style: none; }
 .timeline__item { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }

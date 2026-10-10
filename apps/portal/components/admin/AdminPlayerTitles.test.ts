@@ -69,13 +69,26 @@ describe("AdminPlayerTitles", () => {
     expect(wrapper.emitted("changed")).toHaveLength(2);
   });
 
+  it("flips the card at once on press and rolls back when the revoke fails", async () => {
+    toastAdd.mockClear();
+    const wrapper = await mountTitles([grantOf()]);
+    await flushPromises();
+    adminApi.mockImplementationOnce(() => Promise.reject(new Error("boom")));
+    await wrapper.findAll("button").find((button) => button.text() === "回收")!.trigger("click");
+    expect(wrapper.text()).toContain("已回收");
+    await flushPromises();
+    expect(wrapper.text()).not.toContain("已回收");
+    expect(wrapper.findAll("button").some((button) => button.text() === "回收")).toBe(true);
+    expect(toastAdd).toHaveBeenCalledWith(expect.objectContaining({ title: "无法回收称号", color: "error" }));
+  });
+
   it("explains why an undo or restore was rejected", async () => {
     toastAdd.mockClear();
     const wrapper = await mountTitles([grantOf({ grantId: "grant-revoked", status: "revoked", revocationType: "administrator" })]);
     await flushPromises();
     adminApi.mockImplementationOnce(() => Promise.reject(new Error("conflict")));
     expect(wrapper.text()).toContain("已回收");
-    await wrapper.findAll("button").find((button) => button.text() === "恢复")!.trigger("click");
+    await wrapper.findAll("button").find((button) => button.text() === "撤销回收")!.trigger("click");
     await flushPromises();
     expect(toastAdd).toHaveBeenCalledWith(expect.objectContaining({ title: "无法恢复全局称号", color: "error", description: expect.stringContaining("同一地图和版本已有当前称号时无法恢复") }));
   });

@@ -26,4 +26,7 @@ const selectedId = computed(() => typeof route.params.playerAccountId === "strin
   .players-workbench--detail .players-workbench__list, .players-workbench:not(.players-workbench--detail) .players-workbench__detail { display: block; }
   .players-workbench__list { position: sticky; top: var(--space-4); max-height: calc(100dvh - var(--space-8)); overflow: auto; }
 }
+.players-workbench__detail { animation: detail-in 220ms cubic-bezier(.2, .9, .3, 1); }
+@keyframes detail-in { from { opacity: 0; transform: translateX(.75rem); } }
+@media (prefers-reduced-motion: reduce) { .players-workbench__detail { animation: none; } }
 </style>

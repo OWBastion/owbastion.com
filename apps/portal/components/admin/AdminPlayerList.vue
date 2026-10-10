@@ -24,6 +24,15 @@ const { loading, refresh } = useAdminAsyncData("players", () => api<{ items: Adm
 });
 
 watch([query, status], () => { page.value = 1; }, { flush: "sync" });
+function moveFocus(event: KeyboardEvent) {
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+  const links = [...(event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>("a")];
+  const next = links[links.indexOf(document.activeElement as HTMLElement) + (event.key === "ArrowDown" ? 1 : -1)];
+  if (!next) return;
+  event.preventDefault();
+  next.focus();
+}
+
 watch(revision, () => { void refresh(); });
 </script>
 
@@ -37,7 +46,7 @@ watch(revision, () => { void refresh(); });
       </div>
     </div>
     <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
-    <ul v-if="players.length" class="player-list__rows">
+    <ul v-if="players.length" class="player-list__rows" @keydown="moveFocus">
       <li v-for="player in players" :key="player.playerAccountId">
         <NuxtLink :to="`/admin/players/${player.playerAccountId}`" class="player-row" :aria-current="player.playerAccountId === selectedId ? 'page' : undefined">
           <span class="player-row__name"><strong>{{ player.playerName }}</strong><small>#{{ player.playerId }}</small></span>
@@ -62,11 +71,13 @@ watch(revision, () => { void refresh(); });
 .player-list__tools { display: grid; gap: var(--space-2); }
 .player-list__search { width: 100%; }
 .player-list__chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.chip { min-height: 2rem; padding: 0 var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-pill); background: transparent; color: var(--muted); font-size: var(--type-caption-size); font-weight: 600; cursor: pointer; }
+.chip { transition: background-color 120ms ease, transform 100ms ease-out; min-height: 2rem; padding: 0 var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-pill); background: transparent; color: var(--muted); font-size: var(--type-caption-size); font-weight: 600; cursor: pointer; }
+.chip:active { transform: scale(.96); }
 .chip[aria-pressed="true"] { border-color: transparent; background: var(--accent); color: var(--on-accent); }
 .player-list__count { margin-left: auto; color: var(--quiet); font-size: var(--type-caption-size); }
 .player-list__rows { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
-.player-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: 2.75rem; padding: var(--space-2) var(--space-3); border-radius: var(--radius-control); color: var(--text); text-decoration: none; }
+.player-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: 2.75rem; padding: var(--space-2) var(--space-3); border-radius: var(--radius-control); color: var(--text); text-decoration: none; transition: background-color 120ms ease, transform 100ms ease-out; }
+.player-row:active { transform: scale(.985); background: var(--accent-surface); }
 .player-row:hover { background: color-mix(in oklch, var(--surface-raised) 70%, transparent); }
 .player-row[aria-current="page"] { background: var(--accent-surface); }
 .player-row__name { display: flex; align-items: baseline; gap: var(--space-1); min-width: 0; overflow-wrap: anywhere; }
@@ -77,4 +88,5 @@ watch(revision, () => { void refresh(); });
 .tag--warning { background: color-mix(in oklch, var(--danger) 14%, var(--surface)); color: var(--danger); }
 .player-list__empty { margin: 0; padding: var(--space-5); color: var(--quiet); text-align: center; }
 .player-list__pager { display: flex; align-items: center; justify-content: space-between; color: var(--quiet); font-size: var(--type-caption-size); }
+@media (prefers-reduced-motion: reduce) { .chip, .player-row { transition: none; } .chip:active, .player-row:active { transform: none; } }
 </style>

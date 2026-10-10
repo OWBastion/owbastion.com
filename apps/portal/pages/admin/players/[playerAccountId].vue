@@ -19,6 +19,8 @@ const actionTitle = computed(() => pendingAction.value?.type === "unbind" ? "解
 const actionDescription = computed(() => player.value ? `${player.value.playerName}#${player.value.playerId}` : undefined);
 const destructive = computed(() => pendingAction.value?.type === "unbind" || (pendingAction.value?.type === "set-status" && pendingAction.value.status === "banned"));
 
+watch(playerAccountId, () => { player.value = null; errorMessage.value = ""; }, { flush: "sync" });
+
 const adminData = useAdminAsyncData("player-detail", () => api<AdminPlayerDetail>(`/v1/player-accounts/${encodeURIComponent(playerAccountId.value)}`), {
   cacheKey: playerAccountId,
   onStart: () => { errorMessage.value = ""; },

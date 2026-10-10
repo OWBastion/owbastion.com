@@ -17,6 +17,10 @@ const selectedGlobalValues = ref<TitleMenuItem[]>([]);
 const selectedMapValues = ref<TitleMenuItem[]>([]);
 const reason = shallowRef("");
 const busyGrantId = shallowRef("");
+/** Shown at once on press and dropped when the server state arrives or the request fails. */
+const optimistic = ref<Record<string, "active" | "revoked">>({});
+const statusOf = (grant: AdminPlayerDetail["titleGrants"][number]) => optimistic.value[grant.grantId] ?? grant.status;
+watch(() => props.titleGrants, () => { optimistic.value = {}; });
 const grantOpen = shallowRef(false);
 const loadingOptions = shallowRef(true);
 const saving = shallowRef(false);
@@ -44,7 +48,7 @@ const mapGroups = computed(() => {
   }
   return [...groups.entries()].map(([mapName, grants]) => ({ mapName, grants }));
 });
-const grantMeta = (grant: AdminPlayerDetail["titleGrants"][number]) => [...(grant.status === "revoked" ? ["已回收"] : []), grant.slot ? slotLabels[grant.slot] : grant.category, sourceLabels[grant.sourceType], formatTime(grant.grantedAt)].join(" · ");
+const grantMeta = (grant: AdminPlayerDetail["titleGrants"][number]) => [...(statusOf(grant) === "revoked" ? ["已回收"] : []), grant.slot ? slotLabels[grant.slot] : grant.category, sourceLabels[grant.sourceType], formatTime(grant.grantedAt)].join(" · ");
 const equipableGrants = computed(() => props.titleGrants.filter((grant) => grant.equipable === true));
 const recoverySelectionError = computed(() => recoveryGrantIds.value.length > 10 ? "最多选择 10 个称号。" : "");
 
@@ -98,22 +102,26 @@ async function grant() {
 
 async function revoke(grant: AdminPlayerDetail["titleGrants"][number]) {
   busyGrantId.value = grant.grantId;
+  optimistic.value = { ...optimistic.value, [grant.grantId]: "revoked" };
   try {
     await api(`/v1/title-grants/${encodeURIComponent(grant.grantId)}/revoke`, { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1" } });
     emit("changed");
     toast.add({ title: `已回收${grant.label}`, color: "neutral", duration: 8000, actions: [{ label: "撤销", color: "neutral", variant: "outline", onClick: () => { void restore(grant); } }] });
   } catch (error) {
+    optimistic.value = { ...optimistic.value, [grant.grantId]: "active" };
     toast.add({ title: "无法回收称号", description: portalErrorDetails(error).description, color: "error" });
   } finally { busyGrantId.value = ""; }
 }
 
 async function restore(grant: AdminPlayerDetail["titleGrants"][number]) {
   busyGrantId.value = grant.grantId;
+  optimistic.value = { ...optimistic.value, [grant.grantId]: "active" };
   try {
     await api(`/v1/title-grants/${encodeURIComponent(grant.grantId)}/restore`, { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1" } });
     emit("changed");
     toast.add({ title: `已恢复${grant.label}`, color: "success" });
   } catch (error) {
+    optimistic.value = { ...optimistic.value, [grant.grantId]: "revoked" };
     toast.add({ title: `无法恢复${grant.label}`, description: `${portalErrorDetails(error).description} 同一地图和版本已有当前称号时无法恢复。`, color: "error" });
   } finally { busyGrantId.value = ""; }
 }
@@ -154,10 +162,10 @@ defineExpose({ openGrant: () => { grantOpen.value = true; }, openEquip: openReco
     <section class="title-group" aria-labelledby="titles-global">
       <h3 id="titles-global">全局称号</h3>
       <ul v-if="globalGrants.length" class="title-cards">
-        <li v-for="grant in globalGrants" :key="grant.grantId" class="title-card" :class="{ 'title-card--revoked': grant.status === 'revoked' }">
+        <li v-for="grant in globalGrants" :key="grant.grantId" class="title-card" :class="{ 'title-card--revoked': statusOf(grant) === 'revoked' }">
           <div class="title-card__main"><strong>{{ grant.label }}<span v-if="grant.equipped" class="title-card__star" title="已佩戴"> ★</span></strong><small>{{ grantMeta(grant) }}</small></div>
-          <UButton v-if="grant.status === 'active'" label="回收" size="sm" color="error" variant="ghost" :disabled="props.loading || busyGrantId === grant.grantId" @click="revoke(grant)" />
-          <UButton v-else-if="grant.revocationType === 'administrator'" label="恢复" size="sm" color="neutral" variant="outline" :disabled="props.loading || busyGrantId === grant.grantId" @click="restore(grant)" />
+          <UButton v-if="statusOf(grant) === 'active'" label="回收" size="sm" color="error" variant="ghost" @click="revoke(grant)" />
+          <UButton v-else-if="grant.revocationType === 'administrator' || optimistic[grant.grantId]" label="撤销回收" size="sm" color="neutral" variant="outline" @click="restore(grant)" />
         </li>
       </ul>
       <p v-else class="title-empty">暂无全局称号。</p>
@@ -165,10 +173,10 @@ defineExpose({ openGrant: () => { grantOpen.value = true; }, openEquip: openReco
     <section v-for="group in mapGroups" :key="group.mapName" class="title-group" :aria-label="`${group.mapName}称号`">
       <h3>{{ group.mapName }}</h3>
       <ul class="title-cards">
-        <li v-for="grant in group.grants" :key="grant.grantId" class="title-card" :class="{ 'title-card--revoked': grant.status === 'revoked' }">
+        <li v-for="grant in group.grants" :key="grant.grantId" class="title-card" :class="{ 'title-card--revoked': statusOf(grant) === 'revoked' }">
           <div class="title-card__main"><strong>{{ grant.label }}<span v-if="grant.equipped" class="title-card__star" title="已佩戴"> ★</span></strong><small>{{ grantMeta(grant) }}</small></div>
-          <UButton v-if="grant.status === 'active'" label="回收" size="sm" color="error" variant="ghost" :disabled="props.loading || busyGrantId === grant.grantId" @click="revoke(grant)" />
-          <UButton v-else-if="grant.revocationType === 'administrator'" label="恢复" size="sm" color="neutral" variant="outline" :disabled="props.loading || busyGrantId === grant.grantId" @click="restore(grant)" />
+          <UButton v-if="statusOf(grant) === 'active'" label="回收" size="sm" color="error" variant="ghost" @click="revoke(grant)" />
+          <UButton v-else-if="grant.revocationType === 'administrator' || optimistic[grant.grantId]" label="撤销回收" size="sm" color="neutral" variant="outline" @click="restore(grant)" />
         </li>
       </ul>
     </section>
@@ -221,7 +229,8 @@ defineExpose({ openGrant: () => { grantOpen.value = true; }, openEquip: openReco
 .title-group h3 { margin: 0; color: var(--quiet); font-size: var(--type-caption-size); font-weight: 700; letter-spacing: .055em; }
 .title-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .title-card { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); }
-.title-card--revoked { opacity: .6; }
+.title-card { transition: opacity 160ms ease, background-color 160ms ease; }
+.title-card--revoked { opacity: .55; }
 .title-card__main { display: grid; gap: var(--space-1); min-width: 0; }
 .title-card__main strong { overflow-wrap: anywhere; }
 .title-card__main small { color: var(--quiet); }
