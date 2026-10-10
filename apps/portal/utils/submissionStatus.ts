@@ -5,9 +5,9 @@ export const submissionStatusText: Record<string, string> = {
   rejected: "未通过",
   upload_pending: "上传中…",
   ocr_pending: "等待识别",
-  awaiting_player_confirmation: "等待确认挑战",
+  awaiting_player_confirmation: "等待核对",
   ready_for_review: "等待核对",
-  ocr_review_required: "等待处理",
+  ocr_review_required: "等待核对",
   approved: "已通过",
   resubmission_required: "需重新提交",
 };

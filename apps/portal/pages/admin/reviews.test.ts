@@ -46,9 +46,9 @@ describe("admin reviews page", () => {
     expect(wrapper.get('a[href="/admin/reviews/submission-1"]').text()).toContain("查看");
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
 
-    await wrapper.get('select[aria-label="筛选提交状态"]').setValue("awaiting_player_confirmation");
+    await wrapper.get('select[aria-label="筛选提交状态"]').setValue("all");
     await flushPromises();
-    expect(adminApi).toHaveBeenLastCalledWith("/v1/submissions?page=1&pageSize=20&status=awaiting_player_confirmation&order=newest");
+    expect(adminApi).toHaveBeenLastCalledWith("/v1/submissions?page=1&pageSize=20&order=newest");
   });
 
   it("re-evaluates only the held submissions on the page from their stored recognition", async () => {
@@ -70,7 +70,8 @@ describe("admin reviews page", () => {
     const statusLabels = wrapper.get('select[aria-label="筛选提交状态"]').findAll("option").map((option) => option.text());
     expect(statusLabels).not.toContain("处理中");
     expect(statusLabels).not.toContain("已完成");
-    expect(statusLabels.filter((label) => label === "等待核对")).toHaveLength(1);
+    expect(statusLabels.filter((label) => label === "待核对")).toHaveLength(1);
+    expect(statusLabels).not.toContain("等待核对");
 
     await wrapper.get('select[aria-label="筛选抽检状态"]').setValue("pending");
     await flushPromises();
