@@ -65,6 +65,9 @@ describe("v1 platform contracts", () => {
   it("keeps challenge qualification canonical and complete OCR field review explicit", () => {
     expect(adminSubmissionReviewRequestSchema.safeParse({ contractVersion: "1", decision: "approved", fieldCorrections: [{ fieldKey: "achievement_titles", reviewedValue: "HERO、SECOND" }] }).success).toBe(true);
     expect(adminSubmissionReviewRequestSchema.safeParse({ contractVersion: "1", decision: "approved", fieldCorrections: [{ fieldKey: "difficulty", reviewedValue: "一般" }] }).success).toBe(true);
+    // The screenshot may legitimately show no achievements; no other field can be confirmed empty.
+    expect(adminSubmissionReviewRequestSchema.safeParse({ contractVersion: "1", decision: "approved", fieldCorrections: [{ fieldKey: "achievement_titles", reviewedValue: "" }] }).success).toBe(true);
+    expect(adminSubmissionReviewRequestSchema.safeParse({ contractVersion: "1", decision: "approved", fieldCorrections: [{ fieldKey: "difficulty", reviewedValue: "" }] }).success).toBe(false);
     const everyField = ["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "mode", "achievement_titles", "version", "run_code", "duration_seconds", "deaths", "skips"];
     expect(adminSubmissionReviewRequestSchema.safeParse({ contractVersion: "1", decision: "approved", fieldCorrections: everyField.map((fieldKey) => ({ fieldKey, reviewedValue: "1" })) }).success).toBe(true);
     expect(adminSubmissionReviewRequestSchema.safeParse({ contractVersion: "1", decision: "approved", fieldCorrections: [{ fieldKey: "difficulty", reviewedValue: "一般" }, { fieldKey: "difficulty", reviewedValue: "困难" }] }).success).toBe(false);

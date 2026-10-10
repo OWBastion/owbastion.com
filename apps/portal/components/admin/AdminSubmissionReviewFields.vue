@@ -103,7 +103,7 @@ const selectedTitles = computed({
   get: () => correctionInputs.achievement_titles?.split("、").filter(Boolean) ?? [],
   set: (value: string[]) => { correctionInputs.achievement_titles = value.join("、"); },
 });
-const fieldCorrections = computed(() => annotatableFields.filter((field) => confirmedFields.value.includes(field.key) && correctionInputs[field.key]?.trim()).map((field) => ({ fieldKey: field.key, reviewedValue: field.key === "achievement_titles" ? correctionInputs[field.key]!.split(/[、,，\n]/).map((value) => value.trim()).filter(Boolean).join("、") : correctionInputs[field.key]!.trim() })));
+const fieldCorrections = computed(() => annotatableFields.filter((field) => confirmedFields.value.includes(field.key) && (field.key === "achievement_titles" || correctionInputs[field.key]?.trim())).map((field) => ({ fieldKey: field.key, reviewedValue: field.key === "achievement_titles" ? (correctionInputs[field.key] ?? "").split(/[、,，\n]/).map((value) => value.trim()).filter(Boolean).join("、") : correctionInputs[field.key]!.trim() })));
 watch(fieldCorrections, (value) => emit("field-corrections", value), { immediate: true });
 const toggleFieldConfirmation = (fieldKey: string, checked: boolean) => {
   confirmedFields.value = checked ? [...new Set([...confirmedFields.value, fieldKey])] : confirmedFields.value.filter((key) => key !== fieldKey);
@@ -224,10 +224,10 @@ const confirmField = (key: string) => toggleFieldConfirmation(key, true);
           </span>
         </div>
         <div class="check-editor__control">
-          <USelectMenu v-if="openRow.key === 'achievement_titles'" v-model="selectedTitles" multiple :items="withCurrent(titleNames, selectedTitles)" :aria-label="`截图中的${openRow.label}完整值`" placeholder="选择截图中的全部成就" :disabled="disabled" @update:model-value="confirmField(openRow.key)" />
+          <USelectMenu v-if="openRow.key === 'achievement_titles'" v-model="selectedTitles" multiple :items="withCurrent(titleNames, selectedTitles)" :aria-label="`截图中的${openRow.label}完整值`" placeholder="选择截图中的全部成就（截图没有成就则留空并确认）" :disabled="disabled" @update:model-value="confirmField(openRow.key)" />
           <UInput v-else-if="openRow.key in typedFieldPlaceholder" v-model="correctionInputs[openRow.key]" :inputmode="['duration_seconds', 'deaths', 'skips'].includes(openRow.key) ? 'numeric' : 'text'" :aria-label="`截图中的${openRow.label}`" :placeholder="typedFieldPlaceholder[openRow.key]" :disabled="disabled" @update:model-value="confirmField(openRow.key)" />
           <USelect v-else v-model="correctionInputs[openRow.key]" :items="fieldChoices(openRow.key)" :aria-label="`截图中的${openRow.label}完整值`" :placeholder="`选择截图中的${openRow.label}`" :disabled="disabled" @update:model-value="confirmField(openRow.key)" />
-          <UButton v-if="!openRow.attested" type="button" icon="i-lucide-check" label="确认无误" size="sm" color="neutral" variant="outline" :aria-label="`核对${openRow.label}`" :disabled="disabled || !(correctionInputs[openRow.key] ?? '').trim()" @click="confirmField(openRow.key)" />
+          <UButton v-if="!openRow.attested" type="button" icon="i-lucide-check" label="确认无误" size="sm" color="neutral" variant="outline" :aria-label="`核对${openRow.label}`" :disabled="disabled || (openRow.key !== 'achievement_titles' && !(correctionInputs[openRow.key] ?? '').trim())" @click="confirmField(openRow.key)" />
           <UButton v-else type="button" icon="i-lucide-undo-2" label="撤销核对" size="sm" color="neutral" variant="ghost" :aria-label="`撤销核对${openRow.label}`" :disabled="disabled" @click="toggleFieldConfirmation(openRow.key, false)" />
         </div>
         <p class="check-editor__hint">核对后的值会随审核决定保存。</p>
