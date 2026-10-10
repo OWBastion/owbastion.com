@@ -7,15 +7,18 @@ const selectedId = computed(() => typeof route.params.playerAccountId === "strin
 
 <template>
   <AdminWorkspace title="玩家管理">
-    <div class="players-workbench" :class="{ 'players-workbench--detail': selectedId }">
-      <AdminPlayerList class="players-workbench__list" :selected-id="selectedId" />
-      <div class="players-workbench__detail"><NuxtPage /></div>
+    <div class="players-container">
+      <div class="players-workbench" :class="{ 'players-workbench--detail': selectedId }">
+        <AdminPlayerList class="players-workbench__list" :selected-id="selectedId" />
+        <div class="players-workbench__detail"><NuxtPage /></div>
+      </div>
     </div>
   </AdminWorkspace>
 </template>
 
 <style scoped>
-.players-workbench { container-type: inline-size; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
+.players-container { container-type: inline-size; }
+.players-workbench { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
 .players-workbench--detail .players-workbench__list { display: none; }
 .players-workbench:not(.players-workbench--detail) .players-workbench__detail { display: none; }
 @container (min-width: 52rem) {
