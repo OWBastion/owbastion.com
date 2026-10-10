@@ -38,6 +38,7 @@ export type AdminMapEditorChallengeOption = {
   challengeId: string;
   label: string;
   kind: string;
+  titleKey: string | null;
   status: string;
   gameVersion: string;
 };

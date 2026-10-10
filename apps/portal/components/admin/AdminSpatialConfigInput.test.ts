@@ -112,7 +112,7 @@ describe("AdminSpatialConfigInput", () => {
       global: { stubs },
     });
 
-    await wrapper.get('select[aria-label="路线类型"]').setValue("composite");
+    await wrapper.findAll('[aria-label="路线类型"] button')[1]!.trigger("click");
     const composite = wrapper.emitted("update:modelValue")?.at(-1)?.[0] as Record<string, unknown>;
     expect(composite).toMatchObject({
       resetPosition: null,
@@ -124,53 +124,19 @@ describe("AdminSpatialConfigInput", () => {
     });
     expect(wrapper.find('[data-testid="composite-input"]').exists()).toBe(true);
 
-    await wrapper.get('select[aria-label="路线类型"]').setValue("single");
+    await wrapper.findAll('[aria-label="路线类型"] button')[0]!.trigger("click");
     expect(wrapper.emitted("update:modelValue")?.at(-1)?.[0]).toBeNull();
     expect(wrapper.find('[data-testid="coordinates-input"]').exists()).toBe(true);
   });
 
-  it("keeps legacy alternate-stage editing in the advanced JSON importer", async () => {
+  it("offers no JSON importer: coordinates come only from pasted Workshop code", async () => {
     const wrapper = await mountSuspended(AdminSpatialConfigInput, {
       props: { modelValue: legacyConfig, revisionKey: "revision:map.test:legacy" },
       global: { stubs },
     });
-
-    const json = wrapper.get('textarea[aria-label="空间配置 JSON"]');
-    await json.setValue(JSON.stringify(legacyConfig));
-    const saved = wrapper.emitted("update:modelValue")?.at(-1)?.[0];
-    expect(saved).toEqual(legacyConfig);
-    expect(agentSpatialConfigSchema.safeParse(saved).success).toBe(true);
+    expect(wrapper.find('textarea[aria-label="空间配置 JSON"]').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("JSON");
     expect(wrapper.find('[data-testid="coordinates-input"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain("高级：导入完整空间配置 JSON");
-
-    await wrapper.get('select[aria-label="路线类型"]').setValue("composite");
-    await wrapper.get('select[aria-label="路线类型"]').setValue("single");
-    expect(wrapper.emitted("update:modelValue")?.at(-1)?.[0]).toEqual(legacyConfig);
-  });
-
-  it("blocks incomplete JSON before it can become the saved spatial configuration", async () => {
-    const wrapper = await mountSuspended(AdminSpatialConfigInput, {
-      props: { modelValue: null, revisionKey: "revision:map.test:new" },
-      global: { stubs },
-    });
-
-    await wrapper.get('textarea[aria-label="空间配置 JSON"]').setValue(JSON.stringify({ bastionPositions: [[1, 2, 3]] }));
-    expect(wrapper.find('[role="alert"]').exists()).toBe(true);
-    expect(wrapper.emitted("update:modelValue")).toBeUndefined();
-    expect(wrapper.emitted("valid")?.at(-1)?.[0]).toBe(false);
-  });
-
-  it("imports a composite JSON document into the structured form and validates the saved contract", async () => {
-    const wrapper = await mountSuspended(AdminSpatialConfigInput, {
-      props: { modelValue: null, revisionKey: "revision:map.test:new" },
-      global: { stubs },
-    });
-
-    await wrapper.get('textarea[aria-label="空间配置 JSON"]').setValue(JSON.stringify(compositeConfig));
-    const saved = wrapper.emitted("update:modelValue")?.at(-1)?.[0];
-    expect(saved).toEqual(compositeConfig);
-    expect(agentSpatialConfigSchema.safeParse(saved).success).toBe(true);
-    expect((wrapper.get('select[aria-label="路线类型"]').element as HTMLSelectElement).value).toBe("composite");
   });
 
   it("routes previously saved per-stage composite configs to the lossless legacy editor", async () => {
@@ -188,7 +154,7 @@ describe("AdminSpatialConfigInput", () => {
       global: { stubs: editorStubs },
     });
 
-    await wrapper.get('select[aria-label="路线类型"]').setValue("composite");
+    await wrapper.findAll('[aria-label="路线类型"] button')[1]!.trigger("click");
     const addStageButton = wrapper.findAll("button").find((button) => button.text().includes("添加阶段"));
     await addStageButton?.trigger("click");
 
@@ -228,16 +194,13 @@ describe("AdminSpatialConfigInput", () => {
     expect(wrapper.emitted("valid")?.at(-1)?.[0]).toBe(true);
   });
 
-  it("refreshes the coordinate editor after a same-mode JSON import without resetting its own edits", async () => {
+  it("keeps pasted Workshop code as typed and emits the parsed single-route config", async () => {
     const wrapper = await mountSuspended(AdminSpatialConfigInput, {
       props: { modelValue: spatial(1), revisionKey: "revision:map.test:single" },
       global: { stubs: editorStubs },
     });
     const coordinateTextarea = () => wrapper.findAll("textarea").find((textarea) => !textarea.attributes("aria-label"))!;
     expect((coordinateTextarea().element as HTMLTextAreaElement).value).toContain("Vector(1, 2, 3)");
-
-    await wrapper.get('textarea[aria-label="空间配置 JSON"]').setValue(JSON.stringify(spatial(20)));
-    expect((coordinateTextarea().element as HTMLTextAreaElement).value).toContain("Vector(20, 21, 22)");
 
     const workshopReplacement = singleWorkshopText.replace("Vector(101, 102, 103)", "Vector(201,202,203)");
     await coordinateTextarea().setValue(workshopReplacement);

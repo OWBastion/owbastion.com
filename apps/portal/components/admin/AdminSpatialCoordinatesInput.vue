@@ -54,7 +54,7 @@ const source = shallowRef("");
 const error = shallowRef("");
 const summary = shallowRef<SpatialConfigImportSummary | null>(null);
 const parsedConfig = shallowRef<SpatialConfigValue | null>(null);
-const showDetails = shallowRef(true);
+const showDetails = shallowRef(false);
 const lastSyncedSource = shallowRef<string>();
 const lastEmittedSource = shallowRef<string>();
 
@@ -527,6 +527,7 @@ async function copyCoordinate(pos: Vector) {
 
 .spatial-editor-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
@@ -548,6 +549,7 @@ async function copyCoordinate(pos: Vector) {
 
 .spatial-editor-header__actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.375rem;
 }

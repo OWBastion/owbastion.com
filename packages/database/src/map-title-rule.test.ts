@@ -513,7 +513,7 @@ describe("Admin map revision editor", () => {
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
 
     await expect(services.getAdminMapEditor({ mapId: "map.editor.catalog" }, auth)).resolves.toMatchObject({
-      challengeCatalog: expect.arrayContaining([expect.objectContaining({ challengeId: "rule.conqueror.catalog" })]),
+      challengeCatalog: expect.arrayContaining([expect.objectContaining({ challengeId: "rule.conqueror.catalog", titleKey: "CONQUEROR" })]),
     });
     const initial = await services.getAdminMapEditor({ mapId: "map.editor.catalog" }, auth);
     expect(initial.challengeCatalog).not.toEqual(expect.arrayContaining([
