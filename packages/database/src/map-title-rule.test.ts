@@ -2304,6 +2304,33 @@ describe("maintainer Challenge confirmation during submission review", () => {
     expect(preview).toMatchObject({ titles: [], completions: [], knownModes: ["2026镜中回响"] });
   });
 
+  it("resolves a run in review by its corrected mode even when an earlier read stamped the regular revision", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.rialto");
+    sqlite.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, mode, game_version, created_at, updated_at) VALUES ('revision:map.rialto:mirror', 'map.rialto', 'selectable', NULL, '2026镜中回响', '26.1003.1', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO standalone_modes (mode, event_weight_total, created_at, updated_at) VALUES ('2026镜中回响', NULL, ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.stamp', 'stamp-1', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.stamp', 'identity.stamp', 'player.stamp', 'qq', 'group.stamp', 'member.stamp', 'active', ?)").run(now);
+    // The regular default revision was stamped on the submission before the mode was configured.
+    sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, gameplay_revision_id, created_at, updated_at) VALUES ('submission.stamp', 'binding.stamp', 'ocr_review_required', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'stamp.1', 'revision:map.rialto:initial', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.stamp', 'submission.stamp', 1, 'review_required', ?, ?)").run(
+      JSON.stringify({
+        schema_version: "1", ok: true, layout_version: "1280x720-v7",
+        fields: Object.fromEntries(["challenge_completed", "map_name", "difficulty", "version", "run_code", "duration_seconds"].map((field) => [field, { status: "ok", confidence: 0.99 }])),
+        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.rialto", difficulty: "地狱", mode: "2026镜中回响", version: "99.0101.1", run_code: "1631-2408-5670", duration_seconds: 600, deaths: 0, skips: 0 },
+      }),
+      now,
+    );
+    const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
+
+    const preview = await services.previewSubmissionReview({ submissionId: "submission.stamp" }, auth);
+    expect(preview.verifiedRun).toMatchObject({ status: "eligible" });
+    await services.reviewSubmission({ submissionId: "submission.stamp", decision: "approved" }, auth, "approve.stamp");
+    expect(sqlite.prepare("SELECT gameplay_revision_id FROM mastery_runs WHERE source_submission_id = 'submission.stamp'").get()).toEqual({ gameplay_revision_id: "revision:map.rialto:mirror" });
+    expect(sqlite.prepare("SELECT gameplay_revision_id FROM submissions WHERE id = 'submission.stamp'").get()).toEqual({ gameplay_revision_id: "revision:map.rialto:mirror" });
+  });
+
   it("previews and approves a displayed Challenge that the maintainer confirms from the screenshot", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
