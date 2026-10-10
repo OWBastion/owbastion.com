@@ -16,6 +16,8 @@ const fixture = () => {
       provider TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL,
       status TEXT NOT NULL, revoked_at INTEGER, revoked_by TEXT, created_at INTEGER NOT NULL
     );
+    CREATE TABLE submissions (id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, status TEXT NOT NULL);
+    INSERT INTO submissions VALUES ('s1', 'alpha', 'ready_for_review'), ('s2', 'alpha', 'ocr_review_required'), ('s3', 'alpha', 'approved'), ('s4', 'beta', 'awaiting_player_confirmation');
     CREATE UNIQUE INDEX bindings_single_active_player_idx ON bindings(player_account_id) WHERE status = 'active';
     INSERT INTO player_accounts VALUES
       ('alpha', '101', 'Alpha', 'alpha', 0, 'active', NULL, NULL, NULL, 1, 40),
@@ -44,6 +46,7 @@ describe("admin player directory", () => {
     expect(last.items.map(({ playerAccountId, bindingCount }) => ({ playerAccountId, bindingCount }))).toEqual([
       { playerAccountId: "gamma", bindingCount: 0 }, { playerAccountId: "delta", bindingCount: 0 },
     ]);
+    expect(first.items.map((item) => item.pendingSubmissionCount)).toEqual([2, 0]);
     expect(await services.listAdminPlayers({ page: 3, pageSize: 2 })).toMatchObject({ items: [], total: 4, hasMore: false });
   });
 
@@ -74,7 +77,7 @@ describe("admin player directory", () => {
       expect(small.items).toHaveLength(1);
       expect(large.items).toHaveLength(40);
       expect(preparedStatementCount()).toBe(smallCount);
-      expect(preparedStatementCount()).toBeLessThanOrEqual(query ? 4 : 3);
+      expect(preparedStatementCount()).toBeLessThanOrEqual(query ? 5 : 4);
     }
   });
 });

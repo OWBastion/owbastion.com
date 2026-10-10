@@ -202,6 +202,7 @@ describe("v1 platform contracts", () => {
       playerName: "Player",
       status: "active",
       bindingCount: 1,
+      pendingSubmissionCount: 0,
       updatedAt: 2,
       bindings: [],
       recentSubmissions: [

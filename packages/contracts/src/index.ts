@@ -160,6 +160,7 @@ export const adminPlayerSummarySchema = z.object({
   playerName: z.string().trim().min(1).max(64),
   status: adminPlayerStatus,
   bindingCount: z.number().int().nonnegative(),
+  pendingSubmissionCount: z.number().int().nonnegative(),
   updatedAt: z.number().int(),
 });
 export const adminPlayerListResponseSchema = z.object({ contractVersion, items: z.array(adminPlayerSummarySchema), page: z.number().int().positive(), pageSize: z.number().int().positive(), total: z.number().int().nonnegative(), hasMore: z.boolean() });

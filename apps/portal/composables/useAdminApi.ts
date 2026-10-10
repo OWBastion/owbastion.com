@@ -8,6 +8,7 @@ export type AdminPlayer = {
   playerName: string;
   status: "active" | "banned";
   bindingCount: number;
+  pendingSubmissionCount: number;
   updatedAt: number;
 };
 
@@ -32,11 +33,12 @@ export type AdminPlayerDetail = AdminPlayer & {
   recentSubmissions: Array<{
     submissionId: string;
     status: string;
+    resubmissionRequired?: boolean;
     mapName: string;
     challengeId?: string;
     difficulty?: string;
     reason?: string;
-    challenge?: { family: "map"; name: string; mapName: string; difficulty: string | null; mapVariant?: "classic" } | { family: "achievement"; titleName: string; category: string; condition: string; evidenceRule: string; mapVariant?: "classic" } | null;
+    challenge?: { family: "map"; name: string; mapName: string; difficulty: string | null; kind?: "difficulty_completion" | "pioneer" | "classic_completion" | "map_title_achievement"; mapVariant?: "classic" } | { family: "achievement"; titleName: string; category: string; condition: string; evidenceRule: string; mapVariant?: "classic" } | null;
     createdAt: number;
     updatedAt: number;
   }>;

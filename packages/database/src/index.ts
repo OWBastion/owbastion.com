@@ -2669,6 +2669,14 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     | { family: "map"; name: string; mapName: string; difficulty: string | null; kind?: "difficulty_completion" | "pioneer" | "classic_completion" | "map_title_achievement"; mapVariant?: "classic" }
     | { family: "achievement"; titleName: string; category: string; condition: string; evidenceRule: string; mapVariant?: "classic" };
 
+  const countPendingSubmissionsByPlayer = async (playerAccountIds: string[]) => {
+    if (!playerAccountIds.length) return new Map<string, number>();
+    const rows = await db.select({ playerAccountId: submissions.playerAccountId, total: count() }).from(submissions)
+      .where(and(inArray(submissions.playerAccountId, playerAccountIds), inArray(submissions.status, ["ready_for_review", "ocr_review_required"])))
+      .groupBy(submissions.playerAccountId);
+    return new Map(rows.map((row) => [row.playerAccountId, row.total]));
+  };
+
   const resolveAdminSubmissionDetails = async (submissionRows: Array<typeof submissions.$inferSelect>) => {
     const submissionIds = submissionRows.map((row) => row.id);
     const allSelectionRows = submissionRows.filter((row) => row.challengeId).map((row) => ({
@@ -7701,6 +7709,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         .where(and(inArray(bindings.playerAccountId, items.map((account) => account.id)), eq(bindings.status, "active")))
         .groupBy(bindings.playerAccountId) : [];
       const bindingCounts = new Map(bindingRows.map((row) => [row.playerAccountId, row.total]));
+      const pendingCounts = await countPendingSubmissionsByPlayer(items.map((account) => account.id));
       return {
         contractVersion: "1" as const,
         items: items.map((account) => ({
@@ -7709,6 +7718,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           playerName: account.playerName,
           status: account.status as "active" | "banned",
           bindingCount: bindingCounts.get(account.id) ?? 0,
+          pendingSubmissionCount: pendingCounts.get(account.id) ?? 0,
           updatedAt: account.updatedAt,
         })),
         page: input.page,
@@ -7758,6 +7768,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         playerName: account.playerName,
         status: account.status as "active" | "banned",
         bindingCount: playerBindings.length,
+        pendingSubmissionCount: (await countPendingSubmissionsByPlayer([account.id])).get(account.id) ?? 0,
         updatedAt: account.updatedAt,
         bindings: playerBindings.map((binding) => ({ bindingId: binding.id, provider: "qq" as const, groupOpenId: binding.groupOpenId, memberOpenId: binding.memberOpenId, createdAt: binding.createdAt })),
         recentSubmissions: recentSubmissions.map((submission) => ({
