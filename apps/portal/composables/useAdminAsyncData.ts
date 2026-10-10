@@ -23,8 +23,10 @@ export function useAdminAsyncData<T>(
       options.onStart?.();
       try {
         const data = await handler();
-        cache.value[requestCacheKey] = data;
-        if (cacheKey.value === requestCacheKey) options.onData?.(data);
+        if (cacheKey.value === requestCacheKey) {
+          cache.value[requestCacheKey] = data;
+          options.onData?.(data);
+        }
         return data;
       } catch (error) {
         if (cacheKey.value === requestCacheKey) options.onError?.(error);

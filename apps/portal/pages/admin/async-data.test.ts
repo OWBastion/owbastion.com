@@ -116,4 +116,45 @@ describe("admin page async data", () => {
     expect(load).toHaveBeenCalledTimes(2);
     wrapper.unmount();
   });
+
+  it("does not cache a response that resolves after its key moved on", async () => {
+    const selectedKey = ref("a");
+    const received: string[] = [];
+    let bFetches = 0;
+    const load = vi.fn(async (key: string) => {
+      if (key !== "b") return `${key} result`;
+      bFetches += 1;
+      // The review list's empty-page auto-decrement moves the key on before this resolves.
+      if (bFetches === 1) selectedKey.value = "c";
+      return bFetches === 1 ? "stale b result" : "fresh b result";
+    });
+    const Page = defineComponent({
+      setup() {
+        const displayed = ref("");
+        useAdminAsyncData("stale-key-test", () => load(selectedKey.value), {
+          cacheKey: selectedKey,
+          onData: (value) => { received.push(value); displayed.value = value; },
+        });
+        return () => h("div", [
+          h("button", { id: "select-b", onClick: () => { selectedKey.value = "b"; } }, "B"),
+          h("p", displayed.value),
+        ]);
+      },
+    });
+
+    const wrapper = await mountSuspended(Page);
+    await flushPromises();
+    expect(received).toEqual(["a result"]);
+
+    await wrapper.get("#select-b").trigger("click");
+    await flushPromises();
+    expect(received).not.toContain("stale b result");
+    expect(wrapper.text()).toContain("c result");
+
+    await wrapper.get("#select-b").trigger("click");
+    await flushPromises();
+    expect(wrapper.text()).toContain("fresh b result");
+    expect(received).not.toContain("stale b result");
+    wrapper.unmount();
+  });
 });
