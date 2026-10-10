@@ -95,7 +95,7 @@ const fieldChoices = (key: string): Array<string | { label: string; value: strin
     case "viewer_player": return withCurrent([props.submission.playerName], [current]);
     case "mode": return [{ label: "常规（随机事件）", value: "随机事件" }, ...withCurrent(props.preview?.knownModes ?? [], [current]).filter((mode) => mode !== "随机事件").map((mode) => ({ label: mode, value: mode }))];
     case "challenge_completed": return [{ label: "已完成", value: "true" }, { label: "未完成", value: "false" }];
-    case "map_variant": return [{ label: "标准", value: "standard" }, { label: "经典", value: "classic" }];
+    case "map_variant": return [{ label: "标准版", value: "standard" }, { label: "经典版", value: "classic" }];
     default: return [];
   }
 };
@@ -148,11 +148,12 @@ const fieldRows = computed(() => annotatableFields.map((field) => {
   const attested = confirmedFields.value.includes(field.key);
   const isPanel = field.key === "achievement_titles";
   const primary = primaryFieldKeys.includes(field.key);
+  // A standard map has no variant mark, so a missing map version is the normal reading, not something to check.
   // The panel, map version and mode always read as something ("无", the standard version, the regular mode); only truly absent values invite typing one in.
   const recognized = isPanel || field.key === "map_variant" || field.key === "mode" || (raw !== null && raw !== undefined);
   const needed = neededFields.value.has(field.key) && !attested;
   const unusable = !attested && unusableReadout(field.key, raw);
-  const attention = !attested && (needed || unusable || (primary && (!recognized || (ocr?.status !== undefined && ocr.status !== "ok"))));
+  const attention = !attested && (needed || unusable || (primary && (!recognized || (ocr?.status !== undefined && ocr.status !== "ok" && !(field.key === "map_variant" && ocr.status === "missing")))));
   const changed = attested && (correctionInputs[field.key] ?? "") !== (initialInputs[field.key] ?? "");
   // A mode matched to the nearest configured one still shows what OCR read, so a wrong match is visible.
   // Results stored before the match existed carry only the raw label; the same match is applied here.
