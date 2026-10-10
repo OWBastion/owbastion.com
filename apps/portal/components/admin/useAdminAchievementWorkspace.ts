@@ -46,6 +46,7 @@ export function useAdminAchievementWorkspace() {
     window.setTimeout(() => updatedCatalogIds.delete(id), 420);
   }
   const isSaving = (item: AdminAchievement) => savingId.value === itemIdentity(item);
+  const categories = computed(() => [...new Set(items.value.flatMap((item) => isTitle(item) ? [item.category] : []).filter(Boolean))].sort());
   const mapItems = computed(() => items.value.filter(isMap));
   const editingItem = computed(() => items.value.find((candidate) => itemIdentity(candidate) === editingId.value && (isTitle(candidate) || isMap(candidate))) ?? null);
   const editorOpen = computed({
@@ -327,7 +328,7 @@ export function useAdminAchievementWorkspace() {
   }
 
   return {
-    items, maps, modes, loading, errorMessage, updatedCatalogIds,
+    items, maps, modes, categories, loading, errorMessage, updatedCatalogIds,
     editingId, planningId, retirementVersions, endTarget, savingId, iconFile, iconUploading,
     createOpen, creating, editingItem, editorOpen, endingCatalog, mapItems,
     achievementStatusText, achievementItemStatusTone, isSaving,

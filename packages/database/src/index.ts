@@ -20,6 +20,8 @@ const ocrRetryEnqueueingPrefix = "ocr-retry-enqueueing:";
 const playerUploadCompletionEnqueueingPrefix = "player-upload-completion-enqueueing:";
 const qqScreenshotEnqueueingPrefix = "qq-screenshot-enqueueing:";
 const qqScreenshotResumeAfterMs = 60_000;
+// Bastion builds are YY.MMDD.N; with no known build the day's first build number stands in.
+const formatDayBuildVersion = (timestamp = now()) => { const date = new Date(timestamp).toISOString().slice(2, 10).split("-"); return `${date[0]}.${date[1]}${date[2]}.1`; };
 const formatCurrentGameVersion = (timestamp = now()) => new Date(timestamp).toISOString().slice(0, 10).replaceAll("-", ".");
 
 const normalizedOcrLabel = (value: unknown) => typeof value === "string" ? value.trim().toLocaleLowerCase() : "";
@@ -4491,6 +4493,17 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   // anything else is most likely a misread of the regular label and needs a maintainer.
   const isKnownStandaloneMode = async (mode: string) => Boolean(await db.select({ mode: standaloneModes.mode }).from(standaloneModes).where(eq(standaloneModes.mode, mode)).get());
 
+  // The newest build the platform knows: the highest well-formed version among event pools.
+  const latestBuildVersion = async () => {
+    const rows = await db.select({ gameVersion: randomEventVersions.gameVersion }).from(randomEventVersions);
+    const parts = (version: string) => version.split(".").map(Number);
+    const newest = rows.map((row) => row.gameVersion).filter(isWellFormedGameVersion).sort((a, b) => {
+      const [left, right] = [parts(a), parts(b)];
+      return (left[0]! - right[0]!) || (left[1]! - right[1]!) || (left[2]! - right[2]!);
+    }).at(-1);
+    return newest ?? formatDayBuildVersion();
+  };
+
   const completeOcrResult = async (row: typeof submissions.$inferSelect, result: OcrResponse, input: { attempt: number; manual: boolean; requestId: string }) => {
     const ocrRequestId = input.requestId;
     const startedAt = Date.now();
@@ -5692,7 +5705,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         return replay;
       }
       // The version is internal bookkeeping: administrators may omit it and the current version is recorded.
-      const gameVersion = input.gameVersion?.trim() || (input.status !== "scheduled" ? formatCurrentGameVersion() : null);
+      const gameVersion = input.gameVersion?.trim() || (input.status !== "scheduled" ? await latestBuildVersion() : null);
       const existing = await db.select({ key: titleCatalog.key, category: titleCatalog.category }).from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
       if (existing) throw new Error("TITLE_KEY_CONFLICT");
       if (input.progressRule) {

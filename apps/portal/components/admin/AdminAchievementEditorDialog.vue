@@ -7,6 +7,7 @@ const props = defineProps<{
   item: AdminAchievement | null;
   maps: AdminMap[];
   modes: StandaloneModeOption[];
+  categories: string[];
   saving: boolean;
   iconFile: File | null;
   iconUploading: boolean;
@@ -152,7 +153,7 @@ function onIconFile(value: File | null | undefined) {
             <UInput class="editor-control" v-model="asCatalog(item)!.icon" required maxlength="64" :disabled="saving" />
           </UFormField>
           <UFormField class="editor-field" label="称号系列" required>
-            <UInput class="editor-control" v-model="asCatalog(item)!.category" required maxlength="128" :disabled="saving" />
+            <UInputMenu class="editor-control" v-model="asCatalog(item)!.category" :items="categories" create-item placeholder="选择或输入" :disabled="saving" @create="asCatalog(item)!.category = $event.trim()" />
           </UFormField>
           <UFormField class="editor-field" label="称号范围">
             <USelect class="editor-control" v-model="asCatalog(item)!.scope" :items="[{ label: '全局称号', value: 'global' }, { label: '地图称号', value: 'map' }]" :disabled="saving" />
@@ -238,7 +239,7 @@ function onIconFile(value: File | null | undefined) {
         </UFormField>
 
         <UFormField v-if="asChallenge(item)" class="editor-field" label="游戏版本">
-          <UInput class="editor-control" :model-value="asChallenge(item)!.gameVersion ?? ''" placeholder="留空使用当前版本" :disabled="saving" @update:model-value="setGameVersion" />
+          <UInput class="editor-control" :model-value="asChallenge(item)!.gameVersion ?? ''" placeholder="留空使用最新版本，格式 YY.MMDD.序号" :disabled="saving" @update:model-value="setGameVersion" />
         </UFormField>
 
         <template v-if="asTitle(item) && !asCatalog(item)">

@@ -24,7 +24,7 @@ type CreatePayload = {
   retiredVersion?: string;
 };
 
-const props = defineProps<{ open: boolean; maps: TargetMap[]; modes: { mode: string; mapIds: string[] }[]; saving: boolean }>();
+const props = defineProps<{ open: boolean; maps: TargetMap[]; modes: { mode: string; mapIds: string[] }[]; categories: string[]; saving: boolean }>();
 const emit = defineEmits<{ "update:open": [open: boolean]; submit: [payload: CreatePayload, iconFile: File | null] }>();
 const dialogOpen = computed({
   get: () => props.open,
@@ -127,10 +127,10 @@ function submit() {
           <summary>更多设置</summary>
           <div class="editor more-settings-body">
             <UFormField class="editor-field" label="唯一 key" hint="留空自动生成。"><UInput v-model="form.titleKey" class="editor-control" placeholder="例如 CLASSIC_RACETRACK" :disabled="props.saving" /></UFormField>
-            <UFormField class="editor-field" label="系列"><UInput v-model="form.category" class="editor-control" :disabled="props.saving" /></UFormField>
+            <UFormField class="editor-field" label="系列" hint="选择已有系列，或输入新的。"><UInputMenu v-model="form.category" :items="categories" create-item placeholder="选择或输入" class="editor-control" :disabled="props.saving" @create="form.category = $event.trim()" /></UFormField>
             <UFormField class="editor-field" label="图标"><UInput v-model="form.icon" class="editor-control" placeholder="trophy" :disabled="props.saving" /></UFormField>
             <UFormField class="editor-field" label="展示分类"><UInput v-model="form.categoryOverride" class="editor-control" placeholder="留空使用系列" :disabled="props.saving" /></UFormField>
-            <UFormField class="editor-field" label="游戏版本" hint="留空使用当前版本。"><UInput v-model="form.gameVersion" class="editor-control" placeholder="例如 26.0728.1" :disabled="props.saving" /></UFormField>
+            <UFormField class="editor-field" label="游戏版本" hint="留空使用最新版本。格式 YY.MMDD.序号。"><UInput v-model="form.gameVersion" class="editor-control" placeholder="例如 26.1003.1" :disabled="props.saving" /></UFormField>
             <template v-if="!progressMode">
               <UFormField class="editor-field editor-field--wide" label="截图规则"><UTextarea v-model="form.evidenceRule" class="editor-control" :placeholder="defaultEvidenceRule" :disabled="props.saving" maxlength="2048" /></UFormField>
               <UFormField class="editor-field" label="提交方式"><USelect v-model="form.submissionMode" class="editor-control" :disabled="props.saving" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" /></UFormField>
