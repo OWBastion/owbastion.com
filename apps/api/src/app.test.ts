@@ -78,6 +78,7 @@ const services: PlatformServices = {
   completePlayerUpload: async () => ({ submissionId: "00000000-0000-0000-0000-000000000003", status: "processing" }),
   listAdminSubmissions: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 50, total: 0, hasMore: false }),
   getAdminSubmission: async () => { throw new Error("SUBMISSION_NOT_FOUND"); },
+  reevaluateAdminSubmissionOcr: async ({ submissionId }) => ({ contractVersion: "1", submissionId, status: "approved" }),
   requestAdminOcr: async ({ submissionId }) => ({ contractVersion: "1", submissionId, status: "ocr_pending" }),
   resolveAdminSubmissionSpotCheck: async ({ submissionId, decision }) => ({ contractVersion: "1", submissionId, status: decision, grantId: null, verifiedRunId: null }),
   getPlayerSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "needs_review", mapName: "Test Map", createdAt: 1, updatedAt: 2, evidenceUrl: "https://evidence.owbastion.codes/uploads/submissions/opaque-object-key.png", ocr: { mapName: "Test Map", difficulty: "困难", playerName: "Player", challengeCompleted: true } }),
@@ -1962,6 +1963,17 @@ describe("API", () => {
     const response = await retryApp.request("http://localhost/v1/admin/submissions/00000000-0000-0000-0000-000000000000/ocr/retry", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "ocr-retry-race-1" }, body: JSON.stringify({ contractVersion: "1" }) }, env);
     expect(response.status).toBe(409);
     expect((await response.json() as { error: { code: string } }).error.code).toBe("OCR_RETRY_IN_PROGRESS");
+  });
+
+  it("re-evaluates a held submission and reports a submission that cannot be re-evaluated", async () => {
+    const id = "00000000-0000-0000-0000-000000000000";
+    const call = (reevaluate: () => Promise<unknown>) => createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, reevaluateAdminSubmissionOcr: reevaluate as never }) })
+      .request(`http://localhost/v1/admin/submissions/${id}/ocr/reevaluate`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "reevaluate-1" }, body: JSON.stringify({ contractVersion: "1" }) }, env);
+    const ok = await call(async () => ({ contractVersion: "1", submissionId: id, status: "approved" }));
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toMatchObject({ status: "approved" });
+    const rejected = await call(async () => { throw new Error("SUBMISSION_NOT_REEVALUABLE"); });
+    expect(rejected.status).toBe(409);
   });
 
   it("does not expose player or maintainer challenge selection routes", async () => {

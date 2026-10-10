@@ -1341,6 +1341,42 @@ describe("map title rule model – locked invariants", () => {
         .toEqual({ mode: "2026镜中回响", mode_read: modeLabel === "2026镜中回响" ? null : modeLabel });
     });
 
+    it("re-evaluates a submission awaiting review from its stored recognition", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.rialto");
+      sqlite.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, mode, game_version, created_at, updated_at) VALUES ('revision:map.rialto:mirror', 'map.rialto', 'selectable', NULL, '2026镜中回响', '99.0101.1', ?, ?)").run(now, now);
+      seedEventPools(sqlite);
+      seedTitle(sqlite, "CONQUEROR");
+      seedTitle(sqlite, "DOMINATOR");
+      seedTitle(sqlite, "PROPHET");
+      seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
+      seedRule(sqlite, "rule.dominator", "DOMINATOR", "dominator", { slot: "dominator" });
+      sqlite.prepare("INSERT INTO title_challenges (id, title_key, condition, evidence_rule, submission_mode, game_version, status, introduced_version, scope, created_at, updated_at) VALUES ('title.prophet', 'PROPHET', '触发 10 次先知', '上传截图', 'manual', '2026周年', 'active', '2026周年', 'global', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.mirror', 'mirror-1', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.mirror', 'identity.mirror', 'player.mirror', 'qq', 'group.mirror', 'member.mirror', 'active', ?)").run(now);
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.mirror', 'binding.mirror', 'ocr_review_required', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'mirror.1', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, byte_size, sha256, object_key, upload_status, created_at) VALUES ('attachment.mirror', 'submission.mirror', 'portal', 'external.mirror', 'image/png', 1, 'hash', 'evidence/mirror.png', 'stored', ?)").run(now);
+
+      const ocrResponse = {
+        schema_version: "1",
+        ok: true,
+        layout_version: "1280x720-v7",
+        fields: Object.fromEntries(["challenge_completed", "map_name", "difficulty", "achievement_titles", "version", "run_code", "duration_seconds", "deaths", "skips"].map((field) => [field, { status: "ok", confidence: 0.99 }])),
+        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.rialto", difficulty: "地狱", mode: "202S镜中回响", achievement_titles: ["称号 PROPHET"], version: "99.0101.1", run_code: "9695-1153-2370", duration_seconds: 600, deaths: 0, skips: 0 },
+      };
+      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, match_json, created_at) VALUES ('ocr.mirror.stored', 'submission.mirror', 1, 'review_required', ?, '{}', ?)").run(JSON.stringify(ocrResponse), now);
+      const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
+      const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
+
+      const first = await services.reevaluateAdminSubmissionOcr({ submissionId: "submission.mirror" }, auth, "key-1");
+      expect(first).toEqual({ contractVersion: "1", submissionId: "submission.mirror", status: "approved" });
+      expect(await services.reevaluateAdminSubmissionOcr({ submissionId: "submission.mirror" }, auth, "key-1")).toEqual(first);
+      expect(sqlite.prepare("SELECT gameplay_revision_id FROM mastery_runs WHERE player_account_id = 'player.mirror'").all()).toEqual([{ gameplay_revision_id: "revision:map.rialto:mirror" }]);
+      expect(sqlite.prepare("SELECT operation FROM audit_events WHERE entity_id = 'submission.mirror' AND operation = 'submission.ocr.reevaluate'").all()).toHaveLength(1);
+      await expect(services.reevaluateAdminSubmissionOcr({ submissionId: "submission.mirror" }, auth, "key-2")).rejects.toThrow("SUBMISSION_NOT_REEVALUABLE");
+    });
+
     it("preserves each matched challenge completion while granting a shared title once", async () => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);

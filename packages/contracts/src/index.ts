@@ -1108,6 +1108,8 @@ export const adminSubmissionReviewResponseSchema = z.object({
   contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grant: z.null(), verifiedRunOutcome: playerVerifiedRunSubmissionOutcomeSchema,
 })).or(z.object({ contractVersion, submissionId: z.string().uuid(), decision: z.enum(["rejected", "resubmission_required"]), grant: z.null() }));
 export const adminSubmissionOcrRetryRequestSchema = z.object({ contractVersion });
+export const adminSubmissionOcrReevaluateRequestSchema = z.object({ contractVersion });
+export const adminSubmissionOcrReevaluateResponseSchema = z.object({ contractVersion, submissionId: z.string().uuid(), status: z.string().min(1) });
 export const adminSubmissionOcrRetryResponseSchema = z.object({ contractVersion, submissionId: z.string().uuid(), status: z.literal("ocr_pending") });
 export const adminSubmissionSpotCheckRequestSchema = z.object({ contractVersion, decision: z.enum(["confirmed", "revoked"]), reason: z.string().trim().max(512).optional() });
 export const adminSubmissionSpotCheckResponseSchema = z.object({ contractVersion, submissionId: z.string().uuid(), status: z.enum(["confirmed", "revoked"]), grantId: z.string().uuid().nullable(), verifiedRunId: z.string().uuid().nullable() });
@@ -1773,6 +1775,7 @@ export type AdminSubmissionReviewResponse = z.infer<typeof adminSubmissionReview
 export type AdminSubmissionReviewPreviewRequest = z.infer<typeof adminSubmissionReviewPreviewRequestSchema>;
 export type AdminSubmissionReviewPreviewResponse = z.infer<typeof adminSubmissionReviewPreviewResponseSchema>;
 export type AdminSubmissionReviewCandidate = z.infer<typeof adminSubmissionReviewCandidateSchema>;
+export type AdminSubmissionOcrReevaluateResponse = z.infer<typeof adminSubmissionOcrReevaluateResponseSchema>;
 export type AdminSubmissionOcrRetryResponse = z.infer<typeof adminSubmissionOcrRetryResponseSchema>;
 export type AdminSubmissionSpotCheckRequest = z.infer<typeof adminSubmissionSpotCheckRequestSchema>;
 export type AdminSubmissionSpotCheckResponse = z.infer<typeof adminSubmissionSpotCheckResponseSchema>;
