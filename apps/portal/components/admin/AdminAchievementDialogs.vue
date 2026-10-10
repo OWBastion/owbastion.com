@@ -12,6 +12,7 @@ const iconFile = toRef(ws, "iconFile");
     v-model:icon-file="iconFile"
     :item="ws.editingItem.value"
     :maps="ws.maps.value"
+    :modes="ws.modes.value"
     :saving="ws.editingItem.value ? ws.isSaving(ws.editingItem.value) : false"
     :icon-uploading="ws.iconUploading.value"
     @save="ws.editingItem.value && ws.saveEditingItem(ws.editingItem.value)"
@@ -35,7 +36,7 @@ const iconFile = toRef(ws, "iconFile");
     </template>
   </AdminResponsiveDialog>
 
-  <AdminAchievementCreateDialog v-model:open="ws.createOpen.value" :maps="ws.maps.value" :saving="ws.creating.value" @submit="ws.createAchievement" />
+  <AdminAchievementCreateDialog v-model:open="ws.createOpen.value" :maps="ws.maps.value" :modes="ws.modes.value" :saving="ws.creating.value" @submit="ws.createAchievement" />
 </template>
 
 <style scoped>

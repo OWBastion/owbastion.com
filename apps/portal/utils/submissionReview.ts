@@ -76,6 +76,7 @@ const verifiedRunReasonLabels: Record<string, string> = {
   submission_map_mismatch: "地图与提交的目标地图不一致",
   invalid_difficulty: "难度无效",
   unsupported_game_version: "游戏版本缺失或不受支持",
+  invalid_game_version: "识别到的游戏版本号格式异常，请在「更多字段」中核对版本",
   invalid_run_code: "对局码缺失或无效",
   invalid_completion_duration: "通关用时缺失或无效",
   invalid_settlement_value: "死亡或跳过次数无效",

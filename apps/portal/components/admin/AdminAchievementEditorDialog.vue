@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import type { AdminAchievement, AdminMap, CatalogTitle, MapAchievement, TitleAchievement } from "./admin-achievement-types";
+import type { AdminAchievement, AdminMap, CatalogTitle, MapAchievement, StandaloneModeOption, TitleAchievement } from "./admin-achievement-types";
 import { DEFAULT_EVIDENCE_RULE, DIFFICULTY_OPTIONS, isCatalog, isChallengeTitle, isMap, isTitle } from "./admin-achievement-types";
 
 const props = defineProps<{
   open: boolean;
   item: AdminAchievement | null;
   maps: AdminMap[];
+  modes: StandaloneModeOption[];
   saving: boolean;
   iconFile: File | null;
   iconUploading: boolean;
@@ -96,6 +97,17 @@ function setProgressGameMode(value: string) {
   const { mode: _omitted, ...rest } = props.item.progressRule;
   props.item.progressRule = value.trim() ? { ...rest, mode: value.trim() } : { ...rest };
 }
+const regularScope = "__regular__";
+const scopeItems = computed(() => [{ label: "常规模式（指定地图）", value: regularScope }, ...props.modes.map(({ mode, mapIds }) => ({ label: `${mode}（${mapIds.length} 张地图）`, value: mode }))]);
+const progressMode = computed(() => props.item && isChallengeTitle(props.item) ? props.item.progressRule?.mode : undefined);
+const followedMapCount = computed(() => props.modes.find(({ mode }) => mode === progressMode.value)?.mapIds.length ?? 0);
+function setProgressScope(value: string) {
+  if (value === regularScope) setProgressGameMode("");
+  else {
+    setProgressGameMode(value);
+    setProgressMapIds([]);
+  }
+}
 const progressModeItems = [{ label: "截图条件", value: "none" }, { label: "集齐指定地图", value: "required_maps_completed" }];
 const progressDifficultyItems = computed(() => [{ label: "不限难度", value: "" }, ...DIFFICULTY_OPTIONS.map((difficulty) => ({ label: `至少${difficulty}`, value: difficulty }))]);
 function setCatalogColor(value: string) {
@@ -168,10 +180,10 @@ function onIconFile(value: File | null | undefined) {
           <UFormField class="editor-field editor-field--wide" label="完成条件" required>
             <UTextarea class="editor-control" v-model="(item as TitleAchievement | MapAchievement).condition" required maxlength="1024" :disabled="saving" />
           </UFormField>
-          <UFormField class="editor-field editor-field--wide" label="截图规则" required>
+          <UFormField v-if="!asChallenge(item)?.progressRule" class="editor-field editor-field--wide" label="截图规则" required>
             <UTextarea class="editor-control" :model-value="(item as TitleAchievement | MapAchievement).evidenceRule ?? DEFAULT_EVIDENCE_RULE" required maxlength="2048" :disabled="saving" @update:model-value="setEvidenceRule" />
           </UFormField>
-          <UFormField class="editor-field" label="提交方式">
+          <UFormField v-if="!asChallenge(item)?.progressRule" class="editor-field" label="提交方式">
             <USelect class="editor-control" :model-value="(item as TitleAchievement | MapAchievement).submissionMode ?? 'manual'" :disabled="saving || Boolean(asChallenge(item)?.progressRule)" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" :ui="{ base: 'w-full' }" @update:model-value="setSubmissionMode($event as 'manual' | 'automatic')" />
           </UFormField>
         </template>
@@ -185,17 +197,20 @@ function onIconFile(value: File | null | undefined) {
             <USelect class="editor-control" :model-value="asChallenge(item)!.progressRule ? 'required_maps_completed' : 'none'" :items="progressModeItems" :disabled="saving" @update:model-value="setProgressMode($event as 'none' | 'required_maps_completed')" />
           </UFormField>
           <template v-if="asChallenge(item)!.progressRule">
-            <UFormField class="editor-field editor-field--wide" label="要求地图" hint="玩家在活动时间内于每张地图各留下至少一条有效已验证通关即完成。填了独立模式时可留空，自动跟随该模式的全部地图。">
-              <USelect class="editor-control" :model-value="asChallenge(item)!.progressRule!.mapIds ?? []" multiple :items="maps.map((map) => ({ label: map.mapName, value: map.mapId }))" :disabled="saving" @update:model-value="setProgressMapIds($event as string[])" />
+            <UFormField class="editor-field" label="统计范围" hint="选择独立模式后自动跟随该模式的全部地图，不用再逐张勾选。">
+              <USelect class="editor-control" :model-value="progressMode ?? regularScope" :items="scopeItems" :disabled="saving" @update:model-value="setProgressScope($event as string)" />
             </UFormField>
             <UFormField class="editor-field" label="最低难度">
               <USelect class="editor-control" :model-value="asChallenge(item)!.progressRule!.difficultyAtLeast ?? ''" :items="progressDifficultyItems" :disabled="saving" @update:model-value="setProgressDifficulty(($event as string) || undefined)" />
             </UFormField>
-            <UFormField class="editor-field" label="独立模式" hint="只统计该模式（如 2026镜中回响）的通关；留空只统计常规模式。">
-              <UInput class="editor-control" :model-value="asChallenge(item)!.progressRule!.mode ?? ''" :disabled="saving" @update:model-value="setProgressGameMode(String($event))" />
+            <UFormField v-if="progressMode" class="editor-field editor-field--wide">
+              <p class="editor-note">自动跟随「{{ progressMode }}」的 {{ followedMapCount }} 张地图。</p>
+            </UFormField>
+            <UFormField v-else class="editor-field editor-field--wide" label="要求地图" hint="玩家在活动时间内于每张地图各留下至少一条有效已验证通关即完成。">
+              <USelect class="editor-control" :model-value="asChallenge(item)!.progressRule!.mapIds ?? []" multiple :items="maps.map((map) => ({ label: map.mapName, value: map.mapId }))" :disabled="saving" @update:model-value="setProgressMapIds($event as string[])" />
             </UFormField>
           </template>
-          <UFormField class="editor-field" label="称号适用范围">
+          <UFormField v-if="!asChallenge(item)?.progressRule" class="editor-field" label="称号适用范围">
             <USelect class="editor-control" :model-value="asChallenge(item)!.scope ?? 'global'" :disabled="saving || Boolean(asChallenge(item)!.progressRule)" :items="[{ label: '全部地图', value: 'global' }, { label: '指定地图', value: 'map' }]" @update:model-value="setScope($event as 'global' | 'map')" />
           </UFormField>
           <UFormField v-if="asChallenge(item)!.scope === 'map'" class="editor-field editor-field--wide" label="指定地图">
@@ -263,6 +278,7 @@ function onIconFile(value: File | null | undefined) {
 .editor-field, .editor-control { width: 100%; min-width: 0; }
 .editor :deep(textarea) { min-height: 104px; }
 .editor-field--wide { grid-column: 1 / -1; }
+.editor-note { margin: 0; color: var(--muted); font-size: var(--type-caption-size); }
 .icon-upload { display: grid; gap: var(--space-3); }
 .icon-upload-option { border-top: 1px solid var(--line); color: var(--muted); font-size: var(--type-caption-size); }
 .icon-upload-option summary { padding-top: var(--space-3); cursor: pointer; }

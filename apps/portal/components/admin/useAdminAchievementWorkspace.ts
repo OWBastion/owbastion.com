@@ -5,6 +5,7 @@ import {
   type AchievementStatus,
   type AdminAchievement,
   type AdminMap,
+  type StandaloneModeOption,
   type CatalogTitle,
   type MapAchievement,
   type TitleAchievement,
@@ -36,6 +37,7 @@ export function useAdminAchievementWorkspace() {
   const createOpen = shallowRef(false);
   const creating = shallowRef(false);
   const maps = ref<AdminMap[]>([]);
+  const modes = ref<StandaloneModeOption[]>([]);
   /* A-04 — briefly flash a row after an in-place update so the change is
      visible without reloading the whole page. */
   const updatedCatalogIds = new Set<string>();
@@ -62,16 +64,18 @@ export function useAdminAchievementWorkspace() {
       : achievementStatusTone(item.status);
   const endingCatalog = computed(() => endTarget.value !== null && isCatalog(endTarget.value));
   const adminData = useAdminAsyncData("achievements", async () => {
-      const [response, mapResponse] = await Promise.all([
+      const [response, mapResponse, modeResponse] = await Promise.all([
         api<{ items: AdminAchievement[] }>("/v1/achievements"),
         api<{ items: AdminMap[] }>("/v1/maps"),
+        api<{ items: StandaloneModeOption[] }>("/v1/standalone-modes"),
       ]);
-      return { items: response.items, maps: mapResponse.items };
+      return { items: response.items, maps: mapResponse.items, modes: modeResponse.items };
     }, {
       onStart: () => { errorMessage.value = ""; },
-      onData: ({ items: nextItems, maps: nextMaps }) => {
+      onData: ({ items: nextItems, maps: nextMaps, modes: nextModes }) => {
         items.value = nextItems;
         maps.value = nextMaps;
+        modes.value = nextModes;
         for (const item of nextItems) if (isChallengeTitle(item) || isMap(item)) retirementVersions[itemIdentity(item)] ??= item.retiredVersion ?? "";
         if (editingId.value && !nextItems.some((item) => itemIdentity(item) === editingId.value)) editingId.value = null;
       },
@@ -105,7 +109,7 @@ export function useAdminAchievementWorkspace() {
       iconUrl: item.iconUrl?.trim() || null,
       status,
       ...(item.scope ? { scope: item.scope, mapIds: item.scope === "map" ? item.mapIds ?? [] : [] } : {}),
-      ...(item.progressRule !== undefined ? { progressRule: item.progressRule ? { type: "required_maps_completed", mapIds: item.progressRule.mapIds, ...(item.progressRule.difficultyAtLeast ? { difficultyAtLeast: item.progressRule.difficultyAtLeast } : {}) } : null } : {}),
+      ...(item.progressRule !== undefined ? { progressRule: item.progressRule ? { type: "required_maps_completed", ...(item.progressRule.mapIds?.length ? { mapIds: item.progressRule.mapIds } : {}), ...(item.progressRule.difficultyAtLeast ? { difficultyAtLeast: item.progressRule.difficultyAtLeast } : {}), ...(item.progressRule.mode?.trim() ? { mode: item.progressRule.mode.trim() } : {}) } : null } : {}),
       gameVersion: item.gameVersion?.trim() || null,
       ...(item.scope === "map" ? { mapVariant: item.mapVariant } : {}),
       ...(status === "sunsetting" && (retiredVersion ?? item.retiredVersion)?.trim() ? { retiredVersion: (retiredVersion ?? item.retiredVersion)!.trim() } : {}),
@@ -323,7 +327,7 @@ export function useAdminAchievementWorkspace() {
   }
 
   return {
-    items, maps, loading, errorMessage, updatedCatalogIds,
+    items, maps, modes, loading, errorMessage, updatedCatalogIds,
     editingId, planningId, retirementVersions, endTarget, savingId, iconFile, iconUploading,
     createOpen, creating, editingItem, editorOpen, endingCatalog, mapItems,
     achievementStatusText, achievementItemStatusTone, isSaving,

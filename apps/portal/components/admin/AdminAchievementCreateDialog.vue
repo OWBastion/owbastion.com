@@ -24,7 +24,7 @@ type CreatePayload = {
   retiredVersion?: string;
 };
 
-const props = defineProps<{ open: boolean; maps: TargetMap[]; saving: boolean }>();
+const props = defineProps<{ open: boolean; maps: TargetMap[]; modes: { mode: string; mapIds: string[] }[]; saving: boolean }>();
 const emit = defineEmits<{ "update:open": [open: boolean]; submit: [payload: CreatePayload, iconFile: File | null] }>();
 const dialogOpen = computed({
   get: () => props.open,
@@ -56,6 +56,15 @@ const form = reactive({
 });
 
 const mapItems = computed(() => props.maps.map((map) => ({ label: map.mapName, value: map.mapId })));
+const regularScope = "__regular__";
+const scopeItems = computed(() => [{ label: "常规模式（指定地图）", value: regularScope }, ...props.modes.map(({ mode, mapIds }) => ({ label: `${mode}（${mapIds.length} 张地图）`, value: mode }))]);
+const progressScope = computed({
+  get: () => form.progressGameMode || regularScope,
+  set: (value: string) => {
+    form.progressGameMode = value === regularScope ? "" : value;
+    if (value !== regularScope) form.progressMapIds = [];
+  },
+});
 const progressModeItems = [{ label: "截图条件", value: "none" }, { label: "集齐指定地图", value: "required_maps_completed" }];
 const progressDifficultyItems = computed(() => [{ label: "不限难度", value: "" }, ...DIFFICULTY_OPTIONS.map((difficulty) => ({ label: `至少${difficulty}`, value: difficulty }))]);
 const progressMode = computed(() => form.progressMode === "required_maps_completed");
@@ -104,15 +113,15 @@ function submit() {
         <UFormField class="editor-field" label="图标" required><UInput v-model="form.icon" class="editor-control" placeholder="trophy" :disabled="props.saving" required /></UFormField>
         <UFormField class="editor-field" label="系列" required><UInput v-model="form.category" class="editor-control" :disabled="props.saving" required /></UFormField>
         <UFormField class="editor-field editor-field--wide" label="完成条件" required><UTextarea v-model="form.condition" class="editor-control" :disabled="props.saving" required maxlength="1024" /></UFormField>
-        <UFormField class="editor-field editor-field--wide" label="截图规则" required><UTextarea v-model="form.evidenceRule" class="editor-control" :disabled="props.saving" required maxlength="2048" /></UFormField>
+        <UFormField v-if="!progressMode" class="editor-field editor-field--wide" label="截图规则" required><UTextarea v-model="form.evidenceRule" class="editor-control" :disabled="props.saving" required maxlength="2048" /></UFormField>
         <UFormField class="editor-field" label="完成规则" hint="集齐指定地图的进度型挑战以已验证通关为准，不走截图审核，必须保持全部地图与手动提交。"><USelect v-model="form.progressMode" class="editor-control" :disabled="props.saving" :items="progressModeItems" /></UFormField>
         <template v-if="progressMode">
-          <UFormField class="editor-field editor-field--wide" label="要求地图" hint="玩家在活动时间内于每张地图各留下至少一条有效已验证通关即完成。填了独立模式时可留空，自动跟随该模式的全部地图。"><USelect v-model="form.progressMapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
+          <UFormField class="editor-field" label="统计范围" hint="选择独立模式后自动跟随该模式的全部地图。"><USelect v-model="progressScope" class="editor-control" :items="scopeItems" :disabled="props.saving" /></UFormField>
           <UFormField class="editor-field" label="最低难度"><USelect v-model="form.progressDifficultyAtLeast" class="editor-control" :items="progressDifficultyItems" :disabled="props.saving" /></UFormField>
-          <UFormField class="editor-field" label="独立模式" hint="只统计该模式（如 2026镜中回响）的通关；留空只统计常规模式。"><UInput v-model="form.progressGameMode" class="editor-control" :disabled="props.saving" /></UFormField>
+          <UFormField v-if="!form.progressGameMode" class="editor-field editor-field--wide" label="要求地图" hint="玩家在活动时间内于每张地图各留下至少一条有效已验证通关即完成。"><USelect v-model="form.progressMapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
         </template>
-        <UFormField class="editor-field" label="提交方式"><USelect v-model="form.submissionMode" class="editor-control" :disabled="props.saving || progressMode" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" /></UFormField>
-        <UFormField class="editor-field" label="称号适用范围"><USelect v-model="form.scope" class="editor-control" :disabled="props.saving || progressMode" :items="[{ label: '全部地图', value: 'global' }, { label: '指定地图', value: 'map' }]" /></UFormField>
+        <UFormField v-if="!progressMode" class="editor-field" label="提交方式"><USelect v-model="form.submissionMode" class="editor-control" :disabled="props.saving || progressMode" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" /></UFormField>
+        <UFormField v-if="!progressMode" class="editor-field" label="称号适用范围"><USelect v-model="form.scope" class="editor-control" :disabled="props.saving || progressMode" :items="[{ label: '全部地图', value: 'global' }, { label: '指定地图', value: 'map' }]" /></UFormField>
         <template v-if="form.scope === 'map'">
           <UFormField class="editor-field editor-field--wide" label="指定地图" hint="留空作用于全部有效地图。"><USelect v-model="form.mapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
           <UFormField class="editor-field" label="地图版本"><USelect v-model="form.mapVariant" class="editor-control" :items="[{ label: '正式版', value: undefined }, { label: '经典版', value: 'classic' }]" :disabled="props.saving" /></UFormField>

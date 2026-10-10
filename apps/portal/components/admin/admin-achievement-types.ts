@@ -86,6 +86,7 @@ export type CatalogTitle = {
 
 export type AdminAchievement = TitleAchievement | MapAchievement | CatalogTitle;
 export type AdminMap = { mapId: string; mapName: string };
+export type StandaloneModeOption = { mode: string; mapIds: string[] };
 export type StatusTone = "default" | "info" | "success" | "warning" | "error";
 
 export const isTitle = (item: AdminAchievement): item is TitleAchievement | CatalogTitle => item.family === "achievement" || item.family === "title_catalog";
