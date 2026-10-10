@@ -2397,13 +2397,13 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     candidate: ReturnType<typeof prepareVerifiedRun>;
   };
 
-  const planVerifiedRunRecord = async (input: VerifiedRunInput, rejectConcurrentInsert = false): Promise<VerifiedRunRecordPlan> => {
+  const planVerifiedRunRecord = async (input: VerifiedRunInput, rejectConcurrentInsert = false, restampRevision = false): Promise<VerifiedRunRecordPlan> => {
     const candidate = prepareVerifiedRun(input);
     const source = await db.select({ playerAccountId: submissions.playerAccountId, gameplayRevisionId: submissions.gameplayRevisionId }).from(submissions)
       .where(eq(submissions.id, candidate.sourceSubmissionId)).get();
     if (!source) throw new Error("VERIFIED_RUN_SUBMISSION_NOT_FOUND");
     if (source.playerAccountId !== candidate.playerAccountId) throw new Error("VERIFIED_RUN_SUBMISSION_PLAYER_MISMATCH");
-    if (source.gameplayRevisionId && source.gameplayRevisionId !== candidate.gameplayRevisionId) throw new Error("VERIFIED_RUN_SUBMISSION_REVISION_MISMATCH");
+    if (!restampRevision && source.gameplayRevisionId && source.gameplayRevisionId !== candidate.gameplayRevisionId) throw new Error("VERIFIED_RUN_SUBMISSION_REVISION_MISMATCH");
     const [player, map, revision] = await Promise.all([
       db.select({ id: playerAccounts.id }).from(playerAccounts).where(eq(playerAccounts.id, candidate.playerAccountId)).get(),
       db.select({ id: maps.id }).from(maps).where(eq(maps.id, candidate.mapId)).get(),
@@ -2515,15 +2515,20 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     if (matchingMaps.length !== 1) return plan({ status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: matchingMaps.length ? "ambiguous_map" : "canonical_map_not_found", conflictFields: [] });
     if (row.targetMapId && row.targetMapId !== matchingMaps[0].id) return plan({ status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: "submission_map_mismatch", conflictFields: [] });
 
-    const revision = await resolveMasteryGameplayRevision({
+    const resolveRevision = (gameplayRevisionId: string | null) => resolveMasteryGameplayRevision({
       mapId: matchingMaps[0].id,
       mapVariant: evidence.mapVariant,
       mode: evidence.mode,
-      gameplayRevisionId: snapshotGameplayRevisionId(row),
+      gameplayRevisionId,
     });
+    let revision = await resolveRevision(snapshotGameplayRevisionId(row));
+    // A revision stamped on an untargeted submission that is still in review was only a provisional read
+    // (e.g. taken before the mode was configured or corrected); the reviewed evidence decides instead.
+    const restamp = !revision && Boolean(row.gameplayRevisionId) && !row.targetMapId && !row.ruleSnapshotJson && row.status !== "approved";
+    if (restamp) revision = await resolveRevision(null);
     if (!revision) return plan({ status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: "gameplay_revision_not_found", conflictFields: [] });
     const currentRevision = await db.select({ gameplayRevisionId: submissions.gameplayRevisionId }).from(submissions).where(eq(submissions.id, row.id)).get();
-    if (currentRevision?.gameplayRevisionId && currentRevision.gameplayRevisionId !== revision.id) return plan({ status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: "submission_revision_mismatch", conflictFields: [] });
+    if (!restamp && currentRevision?.gameplayRevisionId && currentRevision.gameplayRevisionId !== revision.id) return plan({ status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: "submission_revision_mismatch", conflictFields: [] });
 
     const recordInput: VerifiedRunInput = {
       playerAccountId: owner.playerAccountId,
@@ -2540,9 +2545,10 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       eventCounters: {},
       acceptanceSource,
     };
-    const recorded = await planVerifiedRunRecord(recordInput, rejectConcurrentInsert);
+    const recorded = await planVerifiedRunRecord(recordInput, rejectConcurrentInsert, restamp);
     const statements = [
-      ...(!currentRevision?.gameplayRevisionId ? [database.prepare("UPDATE submissions SET gameplay_revision_id = ? WHERE id = ? AND gameplay_revision_id IS NULL").bind(revision.id, row.id)] : []),
+      ...(restamp ? [database.prepare("UPDATE submissions SET gameplay_revision_id = ? WHERE id = ?").bind(revision.id, row.id)]
+        : !currentRevision?.gameplayRevisionId ? [database.prepare("UPDATE submissions SET gameplay_revision_id = ? WHERE id = ? AND gameplay_revision_id IS NULL").bind(revision.id, row.id)] : []),
       ...recorded.statements,
     ];
     if (recorded.result.outcome === "conflict") {
