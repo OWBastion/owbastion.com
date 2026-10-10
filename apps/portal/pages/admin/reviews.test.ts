@@ -46,9 +46,9 @@ describe("admin reviews page", () => {
     expect(wrapper.get('a[href="/admin/reviews/submission-1"]').text()).toContain("查看");
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
 
-    await wrapper.get('select[aria-label="筛选提交状态"]').setValue("awaiting_player_confirmation");
+    await wrapper.get('select[aria-label="筛选提交状态"]').setValue("all");
     await flushPromises();
-    expect(adminApi).toHaveBeenLastCalledWith("/v1/submissions?page=1&pageSize=20&status=awaiting_player_confirmation&order=newest");
+    expect(adminApi).toHaveBeenLastCalledWith("/v1/submissions?page=1&pageSize=20&order=newest");
   });
 
   it("re-evaluates only the held submissions on the page from their stored recognition", async () => {

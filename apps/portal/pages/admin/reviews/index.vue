@@ -29,8 +29,8 @@ function parseReviewStatus(value: unknown): ReviewStatus {
 }
 // Player-facing projections (processing / needs_review / completed) are not stored submission statuses.
 const playerProjectionStatuses = new Set(["processing", "needs_review", "completed"]);
-// The 待核对 queue already covers every state waiting for a maintainer, so those states are not offered again one by one.
-const reviewStatusOptions = [{ label: "待核对", value: "queue" }, { label: "全部状态", value: "all" }, ...Object.entries(submissionStatusText).filter(([value]) => !playerProjectionStatuses.has(value) && !reviewQueueStatuses.split(",").includes(value)).map(([value, label]) => ({ label, value }))];
+// The 待核对 queue already covers every state waiting for a maintainer, so those states (and the legacy awaiting_player_confirmation, which reads the same) are not offered again one by one.
+const reviewStatusOptions = [{ label: "待核对", value: "queue" }, { label: "全部状态", value: "all" }, ...Object.entries(submissionStatusText).filter(([value]) => !playerProjectionStatuses.has(value) && !reviewQueueStatuses.split(",").includes(value) && value !== "awaiting_player_confirmation").map(([value, label]) => ({ label, value }))];
 type SpotCheckFilter = "all" | "pending" | "confirmed" | "revoked";
 function parseSpotCheck(value: unknown): SpotCheckFilter {
   const raw = Array.isArray(value) ? value[0] : value;
