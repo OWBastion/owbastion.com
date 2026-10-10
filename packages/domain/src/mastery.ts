@@ -51,6 +51,9 @@ const isGameVersionAtLeast = (value: string, minimumVersion: string | null) => {
   return true;
 };
 
+// Bastion releases are YY.MMDD.N; a readout of any other shape (e.g. a dropped digit) is a misread.
+export const isWellFormedGameVersion = (value: string) => /^\d{2}\.\d{4}\.\d+$/u.test(value.trim());
+
 export const isVerifiedRunGameVersionSupported = (value: string, compatibility: VerifiedRunEvidenceCompatibilityV1 = verifiedRunEvidenceCompatibilityV1) =>
   isGameVersionAtLeast(value, compatibility.minimumGameVersion);
 

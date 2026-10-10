@@ -290,7 +290,10 @@ describe("Agents map projection readiness", () => {
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
     await services.upsertAdminStandaloneMode({ contractVersion: "1", mode: "2026镜中回响", mapIds: ["map.mode"], eventPools: [], eventWeightTotal: null }, auth, "mode-create");
     const mirror = (sqlite.prepare("SELECT id FROM gameplay_revisions WHERE mode = '2026镜中回响'").get() as { id: string }).id;
+    // Event pools carry the known builds; the newest well-formed YY.MMDD.N one becomes the default version.
+    sqlite.prepare("INSERT INTO random_event_versions (game_version, availability, mode, created_at, updated_at) VALUES ('26.0811.1', 'available', NULL, ?, ?), ('26.1003.10', 'available', NULL, ?, ?), ('26.1003.2', 'available', NULL, ?, ?)").run(now, now, now, now, now, now);
     const preparing = await services.createAdminMapRevision({ contractVersion: "1", mapId: "map.mode", mapVariant: null, copyConfiguration: false, challengeAssignments: [] }, auth, "regular-create");
+    expect(sqlite.prepare("SELECT game_version FROM gameplay_revisions WHERE id = ?").get(preparing.revisionId)).toEqual({ game_version: "26.1003.10" });
     const update = (revisionId: string, key: string) => services.updateAdminMapRevision({
       contractVersion: "1",
       mapId: "map.mode",
@@ -1184,7 +1187,7 @@ describe("map title rule model – locked invariants", () => {
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM challenge_completions WHERE player_account_id = 'player.auto' AND status = 'active'").get()).toEqual({ count: 2 });
     });
 
-    const deliverRegularClear = async (runCode: string) => {
+    const deliverRegularClear = async (runCode: string, version = "99.0101.1") => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);
       seedMap(sqlite, "map.rialto");
@@ -1200,7 +1203,7 @@ describe("map title rule model – locked invariants", () => {
         ok: true,
         layout_version: "1280x720-v7",
         fields: Object.fromEntries(["challenge_completed", "map_name", "difficulty", "version", "run_code", "duration_seconds", "deaths", "skips"].map((field) => [field, { status: "ok", confidence: 0.99 }])),
-        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.rialto", difficulty: "地狱", mode: "随机事件5.0", version: "99.0101.1", run_code: runCode, duration_seconds: 600, deaths: 0, skips: 0 },
+        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.rialto", difficulty: "地狱", mode: "随机事件5.0", version, run_code: runCode, duration_seconds: 600, deaths: 0, skips: 0 },
       };
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
       try {
@@ -1220,6 +1223,14 @@ describe("map title rule model – locked invariants", () => {
       expect(sqlite.prepare("SELECT status, review_reason FROM submissions WHERE id = 'submission.weights'").get()).toEqual({ status: "ocr_review_required", review_reason: "无法通过成就挑战校验" });
       expect(JSON.parse((sqlite.prepare("SELECT match_json FROM ocr_results WHERE submission_id = 'submission.weights'").get() as { match_json: string }).match_json)).toEqual({ runCodeEventWeight: { read: 6950, expected: 6270 } });
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE player_account_id = 'player.weights'").get()).toEqual({ count: 0 });
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs WHERE player_account_id = 'player.weights'").get()).toEqual({ count: 0 });
+    });
+
+    it("holds a run whose game version is not YY.MMDD.N instead of silently dropping the run", async () => {
+      // A dropped digit turns 26.1003.1 into 2.1003.1, which would otherwise read as "unsupported".
+      const sqlite = await deliverRegularClear("1631-2408-5670", "2.1003.1");
+
+      expect(sqlite.prepare("SELECT status, review_reason FROM submissions WHERE id = 'submission.weights'").get()).toEqual({ status: "ocr_review_required", review_reason: "识别到的游戏版本号格式异常，请人工核对" });
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs WHERE player_account_id = 'player.weights'").get()).toEqual({ count: 0 });
     });
 
@@ -2504,6 +2515,7 @@ describe("submission mastery outcomes", () => {
     expect(assessVerifiedRunOcrEvidence(masteryOcr({ matchCode: null }), localVerifiedRunEvidenceCompatibility)).toEqual({ outcome: "ineligible", reason: "unreliable_run_code" });
     expect(assessVerifiedRunOcrEvidence(masteryOcr({ layoutVersion: "test-layout-v0" }), localVerifiedRunEvidenceCompatibility)).toEqual({ outcome: "ineligible", reason: "unsupported_layout" });
     expect(assessVerifiedRunOcrEvidence(masteryOcr({ version: "99.0100.9" }), localVerifiedRunEvidenceCompatibility)).toEqual({ outcome: "ineligible", reason: "unsupported_game_version" });
+    expect(assessVerifiedRunOcrEvidence(masteryOcr({ version: "2.1003.1" }), localVerifiedRunEvidenceCompatibility)).toEqual({ outcome: "ineligible", reason: "invalid_game_version" });
     const regularMode = masteryOcr();
     expect(assessVerifiedRunOcrEvidence({ ...regularMode, data: { ...regularMode.data, mode: "随机事件5.0" } }, localVerifiedRunEvidenceCompatibility)).toMatchObject({ outcome: "eligible", mode: null });
     expect(assessVerifiedRunOcrEvidence({ ...regularMode, data: { ...regularMode.data, mode: "2026 镜中回响" } }, localVerifiedRunEvidenceCompatibility)).toMatchObject({ outcome: "eligible", mode: "2026镜中回响" });

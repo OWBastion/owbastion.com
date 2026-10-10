@@ -20,6 +20,7 @@ const mapInheritance = { mapId: "map.kings-row", rule: mapRule, projected: true,
 const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
   if (path === "/v1/achievements") return Promise.resolve({ items: [{ ...title }, { ...secondTitle }, { ...catalogTitle }, { ...linkedCatalogTitle }, { ...map }, { ...secondMap }, { ...duplicateMap }] });
   if (path === "/v1/maps") return Promise.resolve({ items: [{ mapId: "map.kings-row", mapName: "国王大道" }, { mapId: "map.route-66", mapName: "66号公路" }] });
+  if (path === "/v1/standalone-modes") return Promise.resolve({ items: [{ mode: "2026镜中回响", mapIds: ["map.kings-row", "map.route-66"] }] });
   if (path === "/v1/map-title-rules") return Promise.resolve({ items: [mapRule] });
   if (path === "/v1/map-title-rules/rule.conqueror" && options?.method === "PUT") return Promise.resolve({ ...mapRule, ...options.body });
   if (path === "/v1/maps/map.kings-row/map-title-inheritance") return Promise.resolve({ items: [mapInheritance] });
@@ -90,7 +91,7 @@ describe("achievement admin page", () => {
     await wrapper.findAll("button").find((button) => button.text() === "新建挑战")!.trigger("click");
     await flushPromises();
     const form = wrapper.get("form#achievement-create-form");
-    await form.findAll("select")[2]!.setValue("map");
+    await form.findAll("select")[3]!.setValue("map");
     expect(form.text()).toContain("指定地图");
     expect(form.text()).toContain("留空作用于全部有效地图");
     wrapper.unmount();
@@ -191,6 +192,19 @@ describe("achievement admin page", () => {
     await wrapper.get("form#achievement-editor").trigger("submit");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/achievements/title-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ condition: "完成更新后的挑战", categoryOverride: null }) }));
+  });
+
+  it("keeps the standalone mode when saving a progress rule that follows it", async () => {
+    adminApi.mockImplementationOnce((path: string) => path === "/v1/achievements"
+      ? Promise.resolve({ items: [{ ...title, submissionMode: "manual", scope: "global", progressRule: { type: "required_maps_completed", mode: "2026镜中回响" } }] })
+      : Promise.reject(new Error(`Unexpected request: ${path}`)));
+    const wrapper = await mountPage();
+    await wrapper.get('button[aria-label="编辑规则"]').trigger("click");
+    await flushPromises();
+    await wrapper.get("form#achievement-editor").trigger("submit");
+    await flushPromises();
+    const call = adminApi.mock.calls.find(([path, options]) => path === "/v1/achievements/title-1" && options?.method === "PUT");
+    expect(call?.[1]?.body?.progressRule).toEqual({ type: "required_maps_completed", mode: "2026镜中回响" });
   });
 
   it("saves a CDN icon URL and keeps file upload collapsed", async () => {

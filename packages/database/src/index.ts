@@ -3,7 +3,7 @@ import { count, desc, eq, and, gt, gte, like, or, inArray, isNull, isNotNull, ne
 import { drizzle } from "drizzle-orm/d1";
 import { alias } from "drizzle-orm/sqlite-core";
 import { createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, passkeyUserHandleMatches, verifyPasskeyAuthentication, verifyPasskeyRegistration } from "@owbastion/auth";
-import { buildMasteryProfiles, calculateVerifiedRunXpV2, difficultyAtLeastSatisfied, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, normalizeGameMode, eventWeightTotalCode, runCodeEventWeightTotal, parseCanonicalChallengeConditions, parseChallengeProgressRule, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
+import { buildMasteryProfiles, calculateVerifiedRunXpV2, difficultyAtLeastSatisfied, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, isWellFormedGameVersion, normalizeGameMode, eventWeightTotalCode, runCodeEventWeightTotal, parseCanonicalChallengeConditions, parseChallengeProgressRule, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
 import type { AdminVerifiedRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, ChallengeCondition, ChallengeProgressRule, VerifiedRunDifficulty, VerifiedRunEventCounters, VerifiedRunEvidenceCompatibilityV1, MasteryMapProfile, VerifiedRunActor, VerifiedRunConflictField, VerifiedRunForProjection, VerifiedRunXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
 import type { AdminRandomEventBatchRequest, AdminStandaloneMode, AdminStandaloneModeListResponse, AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerChallengeProgressListResponse, PlayerSubmissionStatus, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, QqScreenshotSubmissionRequest, QqScreenshotSubmissionResponse, RandomEvent, RandomEventVersion, ScreenshotSetStatus, Title } from "@owbastion/contracts";
@@ -20,7 +20,8 @@ const ocrRetryEnqueueingPrefix = "ocr-retry-enqueueing:";
 const playerUploadCompletionEnqueueingPrefix = "player-upload-completion-enqueueing:";
 const qqScreenshotEnqueueingPrefix = "qq-screenshot-enqueueing:";
 const qqScreenshotResumeAfterMs = 60_000;
-const formatCurrentGameVersion = (timestamp = now()) => new Date(timestamp).toISOString().slice(0, 10).replaceAll("-", ".");
+// Bastion builds are YY.MMDD.N; with no known build the day's first build number stands in.
+const formatDayBuildVersion = (timestamp = now()) => { const date = new Date(timestamp).toISOString().slice(2, 10).split("-"); return `${date[0]}.${date[1]}${date[2]}.1`; };
 
 const normalizedOcrLabel = (value: unknown) => typeof value === "string" ? value.trim().toLocaleLowerCase() : "";
 const normalizedOcrDifficulty = (value: unknown) => {
@@ -72,6 +73,7 @@ export const assessVerifiedRunOcrEvidence = (response: OcrResponse, compatibilit
   const mapName = typeof data.map_name === "string" ? data.map_name.trim() : "";
   if (!mapName) return ineligibleMasteryEvidence("missing_map");
   const gameVersion = typeof data.version === "string" ? data.version.trim() : "";
+  if (gameVersion && !isWellFormedGameVersion(gameVersion)) return ineligibleMasteryEvidence("invalid_game_version");
   if (!isVerifiedRunGameVersionSupported(gameVersion, compatibility)) return ineligibleMasteryEvidence("unsupported_game_version");
   const difficulty = normalizedOcrDifficulty(data.difficulty);
   if (!verifiedRunDifficulties.includes(difficulty as VerifiedRunDifficulty)) return ineligibleMasteryEvidence("invalid_difficulty");
@@ -4490,6 +4492,17 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   // anything else is most likely a misread of the regular label and needs a maintainer.
   const isKnownStandaloneMode = async (mode: string) => Boolean(await db.select({ mode: standaloneModes.mode }).from(standaloneModes).where(eq(standaloneModes.mode, mode)).get());
 
+  // The newest build the platform knows: the highest well-formed version among event pools.
+  const latestBuildVersion = async () => {
+    const rows = await db.select({ gameVersion: randomEventVersions.gameVersion }).from(randomEventVersions);
+    const parts = (version: string) => version.split(".").map(Number);
+    const newest = rows.map((row) => row.gameVersion).filter(isWellFormedGameVersion).sort((a, b) => {
+      const [left, right] = [parts(a), parts(b)];
+      return (left[0]! - right[0]!) || (left[1]! - right[1]!) || (left[2]! - right[2]!);
+    }).at(-1);
+    return newest ?? formatDayBuildVersion();
+  };
+
   const completeOcrResult = async (row: typeof submissions.$inferSelect, result: OcrResponse, input: { attempt: number; manual: boolean; requestId: string }) => {
     const ocrRequestId = input.requestId;
     const startedAt = Date.now();
@@ -4501,6 +4514,14 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       if (mode && !await isKnownStandaloneMode(mode)) {
         await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ unknownMode: mode }), nextStatus: "ocr_review_required", reviewReason: "无法识别截图所在的游戏模式，请人工核对", incrementFailCount: false });
         logOcrEvent("job_completed", { ...context, outcome: "unknown_mode", mode, durationMs: Date.now() - startedAt });
+        return;
+      }
+      stage = "check_game_version";
+      const readVersion = typeof result.data?.version === "string" ? result.data.version.trim() : "";
+      if (readVersion && !isWellFormedGameVersion(readVersion)) {
+        // A version that is not YY.MMDD.N was most likely misread; a wrong version must not silently drop the run.
+        await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ invalidGameVersion: readVersion }), nextStatus: "ocr_review_required", reviewReason: "识别到的游戏版本号格式异常，请人工核对", incrementFailCount: false });
+        logOcrEvent("job_completed", { ...context, outcome: "invalid_game_version", version: readVersion, durationMs: Date.now() - startedAt });
         return;
       }
       stage = "check_run_code_event_weight";
@@ -5046,13 +5067,14 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const timestamp = now();
       const listed = new Set(mapIds);
       const revisionByMap = new globalThis.Map(modeRevisions.map((revision) => [revision.mapId, revision]));
+      const modeRevisionVersion = await latestBuildVersion();
       const statements: D1PreparedStatement[] = [
         database.prepare("INSERT INTO standalone_modes (mode, event_weight_total, created_at, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(mode) DO UPDATE SET event_weight_total = excluded.event_weight_total, updated_at = excluded.updated_at").bind(mode, input.eventWeightTotal, timestamp, timestamp),
       ];
       for (const mapId of mapIds) {
         const revision = revisionByMap.get(mapId);
         if (!revision) {
-          statements.push(database.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, mode, copied_from_revision_id, reset_reason, game_version, spatial_config_json, created_at, updated_at) VALUES (?, ?, 'selectable', NULL, ?, NULL, NULL, ?, NULL, ?, ?)").bind(`revision:${mapId}:${crypto.randomUUID()}`, mapId, mode, formatCurrentGameVersion(timestamp), timestamp, timestamp));
+          statements.push(database.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, mode, copied_from_revision_id, reset_reason, game_version, spatial_config_json, created_at, updated_at) VALUES (?, ?, 'selectable', NULL, ?, NULL, NULL, ?, NULL, ?, ?)").bind(`revision:${mapId}:${crypto.randomUUID()}`, mapId, mode, modeRevisionVersion, timestamp, timestamp));
         } else if (revision.lifecycle !== "selectable") {
           statements.push(database.prepare("UPDATE gameplay_revisions SET lifecycle = 'selectable', updated_at = ? WHERE id = ?").bind(timestamp, revision.id));
         }
@@ -5195,7 +5217,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         source = await db.select().from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.lifecycle, "default"))).get() ?? null;
         if (!source) throw new Error("REVISION_SOURCE_NOT_FOUND");
       }
-      const gameVersion = input.gameVersion ?? formatCurrentGameVersion();
+      const gameVersion = input.gameVersion ?? await latestBuildVersion();
       const resetReason = input.resetReason ?? null;
 
       const sourceAssignments = source
@@ -5682,7 +5704,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         }
         return replay;
       }
-      if (input.status !== "scheduled" && !input.gameVersion?.trim()) throw new Error("ACHIEVEMENT_GAME_VERSION_REQUIRED");
+      // The version is internal bookkeeping: administrators may omit it and the current version is recorded.
+      const gameVersion = input.gameVersion?.trim() || (input.status !== "scheduled" ? await latestBuildVersion() : null);
       const existing = await db.select({ key: titleCatalog.key, category: titleCatalog.category }).from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
       if (existing) throw new Error("TITLE_KEY_CONFLICT");
       if (input.progressRule) {
@@ -5726,10 +5749,10 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         categoryOverride: input.categoryOverride,
         condition: input.condition,
         evidenceRule: input.evidenceRule,
-        gameVersion: input.gameVersion ?? null,
+        gameVersion: gameVersion,
         status: input.status,
         submissionMode: input.submissionMode,
-        introducedVersion: input.gameVersion ?? null,
+        introducedVersion: gameVersion,
         retiredVersion: input.status === "sunsetting" ? input.retiredVersion ?? null : null,
         startsAt: input.status === "scheduled" ? input.startsAt ?? null : null,
         endsAt: input.status === "scheduled" ? input.endsAt ?? null : null,
@@ -5739,7 +5762,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         ...(input.progressRule ? { progressRule: input.progressRule } : {}),
       };
       const statements: D1PreparedStatement[] = [
-        database.prepare("INSERT INTO title_catalog (key,label,icon,icon_url,category,condition,lifecycle,scope,display_kind,color_json,game_version) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind(input.titleKey, input.titleName, input.icon, input.iconUrl, input.category, input.condition, input.status === "retired" ? "retired" : "active", input.scope, "fixed", "null", input.gameVersion ?? null),
+        database.prepare("INSERT INTO title_catalog (key,label,icon,icon_url,category,condition,lifecycle,scope,display_kind,color_json,game_version) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind(input.titleKey, input.titleName, input.icon, input.iconUrl, input.category, input.condition, input.status === "retired" ? "retired" : "active", input.scope, "fixed", "null", gameVersion),
         database.prepare("INSERT INTO title_challenges (id,title_key,category_override,condition,evidence_rule,submission_mode,game_version,status,introduced_version,retired_version,starts_at,ends_at,scope,map_variant,progress_rule,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(challengeId, input.titleKey, input.categoryOverride, input.condition, input.evidenceRule, input.submissionMode, input.gameVersion ?? null, input.status, input.gameVersion ?? null, input.status === "sunsetting" ? input.retiredVersion ?? null : null, input.status === "scheduled" ? input.startsAt ?? null : null, input.status === "scheduled" ? input.endsAt ?? null : null, input.scope, input.mapVariant ?? null, input.progressRule ? JSON.stringify(input.progressRule) : null, timestamp, timestamp),
         ...targetMapIds.map((mapId) => database.prepare("INSERT INTO achievement_challenge_maps (challenge_id,map_id) VALUES (?,?)").bind(challengeId, mapId)),
         ...revisions.map(({ revision }) => database.prepare("INSERT INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, created_at, updated_at) VALUES (?, ?, ?, 'title_challenge', ?, 1, ?, ?)").bind(`assignment:${revision.id}:title_challenge:${challengeId}`, revision.id, revision.mapId, challengeId, timestamp, timestamp)),

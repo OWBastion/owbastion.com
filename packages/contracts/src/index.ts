@@ -938,7 +938,6 @@ export const adminAchievementCreateRequestSchema = z.object({
   retiredVersion: optionalRetirementVersion,
   progressRule: achievementProgressRuleSchema.optional(),
 }).superRefine((value, ctx) => {
-  if (value.status !== "scheduled" && !value.gameVersion) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["gameVersion"], message: "Only scheduled future challenges may omit a game version" });
   if (value.scope === "global" && value.mapIds.length) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["mapIds"], message: "Global challenges cannot target maps" });
   if (value.progressRule && value.submissionMode !== "manual") ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["submissionMode"], message: "Progress challenges are not screenshot-evaluated" });
   if (value.progressRule && value.scope === "map") ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["scope"], message: "Progress challenges cannot target maps through scope" });

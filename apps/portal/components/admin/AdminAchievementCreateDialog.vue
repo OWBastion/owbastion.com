@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { DIFFICULTY_OPTIONS } from "./admin-achievement-types";
+import { DEFAULT_EVIDENCE_RULE, DIFFICULTY_OPTIONS } from "./admin-achievement-types";
 
 type TargetMap = { mapId: string; mapName: string };
 type CreatePayload = {
@@ -16,7 +16,7 @@ type CreatePayload = {
   mapVariant?: "classic";
   progressRule?: { type: "required_maps_completed"; mapIds?: string[]; difficultyAtLeast?: string; mode?: string };
   status: "scheduled" | "active" | "sunsetting" | "retired";
-  gameVersion: string | null;
+  gameVersion?: string;
   categoryOverride: string | null;
   iconUrl: string | null;
   startsAt?: number;
@@ -24,20 +24,21 @@ type CreatePayload = {
   retiredVersion?: string;
 };
 
-const props = defineProps<{ open: boolean; maps: TargetMap[]; saving: boolean }>();
+const props = defineProps<{ open: boolean; maps: TargetMap[]; modes: { mode: string; mapIds: string[] }[]; categories: string[]; saving: boolean }>();
 const emit = defineEmits<{ "update:open": [open: boolean]; submit: [payload: CreatePayload, iconFile: File | null] }>();
 const dialogOpen = computed({
   get: () => props.open,
   set: (open: boolean) => emit("update:open", open),
 });
+const defaultEvidenceRule = DEFAULT_EVIDENCE_RULE;
 const iconFile = shallowRef<File | null>(null);
 const form = reactive({
   titleKey: "",
   titleName: "",
   icon: "trophy",
-  category: "",
+  category: "Bastion",
   condition: "",
-  evidenceRule: "上传包含结算画面、称号条件与玩家信息的完整截图。",
+  evidenceRule: "",
   submissionMode: "manual" as "manual" | "automatic",
   scope: "global" as "global" | "map",
   mapIds: [] as string[],
@@ -56,6 +57,15 @@ const form = reactive({
 });
 
 const mapItems = computed(() => props.maps.map((map) => ({ label: map.mapName, value: map.mapId })));
+const regularScope = "__regular__";
+const scopeItems = computed(() => [{ label: "常规模式（指定地图）", value: regularScope }, ...props.modes.map(({ mode, mapIds }) => ({ label: `${mode}（${mapIds.length} 张地图）`, value: mode }))]);
+const progressScope = computed({
+  get: () => form.progressGameMode || regularScope,
+  set: (value: string) => {
+    form.progressGameMode = value === regularScope ? "" : value;
+    if (value !== regularScope) form.progressMapIds = [];
+  },
+});
 const progressModeItems = [{ label: "截图条件", value: "none" }, { label: "集齐指定地图", value: "required_maps_completed" }];
 const progressDifficultyItems = computed(() => [{ label: "不限难度", value: "" }, ...DIFFICULTY_OPTIONS.map((difficulty) => ({ label: `至少${difficulty}`, value: difficulty }))]);
 const progressMode = computed(() => form.progressMode === "required_maps_completed");
@@ -66,26 +76,29 @@ watch(progressMode, (enabled) => {
   form.mapIds = [];
   form.mapVariant = undefined;
 });
-const canSubmit = computed(() => Boolean(form.titleKey.trim() && form.titleName.trim() && form.category.trim() && form.condition.trim() && form.evidenceRule.trim() && (form.status === "scheduled" || form.gameVersion.trim()) && (form.status !== "sunsetting" || form.retiredVersion.trim()) && (!progressMode.value || form.progressMapIds.length || form.progressGameMode.trim())));
+const canSubmit = computed(() => Boolean(form.titleName.trim() && form.condition.trim() && (form.status !== "sunsetting" || form.retiredVersion.trim()) && (!progressMode.value || form.progressMapIds.length || form.progressGameMode.trim())));
 const setScheduleTime = (field: "startsAt" | "endsAt", value: number | null) => { form[field] = value; };
+
+// The key is internal: administrators may set a readable one, otherwise it is generated.
+const generatedTitleKey = () => `CHALLENGE_${crypto.randomUUID().replaceAll("-", "").slice(0, 8).toUpperCase()}`;
 
 function submit() {
   if (!canSubmit.value) return;
   emit("submit", {
     contractVersion: "1",
-    titleKey: form.titleKey.trim(),
+    titleKey: form.titleKey.trim() || generatedTitleKey(),
     titleName: form.titleName.trim(),
-    icon: form.icon.trim(),
-    category: form.category.trim(),
+    icon: form.icon.trim() || "trophy",
+    category: form.category.trim() || "Bastion",
     condition: form.condition.trim(),
-    evidenceRule: form.evidenceRule.trim(),
+    evidenceRule: form.evidenceRule.trim() || defaultEvidenceRule,
     submissionMode: form.submissionMode,
     scope: form.scope,
     mapIds: form.scope === "map" ? [...form.mapIds] : [],
     ...(form.scope === "map" && form.mapVariant ? { mapVariant: form.mapVariant } : {}),
     ...(progressMode.value ? { progressRule: { type: "required_maps_completed" as const, ...(form.progressMapIds.length ? { mapIds: [...form.progressMapIds] } : {}), ...(form.progressDifficultyAtLeast ? { difficultyAtLeast: form.progressDifficultyAtLeast } : {}), ...(form.progressGameMode.trim() ? { mode: form.progressGameMode.trim() } : {}) } } : {}),
     status: form.status,
-    gameVersion: form.gameVersion.trim() || null,
+    ...(form.gameVersion.trim() ? { gameVersion: form.gameVersion.trim() } : {}),
     categoryOverride: form.categoryOverride.trim() || null,
     iconUrl: form.iconUrl.trim() || null,
     ...(form.status === "scheduled" && form.startsAt ? { startsAt: form.startsAt } : {}),
@@ -99,42 +112,49 @@ function submit() {
   <AdminResponsiveDialog v-model:open="dialogOpen" title="新建成就挑战" size="lg">
     <template #body>
       <form id="achievement-create-form" class="editor" @submit.prevent="submit">
-        <UFormField class="editor-field" label="唯一 key" required><UInput v-model="form.titleKey" class="editor-control" placeholder="例如 CLASSIC_RACETRACK" :disabled="props.saving" required /></UFormField>
-        <UFormField class="editor-field" label="称号名称" required><UInput v-model="form.titleName" class="editor-control" :disabled="props.saving" required /></UFormField>
-        <UFormField class="editor-field" label="图标" required><UInput v-model="form.icon" class="editor-control" placeholder="trophy" :disabled="props.saving" required /></UFormField>
-        <UFormField class="editor-field" label="系列" required><UInput v-model="form.category" class="editor-control" :disabled="props.saving" required /></UFormField>
+        <UFormField class="editor-field editor-field--wide" label="称号名称" required><UInput v-model="form.titleName" class="editor-control" :disabled="props.saving" required /></UFormField>
         <UFormField class="editor-field editor-field--wide" label="完成条件" required><UTextarea v-model="form.condition" class="editor-control" :disabled="props.saving" required maxlength="1024" /></UFormField>
-        <UFormField class="editor-field editor-field--wide" label="截图规则" required><UTextarea v-model="form.evidenceRule" class="editor-control" :disabled="props.saving" required maxlength="2048" /></UFormField>
-        <UFormField class="editor-field" label="完成规则" hint="集齐指定地图的进度型挑战以已验证通关为准，不走截图审核，必须保持全部地图与手动提交。"><USelect v-model="form.progressMode" class="editor-control" :disabled="props.saving" :items="progressModeItems" /></UFormField>
-        <template v-if="progressMode">
-          <UFormField class="editor-field editor-field--wide" label="要求地图" hint="玩家在活动时间内于每张地图各留下至少一条有效已验证通关即完成。填了独立模式时可留空，自动跟随该模式的全部地图。"><USelect v-model="form.progressMapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
-          <UFormField class="editor-field" label="最低难度"><USelect v-model="form.progressDifficultyAtLeast" class="editor-control" :items="progressDifficultyItems" :disabled="props.saving" /></UFormField>
-          <UFormField class="editor-field" label="独立模式" hint="只统计该模式（如 2026镜中回响）的通关；留空只统计常规模式。"><UInput v-model="form.progressGameMode" class="editor-control" :disabled="props.saving" /></UFormField>
-        </template>
-        <UFormField class="editor-field" label="提交方式"><USelect v-model="form.submissionMode" class="editor-control" :disabled="props.saving || progressMode" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" /></UFormField>
-        <UFormField class="editor-field" label="称号适用范围"><USelect v-model="form.scope" class="editor-control" :disabled="props.saving || progressMode" :items="[{ label: '全部地图', value: 'global' }, { label: '指定地图', value: 'map' }]" /></UFormField>
-        <template v-if="form.scope === 'map'">
-          <UFormField class="editor-field editor-field--wide" label="指定地图" hint="留空作用于全部有效地图。"><USelect v-model="form.mapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
-          <UFormField class="editor-field" label="地图版本"><USelect v-model="form.mapVariant" class="editor-control" :items="[{ label: '正式版', value: undefined }, { label: '经典版', value: 'classic' }]" :disabled="props.saving" /></UFormField>
-        </template>
+        <UFormField class="editor-field" label="完成规则" hint="集齐指定地图的进度型挑战以已验证通关为准，不走截图审核。"><USelect v-model="form.progressMode" class="editor-control" :disabled="props.saving" :items="progressModeItems" /></UFormField>
         <UFormField class="editor-field" label="状态"><USelect v-model="form.status" class="editor-control" :disabled="props.saving" :items="[{ label: '已开放', value: 'active' }, { label: '未开放', value: 'scheduled' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" /></UFormField>
+        <template v-if="progressMode">
+          <UFormField class="editor-field" label="统计范围" hint="选择独立模式后自动跟随该模式的全部地图。"><USelect v-model="progressScope" class="editor-control" :items="scopeItems" :disabled="props.saving" /></UFormField>
+          <UFormField class="editor-field" label="最低难度"><USelect v-model="form.progressDifficultyAtLeast" class="editor-control" :items="progressDifficultyItems" :disabled="props.saving" /></UFormField>
+          <UFormField v-if="!form.progressGameMode" class="editor-field editor-field--wide" label="要求地图" hint="玩家在活动时间内于每张地图各留下至少一条有效已验证通关即完成。"><USelect v-model="form.progressMapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
+        </template>
         <template v-if="form.status === 'scheduled'"><UFormField class="editor-field" label="开始时间"><AdminDateTimePicker class="editor-control" :model-value="form.startsAt" :disabled="props.saving" @update:model-value="setScheduleTime('startsAt', $event)" /></UFormField><UFormField class="editor-field" label="结束时间"><AdminDateTimePicker class="editor-control" :model-value="form.endsAt" :disabled="props.saving" @update:model-value="setScheduleTime('endsAt', $event)" /></UFormField></template>
         <UFormField v-if="form.status === 'sunsetting'" class="editor-field" label="计划下线版本" required><UInput v-model="form.retiredVersion" class="editor-control" placeholder="例如 26.0801.1" :disabled="props.saving" required /></UFormField>
-        <UFormField class="editor-field" label="游戏版本" :required="form.status !== 'scheduled'"><UInput v-model="form.gameVersion" class="editor-control" placeholder="例如 26.0728.1" :disabled="props.saving" :required="form.status !== 'scheduled'" /></UFormField>
-        <UFormField class="editor-field" label="展示分类"><UInput v-model="form.categoryOverride" class="editor-control" placeholder="留空使用系列" :disabled="props.saving" /></UFormField>
-        <UFormField class="editor-field editor-field--wide" label="自定义图标" hint="留空使用默认图标。">
-          <div class="icon-upload">
-            <div v-if="form.iconUrl" class="icon-preview"><img :src="form.iconUrl" alt="当前成就图标" /></div>
-            <UInput v-model="form.iconUrl" class="editor-control" type="url" placeholder="https://cdn.example.com/icon.webp" maxlength="2048" :disabled="props.saving" />
-            <details class="icon-upload-option">
-              <summary>上传图标</summary>
-              <div class="icon-upload-content">
-                <p>PNG、JPG 或 WebP，创建挑战后上传，最大 512 KB。</p>
-                <UFileUpload v-model="iconFile" accept="image/png,image/jpeg,image/webp" :multiple="false" label="选择图标文件" :disabled="props.saving" />
+        <details class="editor-field editor-field--wide more-settings">
+          <summary>更多设置</summary>
+          <div class="editor more-settings-body">
+            <UFormField class="editor-field" label="唯一 key" hint="留空自动生成。"><UInput v-model="form.titleKey" class="editor-control" placeholder="例如 CLASSIC_RACETRACK" :disabled="props.saving" /></UFormField>
+            <UFormField class="editor-field" label="系列" hint="选择已有系列，或输入新的。"><UInputMenu v-model="form.category" :items="categories" create-item placeholder="选择或输入" class="editor-control" :disabled="props.saving" @create="form.category = $event.trim()" /></UFormField>
+            <UFormField class="editor-field" label="图标"><UInput v-model="form.icon" class="editor-control" placeholder="trophy" :disabled="props.saving" /></UFormField>
+            <UFormField class="editor-field" label="展示分类"><UInput v-model="form.categoryOverride" class="editor-control" placeholder="留空使用系列" :disabled="props.saving" /></UFormField>
+            <UFormField class="editor-field" label="游戏版本" hint="留空使用最新版本。格式 YY.MMDD.序号。"><UInput v-model="form.gameVersion" class="editor-control" placeholder="例如 26.1003.1" :disabled="props.saving" /></UFormField>
+            <template v-if="!progressMode">
+              <UFormField class="editor-field editor-field--wide" label="截图规则"><UTextarea v-model="form.evidenceRule" class="editor-control" :placeholder="defaultEvidenceRule" :disabled="props.saving" maxlength="2048" /></UFormField>
+              <UFormField class="editor-field" label="提交方式"><USelect v-model="form.submissionMode" class="editor-control" :disabled="props.saving" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" /></UFormField>
+              <UFormField class="editor-field" label="称号适用范围"><USelect v-model="form.scope" class="editor-control" :disabled="props.saving" :items="[{ label: '全部地图', value: 'global' }, { label: '指定地图', value: 'map' }]" /></UFormField>
+              <template v-if="form.scope === 'map'">
+                <UFormField class="editor-field editor-field--wide" label="指定地图" hint="留空作用于全部有效地图。"><USelect v-model="form.mapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
+                <UFormField class="editor-field" label="地图版本"><USelect v-model="form.mapVariant" class="editor-control" :items="[{ label: '正式版', value: undefined }, { label: '经典版', value: 'classic' }]" :disabled="props.saving" /></UFormField>
+              </template>
+            </template>
+            <UFormField class="editor-field editor-field--wide" label="自定义图标" hint="留空使用默认图标。">
+              <div class="icon-upload">
+                <div v-if="form.iconUrl" class="icon-preview"><img :src="form.iconUrl" alt="当前成就图标" /></div>
+                <UInput v-model="form.iconUrl" class="editor-control" type="url" placeholder="https://cdn.example.com/icon.webp" maxlength="2048" :disabled="props.saving" />
+                <details class="icon-upload-option">
+                  <summary>上传图标</summary>
+                  <div class="icon-upload-content">
+                    <p>PNG、JPG 或 WebP，创建挑战后上传，最大 512 KB。</p>
+                    <UFileUpload v-model="iconFile" accept="image/png,image/jpeg,image/webp" :multiple="false" label="选择图标文件" :disabled="props.saving" />
+                  </div>
+                </details>
               </div>
-            </details>
+            </UFormField>
           </div>
-        </UFormField>
+        </details>
       </form>
     </template>
     <template #footer><UButton label="创建挑战" type="submit" form="achievement-create-form" :loading="props.saving" :disabled="!canSubmit" /><UButton label="取消" color="neutral" variant="outline" :disabled="props.saving" @click="dialogOpen = false" /></template>
@@ -148,6 +168,10 @@ function submit() {
   gap: var(--space-5);
   padding: var(--space-6);
 }
+
+.more-settings { border-top: 1px solid var(--line); color: var(--muted); }
+.more-settings summary { padding: var(--space-3) 0; cursor: pointer; }
+.more-settings-body { padding: var(--space-2) 0 0; }
 
 .editor-field,
 .editor-control {
