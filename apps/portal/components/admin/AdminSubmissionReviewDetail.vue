@@ -27,6 +27,7 @@ const emit = defineEmits<{
   "review-input": [value: AdminSubmissionReviewInput];
   "retry-preview": [];
   "spot-check": [decision: SpotCheckDecision, reason?: string];
+  reopen: [reason?: string];
   "evidence-error": [];
   "ocr-accuracy": [accuracy: OcrAccuracyMark];
   "retry-ocr": [];
@@ -39,6 +40,7 @@ const actionsLoading = computed(() => Boolean(props.actionLoading || props.ocrRe
 /** Which decision button is in-flight — loading only on that control for direct feedback. */
 const pendingDecision = ref<ReviewDecision | null>(null);
 const pendingSpotCheck = ref<SpotCheckDecision | null>(null);
+const pendingReopen = ref(false);
 const reviewInput = shallowRef<AdminSubmissionReviewInput>({ fieldCorrections: [], confirmedChallengeIds: [] });
 const approvalBlocked = computed(() => !props.preview || !props.preview.approvable || Boolean(props.previewLoading) || props.previewCurrent === false);
 const approvalHint = computed(() => {
@@ -52,12 +54,18 @@ const ocrPending = computed(() => props.submission.status === "ocr_pending");
 const ocrQueueSendFailed = computed(() => ocrPending.value && props.submission.ocrErrorCode === "OCR_QUEUE_SEND_FAILED");
 const reviewRecord = computed(() => props.submission.review ?? null);
 
-type ConfirmTarget = { kind: "review"; decision: Exclude<ReviewDecision, "approved"> } | { kind: "spot-check"; decision: "revoked" };
+type ConfirmTarget = { kind: "review"; decision: Exclude<ReviewDecision, "approved"> } | { kind: "spot-check"; decision: "revoked" } | { kind: "reopen" };
 const confirmTarget = shallowRef<ConfirmTarget | null>(null);
 const confirmReason = shallowRef("");
 const confirmCopy = computed(() => {
   const target = confirmTarget.value;
   if (!target) return null;
+  if (target.kind === "reopen") {
+    const titles = props.submission.activeTitleGrants?.map(({ titleName }) => titleName) ?? [];
+    const run = props.submission.verifiedRunOutcome?.status === "created" || props.submission.verifiedRunOutcome?.status === "reused";
+    const withdrawn = [...(titles.length ? [`称号（${titles.join("、")}）`] : []), ...(run ? ["Verified Run"] : [])];
+    return { title: "重新打开核对", description: `${withdrawn.length ? `将撤销该提交产生的${withdrawn.join("和")}` : "该提交没有已发放的称号或 Verified Run"}，并回到待核对。在「更多字段」修正后重新通过，会按截图证据重新判定并发放；手动发放的称号不受影响。`, reasonLabel: "原因（可选，仅内部记录）", confirmLabel: "确认重新打开" };
+  }
   if (target.kind === "spot-check") return { title: "撤销自动获得的称号", description: "撤销后玩家将失去本次自动判定获得的称号，由该提交产生的 Verified Run 也会失效。", reasonLabel: "撤销原因（可选，仅内部记录）", confirmLabel: "确认撤销" };
   // A later decision changes only the Submission; Titles and Verified Runs it already produced are managed separately.
   const retainedTitles = props.submission.activeTitleGrants?.map(({ titleName }) => titleName) ?? [];
@@ -79,7 +87,10 @@ function submitConfirm() {
   if (!target || actionsLoading.value) return;
   const reason = confirmReason.value.trim() || undefined;
   confirmTarget.value = null;
-  if (target.kind === "spot-check") {
+  if (target.kind === "reopen") {
+    pendingReopen.value = true;
+    emit("reopen", reason);
+  } else if (target.kind === "spot-check") {
     pendingSpotCheck.value = target.decision;
     emit("spot-check", target.decision, reason);
   } else {
@@ -99,6 +110,7 @@ watch(
     if (!loading) {
       pendingDecision.value = null;
       pendingSpotCheck.value = null;
+      pendingReopen.value = false;
     }
   },
 );
@@ -234,6 +246,10 @@ function spotCheckLoading(decision: SpotCheckDecision) {
         <div v-if="reviewRecord" class="review-record">
           <p>上次审核：<strong>{{ reviewRecordLabel(reviewRecord) }}</strong> · <time :datetime="new Date(reviewRecord.reviewedAt).toISOString()">{{ formatTime(reviewRecord.reviewedAt) }}</time></p>
           <p v-if="reviewRecord.reason" class="review-record__reason">说明：{{ reviewRecord.reason }}</p>
+        </div>
+
+        <div v-if="submission.status === 'approved'" class="action-row">
+          <UButton type="button" label="重新打开核对" color="neutral" variant="outline" :loading="pendingReopen && actionLoading" :disabled="actionsLoading" @click="openConfirm({ kind: 'reopen' })" />
         </div>
 
         <div v-if="submission.spotCheck?.status === 'pending'" class="spot-check-panel" aria-labelledby="spot-check-title">

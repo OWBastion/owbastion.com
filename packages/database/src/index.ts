@@ -6,7 +6,7 @@ import { createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, p
 import { buildMasteryProfiles, calculateVerifiedRunXpV2, difficultyAtLeastSatisfied, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, isWellFormedGameVersion, matchGameMode, normalizeGameMode, eventWeightTotalCode, runCodeEventWeightTotal, parseCanonicalChallengeConditions, parseChallengeProgressRule, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
 import type { AdminVerifiedRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, ChallengeCondition, ChallengeProgressRule, VerifiedRunDifficulty, VerifiedRunEventCounters, VerifiedRunEvidenceCompatibilityV1, MasteryMapProfile, VerifiedRunActor, VerifiedRunConflictField, VerifiedRunForProjection, VerifiedRunXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
-import type { AdminRandomEventBatchRequest, AdminStandaloneMode, AdminStandaloneModeListResponse, AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrReevaluateResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerChallengeProgressListResponse, PlayerSubmissionStatus, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, QqScreenshotSubmissionRequest, QqScreenshotSubmissionResponse, RandomEvent, RandomEventVersion, ScreenshotSetStatus, Title } from "@owbastion/contracts";
+import type { AdminRandomEventBatchRequest, AdminStandaloneMode, AdminStandaloneModeListResponse, AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrReevaluateResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReopenResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerChallengeProgressListResponse, PlayerSubmissionStatus, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, QqScreenshotSubmissionRequest, QqScreenshotSubmissionResponse, RandomEvent, RandomEventVersion, ScreenshotSetStatus, Title } from "@owbastion/contracts";
 import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, challengeCompletions, challengeSatisfies, challenges, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrAccuracyFeedback, ocrResults, passkeyChallenges, passkeyCredentials, passkeyRecoveryGrants, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, portalSessions, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, reviews, standaloneModes, screenshotSetMembers, screenshotSets, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions, verifiedRunConflictResolutions, verifiedRunLifecycleEvents, verifiedRuns } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { fetchQqAttachmentImage } from "./qq-attachment";
@@ -223,6 +223,9 @@ const decryptBindingInviteCode = async (value: string, secret?: string) => {
     throw new Error("BINDING_INVITE_CODE_UNAVAILABLE");
   }
 };
+
+// Marks a Verified Run invalidated because its approved submission was reopened for correction.
+const submissionReopenedReason = "submission_reopened";
 
 const replayOrConflict = async <T>(db: ReturnType<typeof drizzle>, actorId: string, operation: string, key: string, input: unknown) => {
   const existing = await db.select().from(idempotencyKeys).where(and(eq(idempotencyKeys.id, `${actorId}:${operation}:${key}`))).get();
@@ -2418,6 +2421,44 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       eq(verifiedRuns.playerAccountId, candidate.playerAccountId),
       eq(verifiedRuns.matchCode, candidate.matchCode),
     )).get();
+    if (existing && bySource && existing.status === "invalidated" && existing.invalidationReason === submissionReopenedReason) {
+      // The maintainer reopened this approved submission and has now re-approved it with
+      // corrected evidence: the same run is restored and rewritten from that evidence.
+      const award = calculateVerifiedRunXpV2({ difficulty: candidate.difficulty, mapFactor: candidate.mapFactor, deaths: candidate.deaths, skips: candidate.skips });
+      const restoredAt = now();
+      const run: VerifiedRun = {
+        ...asVerifiedRun(existing),
+        mapId: candidate.mapId,
+        gameplayRevisionId: candidate.gameplayRevisionId,
+        mapVariant: candidate.mapVariant,
+        difficulty: candidate.difficulty,
+        gameVersion: candidate.gameVersion,
+        matchCode: candidate.matchCode,
+        completionDurationSeconds: candidate.completionDurationSeconds,
+        deaths: candidate.deaths,
+        skips: candidate.skips,
+        eventCounters: candidate.eventCounters,
+        acceptanceSource: candidate.acceptanceSource,
+        acceptedAt: candidate.acceptedAt,
+        status: "active",
+        invalidatedAt: null,
+        invalidatedBy: null,
+        invalidationReason: null,
+        xpRuleVersion: award.snapshot.ruleVersion,
+        xpInputSnapshot: award.snapshot,
+        awardedXp: award.awardedXp,
+      };
+      return {
+        result: { outcome: "created", run },
+        statements: [
+          database.prepare("UPDATE mastery_runs SET map_id = ?, gameplay_revision_id = ?, map_variant = ?, difficulty = ?, game_version = ?, run_code = ?, completion_duration_seconds = ?, deaths = ?, skips = ?, event_counters_json = ?, acceptance_source = ?, accepted_at = ?, status = 'active', invalidated_at = NULL, invalidated_by = NULL, invalidation_reason = NULL, xp_rule_version = ?, xp_input_snapshot_json = ?, awarded_xp = ? WHERE id = ? AND status = 'invalidated'")
+            .bind(run.mapId, run.gameplayRevisionId, run.mapVariant, run.difficulty, run.gameVersion, run.matchCode, run.completionDurationSeconds, run.deaths, run.skips, JSON.stringify(run.eventCounters), run.acceptanceSource, run.acceptedAt, run.xpRuleVersion, JSON.stringify(run.xpInputSnapshot), run.awardedXp, run.runId),
+          database.prepare("INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) SELECT ?, ?, 'restored', 'service', ?, NULL, ? WHERE changes() = 1").bind(crypto.randomUUID(), run.runId, candidate.acceptanceSource, restoredAt),
+        ],
+        row: null,
+        candidate,
+      };
+    }
     if (existing) {
       const run = asVerifiedRun(existing);
       const conflictFields = masteryConflictFields(run, candidate);
@@ -6824,6 +6865,53 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const after = await db.select({ status: submissions.status }).from(submissions).where(eq(submissions.id, row.id)).get();
       const response: AdminSubmissionOcrReevaluateResponse = { contractVersion: "1", submissionId: row.id, status: after?.status ?? "ocr_pending" };
       await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, response);
+      return response;
+    },
+
+    async reopenAdminSubmission(input, auth, idempotencyKey): Promise<AdminSubmissionReopenResponse> {
+      const operation = "submission.reopen";
+      const replay = await replayOrConflict<AdminSubmissionReopenResponse>(db, auth.subject, operation, idempotencyKey, input);
+      if (replay) {
+        if (replay.verifiedRunId) await reconcileVerifiedRunProgressChallenges({ verifiedRunIds: [replay.verifiedRunId], actorId: auth.subject, reason: submissionReopenedReason });
+        return replay;
+      }
+      const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
+      if (!row) throw new Error("SUBMISSION_NOT_FOUND");
+      if (row.status !== "approved") throw new Error("SUBMISSION_NOT_REOPENABLE");
+      const grants = await db.select().from(playerTitleGrants).where(and(eq(playerTitleGrants.sourceId, row.id), inArray(playerTitleGrants.sourceType, ["automatic", "submission"]), eq(playerTitleGrants.status, "active")));
+      const run = await db.select().from(verifiedRuns).where(and(eq(verifiedRuns.sourceSubmissionId, row.id), eq(verifiedRuns.status, "active"))).get();
+      const timestamp = Math.max(now(), row.updatedAt + 1);
+      const reason = input.reason ?? submissionReopenedReason;
+      const response: AdminSubmissionReopenResponse = { contractVersion: "1", submissionId: row.id, status: "ocr_review_required", revokedGrantCount: grants.length, verifiedRunId: run?.id ?? null };
+      const reopened = "EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'ocr_review_required' AND updated_at = ?)";
+      // Everything the approval produced is withdrawn in one batch and the submission returns to
+      // review as if freshly held; re-approving it re-derives the revision, challenge and rewards
+      // from the corrected evidence.
+      await database.batch([
+        database.prepare("UPDATE submissions SET status = 'ocr_review_required', review_reason = ?, challenge_id = NULL, grant_id = NULL, target_map_id = NULL, gameplay_revision_id = NULL, rule_snapshot_json = NULL, updated_at = ? WHERE id = ? AND status = 'approved' AND updated_at = ?")
+          .bind("管理员重新打开核对", timestamp, row.id, row.updatedAt),
+        database.prepare(`UPDATE challenge_completions SET status = 'invalidated', invalidated_by = ?, invalidated_at = ?, invalidation_reason = ? WHERE source_id = ? AND source_type IN ('submission', 'challenge_satisfies') AND status = 'active' AND ${reopened}`)
+          .bind(auth.subject, timestamp, reason, row.id, row.id, timestamp),
+        database.prepare(`UPDATE player_title_grants SET status = 'revoked', revocation_type = 'evidence', revoked_by = ?, revoked_at = ?, revoke_reason = ?
+          WHERE status = 'active' AND ((source_id = ? AND source_type IN ('automatic', 'submission')) OR completion_id IN (SELECT id FROM challenge_completions WHERE source_id = ? AND source_type IN ('submission', 'challenge_satisfies') AND status = 'invalidated'))
+          AND ${reopened}`).bind(auth.subject, timestamp, reason, row.id, row.id, row.id, timestamp),
+        // Withdrawn rows keep their history but release the per-submission uniqueness keys, so re-approval can issue fresh ones.
+        database.prepare(`UPDATE player_title_grants SET source_id = source_id || ? WHERE source_id = ? AND source_type IN ('automatic', 'submission') AND status = 'revoked' AND ${reopened}`).bind(`#reopened-${timestamp}`, row.id, row.id, timestamp),
+        database.prepare(`UPDATE challenge_completions SET source_id = source_id || ? WHERE source_id = ? AND source_type IN ('submission', 'challenge_satisfies') AND status = 'invalidated' AND ${reopened}`).bind(`#reopened-${timestamp}`, row.id, row.id, timestamp),
+        database.prepare(`UPDATE mastery_runs SET status = 'invalidated', invalidated_at = ?, invalidated_by = ?, invalidation_reason = ? WHERE source_submission_id = ? AND status = 'active' AND ${reopened}`)
+          .bind(timestamp, auth.subject, submissionReopenedReason, row.id, row.id, timestamp),
+        ...(run ? [database.prepare(`INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) SELECT ?, ?, 'invalidated', ?, ?, ?, ? WHERE ${reopened}`)
+          .bind(crypto.randomUUID(), run.id, auth.actorType, auth.subject, reason, timestamp, row.id, timestamp)] : []),
+        database.prepare(`UPDATE submission_outcomes SET status = 'invalidated', updated_at = ? WHERE submission_id = ? AND status IN ('created', 'reused') AND ${reopened}`).bind(timestamp, row.id, row.id, timestamp),
+        ...grants.map((grant) => database.prepare(`INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'title_grant.revoke', 'player_title_grant', ?, ?, ? WHERE ${reopened}`)
+          .bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, grant.id, JSON.stringify({ submissionId: row.id, titleKey: grant.titleKey, action: "submission_reopened" }), timestamp, row.id, timestamp)),
+        database.prepare(`INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, ?, 'submission', ?, ?, ? WHERE ${reopened}`)
+          .bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, row.id, JSON.stringify({ revokedGrantCount: grants.length, verifiedRunId: run?.id ?? null, reason: input.reason ?? null }), timestamp, row.id, timestamp),
+      ] as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      const after = await db.select({ status: submissions.status }).from(submissions).where(eq(submissions.id, row.id)).get();
+      if (after?.status !== "ocr_review_required") throw new Error("SUBMISSION_NOT_REOPENABLE");
+      await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, response);
+      if (run) await reconcileVerifiedRunProgressChallenges({ verifiedRunIds: [run.id], actorId: auth.subject, reason: submissionReopenedReason });
       return response;
     },
 

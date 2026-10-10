@@ -48,6 +48,7 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: unknow
   if (path === "/v1/submissions/submission-1/ocr/retry" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", submissionId: "submission-1", status: "ocr_pending" });
   if (path === "/v1/submissions/submission-1/ocr-accuracy" && options?.method === "POST") { ocrMarkedInaccurate = true; return Promise.resolve({ contractVersion: "1", submissionId: "submission-1", ocrResultId: "ocr-result-1", accuracy: "inaccurate", alreadySubmitted: false }); }
   if (path === "/v1/submissions/submission-8/ocr/retry" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", submissionId: "submission-8", status: "ocr_pending" });
+  if (path === "/v1/submissions/submission-2/reopen" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", submissionId: "submission-2", status: "ocr_review_required", revokedGrantCount: 1, verifiedRunId: null });
   if (path === "/v1/submissions/submission-3/spot-check" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", submissionId: "submission-3", status: "confirmed", grantId: "grant-1" });
   if (path.startsWith("/v1/submissions?")) return queueItems instanceof Error ? Promise.reject(queueItems) : Promise.resolve({ items: queueItems, total: queueItems.length });
   throw new Error(`Unexpected request: ${path}`);
@@ -331,6 +332,20 @@ describe("admin review detail page", () => {
     await wrapper.findAll("button").find((button) => button.text().includes("确认抽检"))!.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-3/spot-check", expect.objectContaining({ method: "POST" }));
+  });
+
+  it("reopens an approved submission for correction after an explicit confirmation", async () => {
+    adminApi.mockClear();
+    const wrapper = await mountPage({ route: "/admin/reviews/submission-2", global: { stubs: dialogStub } });
+    await flushPromises();
+    await wrapper.findAll("button").find((button) => button.text().includes("重新打开核对"))!.trigger("click");
+    await flushPromises();
+    expect(adminApi).not.toHaveBeenCalledWith("/v1/submissions/submission-2/reopen", expect.anything());
+    const dialog = wrapper.get('[role="dialog"][aria-label="重新打开核对"]');
+    expect(dialog.text()).toContain("手动发放的称号不受影响");
+    await dialog.get("form").trigger("submit");
+    await flushPromises();
+    expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-2/reopen", expect.objectContaining({ method: "POST", body: { contractVersion: "1" } }));
   });
 
   it("asks before rejecting, sends the optional player note, and returns to the queue the maintainer came from", async () => {

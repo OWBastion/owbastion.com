@@ -160,6 +160,14 @@ and Player Account authentication:
   create a pending spot check without blocking the automatic result; a
   maintainer can confirm the sample or revoke evidence-derived outcomes, with
   the affected player and Agents projections then reflecting the revoked state.
+- a maintainer can reopen an approved submission whose recognition was wrong:
+  in one D1 batch its evidence-derived title Grants, Challenge Completions and
+  Verified Run are withdrawn (manual Grants are untouched), its derived fields
+  are cleared, and it returns to maintainer review. Re-approving it with
+  corrected fields re-derives the revision, Challenges and rewards from the
+  evidence and restores the same Verified Run rewritten from that evidence.
+  A maintainer can also re-run the decision for submissions held for review
+  from their stored recognition, without calling OCRKit again.
 - the current title-challenge and map-title-rule admin routes and directories
   remain a bounded compatibility adapter while their records are converged on
   canonical Challenges. Legacy map rows keep their stable compatibility IDs
