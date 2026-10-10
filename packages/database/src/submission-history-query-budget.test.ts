@@ -141,6 +141,19 @@ describe("submission detail history reads", () => {
     expect(large.metrics.reviewRows).toBe(2);
   });
 
+  it("treats a malformed latest OCR payload as missing instead of failing the page", async () => {
+    const { sqlite, services } = fixture();
+    sqlite.exec(`
+      INSERT INTO ocr_results (id,submission_id,attempt,status,response_json,match_json,error_code,created_at) VALUES
+        ('ocr-bad-a', 'submission-a', 9, 'error', 'not-json', 'also-not-json', 'MALFORMED', 99999);
+    `);
+    const result = await services.listAdminSubmissions({ page: 1, pageSize: 3 });
+    const item = result.items.find((entry) => entry.submissionId === "submission-a")!;
+    expect(item).toMatchObject({ ocrStatus: "error", ocrResultId: "ocr-bad-a", ocr: null, match: null });
+    const detail = await services.getAdminSubmission({ submissionId: "submission-a" }, { actorType: "user", subject: "admin.latest", provider: "test", roles: ["maintainer"] });
+    expect(detail).toMatchObject({ ocrResultId: "ocr-bad-a", ocr: null });
+  });
+
   it("does not load another submission's history for an empty result page", async () => {
     const { sqlite, services, resetMetrics, metrics } = fixture();
     seedHistory(sqlite, 50);

@@ -2735,10 +2735,11 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
 
   const asAdminSubmission = (row: typeof submissions.$inferSelect, details: Awaited<ReturnType<typeof resolveAdminSubmissionDetails>>) => {
     const ocr = details.latestOcr.get(row.id);
-    let match: Record<string, unknown> | null = null;
-    if (ocr?.matchJson) {
-      try { match = JSON.parse(ocr.matchJson) as Record<string, unknown>; } catch { match = null; }
-    }
+    const parseJsonObject = (value: string | null | undefined): Record<string, unknown> | null => {
+      if (!value) return null;
+      try { return JSON.parse(value) as Record<string, unknown>; } catch { return null; }
+    };
+    const match = parseJsonObject(ocr?.matchJson);
     return {
       submissionId: row.id,
       status: row.status as never,
@@ -2756,7 +2757,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       ocrErrorCode: ocr?.errorCode ?? null,
       ocrResultId: ocr?.id ?? null,
       ocrAccuracy: (ocr ? details.ocrAccuracy.get(`${row.id}:${ocr.id}`) ?? null : null) as OcrAccuracyMark | null,
-      ocr: ocr?.responseJson ? JSON.parse(ocr.responseJson) : null,
+      ocr: parseJsonObject(ocr?.responseJson),
       match,
       reason: row.reviewReason,
       evidenceUrl: null,
