@@ -2,7 +2,6 @@
 import type { TableColumn } from "@nuxt/ui";
 import type { SortingState } from "@tanstack/vue-table";
 import { submissionStatusText, submissionStatusTone } from "~/utils/submissionStatus";
-import { ocrStatusLabel, ocrStatusTone } from "~/utils/ocrStatus";
 import type { AdminSubmission } from "~/composables/useAdminApi";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { reviewQueueStatuses } from "~/utils/reviewQueue";
@@ -30,7 +29,8 @@ function parseReviewStatus(value: unknown): ReviewStatus {
 }
 // Player-facing projections (processing / needs_review / completed) are not stored submission statuses.
 const playerProjectionStatuses = new Set(["processing", "needs_review", "completed"]);
-const reviewStatusOptions = [{ label: "待核对", value: "queue" }, { label: "全部状态", value: "all" }, ...Object.entries(submissionStatusText).filter(([value]) => !playerProjectionStatuses.has(value)).map(([value, label]) => ({ label, value }))];
+// The 待核对 queue already covers every state waiting for a maintainer, so those states are not offered again one by one.
+const reviewStatusOptions = [{ label: "待核对", value: "queue" }, { label: "全部状态", value: "all" }, ...Object.entries(submissionStatusText).filter(([value]) => !playerProjectionStatuses.has(value) && !reviewQueueStatuses.split(",").includes(value)).map(([value, label]) => ({ label, value }))];
 type SpotCheckFilter = "all" | "pending" | "confirmed" | "revoked";
 function parseSpotCheck(value: unknown): SpotCheckFilter {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -85,7 +85,6 @@ const reviewSortingOptions = [
   { id: "ocrContent", label: "OCR识别" },
   { id: "playerName", label: "玩家" },
   { id: "status", label: "状态" },
-  { id: "ocrStatus", label: "OCRKit" },
   { id: "updatedAt", label: "最近更新" },
 ];
 const columns: TableColumn<AdminSubmission>[] = [
@@ -93,7 +92,6 @@ const columns: TableColumn<AdminSubmission>[] = [
   { id: "ocrConfidence", header: "置信度" },
   { accessorKey: "playerName", header: "玩家" },
   { accessorKey: "status", header: "状态" },
-  { accessorKey: "ocrStatus", header: "OCRKit" },
   { id: "spotCheck", header: "抽检" },
   { accessorKey: "updatedAt", header: "最近更新" },
   { id: "actions", header: "", enableHiding: false },
@@ -167,7 +165,6 @@ watch(() => route.fullPath, (path) => { queuePath.value = path; }, { immediate: 
       <template #ocrConfidence-cell="{ row }"><span class="table-meta">地图 {{ ocrConfidence(row.original, "map_name") }}</span><span class="table-meta">成就 {{ ocrConfidence(row.original, "achievement_titles") }}</span></template>
       <template #playerName-cell="{ row }"><NuxtLink class="player-link" :to="`/admin/players/${encodeURIComponent(row.original.playerAccountId)}`">{{ row.original.playerName }}</NuxtLink></template>
       <template #status-cell="{ row }"><StatusBadge :label="formatStatus(row.original.status)" :tone="submissionStatusTone(row.original.status)" /></template>
-      <template #ocrStatus-cell="{ row }"><StatusBadge :label="ocrStatusLabel(row.original.ocrStatus)" :tone="ocrStatusTone(row.original.ocrStatus)" /></template>
       <template #spotCheck-cell="{ row }"><StatusBadge v-if="row.original.spotCheck" :label="spotCheckLabel(row.original)" :tone="spotCheckTone(row.original)" /><span v-else class="table-meta">—</span></template>
       <template #updatedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.updatedAt) }}</span></template>
       <template #actions-cell="{ row }"><div class="table-actions"><UButton :to="`/admin/reviews/${encodeURIComponent(row.original.submissionId)}`" label="查看" size="sm" color="neutral" variant="outline" /></div></template>

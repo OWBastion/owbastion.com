@@ -70,7 +70,8 @@ describe("admin reviews page", () => {
     const statusLabels = wrapper.get('select[aria-label="筛选提交状态"]').findAll("option").map((option) => option.text());
     expect(statusLabels).not.toContain("处理中");
     expect(statusLabels).not.toContain("已完成");
-    expect(statusLabels.filter((label) => label === "等待核对")).toHaveLength(1);
+    expect(statusLabels.filter((label) => label === "待核对")).toHaveLength(1);
+    expect(statusLabels).not.toContain("等待核对");
 
     await wrapper.get('select[aria-label="筛选抽检状态"]').setValue("pending");
     await flushPromises();
