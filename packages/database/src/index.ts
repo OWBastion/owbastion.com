@@ -22,7 +22,6 @@ const qqScreenshotEnqueueingPrefix = "qq-screenshot-enqueueing:";
 const qqScreenshotResumeAfterMs = 60_000;
 // Bastion builds are YY.MMDD.N; with no known build the day's first build number stands in.
 const formatDayBuildVersion = (timestamp = now()) => { const date = new Date(timestamp).toISOString().slice(2, 10).split("-"); return `${date[0]}.${date[1]}${date[2]}.1`; };
-const formatCurrentGameVersion = (timestamp = now()) => new Date(timestamp).toISOString().slice(0, 10).replaceAll("-", ".");
 
 const normalizedOcrLabel = (value: unknown) => typeof value === "string" ? value.trim().toLocaleLowerCase() : "";
 const normalizedOcrDifficulty = (value: unknown) => {
@@ -5068,13 +5067,14 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const timestamp = now();
       const listed = new Set(mapIds);
       const revisionByMap = new globalThis.Map(modeRevisions.map((revision) => [revision.mapId, revision]));
+      const modeRevisionVersion = await latestBuildVersion();
       const statements: D1PreparedStatement[] = [
         database.prepare("INSERT INTO standalone_modes (mode, event_weight_total, created_at, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(mode) DO UPDATE SET event_weight_total = excluded.event_weight_total, updated_at = excluded.updated_at").bind(mode, input.eventWeightTotal, timestamp, timestamp),
       ];
       for (const mapId of mapIds) {
         const revision = revisionByMap.get(mapId);
         if (!revision) {
-          statements.push(database.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, mode, copied_from_revision_id, reset_reason, game_version, spatial_config_json, created_at, updated_at) VALUES (?, ?, 'selectable', NULL, ?, NULL, NULL, ?, NULL, ?, ?)").bind(`revision:${mapId}:${crypto.randomUUID()}`, mapId, mode, formatCurrentGameVersion(timestamp), timestamp, timestamp));
+          statements.push(database.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, mode, copied_from_revision_id, reset_reason, game_version, spatial_config_json, created_at, updated_at) VALUES (?, ?, 'selectable', NULL, ?, NULL, NULL, ?, NULL, ?, ?)").bind(`revision:${mapId}:${crypto.randomUUID()}`, mapId, mode, modeRevisionVersion, timestamp, timestamp));
         } else if (revision.lifecycle !== "selectable") {
           statements.push(database.prepare("UPDATE gameplay_revisions SET lifecycle = 'selectable', updated_at = ? WHERE id = ?").bind(timestamp, revision.id));
         }
@@ -5217,7 +5217,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         source = await db.select().from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.lifecycle, "default"))).get() ?? null;
         if (!source) throw new Error("REVISION_SOURCE_NOT_FOUND");
       }
-      const gameVersion = input.gameVersion ?? formatCurrentGameVersion();
+      const gameVersion = input.gameVersion ?? await latestBuildVersion();
       const resetReason = input.resetReason ?? null;
 
       const sourceAssignments = source

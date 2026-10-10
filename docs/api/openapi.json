@@ -1514,7 +1514,7 @@
   "/v1/admin/maps/{mapId}/revisions": {
    "post": {
     "operationId": "createAdminMapRevision",
-    "description": "Creates a preparing revision for reset/rework. The target game version defaults to the current date in YYYY.MM.DD format and may be supplied by a maintainer; an optional reset reason is audit-only. When configuration copying is requested, only spatial configuration and challenge assignments are copied; player progress is never copied.",
+    "description": "Creates a preparing revision for reset/rework. The target game version defaults to the newest known Bastion build in YY.MMDD.N format and may be supplied by a maintainer; an optional reset reason is audit-only. When configuration copying is requested, only spatial configuration and challenge assignments are copied; player progress is never copied.",
     "parameters": [
      {
       "$ref": "#/components/parameters/mapId"

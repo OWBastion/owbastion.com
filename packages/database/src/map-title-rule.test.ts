@@ -290,7 +290,10 @@ describe("Agents map projection readiness", () => {
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
     await services.upsertAdminStandaloneMode({ contractVersion: "1", mode: "2026镜中回响", mapIds: ["map.mode"], eventPools: [], eventWeightTotal: null }, auth, "mode-create");
     const mirror = (sqlite.prepare("SELECT id FROM gameplay_revisions WHERE mode = '2026镜中回响'").get() as { id: string }).id;
+    // Event pools carry the known builds; the newest well-formed YY.MMDD.N one becomes the default version.
+    sqlite.prepare("INSERT INTO random_event_versions (game_version, availability, mode, created_at, updated_at) VALUES ('26.0811.1', 'available', NULL, ?, ?), ('26.1003.10', 'available', NULL, ?, ?), ('26.1003.2', 'available', NULL, ?, ?)").run(now, now, now, now, now, now);
     const preparing = await services.createAdminMapRevision({ contractVersion: "1", mapId: "map.mode", mapVariant: null, copyConfiguration: false, challengeAssignments: [] }, auth, "regular-create");
+    expect(sqlite.prepare("SELECT game_version FROM gameplay_revisions WHERE id = ?").get(preparing.revisionId)).toEqual({ game_version: "26.1003.10" });
     const update = (revisionId: string, key: string) => services.updateAdminMapRevision({
       contractVersion: "1",
       mapId: "map.mode",
