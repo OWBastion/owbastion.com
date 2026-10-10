@@ -110,7 +110,7 @@ export function useAdminAchievementWorkspace() {
       status,
       ...(item.scope ? { scope: item.scope, mapIds: item.scope === "map" ? item.mapIds ?? [] : [] } : {}),
       ...(item.progressRule !== undefined ? { progressRule: item.progressRule ? { type: "required_maps_completed", ...(item.progressRule.mapIds?.length ? { mapIds: item.progressRule.mapIds } : {}), ...(item.progressRule.difficultyAtLeast ? { difficultyAtLeast: item.progressRule.difficultyAtLeast } : {}), ...(item.progressRule.mode?.trim() ? { mode: item.progressRule.mode.trim() } : {}) } : null } : {}),
-      gameVersion: item.gameVersion?.trim() || null,
+      ...(item.gameVersion?.trim() ? { gameVersion: item.gameVersion.trim() } : status === "scheduled" ? { gameVersion: null } : {}),
       ...(item.scope === "map" ? { mapVariant: item.mapVariant } : {}),
       ...(status === "sunsetting" && (retiredVersion ?? item.retiredVersion)?.trim() ? { retiredVersion: (retiredVersion ?? item.retiredVersion)!.trim() } : {}),
       ...(status === "scheduled" ? {

@@ -230,12 +230,15 @@ function onIconFile(value: File | null | undefined) {
           </UFormField>
         </template>
 
+        <details v-if="!asCatalog(item)" class="editor-field editor-field--wide more-settings" :open="item.status === 'sunsetting'">
+          <summary>更多设置</summary>
+          <div class="more-settings-body">
         <UFormField v-if="!asCatalog(item)" class="editor-field" label="计划下线版本">
           <UInput class="editor-control" :model-value="(item as TitleAchievement | MapAchievement).retiredVersion ?? ''" placeholder="例如 26.0713.1" :disabled="saving" @update:model-value="setRetiredVersion" />
         </UFormField>
 
         <UFormField v-if="asChallenge(item)" class="editor-field" label="游戏版本">
-          <UInput class="editor-control" :model-value="asChallenge(item)!.gameVersion ?? ''" placeholder="例如 26.0713.1" :disabled="saving" @update:model-value="setGameVersion" />
+          <UInput class="editor-control" :model-value="asChallenge(item)!.gameVersion ?? ''" placeholder="留空使用当前版本" :disabled="saving" @update:model-value="setGameVersion" />
         </UFormField>
 
         <template v-if="asTitle(item) && !asCatalog(item)">
@@ -259,6 +262,8 @@ function onIconFile(value: File | null | undefined) {
             <UInput class="editor-control" :model-value="asTitle(item)!.categoryOverride ?? ''" :disabled="saving" :placeholder="asTitle(item)!.category" maxlength="128" @update:model-value="setCategoryOverride" />
           </UFormField>
         </template>
+          </div>
+        </details>
       </form>
     </template>
     <template #footer>
@@ -278,6 +283,9 @@ function onIconFile(value: File | null | undefined) {
 .editor-field, .editor-control { width: 100%; min-width: 0; }
 .editor :deep(textarea) { min-height: 104px; }
 .editor-field--wide { grid-column: 1 / -1; }
+.more-settings { border-top: 1px solid var(--line); color: var(--muted); }
+.more-settings summary { padding: var(--space-3) 0; cursor: pointer; }
+.more-settings-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5); padding-top: var(--space-2); }
 .editor-note { margin: 0; color: var(--muted); font-size: var(--type-caption-size); }
 .icon-upload { display: grid; gap: var(--space-3); }
 .icon-upload-option { border-top: 1px solid var(--line); color: var(--muted); font-size: var(--type-caption-size); }

@@ -72,7 +72,8 @@ describe("scheduled title challenge availability", () => {
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
     const input = { contractVersion: "1" as const, titleKey: "FUTURE_TITLE", titleName: "未来称号", icon: "trophy", category: "未来系列", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual" as const, scope: "global" as const, mapIds: [], status: "scheduled" as const, gameVersion: null, categoryOverride: null, iconUrl: null };
 
-    await expect(services.createAdminAchievement({ ...input, titleKey: "ACTIVE_WITHOUT_VERSION", status: "active" }, auth, "reject-active-without-version")).rejects.toThrow("ACHIEVEMENT_GAME_VERSION_REQUIRED");
+    // An omitted version is filled in with the current one instead of making the administrator type it.
+    await expect(services.createAdminAchievement({ ...input, titleKey: "ACTIVE_WITHOUT_VERSION", status: "active" }, auth, "default-active-version")).resolves.toMatchObject({ gameVersion: expect.stringMatching(/^\d{4}\.\d{2}\.\d{2}$/), status: "active" });
     await expect(services.createAdminAchievement(input, auth, "create-future")).resolves.toMatchObject({ gameVersion: null, introducedVersion: null, status: "scheduled" });
     expect(sqlite.prepare("SELECT game_version, introduced_version FROM title_challenges WHERE id = 'title.FUTURE_TITLE'").get()).toEqual({ game_version: null, introduced_version: null });
     await expect(services.listChallenges({ family: "achievement" })).resolves.toEqual([]);

@@ -409,9 +409,10 @@ describe("v1 platform contracts", () => {
   it("allows a future achievement to omit release metadata", () => {
     const input = { contractVersion: "1", titleKey: "FUTURE_TITLE", titleName: "未来称号", icon: "trophy", category: "未来系列", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", scope: "global", mapIds: [], status: "scheduled" };
     expect(adminAchievementCreateRequestSchema.safeParse(input).success).toBe(true);
-    expect(adminAchievementCreateRequestSchema.safeParse({ ...input, status: "active" }).success).toBe(false);
-    expect(adminAchievementCreateRequestSchema.safeParse({ ...input, status: "sunsetting", retiredVersion: "26.0901.1" }).success).toBe(false);
-    expect(adminAchievementCreateRequestSchema.safeParse({ ...input, status: "retired" }).success).toBe(false);
+    // The service records the current version when a non-scheduled challenge omits it.
+    expect(adminAchievementCreateRequestSchema.safeParse({ ...input, status: "active" }).success).toBe(true);
+    expect(adminAchievementCreateRequestSchema.safeParse({ ...input, status: "sunsetting", retiredVersion: "26.0901.1" }).success).toBe(true);
+    expect(adminAchievementCreateRequestSchema.safeParse({ ...input, status: "retired" }).success).toBe(true);
     expect(adminChallengeSchema.safeParse({ challengeId: "title.FUTURE_TITLE", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "FUTURE_TITLE", titleName: "未来称号", icon: "trophy", category: "未来系列", condition: "完成挑战", evidenceRule: "完整截图", gameVersion: null, status: "scheduled", introducedVersion: null, submissionMode: "manual", categoryOverride: null, retiredVersion: null, startsAt: null, endsAt: null }).success).toBe(true);
   });
 

@@ -5691,7 +5691,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         }
         return replay;
       }
-      if (input.status !== "scheduled" && !input.gameVersion?.trim()) throw new Error("ACHIEVEMENT_GAME_VERSION_REQUIRED");
+      // The version is internal bookkeeping: administrators may omit it and the current version is recorded.
+      const gameVersion = input.gameVersion?.trim() || (input.status !== "scheduled" ? formatCurrentGameVersion() : null);
       const existing = await db.select({ key: titleCatalog.key, category: titleCatalog.category }).from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
       if (existing) throw new Error("TITLE_KEY_CONFLICT");
       if (input.progressRule) {
@@ -5735,10 +5736,10 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         categoryOverride: input.categoryOverride,
         condition: input.condition,
         evidenceRule: input.evidenceRule,
-        gameVersion: input.gameVersion ?? null,
+        gameVersion: gameVersion,
         status: input.status,
         submissionMode: input.submissionMode,
-        introducedVersion: input.gameVersion ?? null,
+        introducedVersion: gameVersion,
         retiredVersion: input.status === "sunsetting" ? input.retiredVersion ?? null : null,
         startsAt: input.status === "scheduled" ? input.startsAt ?? null : null,
         endsAt: input.status === "scheduled" ? input.endsAt ?? null : null,
@@ -5748,7 +5749,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         ...(input.progressRule ? { progressRule: input.progressRule } : {}),
       };
       const statements: D1PreparedStatement[] = [
-        database.prepare("INSERT INTO title_catalog (key,label,icon,icon_url,category,condition,lifecycle,scope,display_kind,color_json,game_version) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind(input.titleKey, input.titleName, input.icon, input.iconUrl, input.category, input.condition, input.status === "retired" ? "retired" : "active", input.scope, "fixed", "null", input.gameVersion ?? null),
+        database.prepare("INSERT INTO title_catalog (key,label,icon,icon_url,category,condition,lifecycle,scope,display_kind,color_json,game_version) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind(input.titleKey, input.titleName, input.icon, input.iconUrl, input.category, input.condition, input.status === "retired" ? "retired" : "active", input.scope, "fixed", "null", gameVersion),
         database.prepare("INSERT INTO title_challenges (id,title_key,category_override,condition,evidence_rule,submission_mode,game_version,status,introduced_version,retired_version,starts_at,ends_at,scope,map_variant,progress_rule,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(challengeId, input.titleKey, input.categoryOverride, input.condition, input.evidenceRule, input.submissionMode, input.gameVersion ?? null, input.status, input.gameVersion ?? null, input.status === "sunsetting" ? input.retiredVersion ?? null : null, input.status === "scheduled" ? input.startsAt ?? null : null, input.status === "scheduled" ? input.endsAt ?? null : null, input.scope, input.mapVariant ?? null, input.progressRule ? JSON.stringify(input.progressRule) : null, timestamp, timestamp),
         ...targetMapIds.map((mapId) => database.prepare("INSERT INTO achievement_challenge_maps (challenge_id,map_id) VALUES (?,?)").bind(challengeId, mapId)),
         ...revisions.map(({ revision }) => database.prepare("INSERT INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, created_at, updated_at) VALUES (?, ?, ?, 'title_challenge', ?, 1, ?, ?)").bind(`assignment:${revision.id}:title_challenge:${challengeId}`, revision.id, revision.mapId, challengeId, timestamp, timestamp)),
