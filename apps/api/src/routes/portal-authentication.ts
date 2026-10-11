@@ -16,7 +16,7 @@ import type { RuntimeEnv } from "../app";
 
 type AuthenticatedPortalPlayer = {
   sessionToken: string;
-  player: NonNullable<Awaited<ReturnType<PlatformServices["getCurrentPlayer"]>>>;
+  player: NonNullable<Awaited<ReturnType<PlatformServices["getPortalSessionIdentity"]>>>;
 };
 type PortalPlayerAccess =
   | { error: Response; sessionToken?: undefined; player?: undefined }
