@@ -7,20 +7,18 @@ import {
   ocrResultsSchema,
   playerAccountsSchema,
   portalSessionsSchema,
+  submissionOutcomesWithReferencesSchema,
   submissionReviewsSchema,
+  verifiedRunsSchema,
 } from "../test/schema";
 import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import type { VerifiedRunInput } from "@owbastion/domain";
 import { createPlatformServices } from "./index";
+import { hashRequest } from "./portal-session";
 
 const createD1 = () => createTestD1({ foreignKeys: true, batchMode: "serialized", batchStatementMethod: "run" });
-
-const hashRequest = async (value: unknown) => {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(value)));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-};
 
 const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   ${playerAccountsSchema}
@@ -62,46 +60,10 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     completion_id TEXT, revocation_type TEXT
   );
   CREATE TABLE submission_challenge_selections (id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, position INTEGER NOT NULL, challenge_type TEXT NOT NULL, challenge_id TEXT NOT NULL, target_map_id TEXT, gameplay_revision_id TEXT, map_name TEXT NOT NULL, difficulty TEXT, rule_snapshot_json TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
-  CREATE TABLE mastery_runs (
-    id TEXT PRIMARY KEY NOT NULL,
-    player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
-    source_submission_id TEXT NOT NULL UNIQUE REFERENCES submissions(id),
-    map_id TEXT NOT NULL REFERENCES maps(id),
-    gameplay_revision_id TEXT NOT NULL REFERENCES gameplay_revisions(id),
-    map_variant TEXT,
-    difficulty TEXT NOT NULL,
-    game_version TEXT NOT NULL,
-    run_code TEXT NOT NULL,
-    completion_duration_seconds INTEGER NOT NULL,
-    deaths INTEGER,
-    skips INTEGER,
-    event_counters_json TEXT NOT NULL,
-    acceptance_source TEXT NOT NULL,
-    accepted_at INTEGER NOT NULL,
-    status TEXT NOT NULL,
-    invalidated_at INTEGER,
-    invalidated_by TEXT,
-    invalidation_reason TEXT,
-    xp_rule_version TEXT NOT NULL,
-    xp_input_snapshot_json TEXT NOT NULL,
-    awarded_xp INTEGER NOT NULL,
-    created_at INTEGER NOT NULL
-  );
+  ${verifiedRunsSchema(true)}
   CREATE UNIQUE INDEX mastery_runs_active_player_run_code_idx ON mastery_runs(player_account_id, run_code) WHERE status = 'active';
   CREATE TABLE mastery_run_lifecycle_events (id TEXT PRIMARY KEY NOT NULL, mastery_run_id TEXT NOT NULL REFERENCES mastery_runs(id), transition TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, reason TEXT, created_at INTEGER NOT NULL);
-  CREATE TABLE submission_outcomes (
-    id TEXT PRIMARY KEY NOT NULL,
-    submission_id TEXT NOT NULL REFERENCES submissions(id),
-    outcome_key TEXT NOT NULL,
-    outcome_type TEXT NOT NULL,
-    status TEXT NOT NULL,
-    entity_id TEXT,
-    awarded_xp INTEGER NOT NULL DEFAULT 0,
-    details_json TEXT NOT NULL DEFAULT '{}',
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL,
-    UNIQUE (submission_id, outcome_key)
-  );
+  ${submissionOutcomesWithReferencesSchema}
   ${idempotencyKeysRequiredIdSchema}
   ${auditEventsRequiredIdSchema}
   ${ocrResultsSchema}

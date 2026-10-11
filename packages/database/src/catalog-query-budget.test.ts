@@ -2,6 +2,7 @@ import {
   achievementChallengeMapsSchema,
   achievementChallengesSchema,
   effectGlossaryTermsSchema,
+  gameplayRevisionChallengeAssignmentsSchema,
   gameplayRevisionsSchema,
   mapMetadataSchema,
   mapTitleRewardsSchema,
@@ -13,37 +14,19 @@ import {
   randomEventMapChallengesSchema,
   randomEventTitleChallengesSchema,
   randomEventsSchema,
+  standaloneModesSchema,
 } from "../test/schema";
 import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { createPlatformServices } from "@owbastion/database";
 
-/**
- * Minimal D1Database shim over node:sqlite for catalog query-budget tests.
- * Counts statement executions (all / first / run / raw / batch items).
- */
 const createCountingD1 = () => createTestD1({ foreignKeys: true, countStatements: true, execReturnsD1Result: true });
 const installCatalogSchema = (sqlite: DatabaseSync) => {
   sqlite.exec(`
     ${mapsSchema}
     ${gameplayRevisionsSchema}
-    CREATE TABLE gameplay_revision_challenge_assignments (
-      id TEXT PRIMARY KEY NOT NULL,
-      gameplay_revision_id TEXT NOT NULL REFERENCES gameplay_revisions(id),
-      map_id TEXT NOT NULL REFERENCES maps(id),
-      challenge_family TEXT NOT NULL,
-      challenge_id TEXT NOT NULL,
-      enabled INTEGER NOT NULL DEFAULT 1,
-      condition TEXT,
-      evidence_rule TEXT,
-      submission_mode TEXT,
-      slot TEXT,
-      starts_at INTEGER,
-      ends_at INTEGER,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
+    ${gameplayRevisionChallengeAssignmentsSchema}
     ${mapMetadataSchema}
     CREATE TABLE title_catalog (
       key TEXT PRIMARY KEY NOT NULL,
@@ -87,6 +70,7 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
     ${mapTitleRuleCompatSchema}
     ${achievementChallengesSchema}
     ${randomEventsSchema}
+    ${standaloneModesSchema}
     CREATE TABLE random_event_versions (
       game_version TEXT PRIMARY KEY NOT NULL,
       availability TEXT NOT NULL DEFAULT 'available',
