@@ -360,13 +360,14 @@ export const createMapRevisionServices = (
       if (replay) return replay;
       const map = await db.select().from(maps).where(eq(maps.id, input.mapId)).get();
       if (!map) throw new Error("MAP_NOT_FOUND");
+      if (input.mapName !== map.name && await db.select({ id: maps.id }).from(maps).where(eq(maps.name, input.mapName)).get()) throw new Error("MAP_NAME_CONFLICT");
       const mechanics = [...new Set(input.mechanics.map((value) => value.trim()).filter(Boolean))];
       const timestamp = now();
-      await db.update(maps).set({ gameVersion: input.gameVersion, updatedAt: timestamp }).where(eq(maps.id, input.mapId));
+      await db.update(maps).set({ name: input.mapName, gameVersion: input.gameVersion, updatedAt: timestamp }).where(eq(maps.id, input.mapId));
       await db.insert(mapMetadata).values({ mapId: input.mapId, difficultyRating: input.difficultyRating, mechanicsJson: JSON.stringify(mechanics), coverUrl: input.coverUrl, backgroundUrl: input.backgroundUrl, updatedAt: timestamp, updatedBy: auth.subject }).onConflictDoUpdate({ target: mapMetadata.mapId, set: { difficultyRating: input.difficultyRating, mechanicsJson: JSON.stringify(mechanics), coverUrl: input.coverUrl, backgroundUrl: input.backgroundUrl, updatedAt: timestamp, updatedBy: auth.subject } });
-      const response: Map = { mapId: map.id, mapName: map.name, gameVersion: input.gameVersion, difficultyRating: input.difficultyRating, mechanics, coverUrl: input.coverUrl, backgroundUrl: input.backgroundUrl };
+      const response: Map = { mapId: map.id, mapName: input.mapName, gameVersion: input.gameVersion, difficultyRating: input.difficultyRating, mechanics, coverUrl: input.coverUrl, backgroundUrl: input.backgroundUrl };
       await recordIdempotency(auth.subject, "admin.map.metadata.update", idempotencyKey, input, response);
-      await recordAudit(auth, "admin.map.metadata.update", "map_metadata", input.mapId, { gameVersion: input.gameVersion, difficultyRating: input.difficultyRating, mechanics, coverUrl: input.coverUrl, backgroundUrl: input.backgroundUrl });
+      await recordAudit(auth, "admin.map.metadata.update", "map_metadata", input.mapId, { mapName: input.mapName, previousMapName: map.name, gameVersion: input.gameVersion, difficultyRating: input.difficultyRating, mechanics, coverUrl: input.coverUrl, backgroundUrl: input.backgroundUrl });
       return response;
     },
 
