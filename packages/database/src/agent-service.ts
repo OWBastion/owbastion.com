@@ -20,6 +20,7 @@ import type { paginate } from "./page-result";
 import { loadAgentMapProjectionsFast as projectAgentMaps } from "./agent-map-projection";
 import {
   gameplayRevisions,
+  mapTitleRuleExceptions,
   mapTitleRewards,
   maps,
   playerAccounts,
@@ -76,10 +77,15 @@ export const createAgentServices = (db: ReturnType<typeof drizzle>, dependencies
     toPublicTitleChallenge,
     titleChallengeIsSubmittable,
   } = dependencies;
-  // The projection SQL binds now() into pioneer exception windows, so the cache
-  // key buckets by hour to bound staleness of window transitions to <= 1h.
-  const loadAgentMapProjectionsFast = (input: { mapId?: string }) =>
-    platformCache.cached("catalog", `agent-map-projections:${input.mapId ?? "all"}:${Math.floor(now() / 3_600_000)}`, () => projectAgentMaps(database, input, now));
+  // The projection SQL binds now() into pioneer exception windows, so its result
+  // only changes when now() crosses a window boundary. Key the entry by how many
+  // boundaries have passed instead of a clock bucket, so it is not rewritten hourly.
+  const loadAgentMapProjectionsFast = async (input: { mapId?: string }) => {
+    const boundaries = await platformCache.cached("catalog", "exception-window-boundaries", () => db.select({ startsAt: mapTitleRuleExceptions.startsAt, endsAt: mapTitleRuleExceptions.endsAt }).from(mapTitleRuleExceptions));
+    const timestamp = now();
+    const passed = boundaries.reduce((count, { startsAt, endsAt }) => count + Number(startsAt !== null && startsAt <= timestamp) + Number(endsAt !== null && endsAt <= timestamp), 0);
+    return platformCache.cached("catalog", `agent-map-projections:${input.mapId ?? "all"}:${passed}`, () => projectAgentMaps(database, input, now));
+  };
   const asMapAgentTitle = (
     title: typeof titleCatalog.$inferSelect,
     mapId: string,

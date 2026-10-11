@@ -25,6 +25,7 @@ import {
   randomEventTitleChallengesSchema,
   randomEventVersionsSchema,
   randomEventsSchema,
+  standaloneModesSchema,
   reviewedAnnotationsSchemaWithoutReferences,
   standaloneModesSchema,
   submissionOutcomesWithReferencesSchema,

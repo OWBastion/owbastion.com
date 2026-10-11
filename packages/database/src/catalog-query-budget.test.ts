@@ -14,6 +14,7 @@ import {
   randomEventMapChallengesSchema,
   randomEventTitleChallengesSchema,
   randomEventsSchema,
+  standaloneModesSchema,
 } from "../test/schema";
 import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
@@ -69,6 +70,7 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
     ${mapTitleRuleCompatSchema}
     ${achievementChallengesSchema}
     ${randomEventsSchema}
+    ${standaloneModesSchema}
     CREATE TABLE random_event_versions (
       game_version TEXT PRIMARY KEY NOT NULL,
       availability TEXT NOT NULL DEFAULT 'available',
