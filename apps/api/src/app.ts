@@ -1965,11 +1965,12 @@ export const createApp = (dependencies: AppDependencies) => {
     const statuses = c.req.query("status")?.split(",").map((status) => status.trim()).filter(Boolean) ?? [];
     const spotCheck = c.req.query("spotCheck");
     const order = c.req.query("order");
+    const mode = c.req.query("mode")?.trim();
     const allowedStatuses = ["upload_pending", "ocr_pending", "awaiting_player_confirmation", "ready_for_review", "ocr_review_required", "approved", "rejected", "resubmission_required"] as const;
     if (statuses.some((status) => !allowedStatuses.includes(status as typeof allowedStatuses[number]))) return errorResponse(c, 422, "INVALID_REQUEST", "The submission status is invalid");
     if (spotCheck && !["pending", "confirmed", "revoked"].includes(spotCheck)) return errorResponse(c, 422, "INVALID_REQUEST", "The spot-check status is invalid");
     if (order && order !== "oldest" && order !== "newest") return errorResponse(c, 422, "INVALID_REQUEST", "The submission order is invalid");
-    return c.json(await servicesFor(c).listAdminSubmissions({ statuses: statuses as typeof allowedStatuses[number][], ...(spotCheck ? { spotCheck: spotCheck as "pending" | "confirmed" | "revoked" } : {}), ...(order ? { order: order as "oldest" | "newest" } : {}), page, pageSize }, access.auth!));
+    return c.json(await servicesFor(c).listAdminSubmissions({ statuses: statuses as typeof allowedStatuses[number][], ...(spotCheck ? { spotCheck: spotCheck as "pending" | "confirmed" | "revoked" } : {}), ...(mode ? { mode } : {}), ...(order ? { order: order as "oldest" | "newest" } : {}), page, pageSize }, access.auth!));
   });
 
   app.get("/v1/admin/submissions/:submissionId", async (c) => {

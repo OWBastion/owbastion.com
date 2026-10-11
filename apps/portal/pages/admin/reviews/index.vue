@@ -45,7 +45,17 @@ function parseOrder(value: unknown): ReviewOrder | null {
   const raw = Array.isArray(value) ? value[0] : value;
   return raw === "oldest" || raw === "newest" ? raw : null;
 }
+function parseMode(value: unknown) {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return typeof raw === "string" && raw.trim() ? raw.trim() : "all";
+}
 const page = ref(parsePage(route.query.page));
+const modeFilter = shallowRef(parseMode(route.query.mode));
+const modes = ref<string[]>([]);
+const modeOptions = computed(() => [{ label: "全部模式", value: "all" }, { label: "常规模式", value: "regular" }, ...modes.value.map((mode) => ({ label: mode, value: mode }))]);
+onMounted(async () => {
+  try { modes.value = (await api<{ items: Array<{ mode: string }> }>("/v1/standalone-modes")).items.map((item) => item.mode); } catch { /* the filter then offers only the regular mode */ }
+});
 const orderOverride = shallowRef<ReviewOrder | null>(parseOrder(route.query.order));
 const spotCheckFilter = shallowRef<SpotCheckFilter>(parseSpotCheck(route.query.spotCheck));
 // Spot checks sample automatically approved submissions, which the default queue statuses never include.
@@ -88,6 +98,7 @@ const reviewSortingOptions = [
   { id: "updatedAt", label: "最近更新" },
 ];
 const columns: TableColumn<AdminSubmission>[] = [
+  { id: "select", header: "", enableHiding: false },
   { accessorFn: (row) => ocrMapName(row), id: "ocrContent", header: "OCR识别" },
   { id: "ocrConfidence", header: "置信度" },
   { accessorKey: "playerName", header: "玩家" },
@@ -97,45 +108,62 @@ const columns: TableColumn<AdminSubmission>[] = [
   { id: "actions", header: "", enableHiding: false },
 ];
 const toast = useToast();
-const reevaluating = ref(false);
-const reevaluable = computed(() => submissions.value.filter((item) => item.status === "ocr_review_required"));
-// Re-runs the decision from each stored recognition so items held under older rules or data settle without opening them one by one.
-async function reevaluatePage() {
-  if (reevaluating.value || !reevaluable.value.length) return;
-  reevaluating.value = true;
-  const items = [...reevaluable.value];
-  let failed = 0;
-  let settled = 0;
+const selected = ref<string[]>([]);
+const selectedItems = computed(() => submissions.value.filter((item) => selected.value.includes(item.submissionId)));
+const reevaluable = computed(() => selectedItems.value.filter((item) => item.status === "ocr_review_required"));
+const reopenable = computed(() => selectedItems.value.filter((item) => item.status === "approved"));
+const allSelected = computed(() => submissions.value.length > 0 && selected.value.length === submissions.value.length);
+const toggleAll = (checked: boolean) => { selected.value = checked ? submissions.value.map((item) => item.submissionId) : []; };
+const toggleOne = (id: string, checked: boolean) => { selected.value = checked ? [...new Set([...selected.value, id])] : selected.value.filter((value) => value !== id); };
+const bulkRunning = ref(false);
+const reopenConfirmOpen = ref(false);
+// Each selected submission goes through the same single-item operation (own idempotency key, own audit), so a failure
+// affects only that one and stays selected for a retry; submissions a bulk action does not apply to are skipped.
+async function runBulk(action: "reevaluate" | "reopen") {
+  if (bulkRunning.value) return;
+  const items = [...(action === "reevaluate" ? reevaluable.value : reopenable.value)];
+  if (!items.length) return;
+  bulkRunning.value = true;
+  const skipped = selected.value.length - items.length;
+  const failedIds: string[] = [];
+  let changed = 0;
   for (const item of items) {
     try {
-      const result = await api<{ status: string }>(`/v1/submissions/${encodeURIComponent(item.submissionId)}/ocr/reevaluate`, { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1" } });
-      if (result.status !== "ocr_review_required") settled += 1;
-    } catch { failed += 1; }
+      const path = action === "reevaluate" ? "ocr/reevaluate" : "reopen";
+      const result = await api<{ status: string }>(`/v1/submissions/${encodeURIComponent(item.submissionId)}/${path}`, { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1" } });
+      if (result.status !== item.status) changed += 1;
+    } catch { failedIds.push(item.submissionId); }
   }
-  reevaluating.value = false;
-  toast.add({ title: `已重新评估 ${items.length} 条，${settled} 条状态已更新${failed ? `，${failed} 条失败` : ""}`, color: failed ? "warning" : "success" });
+  bulkRunning.value = false;
+  reopenConfirmOpen.value = false;
+  const verb = action === "reevaluate" ? "重新评估" : "重新打开";
+  toast.add({ title: `已${verb} ${items.length - failedIds.length} 条${action === "reevaluate" ? `，其中 ${changed} 条状态已更新` : ""}${skipped ? `，跳过 ${skipped} 条不适用` : ""}${failedIds.length ? `，${failedIds.length} 条失败` : ""}`, color: failedIds.length ? "warning" : "success" });
   await refresh();
+  selected.value = failedIds.filter((id) => submissions.value.some((item) => item.submissionId === id));
 }
 const { loading, refresh } = useAdminAsyncData("submission-review-list", async () => {
     const statusQuery = reviewStatus.value === "all" ? "" : reviewStatus.value === "queue" ? `&status=${reviewQueueStatuses}` : `&status=${encodeURIComponent(reviewStatus.value)}`;
     const spotCheckQuery = spotCheckFilter.value === "all" ? "" : `&spotCheck=${spotCheckFilter.value}`;
-    const response = await api<{ items: AdminSubmission[]; total: number }>(`/v1/submissions?page=${page.value}&pageSize=20${statusQuery}${spotCheckQuery}&order=${reviewOrder.value}`);
+    const modeQuery = modeFilter.value === "all" ? "" : `&mode=${encodeURIComponent(modeFilter.value)}`;
+    const response = await api<{ items: AdminSubmission[]; total: number }>(`/v1/submissions?page=${page.value}&pageSize=20${statusQuery}${spotCheckQuery}${modeQuery}&order=${reviewOrder.value}`);
     if (page.value > 1 && !response.items.length && response.total) page.value -= 1;
     return response;
   }, {
-    cacheKey: computed(() => `${page.value}:${reviewStatus.value}:${spotCheckFilter.value}:${reviewOrder.value}`),
+    cacheKey: computed(() => `${page.value}:${reviewStatus.value}:${spotCheckFilter.value}:${modeFilter.value}:${reviewOrder.value}`),
     onStart: () => { errorMessage.value = ""; },
-    onData: (response) => { submissions.value = response.items; total.value = response.total; },
+    onData: (response) => { submissions.value = response.items; total.value = response.total; selected.value = selected.value.filter((id) => response.items.some((item) => item.submissionId === id)); },
     onError: (error) => { errorMessage.value = portalErrorDetails(error, "无法读取待核对截图，请确认当前账号有管理员权限。").description; },
   });
 watch(spotCheckFilter, (value) => { reviewStatus.value = statusForSpotCheck(reviewStatus.value, value); }, { flush: "sync" });
-watch([reviewStatus, spotCheckFilter, reviewOrder], () => { page.value = 1; }, { flush: "sync" });
-watch([reviewStatus, spotCheckFilter, orderOverride, page], () => {
+watch([reviewStatus, spotCheckFilter, modeFilter, reviewOrder], () => { page.value = 1; selected.value = []; }, { flush: "sync" });
+watch([reviewStatus, spotCheckFilter, modeFilter, orderOverride, page], () => {
   const query = { ...route.query };
   if (reviewStatus.value === "queue") delete query.status;
   else query.status = reviewStatus.value;
   if (spotCheckFilter.value === "all") delete query.spotCheck;
   else query.spotCheck = spotCheckFilter.value;
+  if (modeFilter.value === "all") delete query.mode;
+  else query.mode = modeFilter.value;
   if (orderOverride.value) query.order = orderOverride.value;
   else delete query.order;
   if (page.value === 1) delete query.page;
@@ -146,9 +174,11 @@ watch(() => route.query, (query) => {
   const nextStatus = parseReviewStatus(query.status === undefined ? "queue" : query.status);
   const nextSpotCheck = parseSpotCheck(query.spotCheck);
   const nextOrder = parseOrder(query.order);
+  const nextMode = parseMode(query.mode);
   const nextPage = parsePage(query.page);
   if (nextStatus !== reviewStatus.value) reviewStatus.value = nextStatus;
   if (nextSpotCheck !== spotCheckFilter.value) spotCheckFilter.value = nextSpotCheck;
+  if (nextMode !== modeFilter.value) modeFilter.value = nextMode;
   if (nextOrder !== orderOverride.value) orderOverride.value = nextOrder;
   if (nextPage !== page.value) page.value = nextPage;
 });
@@ -159,8 +189,10 @@ watch(() => route.fullPath, (path) => { queuePath.value = path; }, { immediate: 
   <AdminWorkspace title="截图审核" :count="loading ? '读取中…' : `${total} 条`">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <section aria-label="提交记录"><AdminDataTable v-model:sorting="reviewSorting" :sorting-options="reviewSortingOptions" :default-sorting="defaultReviewSorting" :data="submissions" :columns="columns" :mobile-columns="[{ id: 'ocrContent', priority: 'primary', order: 0 }, { id: 'status', priority: 'primary', order: 1 }, { id: 'playerName', priority: 'detail', order: 2 }, { id: 'spotCheck', priority: 'detail', order: 3 }]" row-key="submissionId" :mobile-row-link="(row) => `/admin/reviews/${encodeURIComponent(row.submissionId)}`" :loading="loading" empty="暂无提交记录。" table-key="reviews" :reset-scroll-key="`${page}-${reviewStatus}-${spotCheckFilter}-${reviewOrder}`" class="admin-table">
-      <template #filters><div class="review-filters"><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /><USelect v-model="spotCheckFilter" aria-label="筛选抽检状态" :items="spotCheckOptions" /><USelect v-model="reviewOrder" aria-label="队列顺序" :items="reviewOrderOptions" /><UButton v-if="reevaluable.length" label="重新评估本页待核对项" size="sm" color="neutral" variant="outline" :loading="reevaluating" @click="reevaluatePage" /></div></template>
-      <template #mobile-secondary><div class="review-filters"><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /><USelect v-model="spotCheckFilter" aria-label="筛选抽检状态" :items="spotCheckOptions" /><USelect v-model="reviewOrder" aria-label="队列顺序" :items="reviewOrderOptions" /><UButton v-if="reevaluable.length" label="重新评估本页待核对项" size="sm" color="neutral" variant="outline" :loading="reevaluating" @click="reevaluatePage" /></div></template>
+      <template #filters><div class="review-filters"><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /><USelect v-model="spotCheckFilter" aria-label="筛选抽检状态" :items="spotCheckOptions" /><USelect v-model="modeFilter" aria-label="筛选识别模式" :items="modeOptions" /><USelect v-model="reviewOrder" aria-label="队列顺序" :items="reviewOrderOptions" /><template v-if="selected.length"><span class="table-meta">已选 {{ selected.length }} 条</span><UButton v-if="reevaluable.length" :label="`重新评估（${reevaluable.length}）`" size="sm" color="neutral" variant="outline" :loading="bulkRunning" @click="runBulk('reevaluate')" /><UButton v-if="reopenable.length" :label="`重新打开核对（${reopenable.length}）`" size="sm" color="neutral" variant="outline" :disabled="bulkRunning" @click="reopenConfirmOpen = true" /></template></div></template>
+      <template #mobile-secondary><div class="review-filters"><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /><USelect v-model="spotCheckFilter" aria-label="筛选抽检状态" :items="spotCheckOptions" /><USelect v-model="modeFilter" aria-label="筛选识别模式" :items="modeOptions" /><USelect v-model="reviewOrder" aria-label="队列顺序" :items="reviewOrderOptions" /><template v-if="selected.length"><span class="table-meta">已选 {{ selected.length }} 条</span><UButton v-if="reevaluable.length" :label="`重新评估（${reevaluable.length}）`" size="sm" color="neutral" variant="outline" :loading="bulkRunning" @click="runBulk('reevaluate')" /><UButton v-if="reopenable.length" :label="`重新打开核对（${reopenable.length}）`" size="sm" color="neutral" variant="outline" :disabled="bulkRunning" @click="reopenConfirmOpen = true" /></template></div></template>
+      <template #select-header><UCheckbox :model-value="allSelected" aria-label="选择本页全部提交" @update:model-value="toggleAll(Boolean($event))" /></template>
+      <template #select-cell="{ row }"><UCheckbox :model-value="selected.includes(row.original.submissionId)" :aria-label="`选择 ${row.original.playerName} 的提交`" @update:model-value="toggleOne(row.original.submissionId, Boolean($event))" /></template>
       <template #ocrContent-cell="{ row }"><strong>{{ ocrMapName(row.original) }}</strong><small class="table-meta">成就挑战：{{ ocrAchievementTitles(row.original) }}</small></template>
       <template #ocrConfidence-cell="{ row }"><span class="table-meta">地图 {{ ocrConfidence(row.original, "map_name") }}</span><span class="table-meta">成就 {{ ocrConfidence(row.original, "achievement_titles") }}</span></template>
       <template #playerName-cell="{ row }"><NuxtLink class="player-link" :to="`/admin/players/${encodeURIComponent(row.original.playerAccountId)}`">{{ row.original.playerName }}</NuxtLink></template>
@@ -169,6 +201,12 @@ watch(() => route.fullPath, (path) => { queuePath.value = path; }, { immediate: 
       <template #updatedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.updatedAt) }}</span></template>
       <template #actions-cell="{ row }"><div class="table-actions"><UButton :to="`/admin/reviews/${encodeURIComponent(row.original.submissionId)}`" label="查看" size="sm" color="neutral" variant="outline" /></div></template>
     </AdminDataTable><UPagination v-if="total > 20" v-model:page="page" :total="total" :items-per-page="20" class="pagination" /></section>
+    <AdminResponsiveDialog v-model:open="reopenConfirmOpen" title="重新打开所选提交？" :description="`将撤销所选 ${reopenable.length} 条已通过提交产生的称号和 Verified Run（手动发放的称号不受影响），并回到待核对。之后需要逐条重新通过，系统会按截图证据重新判定。`" size="md" :dismissible="!bulkRunning">
+      <template #footer>
+        <UButton label="确认重新打开" :loading="bulkRunning" :disabled="bulkRunning" @click="runBulk('reopen')" />
+        <UButton label="取消" color="neutral" variant="outline" :disabled="bulkRunning" @click="reopenConfirmOpen = false" />
+      </template>
+    </AdminResponsiveDialog>
   </AdminWorkspace>
 </template>
 

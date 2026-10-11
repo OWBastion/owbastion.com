@@ -2515,6 +2515,22 @@ describe("maintainer Challenge confirmation during submission review", () => {
     expect((await list()).items.map((item) => item.submissionId)).toEqual(["submission.confirm", "submission.add"]);
   });
 
+  it("filters the review list by the mode read from the latest recognition, tolerating a misread label", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedIncompleteMapEvidence(sqlite);
+    seedAchievementEvidence(sqlite, ["SECOND"]);
+    sqlite.prepare("INSERT INTO standalone_modes (mode, event_weight_total, created_at, updated_at) VALUES ('2026镜中回响', NULL, ?, ?)").run(now, now);
+    const setMode = (submissionId: string, mode: string | null) => sqlite.prepare("UPDATE ocr_results SET response_json = ? WHERE submission_id = ?").run(JSON.stringify({ data: { mode } }), submissionId);
+    setMode("submission.add", "202S镜中回响");
+    setMode("submission.confirm", null);
+    const services = createPlatformServices(database);
+    const ids = async (mode: string) => (await services.listAdminSubmissions({ statuses: ["ocr_review_required"], mode, page: 1, pageSize: 20 }, auth)).items.map((item) => item.submissionId);
+    expect(await ids("2026镜中回响")).toEqual(["submission.add"]);
+    expect(await ids("regular")).toEqual(["submission.confirm"]);
+    expect(await ids("2027镜中回响")).toEqual([]);
+  });
+
   it("adds an eligible Challenge that OCR did not propose and recomputes corrected evidence with the same matcher", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);

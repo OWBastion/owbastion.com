@@ -2158,6 +2158,15 @@
         "newest"
        ]
       }
+     },
+     {
+      "name": "mode",
+      "in": "query",
+      "required": false,
+      "description": "Filters by the game mode read from each submission's latest recognition, matched tolerantly like at decision time: `regular` for the regular mode, otherwise a configured standalone mode name.",
+      "schema": {
+       "type": "string"
+      }
      }
     ],
     "responses": {
