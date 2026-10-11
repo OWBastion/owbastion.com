@@ -387,7 +387,7 @@ export const createApp = (dependencies: AppDependencies) => {
 
   type PortalPlayerAccess =
     | { error: Response; sessionToken?: undefined; player?: undefined }
-    | { error?: undefined; sessionToken: string; player: NonNullable<Awaited<ReturnType<PlatformServices["getCurrentPlayer"]>>> };
+    | { error?: undefined; sessionToken: string; player: NonNullable<Awaited<ReturnType<PlatformServices["getPortalSessionIdentity"]>>> };
   const requirePortalPlayer = async (c: any): Promise<PortalPlayerAccess> => {
     allowPortal(c);
     c.header("Cache-Control", "private, no-store");
