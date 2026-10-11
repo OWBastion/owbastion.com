@@ -83,7 +83,7 @@ export function useAdminMapEditor(mapId: string) {
   const loading = adminData.loading;
   const load = async () => { error.value = ""; await adminData.refresh(); };
 
-  const saveMetadata = async (input: { gameVersion: string; difficultyRating: Map["difficultyRating"]; mechanics: string[]; coverUrl: string | null; backgroundUrl: string | null }) => {
+  const saveMetadata = async (input: { mapName: string; gameVersion: string; difficultyRating: Map["difficultyRating"]; mechanics: string[]; coverUrl: string | null; backgroundUrl: string | null }) => {
     saving.value = true;
     try {
       const map = await api<Map>(`/v1/maps/${encodeURIComponent(mapId)}/metadata`, {

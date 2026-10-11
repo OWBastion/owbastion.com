@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Map } from "~/types/challenge";
 
-type Metadata = { gameVersion: string; difficultyRating: Map["difficultyRating"]; mechanics: string[]; coverUrl: string | null; backgroundUrl: string | null };
+type Metadata = { mapName: string; gameVersion: string; difficultyRating: Map["difficultyRating"]; mechanics: string[]; coverUrl: string | null; backgroundUrl: string | null };
 
 const props = defineProps<{ map: Map; saving?: boolean }>();
 const emit = defineEmits<{ save: [input: Metadata] }>();
@@ -10,8 +10,9 @@ const difficultyItems = [
   { label: "暂无评级", value: null },
   ...(["T0", "T1", "T2", "T3", "T4", "T5"] as const).map((rating) => ({ label: rating, value: rating })),
 ];
-const form = reactive({ gameVersion: "", coverUrl: "", backgroundUrl: "", difficultyRating: null as Map["difficultyRating"], mechanics: [] as string[] });
+const form = reactive({ mapName: "", gameVersion: "", coverUrl: "", backgroundUrl: "", difficultyRating: null as Map["difficultyRating"], mechanics: [] as string[] });
 watch(() => props.map, (value) => {
+  form.mapName = value.mapName;
   form.gameVersion = value.gameVersion;
   form.coverUrl = value.coverUrl ?? "";
   form.backgroundUrl = value.backgroundUrl ?? "";
@@ -20,6 +21,7 @@ watch(() => props.map, (value) => {
 }, { immediate: true, deep: true });
 
 const submit = () => emit("save", {
+  mapName: form.mapName.trim(),
   gameVersion: form.gameVersion.trim(),
   difficultyRating: form.difficultyRating,
   mechanics: form.mechanics,
@@ -30,6 +32,7 @@ const submit = () => emit("save", {
 
 <template>
   <form class="metadata-form" @submit.prevent="submit">
+    <UFormField label="地图名称" required hint="与游戏截图里的地图名保持一致，自动审核按它识别地图。"><UInput v-model="form.mapName" required maxlength="128" :disabled="saving" /></UFormField>
     <UFormField label="地图难度评级" hint="地图综合评级，不等同于挑战难度。"><USelect v-model="form.difficultyRating" :items="difficultyItems" :disabled="saving" /></UFormField>
     <UFormField label="特殊机制" hint="服务端负责最终数量和长度校验。"><UInputTags v-model="form.mechanics" :disabled="saving" placeholder="输入机制标签" /></UFormField>
     <UFormField label="目录版本" required><UInput v-model="form.gameVersion" required :disabled="saving" /></UFormField>

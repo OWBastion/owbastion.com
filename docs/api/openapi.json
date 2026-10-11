@@ -1844,6 +1844,7 @@
   "/v1/admin/maps/{mapId}/metadata": {
    "put": {
     "operationId": "updateAdminMapMetadata",
+    "description": "Updates the map name and map-level metadata. Renaming keeps the mapId; historical submissions keep the name they were made under. Another map already using the name returns 409 MAP_NAME_CONFLICT.",
     "parameters": [
      {
       "$ref": "#/components/parameters/mapId"
@@ -1852,6 +1853,9 @@
     "responses": {
      "200": {
       "$ref": "#/components/responses/Json"
+     },
+     "409": {
+      "description": "Another map already uses this name, or the idempotency key was reused with a different request"
      }
     }
    }

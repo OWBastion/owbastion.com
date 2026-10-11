@@ -179,7 +179,7 @@ useSeoMeta({ title: "地图编辑器 · 躲避堡垒 3" });
   <AdminWorkspace :title="title" :count="api.loading.value ? '读取中…' : ''">
     <template #actions>
       <UButton to="/admin/maps" label="返回" icon="i-lucide-arrow-left" color="neutral" variant="ghost" />
-      <UButton v-if="map" label="地图资料" icon="i-lucide-sliders-horizontal" color="neutral" variant="ghost" @click="metadataOpen = true" />
+      <UButton v-if="map" label="名称与资料" icon="i-lucide-sliders-horizontal" color="neutral" variant="ghost" @click="metadataOpen = true" />
       <UButton v-if="map" label="修改记录" icon="i-lucide-history" color="neutral" variant="ghost" @click="auditOpen = true" />
     </template>
     <template #messages>
@@ -234,7 +234,7 @@ useSeoMeta({ title: "地图编辑器 · 躲避堡垒 3" });
       <UButton class="pressable" label="保存" :loading="api.saving.value" :disabled="!canSave" @click="saveRevision" />
     </div>
 
-    <USlideover v-model:open="metadataOpen" title="地图资料" description="评级、机制和封面不属于某个版本修订。">
+    <USlideover v-model:open="metadataOpen" title="名称与资料" description="名称、评级、机制和封面不属于某个版本修订。">
       <template #body><AdminMapMetadataForm v-if="map" :map="map" :saving="metadataSaving" @save="saveMetadata" /></template>
     </USlideover>
     <USlideover v-model:open="auditOpen" title="修改记录" :description="`${audit.length} 条`">

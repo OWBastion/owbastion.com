@@ -14,6 +14,7 @@ const pageStubs = {
 
 const saveRequests: Array<Record<string, unknown>> = [];
 const resetRequests: Array<Record<string, unknown>> = [];
+const metadataRequests: Array<Record<string, unknown>> = [];
 const catalog = [
   { challengeFamily: "map_title_rule", challengeId: "rule.conqueror", label: "征服者", kind: "conqueror", titleKey: "CONQUEROR", status: "active", gameVersion: "2026.07.15" },
   { challengeFamily: "map_challenge", challengeId: "map.samoa.conqueror", label: "征服者挑战", kind: "difficulty_completion", titleKey: "CONQUEROR", status: "active", gameVersion: "2026.07.15" },
@@ -31,6 +32,10 @@ const adminApi = vi.fn(async (path: string, options?: { method?: string; body?: 
       challengeCatalog: catalog,
       audit: [],
     };
+  }
+  if (path === "/v1/maps/map.samoa/metadata" && options?.method === "PUT") {
+    metadataRequests.push(options.body ?? {});
+    return {};
   }
   if (path === "/v1/maps/map.samoa/revisions" && options?.method === "POST") {
     resetRequests.push(options.body ?? {});
@@ -77,9 +82,21 @@ describe("admin map editor page", () => {
     const wrapper = await mountPage();
 
     expect(wrapper.text()).not.toContain("保存地图资料");
-    await button(wrapper, "地图资料")!.trigger("click");
+    await button(wrapper, "名称与资料")!.trigger("click");
     await nextTick();
     expect(wrapper.text()).toContain("保存地图资料");
+  });
+
+  it("renames the map from the metadata drawer", async () => {
+    metadataRequests.length = 0;
+    const wrapper = await mountPage();
+    await button(wrapper, "名称与资料")!.trigger("click");
+    await nextTick();
+    const nameInput = wrapper.findAll("input").find((input) => (input.element as HTMLInputElement).value === "萨摩亚")!;
+    await nameInput.setValue("监测站：萨摩亚");
+    await wrapper.get(".metadata-form").trigger("submit");
+    await flushPromises();
+    expect(metadataRequests).toEqual([expect.objectContaining({ contractVersion: "1", mapName: "监测站：萨摩亚", gameVersion: "2026.08.12" })]);
   });
 
   it("stages honor changes as a draft and saves the revision in one request", async () => {
