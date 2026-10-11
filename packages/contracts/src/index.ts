@@ -75,24 +75,6 @@ export const qqBindingResponseSchema = z.object({
 });
 export const qqBindingClaimVerifyRequestSchema = z.object({ contractVersion, provider: z.literal("qq"), code: inviteClaimCode, groupOpenId: externalId, memberOpenId: externalId, messageId: externalId });
 export const qqBindingClaimVerifyResponseSchema = z.object({ contractVersion, status: z.literal("verified"), environment: z.enum(["production", "test"]) });
-export const qqBindingRequestSchema = z.object({
-  contractVersion,
-  provider: z.literal("qq"),
-  groupOpenId: externalId,
-  memberOpenId: externalId,
-  playerName: z.string().trim().min(1).max(64),
-  playerId,
-});
-export const qqBindingResponseSchema = z.object({
-  contractVersion,
-  bindingId: z.string().uuid(),
-  identityId: z.string().uuid(),
-  provider: z.literal("qq"),
-  groupOpenId: externalId,
-  memberOpenId: externalId,
-  playerName: z.string().trim().min(1).max(64),
-  playerId,
-});
 export const adminBindingClaimDecisionRequestSchema = z.object({ contractVersion, decision: z.enum(["approved", "rejected"]), reason: z.string().trim().max(256).optional() });
 export const adminBindingClaimOperationTypeSchema = z.enum(["initial_binding", "rebind_account", "qq_transfer", "conflict"]);
 export const targetAccountBindingSchema = z.object({ bindingId: z.string().uuid(), memberOpenId: externalId, groupOpenId: externalId.optional() });
