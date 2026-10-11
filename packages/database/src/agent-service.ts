@@ -234,9 +234,16 @@ export const createAgentServices = (db: ReturnType<typeof drizzle>, dependencies
     },
     async searchAgentContent(this: PlatformServices, input: AgentSearchQuery) {
       const query = input.query.toLocaleLowerCase();
-      const [events, suspendedVersions, maps, achievements, titles] = await Promise.all([this.listRandomEvents({ status: input.status }), suspendedEventVersions(), this.listMaps(), this.listChallenges({ family: "achievement" }), listGlobalAgentTitles()]);
+      const include = (kind: AgentSearchResult["kind"]) => !input.kind || input.kind === kind;
+      const [events, suspendedVersions, maps, achievements, titles] = await Promise.all([
+        include("event") ? this.listRandomEvents({ status: input.status }) : [],
+        include("event") ? suspendedEventVersions() : new Set<string>(),
+        include("map") ? this.listMaps() : [],
+        include("achievement") ? this.listChallenges({ family: "achievement" }) : Promise.resolve<Challenge[]>([]),
+        include("title") ? listGlobalAgentTitles() : [],
+      ]);
       const results: AgentSearchResult[] = [];
-      if (!input.kind || input.kind === "event") results.push(...events.filter((event) => !suspendedVersions.has(event.gameVersion) && [event.name, event.description, ...event.effectTags].some((value) => value.toLocaleLowerCase().includes(query))).map((event) => ({ kind: "event" as const, id: event.eventId, name: event.name, summary: event.description })));
+      if (!input.kind || input.kind === "event") results.push(...events.filter((event) => !suspendedVersions.has(event.gameVersion) && [event.name, event.description, event.eventGroup ?? "", ...event.effectTags].some((value) => value.toLocaleLowerCase().includes(query))).map((event) => ({ kind: "event" as const, id: event.eventId, name: event.name, summary: event.description })));
       if (!input.kind || input.kind === "map") results.push(...maps.filter((map) => [map.mapName, ...map.mechanics].some((value) => value.toLocaleLowerCase().includes(query))).map((map) => ({ kind: "map" as const, id: map.mapId, name: map.mapName, summary: map.mechanics.join("、") || `游戏版本 ${map.gameVersion}` })));
       if (!input.kind || input.kind === "achievement") results.push(...achievements.filter((challenge): challenge is Extract<Challenge, { family: "achievement" }> => challenge.family === "achievement" && [challenge.titleName, challenge.category, challenge.condition, challenge.evidenceRule].some((value) => value.toLocaleLowerCase().includes(query))).map((challenge) => ({ kind: "achievement" as const, id: challenge.challengeId, name: challenge.titleName, summary: challenge.condition })));
       if (!input.kind || input.kind === "title") results.push(...titles.filter((title) => [title.label, title.category, title.condition].some((value) => value.toLocaleLowerCase().includes(query))).map((title) => ({ kind: "title" as const, id: title.titleKey, name: title.label, summary: title.condition })));
