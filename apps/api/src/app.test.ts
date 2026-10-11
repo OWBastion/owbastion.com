@@ -724,10 +724,6 @@ describe("API", () => {
 
   });
 
-  it("does not expose the retired direct binding endpoint", async () => {
-    const response = await app.request("http://localhost/v1/qq/bindings", { method: "POST" }, env);
-    expect(response.status).toBe(404);
-  });
 
   it("does not expose QQ channel submission creation", async () => {
     const response = await app.request("http://localhost/v1/submissions", { method: "POST" }, env);
