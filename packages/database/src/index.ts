@@ -4491,6 +4491,81 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       }));
     },
 
+    async listAdminStandaloneModes(_auth): Promise<AdminStandaloneModeListResponse> {
+      const [modes, revisions, pools] = await Promise.all([
+        db.select().from(standaloneModes).orderBy(desc(standaloneModes.createdAt)),
+        db.select({ mode: gameplayRevisions.mode, mapId: gameplayRevisions.mapId }).from(gameplayRevisions).where(and(isNotNull(gameplayRevisions.mode), eq(gameplayRevisions.lifecycle, "selectable"))),
+        db.select({ mode: randomEventVersions.mode, gameVersion: randomEventVersions.gameVersion }).from(randomEventVersions).where(isNotNull(randomEventVersions.mode)),
+      ]);
+      return { contractVersion: "1", items: modes.map((row) => ({
+        mode: row.mode,
+        mapIds: revisions.filter((revision) => revision.mode === row.mode).map((revision) => revision.mapId).sort(),
+        eventPools: pools.filter((pool) => pool.mode === row.mode).map((pool) => pool.gameVersion).sort(),
+        eventWeightTotal: row.eventWeightTotal,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      })) };
+    },
+    // Saving a standalone mode is its whole setup: each listed map gets the mode's own selectable
+    // Gameplay Revision (created without a spatial config, which only Bastion's regular build needs),
+    // maps no longer listed have theirs retired to historical (runs and grants on it stay valid), the
+    // listed event pools move to the mode, and progress rules that follow the mode are reconciled.
+    async upsertAdminStandaloneMode(input, auth, idempotencyKey): Promise<AdminStandaloneMode> {
+      const operation = "admin.standalone-mode.upsert";
+      const replay = await replayOrConflict<AdminStandaloneMode>(db, auth.subject, operation, idempotencyKey, input);
+      if (replay) return replay;
+      const mode = normalizeGameMode(input.mode);
+      if (!mode || mode.includes("随机事件")) throw new Error("STANDALONE_MODE_INVALID");
+      const mapIds = [...new Set(input.mapIds)].sort();
+      const eventPools = [...new Set(input.eventPools)].sort();
+      const [mapRows, poolRows, poolOwners, modeRevisions, previous] = await Promise.all([
+        mapIds.length ? db.select({ id: maps.id, status: maps.status }).from(maps).where(inArray(maps.id, mapIds)) : Promise.resolve([] as Array<{ id: string; status: string }>),
+        eventPools.length ? db.selectDistinct({ gameVersion: randomEvents.gameVersion }).from(randomEvents).where(inArray(randomEvents.gameVersion, eventPools)) : Promise.resolve([] as Array<{ gameVersion: string }>),
+        eventPools.length ? db.select({ gameVersion: randomEventVersions.gameVersion, mode: randomEventVersions.mode }).from(randomEventVersions).where(inArray(randomEventVersions.gameVersion, eventPools)) : Promise.resolve([] as Array<{ gameVersion: string; mode: string | null }>),
+        db.select({ id: gameplayRevisions.id, mapId: gameplayRevisions.mapId, lifecycle: gameplayRevisions.lifecycle }).from(gameplayRevisions).where(eq(gameplayRevisions.mode, mode)),
+        db.select().from(standaloneModes).where(eq(standaloneModes.mode, mode)).get(),
+      ]);
+      if (mapRows.length !== mapIds.length) throw new Error("MAP_NOT_FOUND");
+      if (mapRows.some((map) => map.status !== "active")) throw new Error("MAP_NOT_ACTIVE");
+      if (poolRows.length !== eventPools.length) throw new Error("EVENT_VERSION_NOT_FOUND");
+      if (poolOwners.some((pool) => pool.mode !== null && pool.mode !== mode)) throw new Error("STANDALONE_MODE_POOL_CONFLICT");
+
+      const timestamp = now();
+      const listed = new Set(mapIds);
+      const revisionByMap = new globalThis.Map(modeRevisions.map((revision) => [revision.mapId, revision]));
+      const modeRevisionVersion = await latestBuildVersion();
+      const statements: D1PreparedStatement[] = [
+        database.prepare("INSERT INTO standalone_modes (mode, event_weight_total, created_at, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(mode) DO UPDATE SET event_weight_total = excluded.event_weight_total, updated_at = excluded.updated_at").bind(mode, input.eventWeightTotal, timestamp, timestamp),
+      ];
+      for (const mapId of mapIds) {
+        const revision = revisionByMap.get(mapId);
+        if (!revision) {
+          statements.push(database.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, mode, copied_from_revision_id, reset_reason, game_version, spatial_config_json, created_at, updated_at) VALUES (?, ?, 'selectable', NULL, ?, NULL, NULL, ?, NULL, ?, ?)").bind(`revision:${mapId}:${crypto.randomUUID()}`, mapId, mode, modeRevisionVersion, timestamp, timestamp));
+        } else if (revision.lifecycle !== "selectable") {
+          statements.push(database.prepare("UPDATE gameplay_revisions SET lifecycle = 'selectable', updated_at = ? WHERE id = ?").bind(timestamp, revision.id));
+        }
+      }
+      for (const revision of modeRevisions) {
+        if (!listed.has(revision.mapId) && revision.lifecycle === "selectable") {
+          statements.push(database.prepare("UPDATE gameplay_revisions SET lifecycle = 'historical', updated_at = ? WHERE id = ?").bind(timestamp, revision.id));
+        }
+      }
+      statements.push(database.prepare("UPDATE random_event_versions SET mode = NULL, updated_at = ? WHERE mode = ? AND game_version NOT IN (SELECT value FROM json_each(?))").bind(timestamp, mode, JSON.stringify(eventPools)));
+      for (const pool of eventPools) {
+        statements.push(database.prepare("INSERT INTO random_event_versions (game_version, availability, mode, created_at, updated_at) VALUES (?, 'available', ?, ?, ?) ON CONFLICT(game_version) DO UPDATE SET mode = excluded.mode, updated_at = excluded.updated_at").bind(pool, mode, timestamp, timestamp));
+      }
+      const response: AdminStandaloneMode = { mode, mapIds, eventPools, eventWeightTotal: input.eventWeightTotal, createdAt: previous?.createdAt ?? timestamp, updatedAt: timestamp };
+      statements.push(
+        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(`${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, await hashRequest(input), JSON.stringify(response), timestamp),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, "standalone_mode", mode, JSON.stringify({ previousEventWeightTotal: previous?.eventWeightTotal ?? null, eventWeightTotal: input.eventWeightTotal, previousMapIds: modeRevisions.filter((revision) => revision.lifecycle === "selectable").map((revision) => revision.mapId).sort(), mapIds, eventPools }), timestamp),
+      );
+      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      for (const { challenge, rule } of await loadProgressChallenges()) {
+        if (rule.mode === mode && !rule.mapIds) await reconcileProgressChallengePlayers({ challenge, rule, actorId: auth.subject });
+      }
+      return response;
+    },
+
     async createAdminMap(input, auth, idempotencyKey) {
       const replay = await replayOrConflict<Map>(db, auth.subject, "admin.map.create", idempotencyKey, input);
       if (replay) return replay;
