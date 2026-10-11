@@ -41,7 +41,7 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: unknow
   if (path === "/v1/submissions/submission-1/review/preview" && options?.method === "POST") return Promise.resolve(reviewPreview(options.body as PreviewBody));
   if (path === "/v1/submissions/submission-4/review/preview" && options?.method === "POST") return Promise.resolve({ ...reviewPreview(), submissionId: "submission-4", candidates: [], titles: [], approvable: false, blockingCode: "SUBMISSION_OUTCOME_NOT_CONFIGURED", knownModes: [] });
   if (path === "/v1/submissions/submission-4") return Promise.resolve({ submissionId: "submission-4", mapName: "釜山", difficulty: "", playerName: "他又", status: "ocr_review_required", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "review_required", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: { data: { map_name: "釜山" }, fields: {} } });
-  if (path === "/v1/submissions/submission-1") return Promise.resolve({ submissionId: "submission-1", mapName: "成就挑战", difficulty: "", playerName: "他又", status: "ready_for_review", createdAt: 0, updatedAt: 1, challenge: { family: "achievement", titleName: "守望先锋", category: "战绩", condition: "完成挑战", evidenceRule: "完整截图" }, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, ocrResultId: "ocr-result-1", ocrAccuracy: ocrMarkedInaccurate ? "inaccurate" : null, evidenceUrl: "https://evidence.owbastion.codes/uploads/submissions/test/high-entropy-key.png", ocr: { model_version: "v1", request_id: "ocr-request-1", data: { map_name: "帕拉伊苏", difficulty: "地狱", viewer_player: "他又", challenge_completed: true, ai_mark_detected: false, ...(ocrVersion ? { version: ocrVersion } : {}), mode: ocrMode ?? "挑战模式", restart_in_seconds: 0, uptime_seconds: 120, server_load: null, event: { name: "测试事件", duration_seconds: 30, description: ["提高伤害", "持续生效"], numbers: [{ text: "伤害", value: 25, unit: "%" }], text: "测试事件 持续 30 秒" } }, fields: { map_name: { confidence: 0.98, status: "ok" }, difficulty: { confidence: 0.97, status: "ok" }, viewer_player: { confidence: 0.96, status: "ok" }, challenge_completed: { confidence: 0.99, status: "ok" }, map_variant: { confidence: 0, status: "missing" }, ...(ocrVersion ? { version: { confidence: 0.98, status: "ok" } } : {}) }, warnings: ["right_panel.version_missing"] }, match: { outcome: "review", candidates: [{ challengeId: "title.legacy", challengeType: "title_achievement", titleName: "旧匹配称号", quality: { accepted: false, reasons: ["achievement_evidence:low_confidence", "achievement_evidence:title_not_checked"] } }] } });
+  if (path === "/v1/submissions/submission-1") return Promise.resolve({ submissionId: "submission-1", mapName: "成就挑战", difficulty: "", playerName: "他又", status: "ready_for_review", createdAt: 0, updatedAt: 1, challenge: { family: "achievement", titleName: "守望先锋", category: "战绩", condition: "完成挑战", evidenceRule: "完整截图" }, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, ocrResultId: "ocr-result-1", ocrAccuracy: ocrMarkedInaccurate ? "inaccurate" : null, evidenceUrl: "https://evidence.owbastion.codes/uploads/submissions/test/high-entropy-key.png", ocr: { model_version: "v1", request_id: "ocr-request-1", data: { map_name: "帕拉伊苏", difficulty: "地狱", viewer_player: "他又", challenge_completed: true, ai_mark_detected: false, ...(ocrVersion ? { version: ocrVersion } : {}), mode: ocrMode ?? "随机事件5.0", restart_in_seconds: 0, uptime_seconds: 120, server_load: null, event: { name: "测试事件", duration_seconds: 30, description: ["提高伤害", "持续生效"], numbers: [{ text: "伤害", value: 25, unit: "%" }], text: "测试事件 持续 30 秒" } }, fields: { map_name: { confidence: 0.98, status: "ok" }, difficulty: { confidence: 0.97, status: "ok" }, viewer_player: { confidence: 0.96, status: "ok" }, challenge_completed: { confidence: 0.99, status: "ok" }, map_variant: { confidence: 0, status: "missing" }, ...(ocrVersion ? { version: { confidence: 0.98, status: "ok" } } : {}) }, warnings: ["right_panel.version_missing"] }, match: { outcome: "review", candidates: [{ challengeId: "title.legacy", challengeType: "title_achievement", titleName: "旧匹配称号", quality: { accepted: false, reasons: ["achievement_evidence:low_confidence", "achievement_evidence:title_not_checked"] } }] } });
   if (path === "/v1/submissions/submission-2") return Promise.resolve({ submissionId: "submission-2", mapName: "釜山", difficulty: "专家", playerName: "他又", status: "approved", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: null });
   if (path === "/v1/submissions/submission-3") return Promise.resolve({ submissionId: "submission-3", mapName: "绿洲城", difficulty: "困难", playerName: "他又", status: "approved", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: null, spotCheck: { status: "pending", sampledAt: 1, resolvedAt: null, reviewer: null, reason: null } });
   if (path === "/v1/submissions/submission-1/review" && options?.method === "POST") return Promise.resolve({ decision: "approved", titleName: "守望先锋", alreadyOwned: false });
@@ -84,7 +84,7 @@ describe("admin review detail page", () => {
     const runtimeEvidence = wrapper.get('dl[aria-label="对局环境识别证据"]');
     const evidenceValues = Object.fromEntries(runtimeEvidence.findAll(".detail-grid__row").map((row) => [row.get("dt").text(), row.get("dd").text()]));
     expect(evidenceValues).toEqual({
-      "AI 标记": "未检测到", "模式": "挑战模式", "重启倒计时（秒）": "0", "运行时间（秒）": "120", "服务器负载": "未识别",
+      "AI 标记": "未检测到", "模式": "随机事件5.0", "重启倒计时（秒）": "0", "运行时间（秒）": "120", "服务器负载": "未识别",
       "事件": "测试事件", "持续时间（秒）": "30", "事件说明": "提高伤害；持续生效", "事件数值": "伤害：25%", "事件原文": "测试事件 持续 30 秒",
     });
     expect(runtimeEvidence.find("input, button, select").exists()).toBe(false);
@@ -235,7 +235,7 @@ describe("admin review detail page", () => {
     await flushPromises();
     await wrapper.get('button[aria-label^="模式："]').trigger("click");
     const select = wrapper.get('[role="group"][aria-label="模式核对"]').findComponent({ name: "USelect" });
-    expect((select.props("items") as Array<{ value: string }>).map((item) => item.value)).toEqual(["随机事件", "2026镜中回响", "挑战模式"]);
+    expect((select.props("items") as Array<{ value: string }>).map((item) => item.value)).toEqual(["随机事件", "2026镜中回响", "随机事件5.0"]);
     select.vm.$emit("update:modelValue", "2026镜中回响");
     await settlePreview();
     expect(adminApi).toHaveBeenLastCalledWith("/v1/submissions/submission-1/review/preview", expect.objectContaining({ body: { contractVersion: "1", fieldCorrections: [{ fieldKey: "mode", reviewedValue: "2026镜中回响" }] } }));
@@ -249,7 +249,7 @@ describe("admin review detail page", () => {
       const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
       await flushPromises();
       expect(wrapper.text()).toContain("6 项一致，1 项待你确认");
-      expect(chip(wrapper, "模式").attributes("aria-label")).toBe("模式：挑战模式，一致");
+      expect(chip(wrapper, "模式").attributes("aria-label")).toBe("模式：随机事件5.0，一致");
       expect(chip(wrapper, "地图").attributes("aria-label")).toBe("地图：帕拉伊苏，一致");
       expect(chip(wrapper, "难度").attributes("aria-label")).toBe("难度：地狱，一致");
       expect(chip(wrapper, "通关标记").attributes("aria-label")).toContain("待确认");
@@ -262,12 +262,24 @@ describe("admin review detail page", () => {
       expect(chip(wrapper, "模式").attributes("aria-label")).toContain("2026镜中回响（读到 2026镜申回响）");
     });
 
+    it("keeps a mode the platform has not configured marked as wrong even after it is confirmed as read", async () => {
+      ocrMode = "2025镜中回响";
+      const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
+      await flushPromises();
+      expect(chip(wrapper, "模式").attributes("aria-label")).toContain("无法识别");
+      expect(wrapper.text()).toContain("模式 无法识别，请修正后再通过");
+      await chip(wrapper, "模式").trigger("click");
+      await wrapper.get('button[aria-label="核对模式"]').trigger("click");
+      await flushPromises();
+      expect(chip(wrapper, "模式").attributes("aria-label")).toContain("无法识别");
+    });
+
     it("flags a confidently read game version that is not YY.MMDD.N", async () => {
       ocrVersion = "26.1003";
       const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
       await flushPromises();
       // A dropped digit blocks the Verified Run, so it must not read as "一致" just because OCR was confident.
-      expect(chip(wrapper, "游戏版本").attributes("aria-label")).toContain("待确认");
+      expect(chip(wrapper, "游戏版本").attributes("aria-label")).toContain("无法识别");
     });
 
     it("opens the field a Challenge is waiting for and shows what was recognized there", async () => {

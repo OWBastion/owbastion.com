@@ -142,6 +142,20 @@ const unusableReadout = (key: string, raw: unknown) => {
   if (key === "run_code") return !/^[1-9]\d{3}(?:-[1-9]\d{3}){2}$/u.test(String(raw).trim());
   return false;
 };
+// A value nothing downstream can use stays marked as wrong even after a maintainer confirmed it as shown:
+// confirming only says "this is what the screenshot reads", not "the platform can resolve it".
+const unresolvable = (key: string, value: unknown) => {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) return false;
+  if (key === "map_name") return mapNames.value.length > 0 && !mapNames.value.includes(text);
+  if (key === "mode") {
+    const known = props.preview?.knownModes;
+    if (!known) return false;
+    const matched = matchGameMode(text, known).mode;
+    return Boolean(matched) && !matched!.includes("随机事件") && !known.includes(matched!);
+  }
+  return unusableReadout(key, text);
+};
 const fieldRows = computed(() => annotatableFields.map((field) => {
   const ocr = ocrPayload.value?.fields?.[field.key];
   const raw = ocr?.value ?? ocrPayload.value?.data?.[field.key];
@@ -161,22 +175,25 @@ const fieldRows = computed(() => annotatableFields.map((field) => {
   const modeRead = field.key === "mode" ? ocrPayload.value?.data?.mode_read ?? (nearMode?.approximate ? raw : null) : null;
   const modeShown = nearMode?.approximate ? nearMode.mode : raw;
   const text = isPanel ? achievementPanelLabel.value : modeRead ? `${ocrDisplayValue(field.key, modeShown)}（读到 ${modeRead}）` : ocrDisplayValue(field.key, raw);
-  const state = changed ? "corrected" : attested ? "reviewed" : attention ? "attention" : "ok";
+  const invalid = unresolvable(field.key, attested ? correctionInputs[field.key] : raw);
+  const state = invalid ? "invalid" : changed ? "corrected" : attested ? "reviewed" : attention ? "attention" : "ok";
   return {
     ...field,
     primary, text, recognized, needed, unusable, attested, changed, state,
     confidence: ocr?.confidence,
     status: ocr?.status,
     shown: attested ? reviewedLabel(field.key) || text : text,
-    stateLabel: { corrected: "已校正", reviewed: "已核对", attention: "待确认", ok: "一致" }[state],
-    icon: { corrected: "i-lucide-pencil", reviewed: "i-lucide-check-check", attention: "i-lucide-circle-help", ok: "i-lucide-check" }[state],
+    stateLabel: { invalid: "无法识别", corrected: "已校正", reviewed: "已核对", attention: "待确认", ok: "一致" }[state],
+    icon: { invalid: "i-lucide-circle-alert", corrected: "i-lucide-pencil", reviewed: "i-lucide-check-check", attention: "i-lucide-circle-help", ok: "i-lucide-check" }[state],
   };
 }));
-const visibleFieldRows = computed(() => fieldRows.value.filter((row) => row.primary || showExtraFields.value || row.attested || row.needed || row.unusable));
+const visibleFieldRows = computed(() => fieldRows.value.filter((row) => row.primary || showExtraFields.value || row.attested || row.needed || row.unusable || row.state === "invalid"));
 const extraFieldCount = computed(() => fieldRows.value.filter((row) => !row.primary).length);
 const attentionCount = computed(() => visibleFieldRows.value.filter((row) => row.state === "attention").length);
+const invalidRows = computed(() => visibleFieldRows.value.filter((row) => row.state === "invalid"));
 const summaryText = computed(() => {
-  const settled = visibleFieldRows.value.length - attentionCount.value;
+  const settled = visibleFieldRows.value.length - attentionCount.value - invalidRows.value.length;
+  if (invalidRows.value.length) return `${invalidRows.value.map((row) => row.label).join("、")} 无法识别，请修正后再通过`;
   return attentionCount.value ? `${settled} 项一致，${attentionCount.value} 项待你确认` : `${settled} 项全部一致`;
 });
 const openRow = computed(() => visibleFieldRows.value.find((row) => row.key === openKey.value) ?? null);
@@ -194,7 +211,7 @@ const confirmField = (key: string) => toggleFieldConfirmation(key, true);
       </template>
       <p v-if="submission.ocrErrorCode" class="signal-error" role="status">识别错误：{{ submission.ocrErrorCode }}</p>
       <p v-if="Array.isArray(ocrPayload?.warnings) && ocrPayload.warnings.length" class="signal-note">告警：{{ ocrPayload.warnings.join("、") }}</p>
-      <p class="check-line" :class="{ 'check-line--attention': attentionCount }" role="status">{{ summaryText }}</p>
+      <p class="check-line" :class="{ 'check-line--attention': attentionCount, 'check-line--invalid': invalidRows.length }" role="status">{{ summaryText }}</p>
       <ul class="check-chips" aria-label="识别字段">
         <li v-for="row in visibleFieldRows" :key="row.key">
           <button
@@ -262,6 +279,9 @@ const confirmField = (key: string) => toggleFieldConfirmation(key, true);
 .check-line--attention {
   color: var(--warning);
 }
+.check-line--invalid {
+  color: var(--danger);
+}
 .check-chips {
   display: flex;
   flex-wrap: wrap;
@@ -308,6 +328,13 @@ const confirmField = (key: string) => toggleFieldConfirmation(key, true);
 }
 .check-chip--attention .check-chip__icon {
   color: var(--warning);
+}
+.check-chip--invalid {
+  border-color: color-mix(in oklch, var(--danger) 55%, transparent);
+  background: color-mix(in oklch, var(--danger) 12%, var(--surface));
+}
+.check-chip--invalid .check-chip__icon {
+  color: var(--danger);
 }
 .check-chip--reviewed,
 .check-chip--corrected {
