@@ -117,6 +117,50 @@ describe("admin page async data", () => {
     wrapper.unmount();
   });
 
+  it("revalidates a cached key instead of replaying it after another key failed", async () => {
+    let aRequests = 0;
+    const load = vi.fn((key: string) => {
+      if (key === "a") {
+        aRequests += 1;
+        return Promise.resolve(`A result v${aRequests}`);
+      }
+      return Promise.reject(new Error("network down"));
+    });
+    const selectedKey = ref("a");
+    const Page = defineComponent({
+      setup() {
+        const displayed = ref("");
+        const failed = ref(false);
+        useAdminAsyncData("failed-then-cached-key-test", () => load(selectedKey.value), {
+          cacheKey: selectedKey,
+          onStart: () => { failed.value = false; },
+          onData: (value) => { displayed.value = value; },
+          onError: () => { failed.value = true; },
+        });
+        return () => h("div", [
+          h("button", { id: "select-a", onClick: () => { selectedKey.value = "a"; } }, "A"),
+          h("button", { id: "select-b", onClick: () => { selectedKey.value = "b"; } }, "B"),
+          h("p", failed.value ? "load failed" : displayed.value || "empty"),
+        ]);
+      },
+    });
+
+    const wrapper = await mountSuspended(Page);
+    await flushPromises();
+    expect(wrapper.text()).toContain("A result v1");
+
+    await wrapper.get("#select-b").trigger("click");
+    await flushPromises();
+    expect(wrapper.text()).toContain("load failed");
+
+    await wrapper.get("#select-a").trigger("click");
+    await flushPromises();
+    expect(wrapper.text()).toContain("A result v2");
+    expect(wrapper.text()).not.toContain("load failed");
+    expect(aRequests).toBe(2);
+    wrapper.unmount();
+  });
+
   it("does not cache a response that resolves after its key moved on", async () => {
     const selectedKey = ref("a");
     const received: string[] = [];
