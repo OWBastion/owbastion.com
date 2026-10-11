@@ -1,76 +1,17 @@
+import {
+  auditEventsRequiredIdSchema,
+  titleCatalogSchema,
+} from "../test/schema";
+import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import type { AuthContext } from "@owbastion/domain";
 import { createPlatformServices } from "./index";
 
-/**
- * Minimal D1Database shim over node:sqlite, following the pattern established in
- * map-title-rule.test.ts and dataset-snapshot.test.ts.
- */
-const createD1 = () => {
-  const sqlite = new DatabaseSync(":memory:");
-  const wrapStatement = (sql: string) => {
-    let bound: unknown[] = [];
-    const statement = {
-      bind(...params: unknown[]) { bound = params; return statement; },
-      async first<T>() { return (sqlite.prepare(sql).get(...bound) as T | undefined) ?? null; },
-      async all<T>() {
-        const results = sqlite.prepare(sql).all(...bound) as T[];
-        return { results, success: true, meta: { changes: 0, duration: 0, size_after: 0, rows_read: results.length, rows_written: 0, last_row_id: 0, changed_db: false } };
-      },
-      async run() {
-        const info = sqlite.prepare(sql).run(...bound);
-        return { success: true, meta: { changes: Number(info.changes ?? 0), duration: 0, size_after: 0, rows_read: 0, rows_written: Number(info.changes ?? 0), last_row_id: Number(info.lastInsertRowid ?? 0), changed_db: true } };
-      },
-      async raw<T extends unknown[] = unknown[]>() {
-        const prepared = sqlite.prepare(sql);
-        prepared.setReturnArrays(true);
-        return prepared.all(...bound) as T[];
-      },
-    };
-    return statement;
-  };
-  const database = {
-    prepare(sql: string) { return wrapStatement(sql); },
-    async batch(statements: Array<ReturnType<typeof wrapStatement>>) {
-      const results = [];
-      for (const statement of statements) results.push(await statement.all());
-      return results;
-    },
-    async exec(sql: string) { sqlite.exec(sql); return []; },
-    withSession() { return database; },
-  } as unknown as D1Database;
-  return { database, sqlite };
-};
-
+const createD1 = () => createTestD1();
 const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
-  CREATE TABLE title_catalog (
-    key TEXT PRIMARY KEY NOT NULL,
-    label TEXT NOT NULL,
-    icon TEXT NOT NULL DEFAULT 'award',
-    icon_url TEXT,
-    icon_object_key TEXT,
-    category TEXT NOT NULL,
-    condition TEXT NOT NULL,
-    availability TEXT NOT NULL,
-    lifecycle TEXT NOT NULL DEFAULT 'active',
-    public_visibility INTEGER NOT NULL DEFAULT 1,
-    scope TEXT NOT NULL,
-    display_kind TEXT NOT NULL,
-    color_json TEXT NOT NULL DEFAULT 'null',
-    game_version TEXT NOT NULL
-  );
-  CREATE TABLE audit_events (
-    id TEXT PRIMARY KEY NOT NULL,
-    correlation_id TEXT NOT NULL,
-    actor_type TEXT NOT NULL,
-    actor_id TEXT NOT NULL,
-    operation TEXT NOT NULL,
-    entity_type TEXT NOT NULL,
-    entity_id TEXT NOT NULL,
-    payload_json TEXT NOT NULL,
-    created_at INTEGER NOT NULL
-  );
+  ${titleCatalogSchema}
+  ${auditEventsRequiredIdSchema}
 `);
 
 const insertTitle = (sqlite: DatabaseSync, key: string) => sqlite.prepare(
