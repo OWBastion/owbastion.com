@@ -172,7 +172,7 @@ describe("platform cache", () => {
     // action is a write must publish a new version token.
     const writerServices = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, undefined, undefined, kv);
     await writerServices.updateAdminMapMetadata(
-      { mapId: "map.a", gameVersion: "2026.08.01", difficultyRating: "T1", mechanics: ["机制"], coverUrl: null, backgroundUrl: null },
+      { mapId: "map.a", mapName: "地图A", gameVersion: "2026.08.01", difficultyRating: "T1", mechanics: ["机制"], coverUrl: null, backgroundUrl: null },
       { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" },
       "key-1",
     );
@@ -192,7 +192,7 @@ describe("platform cache", () => {
     const create = () => createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, undefined, undefined, kv);
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer" as const], provider: "portal-session" as const };
     const update = (writer: ReturnType<typeof create>, gameVersion: string, key: string) =>
-      writer.updateAdminMapMetadata({ mapId: "map.a", gameVersion, difficultyRating: "T1", mechanics: ["机制"], coverUrl: null, backgroundUrl: null }, auth, key);
+      writer.updateAdminMapMetadata({ mapId: "map.a", mapName: "地图A", gameVersion, difficultyRating: "T1", mechanics: ["机制"], coverUrl: null, backgroundUrl: null }, auth, key);
 
     const writer = create();
     await update(writer, "2026.08.01", "key-1");
@@ -200,6 +200,22 @@ describe("platform cache", () => {
     await update(writer, "2026.09.01", "key-2");
 
     expect((await create().listMaps())[0]?.gameVersion).toBe("2026.09.01");
+  });
+
+  it("renames a map, keeps its identity and rejects a name another map uses", async () => {
+    const { database, sqlite } = createCountingD1();
+    installSchema(sqlite);
+    const now = Date.now();
+    sqlite.prepare("INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES ('map.a', '地图A', '2026.07.15', 'active', '2026.07.15', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES ('map.b', '地图B', '2026.07.15', 'active', '2026.07.15', ?, ?)").run(now, now);
+    const services = createPlatformServices(database);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer" as const], provider: "portal-session" as const };
+    const input = { gameVersion: "2026.07.15", difficultyRating: null, mechanics: [], coverUrl: null, backgroundUrl: null };
+    const renamed = await services.updateAdminMapMetadata({ ...input, mapId: "map.a", mapName: "监测站：格里姆火山" }, auth, "rename-1");
+    expect(renamed).toMatchObject({ mapId: "map.a", mapName: "监测站：格里姆火山" });
+    expect(sqlite.prepare("SELECT name FROM maps WHERE id = 'map.a'").get()).toEqual({ name: "监测站：格里姆火山" });
+    await expect(services.updateAdminMapMetadata({ ...input, mapId: "map.a", mapName: "地图B" }, auth, "rename-2")).rejects.toThrow("MAP_NAME_CONFLICT");
+    await expect(services.updateAdminMapMetadata({ ...input, mapId: "map.a", mapName: "监测站：格里姆火山", gameVersion: "2026.08.01" }, auth, "rename-3")).resolves.toMatchObject({ mapName: "监测站：格里姆火山" });
   });
 
   it("keeps serving from D1 when KV reads and writes fail", async () => {
@@ -221,7 +237,7 @@ describe("platform cache", () => {
     const writeBlocked = { get: kv.get.bind(kv), put: async (key: string, value: string) => { if (key.includes(":ver:")) throw new Error("kv quota"); await kv.put(key, value); } } as unknown as KVNamespace;
     const writer = create(writeBlocked);
     await writer.updateAdminMapMetadata(
-      { mapId: "map.a", gameVersion: "2026.08.01", difficultyRating: "T1", mechanics: ["机制"], coverUrl: null, backgroundUrl: null },
+      { mapId: "map.a", mapName: "地图A", gameVersion: "2026.08.01", difficultyRating: "T1", mechanics: ["机制"], coverUrl: null, backgroundUrl: null },
       { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" },
       "key-1",
     );
@@ -337,7 +353,7 @@ describe("platform cache isolate reuse", () => {
     try {
       vi.setSystemTime(new Date("2026-10-08T00:00:00Z"));
       expect((await servicesFor(database, reader).listMaps())[0]?.gameVersion).toBe("2026.07.15");
-      await servicesFor(database, writer).updateAdminMapMetadata({ mapId: "map.a", gameVersion: "2026.08.01", difficultyRating: "T1", mechanics: [], coverUrl: null, backgroundUrl: null }, admin, "key-iso");
+      await servicesFor(database, writer).updateAdminMapMetadata({ mapId: "map.a", mapName: "地图A", gameVersion: "2026.08.01", difficultyRating: "T1", mechanics: [], coverUrl: null, backgroundUrl: null }, admin, "key-iso");
       expect((await servicesFor(database, writer).listMaps())[0]?.gameVersion).toBe("2026.08.01");
       vi.setSystemTime(new Date("2026-10-08T00:00:30Z"));
       expect((await servicesFor(database, reader).listMaps())[0]?.gameVersion).toBe("2026.08.01");

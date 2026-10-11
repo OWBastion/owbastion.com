@@ -600,6 +600,7 @@ export const adminMapCreateRequestSchema = z.object({
 
 export const adminMapMetadataUpdateRequestSchema = z.object({
   contractVersion,
+  mapName: z.string().trim().min(1).max(128),
   gameVersion: z.string().trim().min(1).max(64),
   difficultyRating: z.enum(["T0", "T1", "T2", "T3", "T4", "T5"]).nullable(),
   mechanics: z.array(z.string().trim().min(1).max(64)).max(16),

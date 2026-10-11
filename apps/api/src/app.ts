@@ -1579,7 +1579,7 @@ export const createApp = (dependencies: AppDependencies) => {
     catch (error) {
       const code = error instanceof Error ? error.message : "MAP_METADATA_UPDATE_FAILED";
       if (code === "MAP_NOT_FOUND") return errorResponse(c, 404, code, "The map does not exist");
-      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      if (["MAP_NAME_CONFLICT", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, code === "MAP_NAME_CONFLICT" ? "Another map already uses this name" : "The idempotency key was used with a different request");
       throw error;
     }
   });
