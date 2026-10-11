@@ -8,7 +8,7 @@ import type { AuthContext, PlatformServices } from "@owbastion/domain";
 import { parsePagination } from "../query-params";
 import { isUuid, parseBody, routeErrorResponse, type ApiApp, type ApiContext, type AdminRouteDependencies, type RouteErrorMap, type ServiceAccessor } from "./route-contract";
 
-type Player = NonNullable<Awaited<ReturnType<PlatformServices["getCurrentPlayer"]>>>;
+type Player = NonNullable<Awaited<ReturnType<PlatformServices["getPortalSessionIdentity"]>>>;
 type PlayerAccess = { error?: Response; sessionToken?: string; player?: Player };
 type ReviewRouteDependencies = Pick<AdminRouteDependencies, "errorResponse"> & {
   services: ServiceAccessor;
