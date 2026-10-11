@@ -20,7 +20,9 @@ import {
   qqSessionsSchema,
   randomEventMapChallengesSchema,
   randomEventTitleChallengesSchema,
+  randomEventVersionsSchema,
   randomEventsSchema,
+  standaloneModesSchema,
   submissionReviewsSchema,
   titleCatalogSchema,
 } from "../test/schema";
@@ -335,6 +337,8 @@ export const installSchema = (sqlite: DatabaseSync) => {
     ${achievementChallengeMapsSchema}
     ${mapMetadataSchema}
     ${randomEventsSchema}
+    ${standaloneModesSchema}
+    ${randomEventVersionsSchema}
     ${randomEventMapChallengesSchema}
     ${randomEventTitleChallengesSchema}
     CREATE TABLE random_event_imports (
