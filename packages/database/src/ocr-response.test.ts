@@ -24,11 +24,11 @@ const response = {
 };
 
 describe("platform-owned Challenge OCR quality policy", () => {
-  it.each(["1280x720-v7", "1280x800-v2"])("accepts current layout %s with reliable evidence for every required Condition field", (layout_version) => {
+  it.each(["1280x720-v7", "1280x800-v2", "1280x720-v8", "1280x800-v3", "1280x720-v9", "1280x800-v4"])("accepts current layout %s with reliable evidence for every required Condition field", (layout_version) => {
     expect(assessChallengeOcrQuality(conditions, { ...response, layout_version }).accepted).toBe(true);
   });
 
-  it.each(["1280x720-v6", "1280x800-v1", "future-layout"])("routes unapproved layout %s to review", (layout_version) => {
+  it.each(["1280x720-v6", "1280x800-v1", "1280x720-v10", "future-layout"])("routes unapproved layout %s to review", (layout_version) => {
     expect(assessChallengeOcrQuality(conditions, { ...response, layout_version }).reasons).toContain("unsupported_layout_version");
   });
 
