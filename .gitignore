@@ -45,3 +45,4 @@ apps/portal/.data/
 coverage/
 
 .nuxtrc
+.devin-tmp/
