@@ -54,7 +54,7 @@ export function useAdminAsyncData<T>(
   watch(cacheKey, (nextCacheKey) => {
     const cached = cache.value[nextCacheKey];
     if (cached !== undefined) options.onData?.(cached);
-    else void refresh();
+    void refresh();
   }, { flush: "sync" });
 
   const cached = cache.value[cacheKey.value];
