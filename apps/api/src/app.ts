@@ -15,43 +15,24 @@ import {
   adminPasskeyRecoveryRequestSchema,
   qqGroupAccessRequestSchema,
   qqGroupRegistrationRequestSchema,
-  adminPlayerStatusRequestSchema,
-  adminPlayerIdentityRequestSchema,
-  adminSubmissionReviewPreviewRequestSchema,
-  adminSubmissionReviewRequestSchema,
-  adminSubmissionOcrReevaluateRequestSchema,
-  adminSubmissionReopenRequestSchema,
-  adminSubmissionOcrRetryRequestSchema,
   adminScreenshotSetCreateRequestSchema,
   adminScreenshotSetFinalizeRequestSchema,
   adminScreenshotSetDiscardRequestSchema,
   screenshotSetStatusSchema,
-  adminTitleGrantRequestSchema,
-  adminTitleGrantBulkRequestSchema,
-  adminTitleGrantRevokeRequestSchema,
-  adminTitleGrantRestoreRequestSchema,
-  adminManualTitleGrantRequestSchema, adminManualTitleGrantBatchRequestSchema,
-  adminChallengeUpdateRequestSchema,
-  adminAchievementCreateRequestSchema,
-  adminCatalogTitleUpdateRequestSchema,
-  adminMapTitleRuleCreateRequestSchema, adminMapTitleRuleUpdateRequestSchema, adminMapTitleRuleExceptionUpsertRequestSchema,
-  adminMapCreateRequestSchema,
-  adminMapMetadataUpdateRequestSchema,
-  adminMapRevisionCreateRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapRevisionPromotionRequestSchema,
-  adminRandomEventCreateRequestSchema, adminStandaloneModeUpsertRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventBatchRequestSchema, adminRandomEventImportRequestSchema, adminRandomEventVersionAvailabilityRequestSchema,
   reviewTargetSchema, reviewTargetTypeSchema, playerReviewUpsertRequestSchema, playerReviewWithdrawRequestSchema,
-  adminReviewCommentModerationRequestSchema, adminReviewStateModerationRequestSchema,
   playerUploadSessionRequestSchema,
   ocrAccuracyFeedbackRequestSchema,
-  adminSubmissionSpotCheckRequestSchema,
   adminBindingInviteRequestSchema, adminBindingInviteBatchRequestSchema, adminBindingInviteRevokeRequestSchema, bindingInviteRedeemRequestSchema, adminBindingClaimDecisionRequestSchema,
   playerEquippedTitlesRequestSchema, adminPlayerEquippedTitlesRequestSchema,
 } from "@owbastion/contracts";
-import type { AuthContext, Authenticator, PlatformServices } from "@owbastion/domain";
+import type { Authenticator, PlatformServices } from "@owbastion/domain";
 import { withPublicCache } from "./public-cache";
-import { maintainerRoute, type AdminMutation, type AdminMutationOptions } from "./routes/route-contract";
+import { isUuid, maintainerRoute, parseBody, type AdminMutation, type AdminMutationOptions } from "./routes/route-contract";
 import { registerAgentRoutes } from "./routes/agents";
 import { registerAdminVerifiedRunRoutes } from "./routes/admin-verified-runs";
+import { registerAdminReviewWorkflowRoutes } from "./routes/admin-review-workflow";
+import { registerAdminCatalogRoutes } from "./routes/admin-catalog";
+import { registerAdminPlayerManagementRoutes } from "./routes/admin-player-management";
 import { hasOnlyUniqueQueryNames } from "./query-params";
 
 export type RuntimeEnv = {
@@ -150,14 +131,6 @@ const errorResponse = (c: any, status: 400 | 401 | 403 | 404 | 409 | 422 | 500 |
 const errorGroup = (status: 404 | 409 | 422 | 503, message: string, ...codes: string[]) =>
   Object.fromEntries(codes.map((code) => [code, { status, message }]));
 const idempotencyConflict = { status: 409, message: "The idempotency key was used with a different request" } as const;
-
-const parseBody = async (request: Request) => {
-  try {
-    return await request.json();
-  } catch {
-    return null;
-  }
-};
 
 const portalSessionToken = (request: Request) => request.headers.get("cookie")?.split(";").map((part) => part.trim()).find((part) => part.startsWith("owb_session="))?.slice("owb_session=".length);
 
@@ -391,19 +364,7 @@ export const createApp = (dependencies: AppDependencies) => {
     adminMutation,
   });
 
-  const moderateAdminReview = (
-    c: any,
-    schema: { safeParse(value: unknown): { success: true; data: { action: string; reason?: string } } | { success: false } },
-    action: (input: { action: string; reason?: string; reviewId: string }, auth: AuthContext, key: string) => Promise<unknown>,
-    errors: Record<string, { status: 404 | 409 | 422 | 503; message: string }>,
-  ) => adminMutation(c, {
-    schema,
-    before: () => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(c.req.param("reviewId"))
-      ? undefined
-      : errorResponse(c, 422, "INVALID_REVIEW_ID", "The review ID is invalid"),
-    action: (input, auth, key) => action({ ...input, reviewId: c.req.param("reviewId") }, auth, key),
-    errors,
-  });
+
 
   const requirePortalPlayer = async (c: any) => {
     allowPortal(c);
@@ -880,7 +841,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const idempotencyKey = c.req.header("idempotency-key");
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const reviewId = c.req.param("reviewId");
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(reviewId)) return errorResponse(c, 422, "INVALID_REVIEW_ID", "The review ID is invalid");
+    if (!isUuid(reviewId)) return errorResponse(c, 422, "INVALID_REVIEW_ID", "The review ID is invalid");
     const parsed = playerReviewWithdrawRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
@@ -1186,576 +1147,11 @@ export const createApp = (dependencies: AppDependencies) => {
     return c.json({ contractVersion: "1", items: await servicesFor(c).listQqGroupAccess(auth) });
   });
 
-  app.get("/v1/admin/player-accounts", maintainerRoute(requireMaintainer, async (c, auth) => {
-    const page = Math.max(1, Number(c.req.query("page") ?? 1) || 1);
-    const pageSize = Math.min(50, Math.max(1, Number(c.req.query("pageSize") ?? 25) || 25));
-    const status = c.req.query("status");
-    if (status && status !== "active" && status !== "banned") return errorResponse(c, 422, "INVALID_REQUEST", "The status is invalid");
-    return c.json(await dependencies.services(c.env).listAdminPlayers({ query: c.req.query("query")?.trim() || undefined, status: status as "active" | "banned" | undefined, page, pageSize }, auth));
-  }));
+  registerAdminPlayerManagementRoutes(app, { services: dependencies.services, requireMaintainer, errorResponse, errorGroup, adminMutation });
 
-  app.get("/v1/admin/achievements", maintainerRoute(requireMaintainer, async (c, auth) => {
-    const type = c.req.query("type");
-    const status = c.req.query("status");
-    const family = type === "map_completion" || type === "map" ? "map" : type === "title_achievement" || type === "achievement" ? "achievement" : undefined;
-    if (type && !family) return errorResponse(c, 422, "INVALID_REQUEST", "The achievement type is invalid");
-    if (status && !["draft", "scheduled", "active", "sunsetting", "retired"].includes(status)) return errorResponse(c, 422, "INVALID_REQUEST", "The achievement status is invalid");
-    return c.json(await logServiceOperation(c, "admin_list_achievements", () => dependencies.services(c.env).listAdminChallenges({ family: family as "map" | "achievement" | undefined, status }, auth)));
-  }));
+  registerAdminCatalogRoutes(app, { services: dependencies.services, requireMaintainer, errorResponse, errorGroup, adminMutation }, logServiceOperation);
 
-  app.post("/v1/admin/achievements", async (c) => {
-    return adminMutation(c, {
-      schema: adminAchievementCreateRequestSchema,
-      status: 201,
-      action: (input, auth, key) => dependencies.services(c.env).createAdminAchievement(input, auth, key),
-      errors: {
-        ...errorGroup(409, "The title key already exists", "TITLE_KEY_CONFLICT"),
-        ...errorGroup(422, "One or more target maps are unavailable", "MAP_NOT_FOUND", "MAP_NOT_ACTIVE"),
-        ...errorGroup(422, "Active, sunsetting, and retired challenges require a game version", "ACHIEVEMENT_GAME_VERSION_REQUIRED"),
-        ...errorGroup(422, "A developer-retained title cannot become a player challenge", "DEVELOPER_TITLE_CANNOT_BE_A_CHALLENGE"),
-      },
-    });
-  });
-
-  app.post("/v1/admin/maps", (c) => adminMutation(c, {
-    schema: adminMapCreateRequestSchema,
-    status: 201,
-    action: (input, auth, key) => dependencies.services(c.env).createAdminMap(input, auth, key),
-    errors: {
-      ...errorGroup(409, "The map conflicts with an existing record", "MAP_NAME_CONFLICT", "MAP_ID_CONFLICT"),
-    },
-  }));
-  app.get("/v1/admin/maps", maintainerRoute(requireMaintainer, async (c, auth) => {
-    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "admin_list_maps", () => dependencies.services(c.env).listMaps()) });
-  }));
-
-  app.get("/v1/admin/map-title-rules", maintainerRoute(requireMaintainer, async (c, auth) => {
-    return c.json(await dependencies.services(c.env).listAdminMapTitleRules(auth));
-  }));
-  app.post("/v1/admin/map-title-rules", async (c) => {
-    return adminMutation(c, {
-      schema: adminMapTitleRuleCreateRequestSchema,
-      status: 201,
-      action: (input, auth, key) => dependencies.services(c.env).createAdminMapTitleRule(input, auth, key),
-      errors: {
-        ...errorGroup(422, "The map title is unavailable", "MAP_TITLE_NOT_FOUND"),
-        ...errorGroup(422, "Pioneer rules can only use explicit map exceptions", "PIONEER_RULE_SCOPE_MUST_BE_EXPLICIT"),
-        ...errorGroup(409, "The map title rule conflicts with an existing record", "MAP_TITLE_RULE_KIND_CONFLICT", "IDEMPOTENCY_CONFLICT"),
-      },
-    });
-  });
-  app.put("/v1/admin/map-title-rules/:ruleId", async (c) => {
-    return adminMutation(c, {
-      schema: adminMapTitleRuleUpdateRequestSchema,
-      action: (input, auth, key) => dependencies.services(c.env).updateAdminMapTitleRule({ ...input, ruleId: c.req.param("ruleId") }, auth, key),
-      errors: {
-        ...errorGroup(404, "The map title rule does not exist", "MAP_TITLE_RULE_NOT_FOUND"),
-        ...errorGroup(422, "The map title is unavailable", "MAP_TITLE_NOT_FOUND"),
-        ...errorGroup(422, "Pioneer rules can only use explicit map exceptions", "PIONEER_RULE_SCOPE_MUST_BE_EXPLICIT"),
-        ...errorGroup(409, "The map title rule conflicts with an existing record", "MAP_TITLE_RULE_KIND_CONFLICT", "IDEMPOTENCY_CONFLICT"),
-      },
-    });
-  });
-  app.get("/v1/admin/maps/:mapId/map-title-inheritance", maintainerRoute(requireMaintainer, async (c, auth) => {
-    try { return c.json(await dependencies.services(c.env).listAdminMapTitleInheritance({ mapId: c.req.param("mapId")! }, auth)); }
-    catch (error) { if (error instanceof Error && error.message === "MAP_NOT_FOUND") return errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist"); throw error; }
-  }));
-  app.put("/v1/admin/maps/:mapId/map-title-rules/:ruleId/exception", async (c) => {
-    return adminMutation(c, {
-      schema: adminMapTitleRuleExceptionUpsertRequestSchema,
-      noContent: true,
-      action: (input, auth, key) => dependencies.services(c.env).upsertAdminMapTitleRuleException({ ...input, mapId: c.req.param("mapId"), ruleId: c.req.param("ruleId") }, auth, key),
-      errors: {
-        ...errorGroup(404, "The map or map title rule does not exist", "MAP_NOT_FOUND", "MAP_TITLE_RULE_NOT_FOUND"),
-        ...errorGroup(422, "Pioneer map exceptions require a valid start and end time", "PIONEER_EXCEPTION_SCHEDULE_REQUIRED"),
-      },
-    });
-  });
-
-  app.get("/v1/admin/titles", maintainerRoute(requireMaintainer, async (c, auth) => {
-    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "admin_list_titles", () => dependencies.services(c.env).listTitles({ mapId: c.req.query("mapId")?.trim() || undefined })) });
-  }));
-
-  app.get("/v1/admin/events", maintainerRoute(requireMaintainer, async (c, auth) => {
-    return c.json({
-      contractVersion: "1",
-      items: await logServiceOperation(c, "admin_list_events", () => servicesFor(c).listRandomEvents({
-        query: c.req.query("query")?.trim() || undefined,
-        category: c.req.query("category")?.trim() || undefined,
-        rarity: c.req.query("rarity")?.trim() || undefined,
-        includeArchived: c.req.query("archived") === "true",
-      })),
-    });
-  }));
-  app.post("/v1/admin/events", (c) => adminMutation(c, {
-    schema: adminRandomEventCreateRequestSchema,
-    status: 201,
-    action: (input, auth, key) => dependencies.services(c.env).createAdminRandomEvent(input, auth, key),
-    errors: {
-      ...errorGroup(422, "The challenge does not exist", "CHALLENGE_NOT_FOUND"),
-    },
-  }));
-  app.post("/v1/admin/events/batch", (c) => adminMutation(c, {
-    schema: adminRandomEventBatchRequestSchema,
-    action: async (input, auth, key) => ({ contractVersion: "1" as const, items: await dependencies.services(c.env).batchUpdateAdminRandomEvents(input, auth, key) }),
-    errors: {
-      ...errorGroup(404, "An event in the batch does not exist", "EVENT_NOT_FOUND"),
-    },
-  }));
-  app.put("/v1/admin/events/:eventId", (c) => adminMutation(c, {
-    schema: adminRandomEventUpdateRequestSchema,
-    action: (input, auth, key) => dependencies.services(c.env).updateAdminRandomEvent({ ...input, eventId: c.req.param("eventId") }, auth, key),
-    errors: {
-      ...errorGroup(404, "The event does not exist", "EVENT_NOT_FOUND"),
-      ...errorGroup(422, "The challenge does not exist", "CHALLENGE_NOT_FOUND"),
-    },
-  }));
-  app.delete("/v1/admin/events/:eventId", (c) => adminMutation(c, {
-    noContent: true,
-    action: (_input, auth, key) => dependencies.services(c.env).archiveAdminRandomEvent({ eventId: c.req.param("eventId") }, auth, key),
-    errors: {
-      ...errorGroup(404, "The event does not exist", "EVENT_NOT_FOUND"),
-    },
-  }));
-  app.post("/v1/admin/events/imports/preview", maintainerRoute(requireMaintainer, async (c, auth) => { const parsed = adminRandomEventImportRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); return c.json(await dependencies.services(c.env).previewAdminRandomEventImport(parsed.data, auth)); }));
-  app.post("/v1/admin/events/imports", (c) => adminMutation(c, {
-    schema: adminRandomEventImportRequestSchema,
-    status: 201,
-    action: (input, auth, key) => dependencies.services(c.env).importAdminRandomEvents(input, auth, key),
-    errors: {
-      ...errorGroup(422, "The import data is invalid", "EVENT_IMPORT_INVALID", "EVENT_IMPORT_NAME_CONFLICT", "CHALLENGE_NOT_FOUND"),
-      ...errorGroup(409, "The import was already processed", "EVENT_IMPORT_DUPLICATE", "IDEMPOTENCY_CONFLICT"),
-    },
-  }));
-  app.get("/v1/admin/event-versions", maintainerRoute(requireMaintainer, async (c, auth) => { return c.json(await logServiceOperation(c, "admin_list_event_versions", () => dependencies.services(c.env).listAdminRandomEventVersions(auth))); }));
-  app.put("/v1/admin/event-versions/:gameVersion/availability", (c) => adminMutation(c, {
-    schema: adminRandomEventVersionAvailabilityRequestSchema,
-    action: (input, auth, key) => dependencies.services(c.env).updateAdminRandomEventVersion({ ...input, gameVersion: decodeURIComponent(c.req.param("gameVersion")) }, auth, key),
-    errors: {
-      ...errorGroup(404, "The event version does not exist", "EVENT_VERSION_NOT_FOUND"),
-    },
-  }));
-
-  app.get("/v1/admin/maps/:mapId/editor", maintainerRoute(requireMaintainer, async (c, auth) => {
-    try { return c.json(await logServiceOperation(c, "admin_get_map_editor", () => dependencies.services(c.env).getAdminMapEditor({ mapId: c.req.param("mapId")! }, auth))); }
-    catch (error) {
-      const code = error instanceof Error ? error.message : "MAP_EDITOR_READ_FAILED";
-      if (code === "MAP_NOT_FOUND") return errorResponse(c, 404, code, "The map does not exist");
-      if (["INVALID_REVISION_LIFECYCLE", "INVALID_MAP_VARIANT", "INVALID_REVISION_ASSIGNMENT", "INVALID_SPATIAL_CONFIG"].includes(code)) return errorResponse(c, 422, code, "The map revision data is invalid");
-      throw error;
-    }
-  }));
-  app.post("/v1/admin/maps/:mapId/revisions", async (c) => {
-    return adminMutation(c, {
-      schema: adminMapRevisionCreateRequestSchema,
-      status: 201,
-      action: (input, auth, key) => dependencies.services(c.env).createAdminMapRevision({ ...input, mapId: c.req.param("mapId") }, auth, key),
-      errors: {
-        ...errorGroup(404, "The map does not exist", "MAP_NOT_FOUND"),
-        ...errorGroup(422, "The source revision does not belong to this map", "REVISION_SOURCE_NOT_FOUND"),
-        ...errorGroup(422, "The revision configuration is invalid", "INVALID_SPATIAL_CONFIG", "INVALID_REVISION_ASSIGNMENT", "DUPLICATE_REVISION_ASSIGNMENT", "REVISION_CHALLENGE_NOT_FOUND", "REVISION_CHALLENGE_NOT_ACTIVE", "REVISION_CHALLENGE_NOT_ASSIGNABLE"),
-        ...errorGroup(409, "The revision conflicts with an existing record", "IDEMPOTENCY_CONFLICT", "LEGACY_VARIANT_CONFLICT"),
-      },
-    });
-  });
-  app.put("/v1/admin/maps/:mapId/revisions/:revisionId", async (c) => {
-    return adminMutation(c, {
-      schema: adminMapRevisionUpdateRequestSchema,
-      action: (input, auth, key) => dependencies.services(c.env).updateAdminMapRevision({ ...input, mapId: c.req.param("mapId"), revisionId: c.req.param("revisionId") }, auth, key),
-      errors: {
-        ...errorGroup(404, "The map revision does not exist", "REVISION_NOT_FOUND"),
-        ...errorGroup(409, "Changing the default Revision requires the explicit promotion operation", "REVISION_PROMOTION_REQUIRES_EXPLICIT_OPERATION"),
-        ...errorGroup(422, "The revision configuration is invalid", "INVALID_REVISION_TRANSITION", "DEFAULT_REVISION_CANNOT_USE_CLASSIC_VARIANT", "INVALID_SPATIAL_CONFIG", "INVALID_REVISION_ASSIGNMENT", "DUPLICATE_REVISION_ASSIGNMENT", "REVISION_CHALLENGE_NOT_FOUND", "REVISION_CHALLENGE_NOT_ACTIVE", "REVISION_CHALLENGE_NOT_ASSIGNABLE"),
-        ...errorGroup(409, "The revision conflicts with an existing record", "LEGACY_VARIANT_CONFLICT", "IDEMPOTENCY_CONFLICT"),
-      },
-    });
-  });
-
-  app.post("/v1/admin/maps/:mapId/revisions/:revisionId/promote", async (c) => {
-    return adminMutation(c, {
-      schema: adminMapRevisionPromotionRequestSchema,
-      invalidMessage: "The promotion request does not match contract v1",
-      action: (input, auth, key) => dependencies.services(c.env).promoteAdminMapRevision({ ...input, mapId: c.req.param("mapId"), revisionId: c.req.param("revisionId") }, auth, key),
-      errors: {
-        ...errorGroup(404, "The map does not exist", "MAP_NOT_FOUND"),
-        ...errorGroup(404, "The Revision does not exist", "REVISION_NOT_FOUND"),
-        ...errorGroup(409, "The Revision is not available for promotion", "REVISION_NOT_PROMOTABLE"),
-        ...errorGroup(422, "Choose how the previous default Revision should remain available", "DEFAULT_REVISION_REPLACEMENT_REQUIRED"),
-        ...errorGroup(422, "There is no current default Revision to replace", "DEFAULT_REVISION_REPLACEMENT_NOT_FOUND"),
-        ...errorGroup(422, "The Revision is not ready for promotion", "DEFAULT_REVISION_CANNOT_USE_CLASSIC_VARIANT", "INVALID_SPATIAL_CONFIG", "REVISION_CHALLENGE_NOT_FOUND", "REVISION_CHALLENGE_NOT_ACTIVE", "REVISION_CHALLENGE_NOT_ASSIGNABLE"),
-      },
-    });
-  });
-
-  app.put("/v1/admin/maps/:mapId/metadata", async (c) => {
-    return adminMutation(c, {
-      schema: adminMapMetadataUpdateRequestSchema,
-      action: (input, auth, key) => dependencies.services(c.env).updateAdminMapMetadata({ ...input, mapId: c.req.param("mapId") }, auth, key),
-      errors: {
-        ...errorGroup(404, "The map does not exist", "MAP_NOT_FOUND"),
-        ...errorGroup(409, "Another map already uses this name", "MAP_NAME_CONFLICT"),
-      },
-    });
-  });
-
-  app.put("/v1/admin/titles/:titleKey", async (c) => {
-    return adminMutation(c, {
-      schema: adminCatalogTitleUpdateRequestSchema,
-      noContent: true,
-      action: (input, auth, key) => dependencies.services(c.env).updateAdminCatalogTitle({ ...input, titleKey: c.req.param("titleKey") }, auth, key),
-      errors: {
-        ...errorGroup(404, "The title does not exist", "TITLE_NOT_FOUND"),
-        ...errorGroup(409, "The title has a challenge record", "TITLE_HAS_CHALLENGE"),
-        ...errorGroup(422, "A developer-retained title cannot become a player challenge", "DEVELOPER_TITLE_CANNOT_BE_A_CHALLENGE"),
-      },
-    });
-  });
-
-  app.post("/v1/admin/titles/:titleKey/icon", maintainerRoute(requireMaintainer, async (c, auth) => {
-    try {
-      const form = await c.req.raw.formData();
-      const file = form.get("file");
-      if (!(file instanceof File)) return errorResponse(c, 422, "ICON_FILE_REQUIRED", "An icon file is required");
-      const result = await dependencies.services(c.env).uploadAdminTitleIcon({ titleKey: c.req.param("titleKey")!, body: await file.arrayBuffer(), contentType: file.type }, auth);
-      return c.json({ contractVersion: "1", ...result });
-    } catch (error) {
-      const code = error instanceof Error ? error.message : "ICON_UPLOAD_FAILED";
-      if (code === "TITLE_NOT_FOUND") return errorResponse(c, 404, code, "The title does not exist");
-      if (code === "ICON_FILE_INVALID") return errorResponse(c, 422, code, "仅支持 PNG、JPG、WebP，且文件不能超过 512 KB。");
-      if (code === "ICON_BUCKET_UNAVAILABLE") return errorResponse(c, 503, code, "图标存储暂不可用");
-      throw error;
-    }
-  }));
-
-  app.put("/v1/admin/achievements/:challengeId", async (c) => {
-    return adminMutation(c, {
-      schema: adminChallengeUpdateRequestSchema,
-      prepare: (body) => {
-        const input = body as Record<string, unknown> | null;
-        return { ...input, family: input?.family ?? (c.req.param("challengeId").startsWith("title.") ? "achievement" : "map") };
-      },
-      action: (input, auth, key) => dependencies.services(c.env).updateAdminChallenge({ ...input, challengeId: c.req.param("challengeId") }, auth, key),
-      errors: {
-        ...errorGroup(404, "The achievement does not exist", "CHALLENGE_NOT_FOUND"),
-        ...errorGroup(422, "The challenge lifecycle metadata is invalid", "MAP_NOT_FOUND", "MAP_NOT_ACTIVE", "INVALID_MAP_SCOPE", "ACHIEVEMENT_GAME_VERSION_REQUIRED"),
-      },
-    });
-  });
-
-  app.get("/v1/admin/player-accounts/:playerAccountId", maintainerRoute(requireMaintainer, async (c, auth) => {
-    try { return c.json(await dependencies.services(c.env).getAdminPlayer({ playerAccountId: c.req.param("playerAccountId")! }, auth)); }
-    catch (error) { if (error instanceof Error && error.message === "PLAYER_NOT_FOUND") return errorResponse(c, 404, "PLAYER_NOT_FOUND", "The player does not exist"); throw error; }
-  }));
-
-  app.put("/v1/admin/player-accounts/:playerAccountId/status", async (c) => {
-    return adminMutation(c, {
-      schema: adminPlayerStatusRequestSchema,
-      noContent: true,
-      action: (input, auth, key) => dependencies.services(c.env).setAdminPlayerStatus({ ...input, playerAccountId: c.req.param("playerAccountId") }, auth, key),
-      errors: {
-        ...errorGroup(404, "The player does not exist", "PLAYER_NOT_FOUND"),
-      },
-    });
-  });
-
-  app.put("/v1/admin/player-accounts/:playerAccountId/identity", async (c) => {
-    return adminMutation(c, {
-      schema: adminPlayerIdentityRequestSchema,
-      noContent: true,
-      action: (input, auth, key) => dependencies.services(c.env).updateAdminPlayerIdentity({ ...input, playerAccountId: c.req.param("playerAccountId") }, auth, key),
-      errors: {
-        ...errorGroup(404, "The player does not exist", "PLAYER_NOT_FOUND"),
-        ...errorGroup(409, "The BattleTag is already used by another player", "PLAYER_BATTLETAG_CONFLICT"),
-      },
-    });
-  });
-
-  app.delete("/v1/admin/bindings/:bindingId", async (c) => {
-    return adminMutation(c, {
-      noContent: true,
-      action: (_input, auth, key) => dependencies.services(c.env).removeAdminBinding({ bindingId: c.req.param("bindingId") }, auth, key),
-      errors: {
-        ...errorGroup(404, "The binding does not exist", "BINDING_NOT_FOUND"),
-      },
-    });
-  });
-
-  app.get("/v1/admin/title-grants", maintainerRoute(requireMaintainer, async (c, auth) => {
-    const page = Math.max(1, Number(c.req.query("page") ?? "1") || 1);
-    const pageSize = Math.min(50, Math.max(1, Number(c.req.query("pageSize") ?? "20") || 20));
-    const filter = c.req.query("filter")?.trim() || "all";
-    if (filter !== "all" && filter !== "pending" && filter !== "completed") return errorResponse(c, 422, "INVALID_REQUEST", "The filter is invalid");
-    return c.json(await dependencies.services(c.env).listHistoricalTitleGrants({ query: c.req.query("query")?.trim() || undefined, filter, page, pageSize }, auth));
-  }));
-
-  app.get("/v1/admin/title-grants/holder", maintainerRoute(requireMaintainer, async (c, auth) => {
-    const holderName = c.req.query("holderName")?.trim() || "";
-    if (!holderName) return errorResponse(c, 422, "INVALID_REQUEST", "holderName is required");
-    const page = Math.max(1, Number(c.req.query("page") ?? "1") || 1);
-    const pageSize = Math.min(100, Math.max(1, Number(c.req.query("pageSize") ?? "50") || 50));
-    const grantStatus = c.req.query("grantStatus")?.trim() || "all";
-    if (grantStatus !== "all" && grantStatus !== "unclaimed" && grantStatus !== "active" && grantStatus !== "revoked") return errorResponse(c, 422, "INVALID_REQUEST", "The grantStatus is invalid");
-    try {
-      return c.json(await dependencies.services(c.env).getHistoricalTitleHolder({ holderName, page, pageSize, grantStatus }, auth));
-    } catch (error) {
-      if (error instanceof Error && error.message === "HISTORICAL_HOLDER_NOT_FOUND") return errorResponse(c, 404, "HISTORICAL_HOLDER_NOT_FOUND", "The historical holder does not exist");
-      throw error;
-    }
-  }));
-
-  app.post("/v1/admin/title-grants", async (c) => {
-    return adminMutation(c, {
-      schema: adminTitleGrantRequestSchema,
-      noContent: true,
-      action: (input, auth, key) => dependencies.services(c.env).createAdminTitleGrant(input, auth, key),
-      errors: {
-        ...errorGroup(404, "The requested record does not exist", "HISTORICAL_TITLE_GRANT_NOT_FOUND", "PLAYER_NOT_FOUND"),
-        ...errorGroup(409, "The historical title is already linked", "HISTORICAL_TITLE_GRANT_CLAIMED"),
-        ...errorGroup(409, "The title grant cannot be created in its current state", "TITLE_GRANT_ADMINISTRATIVELY_REVOKED", "TITLE_GRANT_EVIDENCE_INVALIDATED", "IDEMPOTENCY_CONFLICT"),
-      },
-    });
-  });
-
-  app.post("/v1/admin/title-grants/bulk", async (c) => {
-    return adminMutation(c, {
-      schema: adminTitleGrantBulkRequestSchema,
-      action: (input, auth, key) => dependencies.services(c.env).createAdminTitleGrantBulk(input, auth, key),
-      errors: {
-        ...errorGroup(404, "The requested player does not exist", "PLAYER_NOT_FOUND"),
-        ...errorGroup(409, "The title grant cannot be created in its current state", "TITLE_GRANT_ADMINISTRATIVELY_REVOKED", "IDEMPOTENCY_CONFLICT"),
-      },
-    });
-  });
-
-  app.post("/v1/admin/title-grants/manual", async (c) => {
-    return adminMutation(c, {
-      schema: adminManualTitleGrantRequestSchema,
-      action: (input, auth, key) => dependencies.services(c.env).createAdminManualTitleGrant(input, auth, key),
-      errors: {
-        ...errorGroup(404, "The requested player, title, or map does not exist", "PLAYER_NOT_FOUND", "TITLE_NOT_FOUND", "MAP_NOT_FOUND"),
-        ...errorGroup(422, "The title, map, and gameplay revision combination is invalid", "GLOBAL_TITLE_CANNOT_HAVE_MAP", "MAP_TITLE_REQUIRES_MAP", "TITLE_MAP_REWARD_NOT_CONFIGURED", "GAMEPLAY_REVISION_NOT_FOUND", "GAMEPLAY_REVISION_INVALID"),
-      },
-    });
-  });
-
-  app.post("/v1/admin/title-grants/manual/batch", async (c) => {
-    return adminMutation(c, {
-      schema: adminManualTitleGrantBatchRequestSchema,
-      action: (input, auth, key) => dependencies.services(c.env).createAdminManualTitleGrantBatch(input, auth, key),
-      errors: {
-        ...errorGroup(404, "The requested player, title, or map does not exist", "PLAYER_NOT_FOUND", "TITLE_NOT_FOUND", "MAP_NOT_FOUND"),
-        ...errorGroup(422, "The title, map, gameplay revision, or batch size is invalid", "GLOBAL_TITLE_CANNOT_HAVE_MAP", "MAP_TITLE_REQUIRES_MAP", "TITLE_MAP_REWARD_NOT_CONFIGURED", "GAMEPLAY_REVISION_NOT_FOUND", "GAMEPLAY_REVISION_INVALID", "MANUAL_TITLE_GRANT_BATCH_TOO_LARGE"),
-      },
-    });
-  });
-
-  app.post("/v1/admin/title-grants/:grantId/revoke", async (c) => {
-    return adminMutation(c, {
-      schema: adminTitleGrantRevokeRequestSchema,
-      noContent: true,
-      action: (input, auth, key) => dependencies.services(c.env).revokeAdminTitleGrant({ grantId: c.req.param("grantId"), reason: input.reason }, auth, key),
-      errors: {
-        ...errorGroup(404, "The title grant does not exist", "TITLE_GRANT_NOT_FOUND"),
-        ...errorGroup(409, "The title grant cannot be revoked in its current state", "TITLE_GRANT_NOT_ACTIVE", "IDEMPOTENCY_CONFLICT"),
-      },
-    });
-  });
-
-  app.post("/v1/admin/title-grants/:grantId/restore", async (c) => {
-    return adminMutation(c, {
-      schema: adminTitleGrantRestoreRequestSchema,
-      noContent: true,
-      action: (input, auth, key) => dependencies.services(c.env).restoreAdminTitleGrant({ grantId: c.req.param("grantId"), reason: input.reason }, auth, key),
-      errors: {
-        ...errorGroup(404, "The title grant does not exist", "TITLE_GRANT_NOT_FOUND"),
-        ...errorGroup(409, "The title grant cannot be restored in its current state", "TITLE_GRANT_NOT_ADMINISTRATIVELY_REVOKED", "TITLE_ALREADY_OWNED", "IDEMPOTENCY_CONFLICT"),
-      },
-    });
-  });
-
-  app.get("/v1/admin/reviews", maintainerRoute(requireMaintainer, async (c, auth) => {
-    const pageValue = Number(c.req.query("page") ?? 1);
-    const pageSizeValue = Number(c.req.query("pageSize") ?? 20);
-    const page = Number.isInteger(pageValue) && pageValue > 0 ? pageValue : 0;
-    const pageSize = Number.isInteger(pageSizeValue) && pageSizeValue > 0 && pageSizeValue <= 50 ? pageSizeValue : 0;
-    const targetTypeValue = c.req.query("targetType");
-    const targetType = targetTypeValue ? reviewTargetTypeSchema.safeParse(targetTypeValue) : null;
-    const status = c.req.query("status");
-    const commentStatus = c.req.query("commentStatus");
-    const ratingValue = c.req.query("rating");
-    const rating = ratingValue === undefined ? undefined : Number(ratingValue);
-    const fromValue = c.req.query("from");
-    const toValue = c.req.query("to");
-    const from = fromValue === undefined ? undefined : Number(fromValue);
-    const to = toValue === undefined ? undefined : Number(toValue);
-    const allowedStatuses = ["active", "withdrawn", "invalidated"] as const;
-    const allowedCommentStatuses = ["visible", "hidden"] as const;
-    const targetId = c.req.query("targetId")?.trim() || undefined;
-    const targetIdValid = targetId ? reviewTargetSchema.safeParse({ targetType: "event", targetId }).success : true;
-    if (!page || !pageSize || (targetTypeValue && !targetType?.success) || (status && !allowedStatuses.includes(status as typeof allowedStatuses[number])) || (commentStatus && !allowedCommentStatuses.includes(commentStatus as typeof allowedCommentStatuses[number])) || (rating !== undefined && (!Number.isInteger(rating) || rating < 1 || rating > 5)) || (from !== undefined && (!Number.isInteger(from) || from < 0)) || (to !== undefined && (!Number.isInteger(to) || to < 0)) || (from !== undefined && to !== undefined && from > to) || !targetIdValid) {
-      return errorResponse(c, 422, "INVALID_REQUEST", "The review query is invalid");
-    }
-    return c.json(await dependencies.services(c.env).listAdminReviews({ page, pageSize, ...(targetType?.success ? { targetType: targetType.data } : {}), ...(targetId ? { targetId } : {}), ...(status ? { status: status as typeof allowedStatuses[number] } : {}), ...(commentStatus ? { commentStatus: commentStatus as typeof allowedCommentStatuses[number] } : {}), ...(rating !== undefined ? { rating: rating as 1 | 2 | 3 | 4 | 5 } : {}), ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}) }, auth));
-  }));
-
-  app.get("/v1/admin/reviews/:reviewId", maintainerRoute(requireMaintainer, async (c, auth) => {
-    const reviewId = c.req.param("reviewId")!;
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(reviewId)) return errorResponse(c, 422, "INVALID_REVIEW_ID", "The review ID is invalid");
-    try { return c.json(await dependencies.services(c.env).getAdminReview({ reviewId }, auth)); }
-    catch (error) { if (error instanceof Error && error.message === "REVIEW_NOT_FOUND") return errorResponse(c, 404, "REVIEW_NOT_FOUND", "The review does not exist"); if (error instanceof Error && error.message === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, "REVIEW_TARGET_NOT_FOUND", "The review target does not exist"); throw error; }
-  }));
-
-  app.post("/v1/admin/reviews/:reviewId/comment", (c) => moderateAdminReview(
-    c,
-    adminReviewCommentModerationRequestSchema,
-    async ({ action, reason, reviewId }, auth, key) => {
-      const input = reason === undefined ? { reviewId } : { reviewId, reason };
-      const services = dependencies.services(c.env);
-      if (action === "hide") await services.hideReviewComment(input, auth, key);
-      else await services.restoreReviewComment(input, auth, key);
-      return services.getAdminReview({ reviewId }, auth);
-    },
-    {
-      ...errorGroup(404, "The review does not exist", "REVIEW_NOT_FOUND"),
-      ...errorGroup(422, "The review has no comment", "REVIEW_COMMENT_NOT_FOUND"),
-    },
-  ));
-
-  app.post("/v1/admin/reviews/:reviewId/state", (c) => moderateAdminReview(
-    c,
-    adminReviewStateModerationRequestSchema,
-    async ({ action, reason, reviewId }, auth, key) => {
-      const input = reason === undefined ? { reviewId } : { reviewId, reason };
-      const services = dependencies.services(c.env);
-      if (action === "invalidate") await services.invalidateReview(input, auth, key);
-      else await services.restoreReview(input, auth, key);
-      return services.getAdminReview({ reviewId }, auth);
-    },
-    errorGroup(404, "The review does not exist", "REVIEW_NOT_FOUND"),
-  ));
-  app.get("/v1/admin/submissions", maintainerRoute(requireMaintainer, async (c, auth) => {
-    const page = Math.max(1, Number(c.req.query("page") ?? 1) || 1);
-    const pageSize = Math.min(50, Math.max(1, Number(c.req.query("pageSize") ?? 50) || 50));
-    const statuses = c.req.query("status")?.split(",").map((status) => status.trim()).filter(Boolean) ?? [];
-    const spotCheck = c.req.query("spotCheck");
-    const order = c.req.query("order");
-    const mode = c.req.query("mode")?.trim();
-    const allowedStatuses = ["upload_pending", "ocr_pending", "awaiting_player_confirmation", "ready_for_review", "ocr_review_required", "approved", "rejected", "resubmission_required"] as const;
-    if (statuses.some((status) => !allowedStatuses.includes(status as typeof allowedStatuses[number]))) return errorResponse(c, 422, "INVALID_REQUEST", "The submission status is invalid");
-    if (spotCheck && !["pending", "confirmed", "revoked"].includes(spotCheck)) return errorResponse(c, 422, "INVALID_REQUEST", "The spot-check status is invalid");
-    if (order && order !== "oldest" && order !== "newest") return errorResponse(c, 422, "INVALID_REQUEST", "The submission order is invalid");
-    return c.json(await dependencies.services(c.env).listAdminSubmissions({ statuses: statuses as typeof allowedStatuses[number][], ...(spotCheck ? { spotCheck: spotCheck as "pending" | "confirmed" | "revoked" } : {}), ...(mode ? { mode } : {}), ...(order ? { order: order as "oldest" | "newest" } : {}), page, pageSize }, auth));
-  }));
-
-  app.get("/v1/admin/submissions/:submissionId", maintainerRoute(requireMaintainer, async (c, auth) => {
-    try { return c.json(await dependencies.services(c.env).getAdminSubmission({ submissionId: c.req.param("submissionId")! }, auth)); }
-    catch (error) { if (error instanceof Error && error.message === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist"); throw error; }
-  }));
-
-  const submissionReviewErrorCodes = ["SUBMISSION_NOT_REVIEWABLE", "CHALLENGE_REWARD_NOT_CONFIGURED", "SUBMISSION_OUTCOME_NOT_CONFIGURED", "SUBMISSION_CORRECTION_INVALID", "CHALLENGE_CONFIRMATION_INELIGIBLE", "CHALLENGE_NOT_COMPLETABLE", "TITLE_GRANT_ADMINISTRATIVELY_REVOKED", "SUBMISSION_REVISION_MISMATCH", "GAMEPLAY_REVISION_NOT_FOUND"];
-  const submissionReviewErrorMessage = (code: string) => code === "CHALLENGE_REWARD_NOT_CONFIGURED"
-    ? "The challenge has no configured title reward"
-    : code === "CHALLENGE_CONFIRMATION_INELIGIBLE"
-      ? "A confirmed challenge is not eligible for this submission"
-      : "The submission cannot be reviewed";
-
-  app.post("/v1/admin/submissions/:submissionId/review/preview", maintainerRoute(requireMaintainer, async (c, auth) => {
-    const parsed = adminSubmissionReviewPreviewRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).previewSubmissionReview({ submissionId: c.req.param("submissionId")!, fieldCorrections: parsed.data.fieldCorrections, confirmedChallengeIds: parsed.data.confirmedChallengeIds }, auth)); }
-    catch (error) {
-      const code = error instanceof Error ? error.message : "REVIEW_PREVIEW_FAILED";
-      if (code === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, code, "The submission does not exist");
-      if (submissionReviewErrorCodes.includes(code)) return errorResponse(c, 422, code, submissionReviewErrorMessage(code));
-      throw error;
-    }
-  }));
-
-  app.post("/v1/admin/submissions/:submissionId/review", async (c) => {
-    return adminMutation(c, {
-      schema: adminSubmissionReviewRequestSchema,
-      action: (input, auth, key) => dependencies.services(c.env).reviewSubmission({
-        submissionId: c.req.param("submissionId"),
-        decision: input.decision,
-        reason: input.reason,
-        fieldCorrections: input.fieldCorrections,
-        confirmedChallengeIds: input.confirmedChallengeIds,
-      }, auth, key),
-      errors: {
-        ...errorGroup(422, "The submission cannot be reviewed", "SUBMISSION_NOT_FOUND", ...submissionReviewErrorCodes.filter((code) => !["CHALLENGE_REWARD_NOT_CONFIGURED", "CHALLENGE_CONFIRMATION_INELIGIBLE"].includes(code))),
-        ...errorGroup(422, submissionReviewErrorMessage("CHALLENGE_REWARD_NOT_CONFIGURED"), "CHALLENGE_REWARD_NOT_CONFIGURED"),
-        ...errorGroup(422, submissionReviewErrorMessage("CHALLENGE_CONFIRMATION_INELIGIBLE"), "CHALLENGE_CONFIRMATION_INELIGIBLE"),
-      },
-    });
-  });
-
-  app.post("/v1/admin/submissions/:submissionId/ocr/retry", async (c) => {
-    return adminMutation(c, {
-      schema: adminSubmissionOcrRetryRequestSchema,
-      action: (_input, auth, key) => dependencies.services(c.env).requestAdminOcr({ submissionId: c.req.param("submissionId") }, auth, key, c.get("requestId")),
-      errors: {
-        ...errorGroup(404, "The submission does not exist", "SUBMISSION_NOT_FOUND"),
-        ...errorGroup(404, "The submission has no evidence", "EVIDENCE_NOT_FOUND"),
-        ...errorGroup(503, "OCRKit is not configured", "OCR_NOT_CONFIGURED"),
-        ...errorGroup(409, "An OCR retry is already in progress for this submission", "OCR_RETRY_IN_PROGRESS"),
-      },
-    });
-  });
-
-  app.post("/v1/admin/submissions/:submissionId/ocr/reevaluate", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const idempotencyKey = c.req.header("idempotency-key");
-    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = adminSubmissionOcrReevaluateRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await servicesFor(c).reevaluateAdminSubmissionOcr({ submissionId: c.req.param("submissionId") }, access.auth!, idempotencyKey)); }
-    catch (error) {
-      const code = error instanceof Error ? error.message : "OCR_REEVALUATE_FAILED";
-      if (code === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, code, "The submission does not exist");
-      if (code === "SUBMISSION_NOT_REEVALUABLE") return errorResponse(c, 409, code, "Only submissions awaiting review with a stored recognition can be re-evaluated");
-      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
-      throw error;
-    }
-  });
-
-  app.post("/v1/admin/submissions/:submissionId/reopen", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const idempotencyKey = c.req.header("idempotency-key");
-    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = adminSubmissionReopenRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await servicesFor(c).reopenAdminSubmission({ submissionId: c.req.param("submissionId"), ...(parsed.data.reason ? { reason: parsed.data.reason } : {}) }, access.auth!, idempotencyKey)); }
-    catch (error) {
-      const code = error instanceof Error ? error.message : "SUBMISSION_REOPEN_FAILED";
-      if (code === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, code, "The submission does not exist");
-      if (code === "SUBMISSION_NOT_REOPENABLE") return errorResponse(c, 409, code, "Only approved submissions can be reopened");
-      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
-      throw error;
-    }
-  });
-
-  // Maintainer-side of the shared screenshot accuracy mark (#253): marks the
-  // specific recognition result shown on the review page; latest value wins.
-  app.post("/v1/admin/submissions/:submissionId/ocr-accuracy", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const idempotencyKey = c.req.header("idempotency-key");
-    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = ocrAccuracyFeedbackRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try {
-      return c.json(await servicesFor(c).submitAdminOcrAccuracy({ ...parsed.data, submissionId: c.req.param("submissionId") }, access.auth!, idempotencyKey));
-    } catch (error) {
-      const code = error instanceof Error ? error.message : "OCR_ACCURACY_FAILED";
-      if (code === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, code, "The submission does not exist");
-      if (code === "OCR_RESULT_NOT_FOUND") return errorResponse(c, 409, code, "Feedback is unavailable for this submission");
-      if (code === "OCR_PROMPT_STALE") return errorResponse(c, 409, code, "The recognition is no longer current; refresh the submission");
-      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
-      throw error;
-    }
-  });
+  registerAdminReviewWorkflowRoutes(app, { services: dependencies.services, requireMaintainer, errorResponse, errorGroup, adminMutation });
 
   app.get("/v1/admin/screenshot-sets", async (c) => {
     const access = await requireMaintainer(c);
@@ -1766,7 +1162,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const pageSize = Number.isInteger(pageSizeValue) && pageSizeValue > 0 && pageSizeValue <= 100 ? pageSizeValue : 0;
     const status = c.req.query("status");
     if (!page || !pageSize || (status && !screenshotSetStatusSchema.safeParse(status).success)) return errorResponse(c, 422, "INVALID_REQUEST", "The screenshot set query is invalid");
-    return c.json(await servicesFor(c).listAdminScreenshotSets({ page, pageSize, ...(status ? { status: status as "draft" | "finalized" | "discarded" } : {}) }, access.auth!));
+    return c.json(await dependencies.services(c.env).listAdminScreenshotSets({ page, pageSize, ...(status ? { status: status as "draft" | "finalized" | "discarded" } : {}) }, access.auth!));
   });
 
   app.get("/v1/admin/screenshot-sets/candidates", async (c) => {
@@ -1777,7 +1173,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const page = Number.isInteger(pageValue) && pageValue > 0 ? pageValue : 0;
     const pageSize = Number.isInteger(pageSizeValue) && pageSizeValue > 0 && pageSizeValue <= 100 ? pageSizeValue : 0;
     if (!page || !pageSize) return errorResponse(c, 422, "INVALID_REQUEST", "The screenshot set candidate query is invalid");
-    return c.json(await servicesFor(c).listAdminScreenshotSetCandidates({ page, pageSize }, access.auth!));
+    return c.json(await dependencies.services(c.env).listAdminScreenshotSetCandidates({ page, pageSize }, access.auth!));
   });
 
   app.post("/v1/admin/screenshot-sets", async (c) => {
@@ -1789,7 +1185,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
       const { contractVersion: _contractVersion, ...input } = parsed.data;
-      return c.json(await servicesFor(c).createAdminScreenshotSet(input, access.auth!, idempotencyKey), 201);
+      return c.json(await dependencies.services(c.env).createAdminScreenshotSet(input, access.auth!, idempotencyKey), 201);
     } catch (error) {
       const code = error instanceof Error ? error.message : "SCREENSHOT_SET_CREATE_FAILED";
       if (code === "SCREENSHOT_SET_EXCLUSION_INVALID") return errorResponse(c, 422, code, "An excluded screenshot is not eligible for this set");
@@ -1803,7 +1199,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (access.error) return access.error;
     const setId = c.req.param("setId");
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(setId)) return errorResponse(c, 422, "INVALID_SCREENSHOT_SET_ID", "The screenshot set ID is invalid");
-    try { return c.json(await servicesFor(c).getAdminScreenshotSet({ setId }, access.auth!)); }
+    try { return c.json(await dependencies.services(c.env).getAdminScreenshotSet({ setId }, access.auth!)); }
     catch (error) { if (error instanceof Error && error.message === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, "SCREENSHOT_SET_NOT_FOUND", "The screenshot set does not exist"); throw error; }
   });
 
@@ -1818,7 +1214,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     const input = parsed.data.note === undefined ? { setId } : { setId, note: parsed.data.note };
     try {
-      return c.json(await servicesFor(c).finalizeAdminScreenshotSet(input, access.auth!, idempotencyKey));
+      return c.json(await dependencies.services(c.env).finalizeAdminScreenshotSet(input, access.auth!, idempotencyKey));
     } catch (error) {
       const code = error instanceof Error ? error.message : "SCREENSHOT_SET_FINALIZE_FAILED";
       if (code === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, code, "The screenshot set does not exist");
@@ -1839,7 +1235,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     const input = parsed.data.note === undefined ? { setId } : { setId, note: parsed.data.note };
     try {
-      return c.json(await servicesFor(c).discardAdminScreenshotSet(input, access.auth!, idempotencyKey));
+      return c.json(await dependencies.services(c.env).discardAdminScreenshotSet(input, access.auth!, idempotencyKey));
     } catch (error) {
       const code = error instanceof Error ? error.message : "SCREENSHOT_SET_DISCARD_FAILED";
       if (code === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, code, "The screenshot set does not exist");
@@ -1855,24 +1251,13 @@ export const createApp = (dependencies: AppDependencies) => {
     const version = Number(c.req.param("version"));
     if (!Number.isInteger(version) || version < 1) return errorResponse(c, 422, "INVALID_SCREENSHOT_SET_VERSION", "The screenshot set version is invalid");
     try {
-      return c.json(await servicesFor(c).getOcrkitScreenshotSet({ version }));
+      return c.json(await dependencies.services(c.env).getOcrkitScreenshotSet({ version }));
     } catch (error) {
       const code = error instanceof Error ? error.message : "OCRKIT_SCREENSHOT_SET_READ_FAILED";
       if (code === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, code, "The screenshot set does not exist");
       if (code === "SCREENSHOT_SET_NOT_FINALIZED") return errorResponse(c, 409, code, "The screenshot set is not finalized");
       throw error;
     }
-  });
-
-  app.post("/v1/admin/submissions/:submissionId/spot-check", async (c) => {
-    return adminMutation(c, {
-      schema: adminSubmissionSpotCheckRequestSchema,
-      action: (input, auth, key) => dependencies.services(c.env).resolveAdminSubmissionSpotCheck({ ...input, submissionId: c.req.param("submissionId") }, auth, key),
-      errors: {
-        ...errorGroup(404, "The spot check does not exist", "SUBMISSION_NOT_FOUND", "SPOT_CHECK_NOT_FOUND"),
-        ...errorGroup(409, "The spot check cannot be resolved", "SPOT_CHECK_ALREADY_RESOLVED", "TITLE_GRANT_NOT_FOUND"),
-      },
-    });
   });
 
   app.post("/v1/qq/bindings", async (c) => {
@@ -1887,7 +1272,6 @@ export const createApp = (dependencies: AppDependencies) => {
     void parsed; void auth; void idempotencyKey;
     return errorResponse(c, 422, "INVITE_REQUIRED", "Use an invitation to request a binding");
   });
-
 
   app.get("/v1/submissions/:submissionId", async (c) => {
     c.header("Access-Control-Allow-Origin", "*");

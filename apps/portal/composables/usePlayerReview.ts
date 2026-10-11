@@ -1,51 +1,21 @@
+import type {
+  PlayerReview,
+  PlayerReviewResponse,
+  PublicReviewComment,
+  PublicReviewCommentPage,
+  PublicReviewSummary,
+  PublicReviewSummaryResponse,
+  ReviewRating,
+  ReviewTargetType,
+} from "@owbastion/contracts";
 import { createRequestId } from "~/utils/request-id";
 import { portalErrorDetails } from "~/utils/portal-error";
 
-export type ReviewTargetType = "event" | "map";
-export type ReviewRating = 1 | 2 | 3 | 4 | 5;
+export type { PlayerReview, PublicReviewComment, ReviewRating, ReviewTargetType };
+export type ReviewSummary = PublicReviewSummary;
 
-export type ReviewSummary = {
-  targetType: ReviewTargetType;
-  targetId: string;
-  gameplayRevisionId: string | null;
-  averageRating: number | null;
-  reviewCount: number;
-  ratingDistribution: Record<ReviewRating, number>;
-  sampleInsufficient: boolean;
-};
-
-export type PublicReviewComment = {
-  rating: ReviewRating;
-  comment: string;
-  author: { displayName: string } | null;
-  createdAt: number;
-};
-
-export type PlayerReview = {
-  reviewId: string;
-  targetType: ReviewTargetType;
-  targetId: string;
-  gameplayRevisionId: string | null;
-  rating: ReviewRating;
-  comment: string | null;
-  anonymous: boolean;
-  createdAt: number;
-  updatedAt: number;
-};
-
-type SummaryResponse = { contractVersion: "1"; summary: ReviewSummary };
-type CommentsResponse = {
-  contractVersion: "1";
-  targetType: ReviewTargetType;
-  targetId: string;
-  gameplayRevisionId: string | null;
-  items: PublicReviewComment[];
-  page: number;
-  pageSize: number;
-  total: number;
-  hasMore: boolean;
-};
-type PlayerReviewResponse = { contractVersion: "1"; review: PlayerReview | null };
+type SummaryResponse = PublicReviewSummaryResponse;
+type CommentsResponse = PublicReviewCommentPage;
 
 const reviewErrorMessage = (error: unknown, fallback: string) => {
   const details = portalErrorDetails(error, fallback);

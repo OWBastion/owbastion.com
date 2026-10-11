@@ -98,12 +98,12 @@ const services: PlatformServices = {
   completeOcrJob: async () => {},
   markOcrJobFailed: async () => {},
   requestManualReview: async () => {},
-  createBinding: async () => { throw new Error("INVITE_REQUIRED"); },
   createAdminBindingInvite: async () => ({ contractVersion: "1", inviteId: "00000000-0000-0000-0000-000000000007", code: "ABCDEFGHIJKL", playerName: "Player", playerId: "1234", expiresAt: 1, historicalMigration: { status: "not_requested" as const, requestedCount: 0, completedCount: 0, conflictCount: 0, retryCount: 0 } }),
   createAdminBindingInviteBatch: async () => ({ contractVersion: "1", items: [{ contractVersion: "1", inviteId: "00000000-0000-0000-0000-000000000007", code: "ABCDEFGHIJKL", playerName: "Player", playerId: "1234", expiresAt: 1, historicalMigration: { status: "not_requested" as const, requestedCount: 0, completedCount: 0, conflictCount: 0, retryCount: 0 } }] }),
   listAdminBindingInvites: async () => ({ contractVersion: "1", items: [{ inviteId: "00000000-0000-0000-0000-000000000007", playerName: "Player", playerId: "1234", status: "active" as const, codeAvailable: true, createdAt: 1, expiresAt: 2, historicalMigration: { status: "not_requested" as const, requestedCount: 0, completedCount: 0, conflictCount: 0, retryCount: 0 } }] }),
   getAdminBindingInviteCode: async () => ({ contractVersion: "1", inviteId: "00000000-0000-0000-0000-000000000007", code: "ABCDEFGHIJKL" }),
   listAdminBindings: async () => ({ contractVersion: "1", items: [] }),
+  createBinding: async () => { throw new Error("INVITE_REQUIRED"); },
   revokeAdminBindingInvite: async () => {},
   redeemBindingInvite: async () => ({ contractVersion: "1", claimId: "00000000-0000-0000-0000-000000000008", claimToken: "a".repeat(64), code: "ABC234", playerName: "Player", playerId: "1234", expiresAt: 1 }),
   getBindingClaimStatus: async () => ({ contractVersion: "1", status: "pending_confirmation", expiresAt: 1, historicalMigration: { status: "not_requested" as const, requestedCount: 0, restoredCount: 0 } }),
@@ -724,10 +724,10 @@ describe("API", () => {
 
   });
 
-  it("rejects the legacy binding endpoint in favor of invitations", async () => {
-    const response = await app.request("http://localhost/v1/qq/bindings", { method: "POST", headers: { "idempotency-key": "binding-1", "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", provider: "qq", groupOpenId: "group-1", memberOpenId: "member-1", playerName: "Player", playerId: "1234" }) }, env);
-    expect(response.status).toBe(422);
-    expect((await response.json() as { error: { code: string } }).error.code).toBe("INVITE_REQUIRED");
+
+  it("does not expose QQ channel submission creation", async () => {
+    const response = await app.request("http://localhost/v1/submissions", { method: "POST" }, env);
+    expect(response.status).toBe(404);
   });
 
   it("creates a public invitation claim without a player session", async () => {
@@ -812,19 +812,6 @@ describe("API", () => {
     const response = await app.request(path, { headers: { "x-claim-token": "a".repeat(64) } }, env);
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ contractVersion: "1", status: "pending_confirmation", expiresAt: 1, historicalMigration: { status: "not_requested", requestedCount: 0, restoredCount: 0 } });
-  });
-
-  it("rejects requests without an idempotency key", async () => {
-    const response = await app.request("http://localhost/v1/qq/bindings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", provider: "qq", groupOpenId: "group-1", memberOpenId: "member-1", playerName: "Player", playerId: "1234" }) }, env);
-    expect(response.status).toBe(422);
-    expect((await response.json() as { error: { code: string } }).error.code).toBe("IDEMPOTENCY_KEY_REQUIRED");
-  });
-
-  it("does not let an older QQBot bypass invitations through group policy", async () => {
-    const restrictedApp = createApp({ authenticate: auth, services: () => ({ ...services, createBinding: async () => { throw new Error("BINDING_GROUP_NOT_ALLOWED"); } }) });
-    const response = await restrictedApp.request("http://localhost/v1/qq/bindings", { method: "POST", headers: { "idempotency-key": "binding-1", "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", provider: "qq", groupOpenId: "group-1", memberOpenId: "member-1", playerName: "Player", playerId: "1234" }) }, env);
-    expect(response.status).toBe(422);
-    expect((await response.json() as { error: { code: string } }).error.code).toBe("INVITE_REQUIRED");
   });
 
   it("requires idempotency for QQ group lifecycle registration", async () => {

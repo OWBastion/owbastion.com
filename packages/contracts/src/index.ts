@@ -16,26 +16,6 @@ const optionalScheduleTimestamp = z.preprocess((value) => value === null ? undef
 const gameVersionValue = z.string().trim().min(1).max(64).nullable();
 const optionalGameVersion = gameVersionValue.optional();
 
-export const qqBindingRequestSchema = z.object({
-  contractVersion,
-  provider: z.literal("qq"),
-  groupOpenId: externalId,
-  memberOpenId: externalId,
-  playerName: z.string().trim().min(1).max(64),
-  playerId,
-});
-
-export const qqBindingResponseSchema = z.object({
-  contractVersion,
-  bindingId: z.string().uuid(),
-  identityId: z.string().uuid(),
-  provider: z.literal("qq"),
-  groupOpenId: externalId,
-  memberOpenId: externalId,
-  playerName: z.string().trim().min(1).max(64),
-  playerId,
-});
-
 const inviteCode = z.string().trim().regex(/^[A-Z2-9]{12}$/);
 const inviteClaimCode = z.string().trim().regex(/^[A-Z2-9]{6}$/);
 const historicalTitleGrantId = z.string().trim().min(1).max(256);
@@ -70,6 +50,24 @@ export const bindingClaimStatusResponseSchema = z.object({ contractVersion, stat
 export const bindingClaimSessionResponseSchema = z.object({ contractVersion, status: z.literal("authenticated") });
 export const qqBindingClaimVerifyRequestSchema = z.object({ contractVersion, provider: z.literal("qq"), code: inviteClaimCode, groupOpenId: externalId, memberOpenId: externalId, messageId: externalId });
 export const qqBindingClaimVerifyResponseSchema = z.object({ contractVersion, status: z.literal("verified"), environment: z.enum(["production", "test"]) });
+export const qqBindingRequestSchema = z.object({
+  contractVersion,
+  provider: z.literal("qq"),
+  groupOpenId: externalId,
+  memberOpenId: externalId,
+  playerName: z.string().trim().min(1).max(64),
+  playerId,
+});
+export const qqBindingResponseSchema = z.object({
+  contractVersion,
+  bindingId: z.string().uuid(),
+  identityId: z.string().uuid(),
+  provider: z.literal("qq"),
+  groupOpenId: externalId,
+  memberOpenId: externalId,
+  playerName: z.string().trim().min(1).max(64),
+  playerId,
+});
 export const adminBindingClaimDecisionRequestSchema = z.object({ contractVersion, decision: z.enum(["approved", "rejected"]), reason: z.string().trim().max(256).optional() });
 export const adminBindingClaimOperationTypeSchema = z.enum(["initial_binding", "rebind_account", "qq_transfer", "conflict"]);
 export const targetAccountBindingSchema = z.object({ bindingId: z.string().uuid(), memberOpenId: externalId, groupOpenId: externalId.optional() });
@@ -499,6 +497,7 @@ export const adminStandaloneModeUpsertRequestSchema = z.object({
 }).strict();
 
 export const reviewTargetTypeSchema = z.enum(["event", "map"]);
+const reviewRatingSchema = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]);
 export const reviewTargetSchema = z.discriminatedUnion("targetType", [
   z.object({ targetType: z.literal("event"), targetId: externalId }).strict(),
   z.object({ targetType: z.literal("map"), targetId: externalId, gameplayRevisionId: externalId }).strict(),
@@ -517,7 +516,7 @@ export const publicReviewSummarySchema = z.discriminatedUnion("targetType", [
 ]);
 export const publicReviewSummaryResponseSchema = z.object({ contractVersion, summary: publicReviewSummarySchema }).strict();
 export const publicReviewCommentSchema = z.object({
-  rating: z.number().int().min(1).max(5),
+  rating: reviewRatingSchema,
   comment: reviewComment,
   author: z.object({ displayName: z.string().trim().min(1).max(64) }).strict().nullable(),
   createdAt: z.number().int(),
@@ -538,7 +537,7 @@ export const playerReviewSchema = z.object({
   targetType: reviewTargetTypeSchema,
   targetId: externalId,
   gameplayRevisionId: externalId.nullable(),
-  rating: z.number().int().min(1).max(5),
+  rating: reviewRatingSchema,
   comment: reviewComment.nullable(),
   anonymous: z.boolean(),
   createdAt: z.number().int(),
@@ -547,7 +546,7 @@ export const playerReviewSchema = z.object({
 export const playerReviewResponseSchema = z.object({ contractVersion, review: playerReviewSchema.nullable() }).strict();
 export const playerReviewUpsertRequestSchema = z.object({
   contractVersion,
-  rating: z.number().int().min(1).max(5),
+  rating: reviewRatingSchema,
   comment: reviewComment.nullable().optional(),
   anonymous: z.boolean().default(false),
 }).strict();
@@ -566,7 +565,7 @@ export const adminReviewSchema = z.object({
   playerAccountId: z.string().uuid(),
   playerId,
   playerName: z.string().trim().min(1).max(64),
-  rating: z.number().int().min(1).max(5),
+  rating: reviewRatingSchema,
   comment: reviewComment.nullable(),
   anonymous: z.boolean(),
   commentStatus: reviewCommentStatusSchema,
@@ -1629,8 +1628,6 @@ export const errorResponseSchema = z.object({
   }),
 });
 
-export type QqBindingRequest = z.infer<typeof qqBindingRequestSchema>;
-export type QqBindingResponse = z.infer<typeof qqBindingResponseSchema>;
 export type AdminBindingInviteRequest = z.infer<typeof adminBindingInviteRequestSchema>;
 export type AdminBindingInviteResponse = z.infer<typeof adminBindingInviteResponseSchema>;
 export type AdminBindingInviteBatchRequest = z.infer<typeof adminBindingInviteBatchRequestSchema>;
@@ -1643,6 +1640,8 @@ export type BindingInviteRedeemRequest = z.infer<typeof bindingInviteRedeemReque
 export type BindingInviteRedeemResponse = z.infer<typeof bindingInviteRedeemResponseSchema>;
 export type BindingClaimStatusResponse = z.infer<typeof bindingClaimStatusResponseSchema>;
 export type BindingClaimSessionResponse = z.infer<typeof bindingClaimSessionResponseSchema>;
+export type QqBindingRequest = z.infer<typeof qqBindingRequestSchema>;
+export type QqBindingResponse = z.infer<typeof qqBindingResponseSchema>;
 export type QqBindingClaimVerifyRequest = z.infer<typeof qqBindingClaimVerifyRequestSchema>;
 export type QqLoginAttemptRequest = z.infer<typeof qqLoginAttemptRequestSchema>;
 export type QqLoginAttemptResponse = z.infer<typeof qqLoginAttemptResponseSchema>;
@@ -1697,6 +1696,7 @@ export type PlayerChallengeProgressListResponse = z.infer<typeof playerChallenge
 export type CurrentPlayerTitlesResponse = z.infer<typeof currentPlayerTitlesResponseSchema>;
 export type PlayerActivityDay = z.infer<typeof playerActivityDaySchema>;
 export type PlayerActivityResponse = z.infer<typeof playerActivityResponseSchema>;
+export type PlayerEquippedTitlesResponse = z.infer<typeof playerEquippedTitlesResponseSchema>;
 export type VerifiedRunDifficulty = z.infer<typeof verifiedRunDifficultySchema>;
 export type PlayerVerifiedRun = z.infer<typeof playerVerifiedRunSchema>;
 export type PlayerMasteryMapProfile = z.infer<typeof playerMasteryMapProfileSchema>;
@@ -1708,7 +1708,11 @@ export type AgentSpatialConfig = z.infer<typeof agentSpatialConfigSchema>;
 export type AgentMap = z.infer<typeof agentMapSchema>;
 export type RandomEvent = z.infer<typeof randomEventSchema>;
 export type RandomEventListResponse = z.infer<typeof randomEventListResponseSchema>;
+export type ReviewTargetType = z.infer<typeof reviewTargetTypeSchema>;
+export type ReviewRating = z.infer<typeof reviewRatingSchema>;
 export type ReviewTarget = z.infer<typeof reviewTargetSchema>;
+export type PublicReviewSummary = z.infer<typeof publicReviewSummarySchema>;
+export type PublicReviewSummaryResponse = z.infer<typeof publicReviewSummaryResponseSchema>;
 export type PublicReviewComment = z.infer<typeof publicReviewCommentSchema>;
 export type PublicReviewCommentPage = z.infer<typeof publicReviewCommentPageSchema>;
 export type PlayerReview = z.infer<typeof playerReviewSchema>;
@@ -1716,6 +1720,7 @@ export type PlayerReviewResponse = z.infer<typeof playerReviewResponseSchema>;
 export type AdminReview = z.infer<typeof adminReviewSchema>;
 export type AdminReviewAudit = z.infer<typeof adminReviewAuditSchema>;
 export type AdminReviewListResponse = z.infer<typeof adminReviewListResponseSchema>;
+export type AdminReviewDetailResponse = z.infer<typeof adminReviewDetailResponseSchema>;
 export type AdminRandomEventCreateRequest = z.infer<typeof adminRandomEventCreateRequestSchema>;
 export type AdminRandomEventUpdateRequest = z.infer<typeof adminRandomEventUpdateRequestSchema>;
 export type AdminRandomEventBatchRequest = z.infer<typeof adminRandomEventBatchRequestSchema>;

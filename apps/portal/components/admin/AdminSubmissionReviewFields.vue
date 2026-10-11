@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { matchGameMode } from "@owbastion/domain";
-import type { AdminSubmission, AdminSubmissionReviewPreview } from "~/composables/useAdminApi";
+import type { AdminSubmission, AdminSubmissionReviewInput, AdminSubmissionReviewPreview } from "~/composables/useAdminApi";
 import { ocrStatusLabel, ocrStatusTone } from "~/utils/ocrStatus";
 import { mapVariantLabel } from "~/utils/map-variant";
 
@@ -8,7 +8,7 @@ type OcrField = { value?: unknown; confidence?: unknown; status?: unknown };
 type OcrPayload = { data?: Record<string, unknown>; fields?: Record<string, OcrField>; warnings?: unknown; model_version?: unknown; request_id?: unknown };
 
 const props = defineProps<{ submission: AdminSubmission; preview?: AdminSubmissionReviewPreview | null; disabled?: boolean }>();
-const emit = defineEmits<{ "field-corrections": [value: Array<{ fieldKey: string; reviewedValue: string }>] }>();
+const emit = defineEmits<{ "field-corrections": [value: AdminSubmissionReviewInput["fieldCorrections"]] }>();
 
 const annotatableFields = [
   { key: "map_name", label: "地图" },
@@ -207,7 +207,7 @@ const confirmField = (key: string) => toggleFieldConfirmation(key, true);
   <div class="fields">
     <AdminSignalPanel :kicker="modelVersion ? `OCRKit · ${modelVersion}` : 'OCRKit'" title="识别核对" title-id="check-title">
       <template #aside>
-        <StatusBadge :label="ocrStatusLabel(submission.ocrStatus)" :tone="ocrStatusTone(submission.ocrStatus)" />
+        <StatusBadge :label="ocrStatusLabel(submission.ocrStatus ?? 'not_started')" :tone="ocrStatusTone(submission.ocrStatus ?? 'not_started')" />
       </template>
       <p v-if="submission.ocrErrorCode" class="signal-error" role="status">识别错误：{{ submission.ocrErrorCode }}</p>
       <p v-if="Array.isArray(ocrPayload?.warnings) && ocrPayload.warnings.length" class="signal-note">告警：{{ ocrPayload.warnings.join("、") }}</p>
