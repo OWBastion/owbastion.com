@@ -2,7 +2,7 @@ import type { Context, Hono } from "hono";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
 import type { RuntimeEnv } from "../app";
 
-type ApiEnvironment = { Bindings: RuntimeEnv; Variables: { requestId: string } };
+type ApiEnvironment = { Bindings: RuntimeEnv; Variables: { requestId: string; platformServices: PlatformServices } };
 export type ApiContext = Context<ApiEnvironment>;
 export type ApiApp = Hono<ApiEnvironment>;
 export type ServiceAccessor = (env: RuntimeEnv) => PlatformServices;

@@ -3,7 +3,6 @@ import {
   ocrkitJobCallbackSchema,
   qqBindingRequestSchema,
   qqBindingClaimVerifyRequestSchema,
-  submissionRequestSchema,
   qqLoginAttemptRequestSchema,
   qqLoginVerifyRequestSchema,
   qqScreenshotSubmissionRequestSchema,

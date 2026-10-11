@@ -15,7 +15,6 @@ import { standaloneOcrMode, type OcrResponse } from "./ocr-response";
 import { resolvePortalSession } from "./portal-session";
 import { createPlatformCache, instrumentDatabase } from "./platform-cache";
 import { createReviewServices } from "./review-service";
-import { createDatasetServices } from "./dataset-service";
 
 export { maxReviewCommentLength, reviewSampleThreshold } from "./review-service";
 
@@ -4513,74 +4512,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       logOcrEvent("job_processing_failed", { ...context, stage, errorCode, durationMs: Date.now() - startedAt, ...errorDetails(error) });
       throw new Error(errorCode, { cause: error });
     }
-  };
-
-  const getReviewSummaries = async (input: ReviewSummaryBatchInput): Promise<ReviewSummary[]> => {
-    type AggregateRow = { target_id: string; gameplay_revision_id: string | null; review_count: number; average_rating: number | null; rating_1: number | null; rating_2: number | null; rating_3: number | null; rating_4: number | null; rating_5: number | null };
-    const toSummary = (target: { targetId: string; gameplayRevisionId: string | null }, aggregate: AggregateRow | undefined): ReviewSummary => {
-      const reviewCount = Number(aggregate?.review_count ?? 0);
-      return {
-        targetType: input.targetType,
-        targetId: target.targetId,
-        gameplayRevisionId: target.gameplayRevisionId,
-        averageRating: aggregate?.average_rating === null || aggregate?.average_rating === undefined ? null : Number(Number(aggregate.average_rating).toFixed(2)),
-        reviewCount,
-        ratingDistribution: { 1: Number(aggregate?.rating_1 ?? 0), 2: Number(aggregate?.rating_2 ?? 0), 3: Number(aggregate?.rating_3 ?? 0), 4: Number(aggregate?.rating_4 ?? 0), 5: Number(aggregate?.rating_5 ?? 0) },
-        sampleInsufficient: reviewCount < reviewSampleThreshold,
-      };
-    };
-    if (input.targetType === "event") {
-      const targetIds = [...new Set(input.targetIds)];
-      if (!targetIds.length || targetIds.length > 100) throw new Error("REVIEW_TARGET_BATCH_INVALID");
-      const targetRows = await db.select({ id: randomEvents.id }).from(randomEvents).where(inArray(randomEvents.id, targetIds));
-      if (targetRows.length !== targetIds.length) throw new Error("REVIEW_TARGET_NOT_FOUND");
-      const placeholders = targetIds.map(() => "?").join(", ");
-      const aggregateResult = await database.prepare(`
-        SELECT target_id, NULL AS gameplay_revision_id, COUNT(*) AS review_count, AVG(rating) AS average_rating,
-          SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) AS rating_1,
-          SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) AS rating_2,
-          SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) AS rating_3,
-          SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) AS rating_4,
-          SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) AS rating_5
-        FROM reviews
-        WHERE target_type = 'event' AND target_id IN (${placeholders}) AND status = 'active'
-        GROUP BY target_id
-      `).bind(...targetIds).all<AggregateRow>();
-      const aggregates = new Map(aggregateResult.results.map((row) => [row.target_id, row]));
-      return targetIds.map((targetId) => toSummary({ targetId, gameplayRevisionId: null }, aggregates.get(targetId)));
-    }
-
-    const targets = [...new Map(input.targets.map((target) => [`${target.targetId}:${target.gameplayRevisionId}`, target])).values()];
-    if (!targets.length || targets.length > 100) throw new Error("REVIEW_TARGET_BATCH_INVALID");
-    const serializedTargets = JSON.stringify(targets);
-    const targetCount = await database.prepare(`
-      SELECT COUNT(*) AS count FROM json_each(?)
-      WHERE EXISTS (
-        SELECT 1 FROM gameplay_revisions revision
-        WHERE revision.id = json_extract(json_each.value, '$.gameplayRevisionId')
-          AND revision.map_id = json_extract(json_each.value, '$.targetId')
-      )
-    `).bind(serializedTargets).first<{ count: number }>();
-    if (Number(targetCount?.count ?? 0) !== targets.length) throw new Error("REVIEW_TARGET_NOT_FOUND");
-    const aggregateResult = await database.prepare(`
-      WITH requested AS (
-        SELECT json_extract(value, '$.targetId') AS target_id,
-               json_extract(value, '$.gameplayRevisionId') AS gameplay_revision_id
-        FROM json_each(?)
-      )
-      SELECT review.target_id, review.gameplay_revision_id, COUNT(*) AS review_count, AVG(review.rating) AS average_rating,
-        SUM(CASE WHEN review.rating = 1 THEN 1 ELSE 0 END) AS rating_1,
-        SUM(CASE WHEN review.rating = 2 THEN 1 ELSE 0 END) AS rating_2,
-        SUM(CASE WHEN review.rating = 3 THEN 1 ELSE 0 END) AS rating_3,
-        SUM(CASE WHEN review.rating = 4 THEN 1 ELSE 0 END) AS rating_4,
-        SUM(CASE WHEN review.rating = 5 THEN 1 ELSE 0 END) AS rating_5
-      FROM reviews AS review
-      INNER JOIN requested ON requested.target_id = review.target_id AND requested.gameplay_revision_id = review.gameplay_revision_id
-      WHERE review.target_type = 'map' AND review.status = 'active'
-      GROUP BY review.target_id, review.gameplay_revision_id
-    `).bind(serializedTargets).all<AggregateRow>();
-    const aggregates = new Map(aggregateResult.results.map((row) => [`${row.target_id}:${row.gameplay_revision_id}`, row]));
-    return targets.map((target) => toSummary(target, aggregates.get(`${target.targetId}:${target.gameplayRevisionId}`)));
   };
 
   const recordVerifiedRun = async (input: VerifiedRunInput): Promise<RecordVerifiedRunResult> => {
