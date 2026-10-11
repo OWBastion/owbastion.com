@@ -1,9 +1,8 @@
 import { count, desc, eq, and, gt, gte, lt, like, or, inArray, isNull, isNotNull, ne, lte, notExists, sql, asc } from "drizzle-orm";
 
 import { drizzle } from "drizzle-orm/d1";
-import { alias } from "drizzle-orm/sqlite-core";
 import { createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, passkeyUserHandleMatches, verifyPasskeyAuthentication, verifyPasskeyRegistration } from "@owbastion/auth";
-import { buildMasteryProfiles, calculateVerifiedRunXpV2, difficultyAtLeastSatisfied, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, isWellFormedGameVersion, matchGameMode, normalizeGameMode, regularGameModeLabel, eventWeightTotalCode, runCodeEventWeightTotal, parseCanonicalChallengeConditions, parseChallengeProgressRule, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
+import { buildMasteryMapProfile, buildMasteryProfiles, calculateVerifiedRunXpV2, difficultyAtLeastSatisfied, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, isWellFormedGameVersion, matchGameMode, normalizeGameMode, regularGameModeLabel, eventWeightTotalCode, runCodeEventWeightTotal, parseCanonicalChallengeConditions, parseChallengeProgressRule, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
 import type { AdminVerifiedRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, ChallengeCondition, ChallengeProgressRule, VerifiedRunDifficulty, VerifiedRunEventCounters, VerifiedRunEvidenceCompatibilityV1, MasteryMapProfile, VerifiedRunActor, VerifiedRunConflictField, VerifiedRunForProjection, VerifiedRunXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
 import type { AdminRandomEventBatchRequest, AdminStandaloneMode, AdminStandaloneModeListResponse, AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrReevaluateResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReopenResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerChallengeProgressListResponse, PlayerSubmissionStatus, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, QqScreenshotSubmissionRequest, QqScreenshotSubmissionResponse, RandomEvent, RandomEventVersion, ScreenshotSetStatus, Title } from "@owbastion/contracts";
@@ -15,7 +14,12 @@ import { assessVerifiedRunOcrEvidence, hasReliableVerifiedRunField, normalizeOcr
 import { resolvePortalSession } from "./portal-session";
 import { createPlatformCache, instrumentDatabase } from "./platform-cache";
 import { createReviewServices } from "./review-service";
+import { createAdminPlayerServices } from "./admin-player-service";
 import { createQqGroupServices } from "./qq-group-service";
+import { createAgentServices } from "./agent-service";
+import { createRandomEventServices } from "./random-event-service";
+import { activeMasteryProfiles, asVerifiedRun, findConflictingVerifiedRun, loadActiveVerifiedRuns, loadPlayerMasteryHistory, masteryConflictFields, masteryRevisionLifecycle, normalizeVerifiedRunEventCounters, playerMasteryProfileView, playerVerifiedRunView, prepareVerifiedRun } from "./mastery-query";
+import { pageResult, paginate } from "./page-result";
 
 export { maxReviewCommentLength, reviewSampleThreshold } from "./review-service";
 export { assessVerifiedRunOcrEvidence } from "./ocr-response";
@@ -41,8 +45,6 @@ const playerSubmissionStatus = (status: string): PlayerSubmissionStatus => {
 const logOcrEvent = (event: string, fields: Record<string, unknown>) => console.log(JSON.stringify({ layer: "ocr", event, ...fields }));
 const ocrkitRequestTimeoutMs = 20_000;
 const errorDetails = (error: unknown) => ({ errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message.slice(0, 256) : String(error).slice(0, 256) });
-const pageResult = <T>(items: T[], page: number, pageSize: number, total: number) => ({ contractVersion: "1" as const, items, page, pageSize, total, hasMore: page * pageSize < total });
-const paginate = <T>(items: T[], page: number, pageSize: number) => pageResult(items.slice((page - 1) * pageSize, page * pageSize), page, pageSize, items.length);
 const groupBy = <T, K extends string>(items: Iterable<T>, keyOf: (item: T) => K, include?: (item: T) => boolean) => {
   const groups = new globalThis.Map<K, T[]>();
   for (const item of items) {
@@ -211,28 +213,22 @@ const toAgentTitle = (row: typeof titleCatalog.$inferSelect): AgentTitle => ({
   gameVersion: row.gameVersion?.trim() || null,
 });
 
-type EventImportRow = Omit<AdminRandomEventCreateRequest, "contractVersion">;
-const eventImportHeaders = ["事件名称", "事件效果", "事件类别", "稀有度级别", "类别概率", "内置冷却", "持续时间（秒）", "权重", "组内总权重", "组内个数", "单次失败率(Q)", "保底触发率", "最终出现概率", "全局出现概率", "版本", "效果类型", "事件状态"];
-const parseCsv = (csv: string) => {
-  const rows: string[][] = []; let row: string[] = []; let field = ""; let quoted = false;
-  for (let index = 0; index < csv.length; index += 1) { const char = csv[index]; const next = csv[index + 1]; if (quoted) { if (char === '"' && next === '"') { field += '"'; index += 1; } else if (char === '"') quoted = false; else field += char; } else if (char === '"') quoted = true; else if (char === ",") { row.push(field.trim()); field = ""; } else if (char === "\n") { row.push(field.trim()); rows.push(row); row = []; field = ""; } else if (char !== "\r") field += char; }
-  if (quoted) throw new Error("CSV_QUOTE_INVALID"); if (field || row.length) { row.push(field.trim()); rows.push(row); } return rows;
-};
-const parseEventImport = async (input: AdminRandomEventImportRequest) => {
-  const rows = parseCsv(input.csv.replace(/^\uFEFF/, "")); const errors: Array<{ row: number; message: string }> = [];
-  if (!rows.length || eventImportHeaders.some((header, index) => rows[0][index] !== header)) return { sourceHash: await hashRequest(input.csv), rows: [] as EventImportRow[], errors: [{ row: 1, message: `表头必须为：${eventImportHeaders.join("、")}` }] };
-  const parsed: EventImportRow[] = [];
-  rows.slice(1).forEach((values, index) => { const rowNumber = index + 2; if (!values.some(Boolean)) return; const number = (value: string) => value === "" ? null : Number(value); const status = values[16] === "已实装" ? "implemented" : values[16] === "已移除" ? "removed" : values[16] === "开发中" ? "development" : ""; const candidate = { name: values[0], description: values[1], category: values[2], cooldownSeconds: number(values[5]), durationSeconds: number(values[6]), weight: number(values[7]), gameVersion: values[14], eventGroup: rows[0][17] === "事件组" ? values[17]?.trim() || null : null, effectTags: values[15] ? values[15].split(/[、,]/).map((tag) => tag.trim()).filter(Boolean) : [], releaseStatus: status, challengeLinks: [] }; const valid = candidate.name && candidate.category && candidate.description && candidate.gameVersion && status && [candidate.cooldownSeconds, candidate.durationSeconds, candidate.weight].every((value) => value === null || Number.isFinite(value) && value >= 0) && Number.isInteger(candidate.durationSeconds ?? 0); if (!valid) errors.push({ row: rowNumber, message: "字段缺失、状态或数值格式无效" }); else parsed.push(candidate as EventImportRow); });
-  const duplicates = new Set<string>(); parsed.forEach((item) => { if (duplicates.has(item.name)) errors.push({ row: rows.findIndex((values) => values[0] === item.name) + 1, message: "文件内事件名称重复" }); duplicates.add(item.name); });
-  return { sourceHash: await hashRequest(input.csv), rows: parsed, errors };
-};
-
 const playerManualReviewReason = "玩家申请人工处理";
 
 export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, ocrManualReviewThreshold = 1, ocrAutoReviewSampleRate = 0, masteryEvidenceCompatibility: VerifiedRunEvidenceCompatibilityV1 = verifiedRunEvidenceCompatibilityV1, evidencePublicOrigin?: string, cacheKv?: KVNamespace): PlatformServices => {
   const platformCache = createPlatformCache(cacheKv);
   const database = instrumentDatabase(rawDatabase, platformCache);
   const db = drizzle(database);
+  const randomEventServices = createRandomEventServices(database, db, {
+    now,
+    platformCache,
+    hashRequest,
+    replayOrConflict,
+    recordIdempotency,
+    recordAudit,
+    publicEventChallenges: (eventId) => publicEventChallenges(eventId),
+    fetchAllPublicChallenges: () => fetchAllPublicChallenges(),
+  });
   const runPasskeyRegistrationBatch = async (statements: D1PreparedStatement[]) => {
     try { return await database.batch(statements); }
     catch (error) {
@@ -1003,6 +999,42 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     await database.batch(revisions.map(({ revision }) => insertDefaultMapTitleRuleAssignment(revision.id, revision.mapId, rule.id, timestamp)));
   };
 
+  const toTitleChallengeBase = (
+    challenge: typeof titleChallenges.$inferSelect,
+    title: typeof titleCatalog.$inferSelect,
+  ) => ({
+    challengeId: challenge.id,
+    family: "achievement" as const,
+    type: "title_achievement" as const,
+    kind: "title_achievement" as const,
+    titleKey: title.key,
+    titleName: title.label,
+    icon: title.icon,
+    iconUrl: title.iconUrl,
+    category: challenge.categoryOverride ?? title.category,
+    condition: challenge.condition,
+    evidenceRule: challenge.evidenceRule,
+    submissionMode: challenge.submissionMode as "manual" | "automatic",
+  });
+
+  const publicTitleChallengeFields = (
+    challenge: typeof titleChallenges.$inferSelect,
+    title: typeof titleCatalog.$inferSelect,
+    timestamp: number,
+  ) => {
+    const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, timestamp, challenge.gameVersion);
+    const gameVersion = challenge.gameVersion?.trim();
+    if (!status || !gameVersion || !title.gameVersion?.trim()) return null;
+    const progressRule = parseChallengeProgressRule(challenge.progressRule);
+    return {
+      gameVersion,
+      status: status as "scheduled" | "active" | "sunsetting",
+      startsAt: challenge.startsAt ?? undefined,
+      endsAt: challenge.endsAt ?? undefined,
+      retiredVersion: challenge.retiredVersion ?? undefined,
+      ...(progressRule ? { progressRule } : {}),
+    };
+  };
 
   const toPublicTitleChallenge = (
     challenge: typeof titleChallenges.$inferSelect,
@@ -1010,32 +1042,14 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     timestamp: number,
     mapIdsByChallenge: globalThis.Map<string, string[]>,
   ): Extract<Challenge, { family: "achievement" }> | null => {
-    const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, timestamp, challenge.gameVersion);
-    const gameVersion = challenge.gameVersion?.trim();
-    if (!status || !gameVersion || !title.gameVersion?.trim()) return null;
-    const progressRule = parseChallengeProgressRule(challenge.progressRule);
+    const fields = publicTitleChallengeFields(challenge, title, timestamp);
+    if (!fields) return null;
     return {
-      challengeId: challenge.id,
-      family: "achievement" as const,
-      type: "title_achievement" as const,
-      kind: "title_achievement" as const,
-      titleKey: title.key,
-      titleName: title.label,
-      icon: title.icon,
-      iconUrl: title.iconUrl,
-      category: challenge.categoryOverride ?? title.category,
-      condition: challenge.condition,
-      evidenceRule: challenge.evidenceRule,
-      gameVersion,
-      status: status as "scheduled" | "active" | "sunsetting",
-      startsAt: challenge.startsAt ?? undefined,
-      endsAt: challenge.endsAt ?? undefined,
-      retiredVersion: challenge.retiredVersion ?? undefined,
-      submissionMode: challenge.submissionMode as "manual" | "automatic",
+      ...toTitleChallengeBase(challenge, title),
+      ...fields,
       scope: (challenge.scope ?? "global") as "global" | "map",
       mapIds: (challenge.scope ?? "global") === "map" ? (mapIdsByChallenge.get(challenge.id) ?? []) : [],
       ...(challenge.mapVariant ? { mapVariant: challenge.mapVariant as "classic" } : {}),
-      ...(progressRule ? { progressRule } : {}),
     };
   };
 
@@ -1637,67 +1651,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     return items.sort((left, right) => left.mapName < right.mapName ? -1 : left.mapName > right.mapName ? 1 : left.mapId < right.mapId ? -1 : left.mapId > right.mapId ? 1 : 0);
   };
 
-  const glossary = async () => (await platformCache.cached("catalog", "glossary-terms", () => db.select().from(effectGlossaryTerms))).map((term) => ({ key: term.key, nameZh: term.nameZh, aliases: JSON.parse(term.aliasesJson) as string[], category: term.category, summary: term.summary, definition: term.definition, rules: JSON.parse(term.rulesJson) as string[], sourceVersion: term.sourceVersion }));
-  type GlossaryTerm = Awaited<ReturnType<typeof glossary>>[number];
-  type EffectAnnotation = { tag: string; term: GlossaryTerm };
-  const effectTermLookup = (terms: GlossaryTerm[]) => {
-    const byLabel = new Map(terms.flatMap((term) => [term.nameZh, ...term.aliases].map((label) => [label, term] as const)));
-    return (tag: string): GlossaryTerm | undefined => byLabel.get(tag);
-  };
-  const annotateEffectTags = (tags: string[], termForTag: (tag: string) => GlossaryTerm | undefined): EffectAnnotation[] => tags.flatMap((tag) => {
-    const term = termForTag(tag);
-    return term ? [{ tag, term }] : [];
-  });
-  const annotateEffects = async (tags: string[]) => annotateEffectTags(tags, effectTermLookup(await glossary()));
-  const toRandomEvent = (
-    row: typeof randomEvents.$inferSelect,
-    effectTags: string[],
-    effectAnnotations: EffectAnnotation[],
-    challenges: Challenge[],
-  ): RandomEvent => ({
-    eventId: row.id,
-    name: row.name,
-    category: row.category,
-    rarity: row.rarity,
-    description: row.description,
-    durationSeconds: row.durationSeconds,
-    cooldownSeconds: row.cooldownSeconds,
-    weight: row.weight,
-    gameVersion: row.gameVersion,
-    eventGroup: row.eventGroup,
-    effectTags,
-    effectAnnotations,
-    releaseStatus: row.releaseStatus as RandomEvent["releaseStatus"],
-    archived: row.archivedAt !== null,
-    challenges,
-  });
-  const asRandomEvent = async (row: typeof randomEvents.$inferSelect): Promise<RandomEvent> => {
-    const effectTags = JSON.parse(row.effectTagsJson) as string[];
-    return toRandomEvent(row, effectTags, await annotateEffects(effectTags), await publicEventChallenges(row.id));
-  };
-  const suspendedEventVersions = async () => new Set((await platformCache.cached("catalog", "suspended-event-versions", () => db.select({ gameVersion: randomEventVersions.gameVersion }).from(randomEventVersions).where(eq(randomEventVersions.availability, "suspended")))).map((row) => row.gameVersion));
-  // Two membership lookups per link batch instead of one select per link;
-  // chunked so a large import cannot exceed the SQLite variable limit.
-  const d1InChunk = 500;
-  const chunked = <T>(items: T[]): T[][] => { const out: T[][] = []; for (let i = 0; i < items.length; i += d1InChunk) out.push(items.slice(i, i + d1InChunk)); return out; };
-  const loadEventLinkIndex = async (links: EventImportRow["challengeLinks"]) => {
-    const mapIds = [...new Set(links.filter((link) => link.family === "map").map((link) => link.challengeId))];
-    const titleIds = [...new Set(links.filter((link) => link.family !== "map").map((link) => link.challengeId))];
-    const [mapRows, titleRows] = await Promise.all([
-      Promise.all(chunked(mapIds).map((ids) => db.select({ id: achievementChallenges.id }).from(achievementChallenges).where(inArray(achievementChallenges.id, ids)))).then((parts) => parts.flat()),
-      Promise.all(chunked(titleIds).map((ids) => db.select({ id: titleChallenges.id }).from(titleChallenges).where(inArray(titleChallenges.id, ids)))).then((parts) => parts.flat()),
-    ]);
-    return { map: new Set(mapRows.map((row) => row.id)), title: new Set(titleRows.map((row) => row.id)) };
-  };
-  const validateEventLinks = async (links: EventImportRow["challengeLinks"]) => {
-    const index = await loadEventLinkIndex(links);
-    for (const link of links) {
-      const found = link.family === "map" ? index.map.has(link.challengeId) : index.title.has(link.challengeId);
-      if (!found) throw new Error("CHALLENGE_NOT_FOUND");
-    }
-  };
-  const replaceEventLinks = async (eventId: string, links: EventImportRow["challengeLinks"]) => { await db.delete(randomEventMapChallenges).where(eq(randomEventMapChallenges.eventId, eventId)); await db.delete(randomEventTitleChallenges).where(eq(randomEventTitleChallenges.eventId, eventId)); const mapsLinks = links.filter((link) => link.family === "map"); const titleLinks = links.filter((link) => link.family === "achievement"); if (mapsLinks.length) await db.insert(randomEventMapChallenges).values(mapsLinks.map((link) => ({ eventId, challengeId: link.challengeId }))); if (titleLinks.length) await db.insert(randomEventTitleChallenges).values(titleLinks.map((link) => ({ eventId, challengeId: link.challengeId }))); };
-
   const getPlayerOwnedSubmission = async (submissionId: string, sessionToken: string) => {
     const current = await getCurrentPortalPlayer(sessionToken);
     if (!current) throw new Error("UNAUTHENTICATED");
@@ -1852,166 +1805,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     return { candidates, exclusions };
   };
 
-  const normalizeVerifiedRunEventCounters = (value: VerifiedRunEventCounters | undefined): VerifiedRunEventCounters => {
-    const entries = Object.entries(value ?? {}).map(([key, count]) => {
-      const normalizedKey = key.trim();
-      if (!normalizedKey || !Number.isInteger(count) || count < 0) throw new Error("VERIFIED_RUN_EVENT_COUNTER_INVALID");
-      return [normalizedKey, count] as const;
-    }).sort(([left], [right]) => left.localeCompare(right));
-    if (new Set(entries.map(([key]) => key)).size !== entries.length) throw new Error("VERIFIED_RUN_EVENT_COUNTER_INVALID");
-    return Object.fromEntries(entries);
-  };
-
-  const asVerifiedRun = (row: typeof verifiedRuns.$inferSelect): VerifiedRun => {
-    try {
-      const eventCounters = normalizeVerifiedRunEventCounters(JSON.parse(row.eventCountersJson) as VerifiedRunEventCounters);
-      const xpInputSnapshot = JSON.parse(row.xpInputSnapshotJson) as VerifiedRunXpSnapshot;
-      const xpRuleVersion = row.xpRuleVersion as VerifiedRun["xpRuleVersion"];
-      if (xpInputSnapshot.ruleVersion !== xpRuleVersion) throw new Error("VERIFIED_RUN_XP_SNAPSHOT_INVALID");
-      return {
-        runId: row.id,
-        playerAccountId: row.playerAccountId,
-        sourceSubmissionId: row.sourceSubmissionId,
-        mapId: row.mapId,
-        gameplayRevisionId: row.gameplayRevisionId,
-        mapVariant: (row.mapVariant ?? null) as VerifiedRun["mapVariant"],
-        difficulty: row.difficulty as VerifiedRun["difficulty"],
-        gameVersion: row.gameVersion,
-        matchCode: row.matchCode,
-        completionDurationSeconds: row.completionDurationSeconds,
-        deaths: row.deaths,
-        skips: row.skips,
-        eventCounters,
-        acceptanceSource: row.acceptanceSource as VerifiedRun["acceptanceSource"],
-        acceptedAt: row.acceptedAt,
-        status: row.status as VerifiedRun["status"],
-        invalidatedAt: row.invalidatedAt,
-        invalidatedBy: row.invalidatedBy,
-        invalidationReason: row.invalidationReason,
-        xpRuleVersion,
-        xpInputSnapshot,
-        awardedXp: row.awardedXp,
-      };
-    } catch {
-      throw new Error("VERIFIED_RUN_DATA_INVALID");
-    }
-  };
-
-  const prepareVerifiedRun = (input: VerifiedRunInput) => {
-    const required = (value: string, error: string) => {
-      const normalized = value.trim();
-      if (!normalized) throw new Error(error);
-      return normalized;
-    };
-    const completionDurationSeconds = input.completionDurationSeconds;
-    if (!Number.isInteger(completionDurationSeconds) || completionDurationSeconds <= 0) throw new Error("VERIFIED_RUN_COMPLETION_DURATION_INVALID");
-    const acceptedAt = input.acceptedAt ?? now();
-    if (!Number.isInteger(acceptedAt) || acceptedAt <= 0) throw new Error("VERIFIED_RUN_ACCEPTED_AT_INVALID");
-    const mapVariant = input.mapVariant ?? null;
-    if (mapVariant !== null && mapVariant !== "classic") throw new Error("VERIFIED_RUN_MAP_VARIANT_INVALID");
-    if (!(["submission_automatic", "submission_review"] as const).includes(input.acceptanceSource)) throw new Error("VERIFIED_RUN_ACCEPTANCE_SOURCE_INVALID");
-    return {
-      playerAccountId: required(input.playerAccountId, "VERIFIED_RUN_PLAYER_NOT_FOUND"),
-      sourceSubmissionId: required(input.sourceSubmissionId, "VERIFIED_RUN_SUBMISSION_NOT_FOUND"),
-      mapId: required(input.mapId, "VERIFIED_RUN_MAP_NOT_FOUND"),
-      gameplayRevisionId: required(input.gameplayRevisionId, "VERIFIED_RUN_GAMEPLAY_REVISION_NOT_FOUND"),
-      mapVariant,
-      difficulty: input.difficulty,
-      gameVersion: required(input.gameVersion, "VERIFIED_RUN_GAME_VERSION_INVALID"),
-      matchCode: normalizeMatchCode(input.matchCode),
-      completionDurationSeconds,
-      deaths: input.deaths ?? null,
-      skips: input.skips ?? null,
-      eventCounters: normalizeVerifiedRunEventCounters(input.eventCounters),
-      acceptanceSource: input.acceptanceSource,
-      acceptedAt,
-      mapFactor: input.mapFactor ?? null,
-    };
-  };
-
-  const masteryConflictFields = (run: VerifiedRun, input: ReturnType<typeof prepareVerifiedRun>): VerifiedRunConflictField[] => {
-    const fields: VerifiedRunConflictField[] = [];
-    if (run.matchCode !== input.matchCode) fields.push("match_code");
-    if (run.mapId !== input.mapId) fields.push("map");
-    if (run.gameplayRevisionId !== input.gameplayRevisionId) fields.push("gameplay_revision");
-    if (run.mapVariant !== input.mapVariant) fields.push("map_variant");
-    if (run.difficulty !== input.difficulty) fields.push("difficulty");
-    if (run.gameVersion !== input.gameVersion) fields.push("game_version");
-    if (run.completionDurationSeconds !== input.completionDurationSeconds) fields.push("completion_duration");
-    if (run.deaths !== input.deaths) fields.push("deaths");
-    if (run.skips !== input.skips) fields.push("skips");
-    if (JSON.stringify(run.eventCounters) !== JSON.stringify(input.eventCounters)) fields.push("event_counters");
-    return fields;
-  };
-
-  const loadActiveVerifiedRuns = async (input: { playerAccountId: string; mapId?: string; gameplayRevisionId?: string; currentOnly?: boolean }) => {
-    const rows = await db.select({ run: verifiedRuns, lifecycle: gameplayRevisions.lifecycle }).from(verifiedRuns)
-      .innerJoin(gameplayRevisions, eq(verifiedRuns.gameplayRevisionId, gameplayRevisions.id))
-      .where(and(
-        eq(verifiedRuns.playerAccountId, input.playerAccountId),
-        eq(verifiedRuns.status, "active"),
-        input.mapId ? eq(verifiedRuns.mapId, input.mapId) : undefined,
-        input.gameplayRevisionId ? eq(verifiedRuns.gameplayRevisionId, input.gameplayRevisionId) : undefined,
-        input.currentOnly ? eq(gameplayRevisions.lifecycle, "default") : undefined,
-      ));
-    return rows.map(({ run, lifecycle }) => ({ run: asVerifiedRun(run), gameplayRevisionLifecycle: masteryRevisionLifecycle(lifecycle) }));
-  };
-
-  const loadPlayerMasteryHistory = async (input: { playerAccountId: string; mapId?: string; gameplayRevisionId?: string; page: number; pageSize: number }) => {
-    const condition = and(
-      eq(verifiedRuns.playerAccountId, input.playerAccountId),
-      input.mapId ? eq(verifiedRuns.mapId, input.mapId) : undefined,
-      input.gameplayRevisionId ? eq(verifiedRuns.gameplayRevisionId, input.gameplayRevisionId) : undefined,
-    );
-    const [rows, [{ total }]] = await Promise.all([
-      db.select({ run: verifiedRuns, lifecycle: gameplayRevisions.lifecycle }).from(verifiedRuns)
-        .innerJoin(gameplayRevisions, eq(verifiedRuns.gameplayRevisionId, gameplayRevisions.id))
-        .where(condition).orderBy(desc(verifiedRuns.acceptedAt), desc(verifiedRuns.id)).limit(input.pageSize).offset((input.page - 1) * input.pageSize),
-      db.select({ total: count() }).from(verifiedRuns).where(condition),
-    ]);
-    return { runs: rows.map(({ run, lifecycle }) => ({ run: asVerifiedRun(run), gameplayRevisionLifecycle: masteryRevisionLifecycle(lifecycle) })), total };
-  };
-
-  const activeMasteryProfiles = async (input: { playerAccountId: string; mapId?: string; gameplayRevisionId?: string; currentOnly?: boolean; recentLimit?: number }): Promise<MasteryMapProfile[]> => {
-    const runs = await loadActiveVerifiedRuns(input);
-    const recentLimit = Math.min(50, Math.max(1, input.recentLimit ?? 10));
-    return buildMasteryProfiles(runs.map(({ run }) => run), recentLimit);
-  };
-
-  const masteryRevisionLifecycle = (value: string) => {
-    if (!["preparing", "default", "selectable", "historical"].includes(value)) throw new Error("GAMEPLAY_REVISION_DATA_INVALID");
-    return value as CurrentPlayerMasteryResponse["runs"][number]["gameplayRevisionLifecycle"];
-  };
-
-  const playerVerifiedRunView = (run: VerifiedRunForProjection, gameplayRevisionLifecycle: CurrentPlayerMasteryResponse["runs"][number]["gameplayRevisionLifecycle"]): CurrentPlayerMasteryResponse["runs"][number] => ({
-    runId: run.runId,
-    mapId: run.mapId,
-    gameplayRevisionId: run.gameplayRevisionId,
-    gameplayRevisionLifecycle,
-    mapVariant: run.mapVariant,
-    difficulty: run.difficulty,
-    completionDurationSeconds: run.completionDurationSeconds,
-    deaths: run.deaths,
-    skips: run.skips,
-    awardedXp: run.awardedXp,
-    acceptedAt: run.acceptedAt,
-    status: run.status,
-  });
-
-  const playerMasteryProfileView = (profile: MasteryMapProfile, gameplayRevisionLifecycle: CurrentPlayerMasteryResponse["profiles"][number]["gameplayRevisionLifecycle"]): CurrentPlayerMasteryResponse["profiles"][number] => ({
-    mapId: profile.mapId,
-    gameplayRevisionId: profile.gameplayRevisionId,
-    gameplayRevisionLifecycle,
-    totalXp: profile.totalXp,
-    verifiedRunCount: profile.verifiedRunCount,
-    difficultyStats: profile.difficultyStats,
-    lowestDeaths: profile.lowestDeaths,
-    fewestSkips: profile.fewestSkips,
-    highestSingleRunXp: profile.highestSingleRunXp,
-    highestCompletedDifficulty: profile.highestCompletedDifficulty,
-    recentRuns: profile.recentRuns.map((run) => playerVerifiedRunView(run, gameplayRevisionLifecycle)),
-  });
-
   const prepareVerifiedRunTransitionStatements = (input: {
     row: typeof verifiedRuns.$inferSelect;
     actor: VerifiedRunActor;
@@ -2028,14 +1821,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       ...challengeEvidenceLifecycleStatements({ sourceSubmissionId: input.row.sourceSubmissionId, actorId: input.actor.actorId, timestamp, reason, action: input.nextStatus === "invalidated" ? "invalidate" : "restore" }),
     ];
   };
-  const findConflictingVerifiedRun = (input: { playerAccountId: string; matchCode: string; exceptRunId: string; activeOnly?: boolean }) =>
-    db.select({ id: verifiedRuns.id }).from(verifiedRuns).where(and(
-      eq(verifiedRuns.playerAccountId, input.playerAccountId),
-      eq(verifiedRuns.matchCode, input.matchCode),
-      input.activeOnly ? eq(verifiedRuns.status, "active") : undefined,
-      ne(verifiedRuns.id, input.exceptRunId),
-    )).get();
-
   const transitionVerifiedRun = async (input: { verifiedRunId: string; reason?: string }, actor: VerifiedRunActor, nextStatus: "active" | "invalidated"): Promise<VerifiedRun> => {
     const runId = input.verifiedRunId.trim();
     if (!runId) throw new Error("VERIFIED_RUN_NOT_FOUND");
@@ -2049,7 +1834,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       return asVerifiedRun(row);
     }
     if (nextStatus === "active") {
-      if (await findConflictingVerifiedRun({ playerAccountId: row.playerAccountId, matchCode: row.matchCode, exceptRunId: row.id, activeOnly: true })) {
+      if (await findConflictingVerifiedRun(db, { playerAccountId: row.playerAccountId, matchCode: row.matchCode, exceptRunId: row.id, activeOnly: true })) {
         throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
       }
     }
@@ -2208,7 +1993,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   };
 
   const planVerifiedRunRecord = async (input: VerifiedRunInput, rejectConcurrentInsert = false, restampRevision = false): Promise<VerifiedRunRecordPlan> => {
-    const candidate = prepareVerifiedRun(input);
+    const candidate = prepareVerifiedRun(input, now());
     const source = await db.select({ playerAccountId: submissions.playerAccountId, gameplayRevisionId: submissions.gameplayRevisionId }).from(submissions)
       .where(eq(submissions.id, candidate.sourceSubmissionId)).get();
     if (!source) throw new Error("VERIFIED_RUN_SUBMISSION_NOT_FOUND");
@@ -2655,31 +2440,10 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   };
 
   const adminMasteryProjection = async (input: { playerAccountId: string; mapId: string; gameplayRevisionId: string }): Promise<AdminVerifiedRunProjection> => {
-    const profile = (await activeMasteryProfiles({ playerAccountId: input.playerAccountId, mapId: input.mapId, gameplayRevisionId: input.gameplayRevisionId, recentLimit: 10 }))[0];
-    if (!profile) {
-      return {
-        mapId: input.mapId,
-        gameplayRevisionId: input.gameplayRevisionId,
-        totalXp: 0,
-        verifiedRunCount: 0,
-        difficultyStats: [],
-        lowestDeaths: null,
-        fewestSkips: null,
-        highestSingleRunXp: null,
-        highestCompletedDifficulty: null,
-      };
-    }
-    return {
-      mapId: profile.mapId,
-      gameplayRevisionId: profile.gameplayRevisionId,
-      totalXp: profile.totalXp,
-      verifiedRunCount: profile.verifiedRunCount,
-      difficultyStats: profile.difficultyStats,
-      lowestDeaths: profile.lowestDeaths,
-      fewestSkips: profile.fewestSkips,
-      highestSingleRunXp: profile.highestSingleRunXp,
-      highestCompletedDifficulty: profile.highestCompletedDifficulty,
-    };
+    const profile = (await activeMasteryProfiles(db, { playerAccountId: input.playerAccountId, mapId: input.mapId, gameplayRevisionId: input.gameplayRevisionId, recentLimit: 10 }))[0]
+      ?? buildMasteryMapProfile(input.mapId, input.gameplayRevisionId, [], 0);
+    const { recentRuns: _recentRuns, ...projection } = profile;
+    return projection;
   };
 
   const masteryConflictFacts = (responseJson: string | null): AdminVerifiedRunConflict["facts"] => {
@@ -2847,7 +2611,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     const reason = input.reason?.trim() || null;
 
     if (!sameFacts) {
-      if (await findConflictingVerifiedRun({ playerAccountId: previous.playerAccountId, matchCode: corrected.matchCode, exceptRunId: previous.runId })) {
+      if (await findConflictingVerifiedRun(db, { playerAccountId: previous.playerAccountId, matchCode: corrected.matchCode, exceptRunId: previous.runId })) {
         throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
       }
       const award = calculateVerifiedRunXpV2({
@@ -2930,6 +2694,9 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   // the reconciliation loop pairs each player with their precomputed set. The
   // map list resolves through progressRuleMapIds so a rule without explicit
   // mapIds follows every map of its standalone mode.
+  const d1InChunk = 500;
+  const chunked = <T>(items: T[]): T[][] => { const out: T[][] = []; for (let i = 0; i < items.length; i += d1InChunk) out.push(items.slice(i, i + d1InChunk)); return out; };
+
   const loadEligibleProgressRunMaps = async (input: { playerAccountIds: string[]; rule: ChallengeProgressRule; startsAt: number | null; endsAt: number | null }) => {
     const requiredMapIds = await progressRuleMapIds(input.rule);
     const empty = new globalThis.Map(input.playerAccountIds.map((id) => [id, { completed: new Set<string>(), satisfied: false }]));
@@ -3212,7 +2979,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     const reason = input.reason?.trim() || null;
     if (loaded.row.run.status !== nextStatus) {
       if (nextStatus === "active") {
-        if (await findConflictingVerifiedRun({ playerAccountId: loaded.row.run.playerAccountId, matchCode: loaded.row.run.matchCode, exceptRunId: loaded.row.run.id, activeOnly: true })) {
+        if (await findConflictingVerifiedRun(db, { playerAccountId: loaded.row.run.playerAccountId, matchCode: loaded.row.run.matchCode, exceptRunId: loaded.row.run.id, activeOnly: true })) {
           throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
         }
       }
@@ -4592,6 +4359,27 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     return conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run };
   };
 
+  type SubmissionReviewWrite = {
+    row: typeof submissions.$inferSelect;
+    input: Parameters<PlatformServices["reviewSubmission"]>[0];
+    auth: AuthContext;
+    reviewId: string; timestamp: number;
+    idempotencyKeyId: string; requestHash: string;
+    response: AdminSubmissionReviewResponse; reviewAudit: unknown;
+    statements: D1PreparedStatement[]; trailingStatements: D1PreparedStatement[];
+  };
+
+  const persistSubmissionReview = async (review: SubmissionReviewWrite) => {
+    await database.batch([
+      database.prepare("INSERT INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, id, ?, ?, ?, ? FROM submissions WHERE id = ?").bind(review.reviewId, review.input.decision, review.input.reason ?? null, review.auth.subject, review.timestamp, review.row.id),
+      ...review.statements,
+      database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, 'submission.review', ?, ?, ? FROM submission_reviews WHERE id = ?").bind(review.idempotencyKeyId, review.auth.subject, review.requestHash, JSON.stringify(review.response), review.timestamp, review.reviewId),
+      database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'submission.review', 'submission', submission_id, ?, ? FROM submission_reviews WHERE id = ?").bind(crypto.randomUUID(), crypto.randomUUID(), review.auth.actorType, review.auth.subject, JSON.stringify(review.reviewAudit), review.timestamp, review.reviewId),
+      ...review.trailingStatements,
+    ] as [D1PreparedStatement, ...D1PreparedStatement[]]);
+    if (!(await db.select({ id: idempotencyKeys.id }).from(idempotencyKeys).where(eq(idempotencyKeys.id, review.idempotencyKeyId)).get())) throw new Error("SUBMISSION_NOT_REVIEWABLE");
+  };
+
   return {
     reconcileStaleOcrJobs,
     recordVerifiedRun,
@@ -4605,7 +4393,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     },
 
     async rebuildMasteryProfiles(input) {
-      return activeMasteryProfiles(input);
+      return activeMasteryProfiles(db, input);
     },
 
     async listAdminVerifiedRuns(input: AdminVerifiedRunQuery, _auth: AuthContext) {
@@ -4673,258 +4461,36 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       return resolveAdminVerifiedRunConflictAction(input, auth, idempotencyKey);
     },
 
-    async listAgentEvents(input: AgentEventQuery) {
-      const [events, suspendedVersions] = await Promise.all([this.listRandomEvents({ category: input.category, rarity: input.rarity, status: input.status }), suspendedEventVersions()]);
-      const query = input.query?.toLocaleLowerCase();
-      const available = events.filter((event) => !suspendedVersions.has(event.gameVersion));
-      const filtered = query ? available.filter((event) => [event.name, event.description, event.eventGroup ?? "", ...event.effectTags].some((value) => value.toLocaleLowerCase().includes(query))) : available;
-      return paginate(filtered, input.page, input.pageSize);
+    ...createAgentServices(db, {
+      now,
+      platformCache,
+      paginate,
+      loadAgentMapProjectionsFast,
+      suspendedEventVersions: randomEventServices.suspendedEventVersions,
+      listGlobalAgentTitles,
+      loadChallengeMapIds,
+      toAgentTitle,
+      toPublicTitleChallenge,
+      titleChallengeIsSubmittable,
+    }),
+    ...randomEventServices.services,
+    async listMaps() {
+      const rows = await platformCache.cached("catalog", "public-map-rows", () => db.select({ map: maps, metadata: mapMetadata, defaultRevisionId: gameplayRevisions.id }).from(maps)
+        .leftJoin(mapMetadata, eq(mapMetadata.mapId, maps.id))
+        .leftJoin(gameplayRevisions, and(eq(gameplayRevisions.mapId, maps.id), eq(gameplayRevisions.lifecycle, "default"), isNull(gameplayRevisions.legacyMapVariant)))
+        .where(eq(maps.status, "active")).orderBy(maps.name));
+      return rows.map(({ map, metadata, defaultRevisionId }): Map => ({
+          mapId: map.id,
+          mapName: map.name,
+          defaultGameplayRevisionId: defaultRevisionId,
+          gameVersion: map.gameVersion,
+          difficultyRating: (metadata?.difficultyRating as Map["difficultyRating"]) ?? null,
+          mechanics: metadata?.mechanicsJson ? JSON.parse(metadata.mechanicsJson) as string[] : [],
+          coverUrl: metadata?.coverUrl ?? null,
+          backgroundUrl: metadata?.backgroundUrl ?? null,
+      }));
     },
-    async getAgentEvent(input) {
-      const event = await this.getRandomEvent({ eventId: input.eventId, status: input.status });
-      if (!event || (await suspendedEventVersions()).has(event.gameVersion)) return null;
-      return event;
-    },
-    async listAgentMaps(input: AgentMapQuery) {
-      const maps = await loadAgentMapProjectionsFast({});
-      const query = input.query?.toLocaleLowerCase();
-      const mechanic = input.mechanic?.toLocaleLowerCase();
-      const filtered = maps.filter((map) => (!query || map.mapName.toLocaleLowerCase().includes(query)) && (!mechanic || map.mechanics.some((value) => value.toLocaleLowerCase() === mechanic)));
-      return paginate(filtered, input.page, input.pageSize);
-    },
-    async getAgentMap(input) {
-      return (await loadAgentMapProjectionsFast({ mapId: input.mapId }))[0] ?? null;
-    },
-    async listAgentAchievements(input: AgentAchievementQuery) {
-      const allChallenges = await this.listChallenges();
-      const projectableRevisionIds = new Set((await loadAgentMapProjectionsFast({})).flatMap((map) => map.gameplayRevisions.map((revision) => revision.gameplayRevisionId)));
-      const challenges = allChallenges.filter((challenge) => challenge.family === "achievement" || challenge.family === "map" && projectableRevisionIds.has(challenge.gameplayRevisionId));
-      const query = input.query?.toLocaleLowerCase();
-      const filtered = challenges.filter((challenge) => {
-        const values = challenge.family === "achievement"
-          ? [challenge.titleName, challenge.category, challenge.condition, challenge.evidenceRule]
-          : [challenge.name, challenge.mapName, challenge.condition ?? "", challenge.evidenceRule ?? ""];
-        return (!query || values.some((value) => value.toLocaleLowerCase().includes(query)))
-          && (!input.status || challenge.status === input.status)
-          && (!input.mapId || (challenge.family === "map" ? challenge.mapId === input.mapId : challenge.scope !== "map" || !challenge.mapIds?.length || challenge.mapIds.includes(input.mapId)));
-      });
-      return paginate(filtered, input.page, input.pageSize);
-    },
-    async getAgentAchievement(input) {
-      const row = await db.select({ challenge: titleChallenges, title: titleCatalog })
-        .from(titleChallenges)
-        .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
-        .where(and(
-          eq(titleChallenges.id, input.challengeId),
-          inArray(titleChallenges.status, ["scheduled", "active", "sunsetting"]),
-          eq(titleCatalog.scope, "global"),
-          eq(titleCatalog.lifecycle, "active"),
-          eq(titleCatalog.publicVisibility, 1),
-        ))
-        .get();
-      if (row) {
-        const mapIdsByChallenge = (row.challenge.scope ?? "global") === "map"
-          ? await loadChallengeMapIds([row.challenge.id])
-          : new globalThis.Map<string, string[]>();
-        return toPublicTitleChallenge(row.challenge, row.title, now(), mapIdsByChallenge);
-      }
-      const allChallenges = await this.listChallenges();
-      const projectableRevisionIds = new Set((await loadAgentMapProjectionsFast({})).flatMap((map) => map.gameplayRevisions.map((revision) => revision.gameplayRevisionId)));
-      const mapMatches = allChallenges.filter((challenge): challenge is Extract<Challenge, { family: "map" }> => challenge.family === "map"
-        && challenge.challengeId === input.challengeId
-        && projectableRevisionIds.has(challenge.gameplayRevisionId)
-        && (!input.mapId || challenge.mapId === input.mapId)
-        && (!input.gameplayRevisionId || challenge.gameplayRevisionId === input.gameplayRevisionId));
-      if (mapMatches.length) return mapMatches.length === 1 ? mapMatches[0] : null;
-      return null;
-    },
-    async listAgentTitles(input: AgentTitleQuery) {
-      const globalTitles = await listGlobalAgentTitles();
-      const mapTitles = input.mapId
-        ? (await this.listTitles({ mapId: input.mapId })).filter((title) => title.scope === "map")
-        : [];
-      const titles = globalTitles.concat(mapTitles);
-      const query = input.query?.toLocaleLowerCase();
-      const filtered = titles.filter((title) => (!query || [title.label, title.category, title.condition].some((value) => value.toLocaleLowerCase().includes(query))) && (!input.category || title.category === input.category) && (!input.scope || title.scope === input.scope) && (!input.mapId || title.scope === "global" || title.mapId === input.mapId));
-      return paginate(filtered, input.page, input.pageSize);
-    },
-    async listAgentPlayerTitleGrants(input: AgentPlayerTitleGrantQuery) {
-      const rows = await platformCache.cached("grants", "agent-player-title-grants", () => db.select({ playerId: playerAccounts.playerId, playerName: playerAccounts.playerName, titleKey: playerTitleGrants.titleKey, equipped: playerEquippedTitles.grantId, allTitles: playerTitleEntitlements.allTitles })
-        .from(playerAccounts)
-        .leftJoin(playerTitleEntitlements, eq(playerTitleEntitlements.playerAccountId, playerAccounts.id))
-        .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.playerAccountId, playerAccounts.id), eq(playerTitleGrants.status, "active"), isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId)))
-        .leftJoin(playerEquippedTitles, eq(playerEquippedTitles.grantId, playerTitleGrants.id))
-        .leftJoin(titleCatalog, and(eq(playerTitleGrants.titleKey, titleCatalog.key), eq(titleCatalog.scope, "global"), isNotNull(titleCatalog.gameVersion)))
-        .where(or(eq(playerTitleEntitlements.allTitles, 1), and(isNotNull(playerEquippedTitles.grantId), isNotNull(titleCatalog.key))))
-        .orderBy(playerAccounts.playerId, playerTitleGrants.titleKey));
-      const grouped = new Map<string, { playerId: string; playerName: string; titleKeys: string[]; allTitles: boolean }>();
-      for (const row of rows) {
-        const current = grouped.get(row.playerId) ?? { playerId: row.playerId, playerName: row.playerName, titleKeys: [], allTitles: row.allTitles === 1 };
-        if (row.equipped && row.titleKey && !current.allTitles && !current.titleKeys.includes(row.titleKey)) current.titleKeys.push(row.titleKey);
-        grouped.set(row.playerId, current);
-      }
-      return paginate([...grouped.values()], input.page, input.pageSize);
-    },
-    async listAgentMapTitleHolders(input: AgentMapTitleHolderQuery) {
-      const map = await this.getAgentMap({ mapId: input.mapId });
-      const projectableRevisionIds = map?.gameplayRevisions.map((revision) => revision.gameplayRevisionId) ?? [];
-      if (!map) throw new Error("AGENT_MAP_NOT_FOUND");
-      if (!projectableRevisionIds.length) throw new Error("AGENT_MAP_TITLE_PROJECTION_UNAVAILABLE");
-      const rows = await platformCache.cached("grants", `agent-map-title-holders:${input.mapId}`, () => db.select({ mapId: playerTitleGrants.mapId, gameplayRevisionId: playerTitleGrants.gameplayRevisionId, titleKey: playerTitleGrants.titleKey, slot: playerTitleGrants.slot, playerId: playerAccounts.playerId, playerName: playerAccounts.playerName })
-        .from(playerTitleGrants)
-        .innerJoin(playerAccounts, eq(playerTitleGrants.playerAccountId, playerAccounts.id))
-        .innerJoin(gameplayRevisions, and(eq(playerTitleGrants.gameplayRevisionId, gameplayRevisions.id), eq(gameplayRevisions.mapId, input.mapId), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])))
-        .innerJoin(titleCatalog, and(eq(playerTitleGrants.titleKey, titleCatalog.key), ne(titleCatalog.lifecycle, "draft"), eq(titleCatalog.publicVisibility, 1), eq(titleCatalog.scope, "map"), isNotNull(titleCatalog.gameVersion)))
-        .where(and(eq(playerTitleGrants.status, "active"), eq(playerTitleGrants.mapId, input.mapId), inArray(playerTitleGrants.gameplayRevisionId, projectableRevisionIds)))
-        .orderBy(playerTitleGrants.gameplayRevisionId, playerTitleGrants.slot, playerAccounts.playerId, playerTitleGrants.titleKey));
-      return paginate(rows.map((row) => ({ mapId: row.mapId!, gameplayRevisionId: row.gameplayRevisionId!, titleKey: row.titleKey, slot: row.slot as "pioneer" | "conqueror" | "dominator" | null, slotSemantics: row.slot ? "named" as const : "none" as const, playerId: row.playerId, playerName: row.playerName })), input.page, input.pageSize);
-    },
-    async getAgentTitle(input) {
-      const title = await db.select().from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
-      if (title?.scope === "global") return toAgentTitle(title);
-      const titleGameVersion = title?.gameVersion?.trim();
-      if (!title || title.lifecycle === "draft" || title.publicVisibility !== 1 || !titleGameVersion) return null;
-      // Deterministic first match: lowest mapId, then slot — mirrors prior listMaps+listTitles flatten order.
-      const reward = await db.select({ title: titleCatalog, reward: mapTitleRewards })
-        .from(mapTitleRewards)
-        .innerJoin(titleCatalog, eq(mapTitleRewards.titleKey, titleCatalog.key))
-        .innerJoin(maps, and(eq(maps.id, mapTitleRewards.mapId), eq(maps.status, "active")))
-        .where(eq(mapTitleRewards.titleKey, input.titleKey))
-        .orderBy(mapTitleRewards.mapId, mapTitleRewards.slot)
-        .get();
-      if (reward) {
-        return {
-          titleKey: reward.title.key,
-          label: reward.title.label,
-          icon: reward.title.icon,
-          iconUrl: reward.title.iconUrl,
-          category: reward.title.category,
-          condition: reward.title.condition,
-          lifecycle: reward.title.lifecycle as Title["lifecycle"],
-          publicVisibility: reward.title.publicVisibility === 1,
-          availability: reward.title.lifecycle === "retired" ? "retired" : "active",
-          scope: "map" as const,
-          displayKind: reward.title.displayKind as Title["displayKind"],
-          mapId: reward.reward.mapId,
-          slot: reward.reward.slot as Title["slot"],
-          pioneerPrefixes: JSON.parse(reward.reward.pioneerPrefixesJson) as string[],
-          color: titleColor(reward.title.colorJson),
-          gameVersion: titleGameVersion,
-        };
-      }
-      const custom = await db.select({ title: titleCatalog, challenge: titleChallenges })
-        .from(titleChallenges)
-        .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
-        .where(and(
-          eq(titleChallenges.titleKey, input.titleKey),
-          eq(titleChallenges.scope, "map"),
-          eq(titleCatalog.scope, "map"),
-          eq(titleCatalog.lifecycle, "active"),
-        ))
-        .get();
-      if (!custom || !titleChallengeIsSubmittable(custom.challenge.status, custom.challenge.startsAt, custom.challenge.endsAt, now(), custom.challenge.gameVersion)) return null;
-      const targets = await loadChallengeMapIds([custom.challenge.id]);
-      const targetIds = targets.get(custom.challenge.id) ?? [];
-      const mapRow = targetIds.length
-        ? await db.select({ id: maps.id }).from(maps).where(and(eq(maps.status, "active"), inArray(maps.id, targetIds))).orderBy(maps.id).get()
-        : await db.select({ id: maps.id }).from(maps).where(eq(maps.status, "active")).orderBy(maps.id).get();
-      if (!mapRow) return null;
-      return {
-        titleKey: custom.title.key,
-        label: custom.title.label,
-        icon: custom.title.icon,
-        iconUrl: custom.title.iconUrl,
-        category: custom.title.category,
-        condition: custom.title.condition,
-        lifecycle: custom.title.lifecycle as Title["lifecycle"],
-        publicVisibility: custom.title.publicVisibility === 1,
-        availability: custom.title.lifecycle === "retired" ? "retired" : "active",
-        scope: "map" as const,
-        displayKind: custom.title.displayKind as Title["displayKind"],
-        mapId: mapRow.id,
-        color: titleColor(custom.title.colorJson),
-        gameVersion: titleGameVersion,
-      };
-    },
-    async searchAgentContent(input: AgentSearchQuery) {
-      const query = input.query.toLocaleLowerCase();
-      const include = (kind: AgentSearchResult["kind"]) => !input.kind || input.kind === kind;
-      const [events, suspendedVersions, maps, achievements, titles] = await Promise.all([
-        include("event") ? this.listRandomEvents({ status: input.status }) : [],
-        include("event") ? suspendedEventVersions() : new Set<string>(),
-        include("map") ? this.listMaps() : [],
-        include("achievement") ? this.listChallenges({ family: "achievement" }) : Promise.resolve<Challenge[]>([]),
-        include("title") ? listGlobalAgentTitles() : [],
-      ]);
-      const results: AgentSearchResult[] = [];
-      if (!input.kind || input.kind === "event") results.push(...events.filter((event) => !suspendedVersions.has(event.gameVersion) && [event.name, event.description, event.eventGroup ?? "", ...event.effectTags].some((value) => value.toLocaleLowerCase().includes(query))).map((event) => ({ kind: "event" as const, id: event.eventId, name: event.name, summary: event.description })));
-      if (!input.kind || input.kind === "map") results.push(...maps.filter((map) => [map.mapName, ...map.mechanics].some((value) => value.toLocaleLowerCase().includes(query))).map((map) => ({ kind: "map" as const, id: map.mapId, name: map.mapName, summary: map.mechanics.join("、") || `游戏版本 ${map.gameVersion}` })));
-      if (!input.kind || input.kind === "achievement") results.push(...achievements.filter((challenge): challenge is Extract<Challenge, { family: "achievement" }> => challenge.family === "achievement" && [challenge.titleName, challenge.category, challenge.condition, challenge.evidenceRule].some((value) => value.toLocaleLowerCase().includes(query))).map((challenge) => ({ kind: "achievement" as const, id: challenge.challengeId, name: challenge.titleName, summary: challenge.condition })));
-      if (!input.kind || input.kind === "title") results.push(...titles.filter((title) => [title.label, title.category, title.condition].some((value) => value.toLocaleLowerCase().includes(query))).map((title) => ({ kind: "title" as const, id: title.titleKey, name: title.label, summary: title.condition })));
-      return paginate(results, input.page, input.pageSize);
-    },
-    async listRandomEvents(input) {
-      const filters = [input.includeArchived ? undefined : isNull(randomEvents.archivedAt), input.status ? eq(randomEvents.releaseStatus, input.status) : input.includeArchived === undefined ? inArray(randomEvents.releaseStatus, ["implemented", "removed"]) : undefined, input.category ? eq(randomEvents.category, input.category) : undefined, input.rarity ? eq(randomEvents.rarity, input.rarity) : undefined, input.query ? like(randomEvents.name, `%${input.query}%`) : undefined].filter(Boolean) as any[];
-      const rows = await db.select().from(randomEvents).where(and(...filters)).orderBy(randomEvents.name);
-      if (!rows.length) return [];
-        // Batch path: 3 parallel queries regardless of event count, then in-memory assembly.
-        // Cold-cache cost: O(1) queries instead of O(4N).
-        const eventIds = rows.map((row) => row.id);
-        const [mapLinks, titleLinks, allChallenges, terms] = await Promise.all([
-          // D1 limits bound SQL parameters. Read the small catalog link tables once
-          // and discard links outside the selected public event IDs below.
-          platformCache.cached("catalog", "event-map-links:all", () => db.select().from(randomEventMapChallenges)),
-          platformCache.cached("catalog", "event-title-links:all", () => db.select().from(randomEventTitleChallenges)),
-          fetchAllPublicChallenges(),
-          glossary(),
-        ]);
-        const termForTag = effectTermLookup(terms);
-        const challengeById = new Map(allChallenges.map((c) => [c.challengeId, c]));
-        const challengesByEvent = new Map<string, Challenge[]>(eventIds.map((id) => [id, []]));
-        for (const links of [mapLinks, titleLinks]) {
-          for (const link of links) {
-            const challenge = challengeById.get(link.challengeId);
-            if (challenge) challengesByEvent.get(link.eventId)?.push(challenge);
-          }
-        }
-      return rows.map((row) => {
-        const effectTags = JSON.parse(row.effectTagsJson) as string[];
-        return toRandomEvent(row, effectTags, annotateEffectTags(effectTags, termForTag), challengesByEvent.get(row.id) ?? []);
-      });
-    },
-    async getRandomEvent(input) {
-      const row = await db.select().from(randomEvents).where(and(eq(randomEvents.id, input.eventId), input.includeArchived ? undefined : isNull(randomEvents.archivedAt), input.status ? eq(randomEvents.releaseStatus, input.status) : input.includeArchived === undefined ? inArray(randomEvents.releaseStatus, ["implemented", "removed"]) : undefined)).get();
-      return row ? asRandomEvent(row) : null;
-    },
-    async listAdminRandomEventVersions(_auth): Promise<AdminRandomEventVersionListResponse> {
-      const rows = await db.select({
-        gameVersion: randomEvents.gameVersion,
-        eventCount: count(randomEvents.id),
-        availability: sql<string>`coalesce(${randomEventVersions.availability}, 'available')`,
-        mode: randomEventVersions.mode,
-      }).from(randomEvents).leftJoin(randomEventVersions, eq(randomEventVersions.gameVersion, randomEvents.gameVersion))
-        .groupBy(randomEvents.gameVersion, randomEventVersions.availability, randomEventVersions.mode)
-        .orderBy(desc(randomEvents.gameVersion));
-      return { contractVersion: "1", items: rows.map((row) => ({ gameVersion: row.gameVersion, availability: row.availability as RandomEventVersion["availability"], mode: row.mode ?? null, eventCount: Number(row.eventCount) })) };
-    },
-    async updateAdminRandomEventVersion(input, auth, idempotencyKey): Promise<RandomEventVersion> {
-      const operation = "admin.random-event-version.availability";
-      const replay = await replayOrConflict<RandomEventVersion>(db, auth.subject, operation, idempotencyKey, input);
-      if (replay) return replay;
-      const eventCount = Number((await db.select({ count: count(randomEvents.id) }).from(randomEvents).where(eq(randomEvents.gameVersion, input.gameVersion)))[0]?.count ?? 0);
-      if (!eventCount) throw new Error("EVENT_VERSION_NOT_FOUND");
-      const previous = await db.select().from(randomEventVersions).where(eq(randomEventVersions.gameVersion, input.gameVersion)).get();
-      const timestamp = now();
-      // The pool's standalone mode is set from that mode, never here.
-      const response: RandomEventVersion = { gameVersion: input.gameVersion, availability: input.availability, mode: previous?.mode ?? null, eventCount };
-      const requestHash = await hashRequest(input);
-      await database.batch([
-        database.prepare("INSERT INTO random_event_versions (game_version, availability, suspended_at, suspended_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(game_version) DO UPDATE SET availability = excluded.availability, suspended_at = excluded.suspended_at, suspended_by = excluded.suspended_by, updated_at = excluded.updated_at").bind(input.gameVersion, input.availability, input.availability === "suspended" ? timestamp : null, input.availability === "suspended" ? auth.subject : null, timestamp, timestamp),
-        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(`${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, requestHash, JSON.stringify(response), timestamp),
-        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, "random_event_version", input.gameVersion, JSON.stringify({ previousAvailability: previous?.availability ?? "available", availability: input.availability, eventCount }), timestamp),
-      ]);
-      return response;
-    },
+
     async listAdminStandaloneModes(_auth): Promise<AdminStandaloneModeListResponse> {
       const [modes, revisions, pools] = await Promise.all([
         db.select().from(standaloneModes).orderBy(desc(standaloneModes.createdAt)),
@@ -4998,82 +4564,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         if (rule.mode === mode && !rule.mapIds) await reconcileProgressChallengePlayers({ challenge, rule, actorId: auth.subject });
       }
       return response;
-    },
-    async createAdminRandomEvent(input, auth, idempotencyKey) {
-      const replay = await replayOrConflict<RandomEvent>(db, auth.subject, "admin.random-event.create", idempotencyKey, input); if (replay) return replay;
-      await validateEventLinks(input.challengeLinks); const timestamp = now(); const eventId = `event.${crypto.randomUUID()}`;
-      await db.insert(randomEvents).values({ id: eventId, name: input.name, category: input.category, rarity: randomEventRarityForWeight(input.weight), description: input.description, durationSeconds: input.durationSeconds, cooldownSeconds: input.cooldownSeconds, weight: input.weight, gameVersion: input.gameVersion, eventGroup: input.eventGroup ?? null, effectTagsJson: JSON.stringify([...new Set(input.effectTags)]), releaseStatus: input.releaseStatus, createdAt: timestamp, updatedAt: timestamp });
-      await replaceEventLinks(eventId, input.challengeLinks); const response = await asRandomEvent((await db.select().from(randomEvents).where(eq(randomEvents.id, eventId)).get())!);
-      await recordIdempotency(db, auth.subject, "admin.random-event.create", idempotencyKey, input, response); await recordAudit(db, auth, "admin.random-event.create", "random_event", eventId, input); return response;
-    },
-    async updateAdminRandomEvent(input, auth, idempotencyKey) {
-      const replay = await replayOrConflict<RandomEvent>(db, auth.subject, "admin.random-event.update", idempotencyKey, input); if (replay) return replay;
-      const existing = await db.select().from(randomEvents).where(eq(randomEvents.id, input.eventId)).get(); if (!existing) throw new Error("EVENT_NOT_FOUND"); await validateEventLinks(input.challengeLinks);
-      await db.update(randomEvents).set({ name: input.name, category: input.category, rarity: randomEventRarityForWeight(input.weight), description: input.description, durationSeconds: input.durationSeconds, cooldownSeconds: input.cooldownSeconds, weight: input.weight, gameVersion: input.gameVersion, ...(input.eventGroup !== undefined ? { eventGroup: input.eventGroup } : {}), effectTagsJson: JSON.stringify([...new Set(input.effectTags)]), releaseStatus: input.releaseStatus, updatedAt: now() }).where(eq(randomEvents.id, input.eventId)); await replaceEventLinks(input.eventId, input.challengeLinks);
-      const response = await asRandomEvent((await db.select().from(randomEvents).where(eq(randomEvents.id, input.eventId)).get())!); await recordIdempotency(db, auth.subject, "admin.random-event.update", idempotencyKey, input, response); await recordAudit(db, auth, "admin.random-event.update", "random_event", input.eventId, input); return response;
-    },
-    async batchUpdateAdminRandomEvents(input: AdminRandomEventBatchRequest, auth, idempotencyKey): Promise<RandomEvent[]> {
-      const operation = "admin.random-event.batch-update";
-      const replay = await replayOrConflict<RandomEvent[]>(db, auth.subject, operation, idempotencyKey, input); if (replay) return replay;
-      const ids = input.updates.map((update) => update.eventId);
-      const existing = await db.select({ id: randomEvents.id }).from(randomEvents).where(inArray(randomEvents.id, ids));
-      if (existing.length !== ids.length) throw new Error("EVENT_NOT_FOUND");
-      const timestamp = now();
-      const columns: Record<string, string> = { name: "name", category: "category", description: "description", durationSeconds: "duration_seconds", cooldownSeconds: "cooldown_seconds", weight: "weight", gameVersion: "game_version", eventGroup: "event_group", releaseStatus: "release_status" };
-      const statements = input.updates.map(({ eventId, ...patch }) => {
-        const sets: string[] = []; const values: unknown[] = [];
-        for (const [field, column] of Object.entries(columns)) { const value = (patch as Record<string, unknown>)[field]; if (value === undefined) continue; sets.push(`${column} = ?`); values.push(value); }
-        if (patch.weight !== undefined) { sets.push("rarity = ?"); values.push(randomEventRarityForWeight(patch.weight)); }
-        if (patch.effectTags !== undefined) { sets.push("effect_tags_json = ?"); values.push(JSON.stringify([...new Set(patch.effectTags)])); }
-        sets.push("updated_at = ?"); values.push(timestamp);
-        return database.prepare(`UPDATE random_events SET ${sets.join(", ")} WHERE id = ?`).bind(...values, eventId);
-      });
-      statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, "random_event", "batch", JSON.stringify({ eventCount: ids.length, updates: input.updates }), timestamp));
-      await database.batch(statements);
-      const rows = await db.select().from(randomEvents).where(inArray(randomEvents.id, ids));
-      const byId = new Map(rows.map((row) => [row.id, row]));
-      const response = await Promise.all(ids.map((id) => asRandomEvent(byId.get(id)!)));
-      await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, response); return response;
-    },
-    async archiveAdminRandomEvent(input, auth, idempotencyKey) {
-      const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "admin.random-event.archive", idempotencyKey, input); if (replay) return;
-      const event = await db.select().from(randomEvents).where(eq(randomEvents.id, input.eventId)).get(); if (!event) throw new Error("EVENT_NOT_FOUND"); await db.update(randomEvents).set({ archivedAt: now(), archivedBy: auth.subject, updatedAt: now() }).where(eq(randomEvents.id, input.eventId)); await recordIdempotency(db, auth.subject, "admin.random-event.archive", idempotencyKey, input, {}); await recordAudit(db, auth, "admin.random-event.archive", "random_event", input.eventId, {});
-    },
-    async previewAdminRandomEventImport(input) {
-      const parsed = await parseEventImport(input); for (const item of parsed.rows) { try { await validateEventLinks(item.challengeLinks); } catch { parsed.errors.push({ row: 0, message: `未知挑战关联：${item.name}` }); } }
-      return { sourceHash: parsed.sourceHash, validRowCount: parsed.errors.length ? 0 : parsed.rows.length, errors: parsed.errors, rows: parsed.rows.slice(0, 20).map((row) => ({ name: row.name, category: row.category, releaseStatus: row.releaseStatus })) };
-    },
-    async importAdminRandomEvents(input, auth, idempotencyKey) {
-      const replay = await replayOrConflict<{ importedCount: number }>(db, auth.subject, "admin.random-event.import", idempotencyKey, input); if (replay) return replay;
-      const parsed = await parseEventImport(input); if (parsed.errors.length) throw new Error("EVENT_IMPORT_INVALID"); const duplicate = await db.select().from(randomEventImports).where(eq(randomEventImports.sourceHash, parsed.sourceHash)).get(); if (duplicate) throw new Error("EVENT_IMPORT_DUPLICATE");
-      // Validate every row's links and name conflicts up front: the import
-      // aborts on the first error, so a single batched membership check per
-      // family plus one name lookup preserves semantics with O(1) queries
-      // instead of O(rows × links).
-      const importLinkIndex = await loadEventLinkIndex(parsed.rows.flatMap((item) => item.challengeLinks));
-      const importNames = [...new Set(parsed.rows.map((item) => item.name))];
-      const existingNames = new Set((await Promise.all(chunked(importNames).map((names) => db.select({ name: randomEvents.name }).from(randomEvents).where(inArray(randomEvents.name, names))))).flat().map((row) => row.name));
-      for (const item of parsed.rows) { for (const link of item.challengeLinks) { if (!(link.family === "map" ? importLinkIndex.map.has(link.challengeId) : importLinkIndex.title.has(link.challengeId))) throw new Error("CHALLENGE_NOT_FOUND"); } if (existingNames.has(item.name)) throw new Error("EVENT_IMPORT_NAME_CONFLICT"); }
-      const timestamp = now(); const response = { importedCount: parsed.rows.length }; const statements: D1PreparedStatement[] = [];
-      for (const item of parsed.rows) { const eventId = `event.${crypto.randomUUID()}`; statements.push(database.prepare("INSERT INTO random_events (id,name,category,rarity,description,duration_seconds,cooldown_seconds,weight,game_version,event_group,effect_tags_json,release_status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(eventId, item.name, item.category, randomEventRarityForWeight(item.weight), item.description, item.durationSeconds, item.cooldownSeconds, item.weight, item.gameVersion, item.eventGroup ?? null, JSON.stringify(item.effectTags), item.releaseStatus, timestamp, timestamp)); for (const link of item.challengeLinks) statements.push(database.prepare(link.family === "map" ? "INSERT INTO random_event_map_challenges (event_id,challenge_id) VALUES (?,?)" : "INSERT INTO random_event_title_challenges (event_id,challenge_id) VALUES (?,?)").bind(eventId, link.challengeId)); }
-      statements.push(database.prepare("INSERT INTO random_event_imports (id,source_hash,file_name,row_count,imported_by,imported_at) VALUES (?,?,?,?,?,?)").bind(crypto.randomUUID(), parsed.sourceHash, input.fileName, parsed.rows.length, auth.subject, timestamp)); statements.push(database.prepare("INSERT INTO idempotency_keys (id,actor_id,operation,request_hash,response_json,created_at) VALUES (?,?,?,?,?,?)").bind(`${auth.subject}:admin.random-event.import:${idempotencyKey}`, auth.subject, "admin.random-event.import", await hashRequest(input), JSON.stringify(response), timestamp)); statements.push(database.prepare("INSERT INTO audit_events (id,correlation_id,actor_type,actor_id,operation,entity_type,entity_id,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, "admin.random-event.import", "random_event_import", parsed.sourceHash, JSON.stringify({ fileName: input.fileName, importedCount: parsed.rows.length }), timestamp));
-      await database.batch(statements); return response;
-    },
-    async listMaps() {
-      const rows = await platformCache.cached("catalog", "public-map-rows", () => db.select({ map: maps, metadata: mapMetadata, defaultRevisionId: gameplayRevisions.id }).from(maps)
-        .leftJoin(mapMetadata, eq(mapMetadata.mapId, maps.id))
-        .leftJoin(gameplayRevisions, and(eq(gameplayRevisions.mapId, maps.id), eq(gameplayRevisions.lifecycle, "default"), isNull(gameplayRevisions.legacyMapVariant)))
-        .where(eq(maps.status, "active")).orderBy(maps.name));
-      return rows.map(({ map, metadata, defaultRevisionId }): Map => ({
-          mapId: map.id,
-          mapName: map.name,
-          defaultGameplayRevisionId: defaultRevisionId,
-          gameVersion: map.gameVersion,
-          difficultyRating: (metadata?.difficultyRating as Map["difficultyRating"]) ?? null,
-          mechanics: metadata?.mechanicsJson ? JSON.parse(metadata.mechanicsJson) as string[] : [],
-          coverUrl: metadata?.coverUrl ?? null,
-          backgroundUrl: metadata?.backgroundUrl ?? null,
-      }));
     },
 
     async createAdminMap(input, auth, idempotencyKey) {
@@ -5365,29 +4855,11 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           .sort((left, right) => compareText(left.title.category, right.title.category) || compareText(left.title.label, right.title.label));
         const timestamp = now();
         items.push(...rows.flatMap(({ challenge, title }): Challenge[] => {
-          const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, timestamp, challenge.gameVersion);
-          const gameVersion = challenge.gameVersion?.trim();
-          if (!status || !gameVersion || !title.gameVersion?.trim() || (challenge.scope ?? "global") === "map" && challenge.mapVariant) return [];
-          const progressRule = parseChallengeProgressRule(challenge.progressRule);
+          const fields = publicTitleChallengeFields(challenge, title, timestamp);
+          if (!fields || (challenge.scope ?? "global") === "map" && challenge.mapVariant) return [];
           return [{
-          challengeId: challenge.id,
-          family: "achievement",
-          type: "title_achievement",
-          kind: "title_achievement",
-          titleKey: title.key,
-          titleName: title.label,
-          icon: title.icon,
-          iconUrl: title.iconUrl,
-          category: challenge.categoryOverride ?? title.category,
-          condition: challenge.condition,
-          evidenceRule: challenge.evidenceRule,
-          gameVersion,
-          status: status as "scheduled" | "active" | "sunsetting",
-          startsAt: challenge.startsAt ?? undefined,
-          endsAt: challenge.endsAt ?? undefined,
-          retiredVersion: challenge.retiredVersion ?? undefined,
-          submissionMode: challenge.submissionMode as "manual" | "automatic",
-          ...(progressRule ? { progressRule } : {}),
+            ...toTitleChallengeBase(challenge, title),
+            ...fields,
           }];
         }));
       }
@@ -5445,21 +4917,10 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         items.push(...rows.filter(({ challenge }) => !((challenge.scope ?? "global") === "map" && challenge.mapVariant)).map(({ challenge, title }): AdminChallenge => {
           const progressRule = parseChallengeProgressRule(challenge.progressRule);
           return {
-          challengeId: challenge.id,
-          family: "achievement",
-          type: "title_achievement",
-          kind: "title_achievement",
-          titleKey: title.key,
-          titleName: title.label,
-          icon: title.icon,
-          iconUrl: title.iconUrl,
-          category: challenge.categoryOverride ?? title.category,
+          ...toTitleChallengeBase(challenge, title),
           categoryOverride: challenge.categoryOverride,
-          condition: challenge.condition,
-          evidenceRule: challenge.evidenceRule,
           gameVersion: challenge.gameVersion,
           status: challenge.status as "active" | "sunsetting" | "retired",
-          submissionMode: challenge.submissionMode as "manual" | "automatic",
           introducedVersion: challenge.introducedVersion,
           retiredVersion: challenge.retiredVersion,
           startsAt: challenge.startsAt,
@@ -7181,7 +6642,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           const response: AdminSubmissionReviewResponse = { contractVersion: "1", submissionId: row.id, decision: "approved", grantId: primaryGrant.grantId, titleKey: primaryGrant.reward.titleKey, titleName: primaryGrant.reward.titleName, alreadyOwned: primaryGrant.alreadyOwned, grants, ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}) };
           const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grants, selections: selectedRows.map((selection) => ({ challengeId: selection.challengeId, mapId: selection.targetMapId, gameplayRevisionId: selection.gameplayRevisionId, basis: selection.basis })), evidenceMatchOutcome: reviewedMatchOutcome, evidenceMatchedChallengeIds: reviewedChallengeIds, reviewerConfirmedChallengeIds, ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}) };
           const statements: D1PreparedStatement[] = [
-            database.prepare("INSERT INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, id, ?, ?, ?, ? FROM submissions WHERE id = ?").bind(reviewId, input.decision, input.reason ?? null, auth.subject, timestamp, row.id),
             ...(verifiedRunPlan?.statements ?? []),
             ...(verifiedRunOutcome ? [masterySubmissionOutcomeStatement(row.id, verifiedRunOutcome)] : []),
           ];
@@ -7216,13 +6676,10 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
             }
           }
           const idempotencyKeyId = `${auth.subject}:submission.review:${idempotencyKey}`;
-          statements.push(database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, 'submission.review', ?, ?, ? FROM submission_reviews WHERE id = ?").bind(idempotencyKeyId, auth.subject, requestHash, JSON.stringify(response), timestamp, reviewId));
-          statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'submission.review', 'submission', submission_id, ?, ? FROM submission_reviews WHERE id = ?").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, JSON.stringify(reviewAudit), timestamp, reviewId));
-          for (const { reward, alreadyOwned, canonicalChallengeId } of grantResults) if (!alreadyOwned) statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'challenge.completion.submission', 'challenge_completion', (SELECT id FROM challenge_completions WHERE player_account_id = ? AND challenge_id = ? AND status = 'active' AND source_type = 'submission' AND source_id = ?), ?, ?) ").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, row.playerAccountId, canonicalChallengeId, row.id, JSON.stringify({ submissionId: row.id, challengeId: canonicalChallengeId, titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId }), timestamp));
-          for (const { reward, grantId, alreadyOwned } of grantResults) if (!alreadyOwned) statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'submission.grant', 'player_title_grant', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, grantId, JSON.stringify({ submissionId: row.id, titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, mapVariant: reward.snapshot?.mapVariant ?? submissionSnapshot?.mapVariant ?? null, ruleId: reward.snapshot?.ruleId ?? submissionSnapshot?.ruleId ?? null, ruleRevision: reward.snapshot?.ruleRevision ?? submissionSnapshot?.ruleRevision ?? null, alreadyOwned }), timestamp));
-          await database.batch(statements);
-          const keyRow = await db.select({ id: idempotencyKeys.id }).from(idempotencyKeys).where(eq(idempotencyKeys.id, idempotencyKeyId)).get();
-          if (!keyRow) throw new Error("SUBMISSION_NOT_REVIEWABLE");
+          const trailingStatements: D1PreparedStatement[] = [];
+          for (const { reward, alreadyOwned, canonicalChallengeId } of grantResults) if (!alreadyOwned) trailingStatements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'challenge.completion.submission', 'challenge_completion', (SELECT id FROM challenge_completions WHERE player_account_id = ? AND challenge_id = ? AND status = 'active' AND source_type = 'submission' AND source_id = ?), ?, ?) ").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, row.playerAccountId, canonicalChallengeId, row.id, JSON.stringify({ submissionId: row.id, challengeId: canonicalChallengeId, titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId }), timestamp));
+          for (const { reward, grantId, alreadyOwned } of grantResults) if (!alreadyOwned) trailingStatements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'submission.grant', 'player_title_grant', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, grantId, JSON.stringify({ submissionId: row.id, titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, mapVariant: reward.snapshot?.mapVariant ?? submissionSnapshot?.mapVariant ?? null, ruleId: reward.snapshot?.ruleId ?? submissionSnapshot?.ruleId ?? null, ruleRevision: reward.snapshot?.ruleRevision ?? submissionSnapshot?.ruleRevision ?? null, alreadyOwned }), timestamp));
+          await persistSubmissionReview({ row, input, auth, reviewId, timestamp, idempotencyKeyId, requestHash, response, reviewAudit, statements, trailingStatements });
           return response;
         }
 
@@ -7247,13 +6704,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         statements.push(database.prepare(
           "UPDATE submissions SET status = ?, review_reason = ?, grant_id = CASE WHEN ? = 'approved' THEN (SELECT g.id FROM player_title_grants g WHERE g.source_type IN ('automatic', 'submission') AND g.source_id = submissions.id AND g.status = 'active' ORDER BY g.granted_at, g.id LIMIT 1) ELSE NULL END, updated_at = ? WHERE id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)"
         ).bind(input.decision, input.reason ?? null, input.decision, timestamp, row.id, reviewId));
-        await database.batch([
-          database.prepare("INSERT INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, id, ?, ?, ?, ? FROM submissions WHERE id = ?").bind(reviewId, input.decision, input.reason ?? null, auth.subject, timestamp, row.id),
-          ...statements,
-          database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, 'submission.review', ?, ?, ? FROM submission_reviews WHERE id = ?").bind(idempotencyKeyId, auth.subject, requestHash, JSON.stringify(response), timestamp, reviewId),
-          database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'submission.review', 'submission', submission_id, ?, ? FROM submission_reviews WHERE id = ?").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, JSON.stringify(reviewAudit), timestamp, reviewId),
-        ] as [D1PreparedStatement, ...D1PreparedStatement[]]);
-        if (!(await db.select({ id: idempotencyKeys.id }).from(idempotencyKeys).where(eq(idempotencyKeys.id, idempotencyKeyId)).get())) throw new Error("SUBMISSION_NOT_REVIEWABLE");
+        const trailingStatements: D1PreparedStatement[] = [];
+        await persistSubmissionReview({ row, input, auth, reviewId, timestamp, idempotencyKeyId, requestHash, response, reviewAudit, statements, trailingStatements });
         return response;
       } finally {
         if (reviewClaim) await db.update(ocrResults).set({ callbackClaimed: 0 }).where(eq(ocrResults.id, reviewClaim));
@@ -7347,173 +6799,23 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       replayOrConflict: <T>(actorId: string, operation: string, key: string, input: unknown) => replayOrConflict<T>(db, actorId, operation, key, input),
     }),
 
-    async listAdminPlayers(input) {
-      const conditions = [];
-      if (input.status) conditions.push(eq(playerAccounts.status, input.status));
-      if (input.query) {
-        const query = `%${input.query}%`;
-        const matchingBindings = await db.select({ playerAccountId: bindings.playerAccountId }).from(bindings).where(and(eq(bindings.status, "active"), or(like(bindings.groupOpenId, query), like(bindings.memberOpenId, query))));
-        conditions.push(or(like(playerAccounts.playerId, query), like(playerAccounts.playerName, query), like(playerAccounts.normalizedPlayerName, query), ...(matchingBindings.length ? [inArray(playerAccounts.id, matchingBindings.map((binding) => binding.playerAccountId))] : []))!);
-      }
-      const condition = conditions.length ? and(...conditions) : undefined;
-      const [accounts, [{ total }]] = await Promise.all([
-        db.select().from(playerAccounts).where(condition).orderBy(desc(playerAccounts.updatedAt)).limit(input.pageSize + 1).offset((input.page - 1) * input.pageSize),
-        db.select({ total: count() }).from(playerAccounts).where(condition),
-      ]);
-      const hasMore = accounts.length > input.pageSize;
-      const items = accounts.slice(0, input.pageSize);
-      const bindingRows = items.length ? await db.select({ playerAccountId: bindings.playerAccountId, total: count() })
-        .from(bindings)
-        .where(and(inArray(bindings.playerAccountId, items.map((account) => account.id)), eq(bindings.status, "active")))
-        .groupBy(bindings.playerAccountId) : [];
-      const bindingCounts = new Map(bindingRows.map((row) => [row.playerAccountId, row.total]));
-      const pendingCounts = await countPendingSubmissionsByPlayer(items.map((account) => account.id));
-      return {
-        contractVersion: "1" as const,
-        items: items.map((account) => ({
-          playerAccountId: account.id,
-          playerId: account.playerId,
-          playerName: account.playerName,
-          status: account.status as "active" | "banned",
-          bindingCount: bindingCounts.get(account.id) ?? 0,
-          pendingSubmissionCount: pendingCounts.get(account.id) ?? 0,
-          updatedAt: account.updatedAt,
-        })),
-        page: input.page,
-        pageSize: input.pageSize,
-        total,
-        hasMore,
-      };
-    },
-
-    async getAdminPlayer(input) {
-      const account = await db.select().from(playerAccounts).where(eq(playerAccounts.id, input.playerAccountId)).get();
-      if (!account) throw new Error("PLAYER_NOT_FOUND");
-      const playerBindings = await db.select().from(bindings).where(and(eq(bindings.playerAccountId, account.id), eq(bindings.status, "active"))).orderBy(desc(bindings.createdAt));
-      const recentSubmissions = await db.select().from(submissions).where(eq(submissions.playerAccountId, account.id)).orderBy(desc(submissions.createdAt)).limit(10);
-      const recentSubmissionDetails = recentSubmissions.length ? await resolveAdminSubmissionDetails(recentSubmissions) : null;
-      const completionChallengeMap = alias(maps, "admin_player_completion_challenge_map");
-      const completionRevisionMap = alias(maps, "admin_player_completion_revision_map");
-      const [recentCompletionRows, activeVerifiedRunCountRows, recentVerifiedRunRows] = await Promise.all([
-        db.select({ completion: challengeCompletions, challenge: challenges, title: titleCatalog, challengeMapName: completionChallengeMap.name, revisionMapName: completionRevisionMap.name, gameVersion: gameplayRevisions.gameVersion })
-          .from(challengeCompletions)
-          .innerJoin(challenges, eq(challenges.id, challengeCompletions.challengeId))
-          .innerJoin(titleCatalog, eq(titleCatalog.key, challenges.titleKey))
-          .leftJoin(gameplayRevisions, eq(gameplayRevisions.id, challengeCompletions.gameplayRevisionId))
-          .leftJoin(completionChallengeMap, eq(completionChallengeMap.id, challenges.mapId))
-          .leftJoin(completionRevisionMap, eq(completionRevisionMap.id, gameplayRevisions.mapId))
-          .where(eq(challengeCompletions.playerAccountId, account.id))
-          .orderBy(desc(challengeCompletions.completedAt), desc(challengeCompletions.id))
-          .limit(10),
-        db.select({ total: count() }).from(verifiedRuns)
-          .innerJoin(gameplayRevisions, eq(gameplayRevisions.id, verifiedRuns.gameplayRevisionId))
-          .where(and(eq(verifiedRuns.playerAccountId, account.id), eq(verifiedRuns.status, "active"), inArray(gameplayRevisions.lifecycle, ["default", "selectable"]))),
-        db.select({ run: verifiedRuns, mapName: maps.name, gameVersion: gameplayRevisions.gameVersion })
-          .from(verifiedRuns)
-          .innerJoin(maps, eq(maps.id, verifiedRuns.mapId))
-          .innerJoin(gameplayRevisions, eq(gameplayRevisions.id, verifiedRuns.gameplayRevisionId))
-          .where(and(eq(verifiedRuns.playerAccountId, account.id), eq(verifiedRuns.status, "active"), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])))
-          .orderBy(desc(verifiedRuns.acceptedAt), desc(verifiedRuns.id))
-          .limit(5),
-      ]);
-      const titleGrants = await db.select({ grant: playerTitleGrants, title: titleCatalog, mapName: maps.name, equipped: playerEquippedTitles.grantId, revisionMapId: gameplayRevisions.mapId, revisionLifecycle: gameplayRevisions.lifecycle })
-        .from(playerTitleGrants).innerJoin(titleCatalog, eq(playerTitleGrants.titleKey, titleCatalog.key)).leftJoin(playerEquippedTitles, eq(playerEquippedTitles.grantId, playerTitleGrants.id)).leftJoin(maps, eq(playerTitleGrants.mapId, maps.id)).leftJoin(gameplayRevisions, eq(playerTitleGrants.gameplayRevisionId, gameplayRevisions.id))
-        .where(and(eq(playerTitleGrants.playerAccountId, account.id), or(eq(playerTitleGrants.status, "active"), and(eq(playerTitleGrants.status, "revoked"), eq(playerTitleGrants.revocationType, "administrator"))))).orderBy(desc(playerTitleGrants.grantedAt));
-      return {
-        contractVersion: "1" as const,
-        playerAccountId: account.id,
-        playerId: account.playerId,
-        playerName: account.playerName,
-        status: account.status as "active" | "banned",
-        bindingCount: playerBindings.length,
-        pendingSubmissionCount: (await countPendingSubmissionsByPlayer([account.id])).get(account.id) ?? 0,
-        updatedAt: account.updatedAt,
-        bindings: playerBindings.map((binding) => ({ bindingId: binding.id, provider: "qq" as const, groupOpenId: binding.groupOpenId, memberOpenId: binding.memberOpenId, createdAt: binding.createdAt })),
-        recentSubmissions: recentSubmissions.map((submission) => ({
-          submissionId: submission.id,
-          status: playerSubmissionStatus(submission.status),
-          resubmissionRequired: submission.status === "resubmission_required",
-          mapName: submission.mapName,
-          challengeId: submission.challengeId ?? undefined,
-          difficulty: submission.difficulty ?? undefined,
-          reason: submission.reviewReason ?? undefined,
-          challenge: submission.challengeId ? recentSubmissionDetails?.challenges.get(submission.challengeId) ?? null : null,
-          ...playerVerifiedRunSubmissionOutcomeFields(recentSubmissionDetails?.verifiedRunOutcomes.get(submission.id)),
-          createdAt: submission.createdAt,
-          updatedAt: submission.updatedAt,
-        })),
-        titleGrants: titleGrants.map(({ grant, title, mapName, equipped, revisionMapId, revisionLifecycle }) => {
-          const equipable = grant.status === "active" && title.gameVersion !== null && title.scope === "global" && (
-            grant.mapId === null && grant.gameplayRevisionId === null
-            || grant.mapId === revisionMapId && ["default", "selectable"].includes(revisionLifecycle ?? "")
-          );
-          return { grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon as never, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, status: grant.status as "active" | "revoked", revocationType: grant.revocationType as "administrator" | "evidence" | null, sourceType: grant.sourceType as "historical" | "submission" | "manual" | "automatic", grantedBy: grant.grantedBy, equipped: Boolean(equipped) && equipable, equipable };
-        }),
-        recentCompletions: recentCompletionRows.map(({ completion, challenge, title, challengeMapName, revisionMapName, gameVersion }) => ({
-          completionId: completion.id,
-          challengeId: challenge.id,
-          titleKey: title.key,
-          titleName: title.label,
-          mapName: challengeMapName ?? revisionMapName ?? null,
-          gameplayRevisionId: completion.gameplayRevisionId,
-          gameVersion: gameVersion ?? null,
-          status: completion.status as "active" | "invalidated",
-          sourceType: completion.sourceType,
-          completedAt: completion.completedAt,
-        })),
-        progression: {
-          activeVerifiedRunCount: Number(activeVerifiedRunCountRows[0]?.total ?? 0),
-          recentVerifiedRuns: recentVerifiedRunRows.map(({ run, mapName, gameVersion }) => ({
-            runId: run.id,
-            mapName,
-            gameplayRevisionId: run.gameplayRevisionId,
-            gameVersion,
-            difficulty: run.difficulty as VerifiedRunDifficulty,
-            awardedXp: run.awardedXp,
-            acceptedAt: run.acceptedAt,
-          })),
-        },
-      };
-    },
-
-    async setAdminPlayerStatus(input, auth, idempotencyKey) {
-      const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "admin.player.status", idempotencyKey, input);
-      if (replay) return;
-      const account = await db.select().from(playerAccounts).where(eq(playerAccounts.id, input.playerAccountId)).get();
-      if (!account) throw new Error("PLAYER_NOT_FOUND");
-      const timestamp = now();
-      await db.update(playerAccounts).set({ status: input.status, bannedAt: input.status === "banned" ? timestamp : null, bannedBy: input.status === "banned" ? auth.subject : null, banReason: input.status === "banned" ? input.reason ?? null : null, updatedAt: timestamp }).where(eq(playerAccounts.id, input.playerAccountId));
-      if (input.status === "banned") {
-        await db.delete(portalSessions).where(eq(portalSessions.playerAccountId, input.playerAccountId));
-      }
-      await recordIdempotency(db, auth.subject, "admin.player.status", idempotencyKey, input, {});
-      await recordAudit(db, auth, `admin.player.${input.status}`, "player_account", input.playerAccountId, { status: input.status, reason: input.reason ?? null });
-    },
-
-    async updateAdminPlayerIdentity(input, auth, idempotencyKey) {
-      const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "admin.player.identity", idempotencyKey, input);
-      if (replay) return;
-      const account = await db.select().from(playerAccounts).where(eq(playerAccounts.id, input.playerAccountId)).get();
-      if (!account) throw new Error("PLAYER_NOT_FOUND");
-      const playerName = input.playerName.trim();
-      const normalizedPlayerName = normalizePlayerName(playerName);
-      const conflict = await db.select({ id: playerAccounts.id }).from(playerAccounts).where(and(eq(playerAccounts.normalizedPlayerName, normalizedPlayerName), eq(playerAccounts.playerId, account.playerId), ne(playerAccounts.id, account.id))).get();
-      if (conflict) throw new Error("PLAYER_BATTLETAG_CONFLICT");
-      const timestamp = now();
-      await db.update(playerAccounts).set({ playerName, normalizedPlayerName, updatedAt: timestamp }).where(eq(playerAccounts.id, input.playerAccountId));
-      await recordIdempotency(db, auth.subject, "admin.player.identity", idempotencyKey, input, {});
-      await recordAudit(db, auth, "admin.player.identity.update", "player_account", input.playerAccountId, { previousPlayerName: account.playerName, playerName, playerId: account.playerId });
-    },
-
-    async removeAdminBinding(input, auth, idempotencyKey) {
-      const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "admin.binding.remove", idempotencyKey, input);
-      if (replay) return;
-      const binding = await db.select().from(bindings).where(eq(bindings.id, input.bindingId)).get();
-      if (!binding) throw new Error("BINDING_NOT_FOUND");
-      await db.update(bindings).set({ status: "revoked", revokedAt: now(), revokedBy: auth.subject }).where(eq(bindings.id, input.bindingId));
-      await recordIdempotency(db, auth.subject, "admin.binding.remove", idempotencyKey, input, {});
-      await recordAudit(db, auth, "admin.binding.remove", "binding", input.bindingId, { playerAccountId: binding.playerAccountId });
-    },
+    ...createAdminPlayerServices({
+      db,
+      now,
+      normalizePlayerName,
+      playerSubmissionStatus,
+      countPendingSubmissionsByPlayer,
+      replayOrConflict: <T>(actorId: string, operation: string, key: string, input: unknown) => replayOrConflict<T>(db, actorId, operation, key, input),
+      recordIdempotency: (actorId, operation, key, input, response) => recordIdempotency(db, actorId, operation, key, input, response),
+      recordAudit: (auth, operation, entityType, entityId, payload) => recordAudit(db, auth, operation, entityType, entityId, payload),
+      loadRecentSubmissionDetails: async (rows) => {
+        const details = rows.length ? await resolveAdminSubmissionDetails(rows) : null;
+        return new Map(rows.map((submission) => [submission.id, {
+          challenge: submission.challengeId ? details?.challenges.get(submission.challengeId) ?? null : null,
+          ...playerVerifiedRunSubmissionOutcomeFields(details?.verifiedRunOutcomes.get(submission.id)),
+        }]));
+      },
+    }),
 
     async getCurrentPlayerMastery(input) {
       const access = await getCurrentPortalPlayer(input.sessionToken);
@@ -7523,8 +6825,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const page = Number.isInteger(input.page) && input.page > 0 ? input.page : 1;
       const pageSize = Number.isInteger(input.pageSize) && input.pageSize > 0 ? Math.min(50, input.pageSize) : 20;
       const [activeRunRows, history] = await Promise.all([
-        loadActiveVerifiedRuns({ playerAccountId: access.player.id, mapId, gameplayRevisionId, currentOnly: !gameplayRevisionId }),
-        loadPlayerMasteryHistory({ playerAccountId: access.player.id, mapId, gameplayRevisionId, page, pageSize }),
+        loadActiveVerifiedRuns(db, { playerAccountId: access.player.id, mapId, gameplayRevisionId, currentOnly: !gameplayRevisionId }),
+        loadPlayerMasteryHistory(db, { playerAccountId: access.player.id, mapId, gameplayRevisionId, page, pageSize }),
       ]);
       const profiles = buildMasteryProfiles(activeRunRows.map(({ run }) => run), 10);
       const lifecycleByRevisionId = new globalThis.Map<string, CurrentPlayerMasteryResponse["runs"][number]["gameplayRevisionLifecycle"]>([

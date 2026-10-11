@@ -19,21 +19,22 @@ import {
   adminScreenshotSetFinalizeRequestSchema,
   adminScreenshotSetDiscardRequestSchema,
   screenshotSetStatusSchema,
-  reviewTargetSchema, reviewTargetTypeSchema, playerReviewUpsertRequestSchema, playerReviewWithdrawRequestSchema,
   playerUploadSessionRequestSchema,
   ocrAccuracyFeedbackRequestSchema,
-  adminBindingInviteRequestSchema, adminBindingInviteBatchRequestSchema, adminBindingInviteRevokeRequestSchema, bindingInviteRedeemRequestSchema, adminBindingClaimDecisionRequestSchema,
   playerEquippedTitlesRequestSchema, adminPlayerEquippedTitlesRequestSchema,
 } from "@owbastion/contracts";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
 import { withPublicCache } from "./public-cache";
-import { isUuid, maintainerRoute, parseBody, type AdminMutation, type AdminMutationOptions } from "./routes/route-contract";
+import { maintainerRoute, parseBody, routeErrorResponse, type AdminMutation, type AdminMutationOptions, type ApiContext } from "./routes/route-contract";
 import { registerAgentRoutes } from "./routes/agents";
 import { registerAdminVerifiedRunRoutes } from "./routes/admin-verified-runs";
 import { registerAdminReviewWorkflowRoutes } from "./routes/admin-review-workflow";
 import { registerAdminCatalogRoutes } from "./routes/admin-catalog";
 import { registerAdminPlayerManagementRoutes } from "./routes/admin-player-management";
-import { hasOnlyUniqueQueryNames } from "./query-params";
+import { registerBindingInviteRoutes } from "./routes/binding-invites";
+import { registerPublicCatalogRoutes } from "./routes/public-catalog";
+import { registerReviewRoutes } from "./routes/reviews";
+import { hasOnlyUniqueQueryNames, parsePagination } from "./query-params";
 
 export type RuntimeEnv = {
   DB: D1Database;
@@ -151,12 +152,10 @@ const playerMasteryQuery = (request: Request) => {
   if (!hasOnlyUniqueQueryNames(params, ["mapId", "gameplayRevisionId", "page", "pageSize"])) return null;
   const mapId = params.get("mapId");
   const gameplayRevisionId = params.get("gameplayRevisionId");
-  const page = Number(params.get("page") ?? "1");
-  const pageSize = Number(params.get("pageSize") ?? "20");
   if (mapId !== null && (!mapId.trim() || mapId.trim().length > 256)) return null;
   if (gameplayRevisionId !== null && (!gameplayRevisionId.trim() || gameplayRevisionId.trim().length > 256)) return null;
-  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 50) return null;
-  return { mapId: mapId?.trim() || undefined, gameplayRevisionId: gameplayRevisionId?.trim() || undefined, page, pageSize };
+  const pagination = parsePagination(params, 50);
+  return pagination ? { mapId: mapId?.trim() || undefined, gameplayRevisionId: gameplayRevisionId?.trim() || undefined, ...pagination } : null;
 };
 
 export const createApp = (dependencies: AppDependencies) => {
@@ -283,8 +282,26 @@ export const createApp = (dependencies: AppDependencies) => {
   });
 
   const publicCacheEnabled = (c: any) => c.env.PUBLIC_HTTP_CACHE_ENABLED !== "false";
-  const setPublicCatalogCache = (c: any, enabled = publicCacheEnabled(c)) => {
-    c.header("Cache-Control", enabled ? "public, max-age=300, s-maxage=300" : "private, no-store");
+  const cachedCatalogResponse = (c: any, {
+    operation,
+    query = {},
+    eligible = hasNoQuery(c.req.raw),
+    response,
+  }: {
+    operation: string;
+    query?: Record<string, string>;
+    eligible?: boolean;
+    response: () => Promise<Response> | Response;
+  }) => {
+    c.header("Cache-Control", eligible && publicCacheEnabled(c) ? "public, max-age=300, s-maxage=300" : "private, no-store");
+    return cachePublicResponse(c, {
+      operation,
+      cacheKey: publicCacheKey(c.req.raw, query),
+      eligible,
+      identityIndependent: true,
+      response,
+      decorateHit: decoratePortalCacheHit(c),
+    });
   };
   app.get("/health", (c) => {
     c.header("Cache-Control", "private, no-store");
@@ -349,9 +366,11 @@ export const createApp = (dependencies: AppDependencies) => {
       const result = await options.action(parsed?.success ? parsed.data : undefined as T, access.auth!, idempotencyKey);
       return options.noContent ? c.body(null, 204) : c.json(result, options.status ?? 200);
     } catch (error) {
-      const code = error instanceof Error ? error.message : undefined;
-      const mapped = code ? options.errors?.[code] ?? (code === "IDEMPOTENCY_CONFLICT" ? idempotencyConflict : undefined) : undefined;
-      if (code && mapped) return errorResponse(c, mapped.status, code, mapped.message);
+      const response = routeErrorResponse(c, error, {
+        ...options.errors,
+        IDEMPOTENCY_CONFLICT: options.errors?.IDEMPOTENCY_CONFLICT ?? idempotencyConflict,
+      }, errorResponse);
+      if (response) return response;
       throw error;
     }
   };
@@ -366,7 +385,10 @@ export const createApp = (dependencies: AppDependencies) => {
 
 
 
-  const requirePortalPlayer = async (c: any) => {
+  type PortalPlayerAccess =
+    | { error: Response; sessionToken?: undefined; player?: undefined }
+    | { error?: undefined; sessionToken: string; player: NonNullable<Awaited<ReturnType<PlatformServices["getPortalSessionIdentity"]>>> };
+  const requirePortalPlayer = async (c: any): Promise<PortalPlayerAccess> => {
     allowPortal(c);
     c.header("Cache-Control", "private, no-store");
     const sessionToken = portalSessionToken(c.req.raw);
@@ -375,127 +397,14 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!player) return { error: errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required") };
     return { sessionToken, player };
   };
-
-  const portalPlayerAuth = (player: NonNullable<Awaited<ReturnType<PlatformServices["getPortalSessionIdentity"]>>>) => ({
-    actorType: "user" as const,
-    subject: player.player.playerId,
-    roles: [] as const,
-    provider: "portal-session",
-  });
-
-  type PlayerReviewRecord = NonNullable<Awaited<ReturnType<PlatformServices["getPlayerReview"]>>>;
-  const playerReviewView = (review: PlayerReviewRecord) => ({
-    reviewId: review.reviewId,
-    targetType: review.targetType,
-    targetId: review.targetId,
-    gameplayRevisionId: review.gameplayRevisionId,
-    rating: review.rating,
-    comment: review.comment,
-    anonymous: review.anonymous,
-    createdAt: review.createdAt,
-    updatedAt: review.updatedAt,
-  });
-
-  const parseReviewTarget = (c: any) => {
-    const base = { targetType: c.req.param("targetType"), targetId: c.req.param("targetId") };
-    return reviewTargetSchema.safeParse(base.targetType === "map" ? { ...base, gameplayRevisionId: c.req.query("gameplayRevisionId") } : base);
+  type AuthenticatedPortalPlayer = Extract<PortalPlayerAccess, { sessionToken: string }>;
+  const portalPlayerRoute = (action: (c: ApiContext, access: AuthenticatedPortalPlayer) => Promise<any> | any) => async (c: ApiContext) => {
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    return action(c, access);
   };
 
-  app.post("/v1/public/binding-invites/redeem", async (c) => {
-    allowPortal(c);
-    const parsed = bindingInviteRedeemRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await servicesFor(c).redeemBindingInvite(parsed.data), 201); }
-    catch (error) { if (error instanceof Error && error.message === "INVITE_INVALID") return errorResponse(c, 422, "INVITE_INVALID", "The invitation cannot be used"); throw error; }
-  });
-
-  app.get("/v1/public/binding-claims/:claimId", async (c) => {
-    allowPortal(c);
-    const claimId = c.req.param("claimId");
-    const claimToken = c.req.header("x-claim-token");
-    if (!/^[0-9a-f-]{36}$/.test(claimId) || !claimToken) return errorResponse(c, 422, "INVALID_CLAIM", "The binding claim is invalid");
-    try { return c.json(await servicesFor(c).getBindingClaimStatus({ claimId, claimToken })); }
-    catch (error) {
-      if (error instanceof Error && error.message === "BINDING_CLAIM_NOT_FOUND") return errorResponse(c, 404, "BINDING_CLAIM_NOT_FOUND", "The binding claim does not exist");
-      if (error instanceof Error && error.message === "BINDING_CLAIM_FORBIDDEN") return errorResponse(c, 403, "BINDING_CLAIM_FORBIDDEN", "The binding claim token is invalid");
-      throw error;
-    }
-  });
-
-  app.post("/v1/public/binding-claims/:claimId/session", async (c) => {
-    allowPortal(c);
-    const claimId = c.req.param("claimId");
-    const claimToken = c.req.header("x-claim-token");
-    if (!/^[0-9a-f-]{36}$/.test(claimId) || !claimToken) return errorResponse(c, 422, "INVALID_CLAIM", "The binding claim is invalid");
-    try {
-      const result = await servicesFor(c).exchangeBindingClaimSession({ claimId, claimToken });
-      c.header("Set-Cookie", sessionCookie(c.req.raw, result.sessionToken, 2592000));
-      return c.json({ contractVersion: "1" as const, status: result.status });
-    } catch (error) {
-      if (error instanceof Error && error.message === "BINDING_CLAIM_NOT_FOUND") return errorResponse(c, 404, "BINDING_CLAIM_NOT_FOUND", "The binding claim does not exist");
-      if (error instanceof Error && error.message === "BINDING_CLAIM_FORBIDDEN") return errorResponse(c, 403, "BINDING_CLAIM_FORBIDDEN", "The binding claim token is invalid");
-      if (error instanceof Error && error.message === "BINDING_CLAIM_NOT_COMPLETE") return errorResponse(c, 409, "BINDING_CLAIM_NOT_COMPLETE", "The binding claim is not complete");
-      throw error;
-    }
-  });
-
-  app.post("/v1/admin/binding-invites", async (c) => {
-    return adminMutation(c, {
-      schema: adminBindingInviteRequestSchema,
-      status: 201,
-      action: (input, auth, key) => dependencies.services(c.env).createAdminBindingInvite(input, auth, key),
-      errors: errorGroup(409, "One or more historical titles are no longer unclaimed", "HISTORICAL_TITLE_GRANT_NOT_AVAILABLE"),
-    });
-  });
-
-  app.post("/v1/admin/binding-invites/batch", async (c) => {
-    return adminMutation(c, {
-      schema: adminBindingInviteBatchRequestSchema,
-      status: 201,
-      action: (input, auth, key) => dependencies.services(c.env).createAdminBindingInviteBatch(input, auth, key),
-      errors: errorGroup(409, "One or more historical titles are no longer unclaimed", "HISTORICAL_TITLE_GRANT_NOT_AVAILABLE"),
-    });
-  });
-
-  app.get("/v1/admin/binding-invites", maintainerRoute(requireMaintainer, async (c, auth) => {
-    return c.json(await dependencies.services(c.env).listAdminBindingInvites(auth));
-  }));
-
-  app.get("/v1/admin/bindings", maintainerRoute(requireMaintainer, async (c, auth) => {
-    return c.json(await dependencies.services(c.env).listAdminBindings(auth));
-  }));
-
-  app.post("/v1/admin/binding-invites/:inviteId/historical-migration/retry", async (c) => {
-    return adminMutation(c, {
-      noContent: true,
-      action: (_input, auth, key) => dependencies.services(c.env).retryHistoricalTitleMigration({ inviteId: c.req.param("inviteId") }, auth, key),
-      errors: errorGroup(409, "The binding is not ready for historical title migration", "HISTORICAL_MIGRATION_NOT_READY"),
-    });
-  });
-
-  app.get("/v1/admin/binding-invites/:inviteId/code", maintainerRoute(requireMaintainer, async (c, auth) => {
-    try { return c.json(await dependencies.services(c.env).getAdminBindingInviteCode({ inviteId: c.req.param("inviteId")! }, auth)); }
-    catch (error) { if (error instanceof Error && error.message === "BINDING_INVITE_CODE_UNAVAILABLE") return errorResponse(c, 422, "BINDING_INVITE_CODE_UNAVAILABLE", "The invitation code cannot be retrieved"); throw error; }
-  }));
-
-  app.post("/v1/admin/binding-invites/:inviteId/revoke", async (c) => {
-    return adminMutation(c, {
-      schema: adminBindingInviteRevokeRequestSchema,
-      noContent: true,
-      action: (input, auth, key) => dependencies.services(c.env).revokeAdminBindingInvite({ ...input, inviteId: c.req.param("inviteId") }, auth, key),
-      errors: errorGroup(422, "The invitation cannot be revoked", "BINDING_INVITE_NOT_REVOCABLE"),
-    });
-  });
-
-  app.get("/v1/admin/binding-claims", maintainerRoute(requireMaintainer, async (c, auth) => { return c.json(await dependencies.services(c.env).listAdminBindingClaims(auth)); }));
-  app.post("/v1/admin/binding-claims/:claimId/decision", async (c) => {
-    return adminMutation(c, {
-      schema: adminBindingClaimDecisionRequestSchema,
-      noContent: true,
-      action: (input, auth, key) => dependencies.services(c.env).decideAdminBindingClaim({ ...input, claimId: c.req.param("claimId") }, auth, key),
-      errors: errorGroup(422, "The claim cannot be reviewed", "BINDING_CLAIM_NOT_REVIEWABLE"),
-    });
-  });
+  registerBindingInviteRoutes(app, { services: dependencies.services, requireMaintainer, errorResponse, errorGroup, adminMutation, allowPortal, sessionCookie });
 
   app.get("/v1/__local/accounts", async (c) => {
     allowPortal(c);
@@ -564,12 +473,10 @@ export const createApp = (dependencies: AppDependencies) => {
     } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
   });
 
-  app.get("/v1/me/passkeys", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
-    const result = await servicesFor(c).listCurrentPlayerPasskeys({ sessionToken: access.sessionToken! });
+  app.get("/v1/me/passkeys", portalPlayerRoute(async (c, access) => {
+    const result = await dependencies.services(c.env).listCurrentPlayerPasskeys({ sessionToken: access.sessionToken });
     return result ? c.json(result) : errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
-  });
+  }));
 
   app.post("/v1/me/passkeys/registration/options", async (c) => {
     const origin = passkeyOrigin(c);
@@ -578,7 +485,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (access.error) return access.error;
     const parsed = passkeyAuthenticatedRegistrationOptionsRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await servicesFor(c).createCurrentPlayerPasskeyRegistrationOptions({ ...parsed.data, sessionToken: access.sessionToken!, rpId: origin.rpId }), 201); }
+    try { return c.json(await dependencies.services(c.env).createCurrentPlayerPasskeyRegistrationOptions({ ...parsed.data, sessionToken: access.sessionToken, rpId: origin.rpId }), 201); }
     catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
   });
 
@@ -590,7 +497,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = passkeyRegistrationVerifyRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      await servicesFor(c).completeCurrentPlayerPasskeyRegistration({ ...parsed.data, sessionToken: access.sessionToken!, ...origin });
+      await dependencies.services(c.env).completeCurrentPlayerPasskeyRegistration({ ...parsed.data, sessionToken: access.sessionToken, ...origin });
       return c.body(null, 204);
     } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
   });
@@ -603,7 +510,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const passkeyId = c.req.param("passkeyId");
     if (!/^[0-9a-f-]{36}$/i.test(passkeyId)) return errorResponse(c, 422, "INVALID_PASSKEY", "The passkey id is invalid");
     try {
-      await servicesFor(c).removeCurrentPlayerPasskey({ sessionToken: access.sessionToken!, passkeyId });
+      await dependencies.services(c.env).removeCurrentPlayerPasskey({ sessionToken: access.sessionToken, passkeyId });
       return c.json({ contractVersion: "1" as const, removed: true as const });
     } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
   });
@@ -718,16 +625,14 @@ export const createApp = (dependencies: AppDependencies) => {
     return player ? c.json(player) : errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
   });
 
-  app.get("/v1/me/mastery", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
+  app.get("/v1/me/mastery", portalPlayerRoute(async (c, access) => {
     c.header("Cache-Control", "private, no-store");
     const query = playerMasteryQuery(c.req.raw);
     if (!query) return errorResponse(c, 422, "INVALID_REQUEST", "The mastery query is invalid");
-    const mastery = await servicesFor(c).getCurrentPlayerMastery({ sessionToken: access.sessionToken!, ...query });
+    const mastery = await dependencies.services(c.env).getCurrentPlayerMastery({ sessionToken: access.sessionToken, ...query });
     if (!mastery) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
     return c.json(mastery);
-  });
+  }));
 
   app.get("/v1/me/activity", async (c) => {
     const access = await requirePortalPlayer(c);
@@ -790,96 +695,33 @@ export const createApp = (dependencies: AppDependencies) => {
     }
   }));
 
-  app.get("/v1/me/reviews/:targetType/:targetId", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
-    c.header("Cache-Control", "private, no-store");
-    const target = parseReviewTarget(c);
-    if (!target.success) return errorResponse(c, 422, "INVALID_REVIEW_TARGET", "The review target is invalid");
-    try {
-      const review = await servicesFor(c).getPlayerReview(target.data, portalPlayerAuth(access.player!));
-      return c.json({ contractVersion: "1", review: review?.status === "active" ? playerReviewView(review) : null });
-    } catch (error) {
-      const code = error instanceof Error ? error.message : "PLAYER_REVIEW_READ_FAILED";
-      if (code === "PLAYER_NOT_FOUND") return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
-      if (code === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, code, "The review target does not exist");
-      throw error;
-    }
+  registerReviewRoutes(app, {
+    services: dependencies.services,
+    requirePortalPlayer,
+    allowPortal,
+    errorResponse,
+    logServiceOperation,
   });
 
-  app.put("/v1/me/reviews/:targetType/:targetId", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
-    c.header("Cache-Control", "private, no-store");
-    const idempotencyKey = c.req.header("idempotency-key");
-    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const target = parseReviewTarget(c);
-    if (!target.success) return errorResponse(c, 422, "INVALID_REVIEW_TARGET", "The review target is invalid");
-    const parsed = playerReviewUpsertRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The review content does not match contract v1");
-    const { contractVersion: _contractVersion, ...reviewInput } = parsed.data;
+  app.get("/v1/me/submissions/:submissionId", portalPlayerRoute(async (c, access) => {
     try {
-      const review = await servicesFor(c).upsertReview({ ...target.data, ...reviewInput, rating: reviewInput.rating as 1 | 2 | 3 | 4 | 5 }, portalPlayerAuth(access.player!), idempotencyKey);
-      return c.json({ contractVersion: "1", review: playerReviewView(review) });
-    } catch (error) {
-      const code = error instanceof Error ? error.message : "PLAYER_REVIEW_UPSERT_FAILED";
-      if (code === "PLAYER_NOT_FOUND") return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
-      if (code === "PLAYER_BANNED") return errorResponse(c, 403, code, "The player account is banned");
-      if (code === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, code, "The review target does not exist");
-      if (code === "REVIEW_TARGET_NOT_RATEABLE") return errorResponse(c, 409, code, "The review target is closed to new reviews");
-      if (code === "REVIEW_INVALIDATED") return errorResponse(c, 409, code, "The review cannot be updated");
-      if (["REVIEW_RATING_INVALID", "REVIEW_COMMENT_TOO_LONG"].includes(code)) return errorResponse(c, 422, code, "The review content is invalid");
-      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
-      throw error;
-    }
-  });
-
-  app.post("/v1/me/reviews/:reviewId/withdraw", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
-    c.header("Cache-Control", "private, no-store");
-    const idempotencyKey = c.req.header("idempotency-key");
-    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const reviewId = c.req.param("reviewId");
-    if (!isUuid(reviewId)) return errorResponse(c, 422, "INVALID_REVIEW_ID", "The review ID is invalid");
-    const parsed = playerReviewWithdrawRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try {
-      await servicesFor(c).withdrawReview({ reviewId }, portalPlayerAuth(access.player!), idempotencyKey);
-      return c.json({ contractVersion: "1", review: null });
-    } catch (error) {
-      const code = error instanceof Error ? error.message : "PLAYER_REVIEW_WITHDRAW_FAILED";
-      if (code === "PLAYER_NOT_FOUND") return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
-      if (["REVIEW_NOT_FOUND", "REVIEW_NOT_OWNED"].includes(code)) return errorResponse(c, 404, "REVIEW_NOT_FOUND", "The review does not exist");
-      if (code === "REVIEW_INVALIDATED") return errorResponse(c, 409, code, "The review cannot be withdrawn");
-      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
-      throw error;
-    }
-  });
-
-  app.get("/v1/me/submissions/:submissionId", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
-    try {
-      return c.json(await servicesFor(c).getPlayerSubmission({ submissionId: c.req.param("submissionId") }, access.sessionToken!));
+      return c.json(await dependencies.services(c.env).getPlayerSubmission({ submissionId: c.req.param("submissionId")! }, access.sessionToken));
     } catch (error) {
       if (error instanceof Error && error.message === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist");
       throw error;
     }
-  });
+  }));
 
   // Screenshot-level accuracy marking (#253): one accurate/inaccurate mark per
   // recognition result; the latest value wins. No transcription is accepted.
-  app.post("/v1/me/submissions/:submissionId/ocr-feedback", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
+  app.post("/v1/me/submissions/:submissionId/ocr-feedback", portalPlayerRoute(async (c, access) => {
     c.header("Cache-Control", "private, no-store");
     const idempotencyKey = c.req.header("idempotency-key");
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = ocrAccuracyFeedbackRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      const response = await servicesFor(c).submitPlayerOcrFeedback({ ...parsed.data, submissionId: c.req.param("submissionId") }, access.sessionToken!, idempotencyKey);
+      const response = await dependencies.services(c.env).submitPlayerOcrFeedback({ ...parsed.data, submissionId: c.req.param("submissionId")! }, access.sessionToken, idempotencyKey);
       return c.json(response);
     } catch (error) {
       const code = error instanceof Error ? error.message : "OCR_FEEDBACK_SUBMIT_FAILED";
@@ -890,7 +732,7 @@ export const createApp = (dependencies: AppDependencies) => {
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
     }
-  });
+  }));
 
   app.post("/v1/auth/logout", async (c) => {
     allowPortal(c);
@@ -900,83 +742,13 @@ export const createApp = (dependencies: AppDependencies) => {
     return c.body(null, 204);
   });
 
-  app.get("/v1/public/achievements", async (c) => {
-    allowPortal(c);
-    const cacheable = hasNoQuery(c.req.raw);
-    setPublicCatalogCache(c, cacheable && publicCacheEnabled(c));
-    return cachePublicResponse(c, {
-      operation: "catalog_public_achievements",
-      cacheKey: publicCacheKey(c.req.raw),
-      eligible: cacheable,
-      identityIndependent: true,
-      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_achievements", () => servicesFor(c).listChallenges({ family: "achievement" })) }),
-      decorateHit: decoratePortalCacheHit(c),
-    });
-  });
-
-  const parsePublicReviewPage = (c: any) => {
-    const page = Number(c.req.query("page") ?? "1");
-    const pageSize = Number(c.req.query("pageSize") ?? "20");
-    return Number.isInteger(page) && page >= 1 && Number.isInteger(pageSize) && pageSize >= 1 && pageSize <= 50 ? { page, pageSize } : null;
-  };
-
-  app.get("/v1/public/reviews/summaries", async (c) => {
-    allowPortal(c);
-    c.header("Cache-Control", "private, no-store");
-    const targetType = reviewTargetTypeSchema.safeParse(c.req.query("targetType"));
-    const targetIds = (c.req.query("targetIds") ?? "").split(",").map((value: string) => value.trim()).filter(Boolean);
-    const gameplayRevisionIds = (c.req.query("gameplayRevisionIds") ?? "").split(",").map((value: string) => value.trim()).filter(Boolean);
-    const uniqueTargets = targetType.success && targetType.data === "map"
-      ? new Set(targetIds.map((targetId: string, index: number) => JSON.stringify([targetId, gameplayRevisionIds[index]]))).size === targetIds.length
-      : new Set(targetIds).size === targetIds.length;
-    const validIds = targetIds.length > 0 && targetIds.length <= 100 && uniqueTargets;
-    const targets = targetType.success && targetType.data === "map" && gameplayRevisionIds.length === targetIds.length
-      ? targetIds.map((targetId: string, index: number) => ({ targetType: "map", targetId, gameplayRevisionId: gameplayRevisionIds[index] }))
-      : [];
-    const targetsValid = targetType.success && (targetType.data === "map"
-      ? targets.length === targetIds.length && targets.every((target) => reviewTargetSchema.safeParse(target).success)
-      : targetIds.every((targetId: string) => reviewTargetSchema.safeParse({ targetType: "event", targetId }).success));
-    if (!targetType.success || !validIds || !targetsValid || targetType.data === "event" && gameplayRevisionIds.length > 0) {
-      return errorResponse(c, 422, "INVALID_REQUEST", "The review summary targets are invalid");
-    }
-    try {
-      const items = await logServiceOperation(c, "review_public_summary_batch", () => servicesFor(c).getReviewSummaries(
-        targetType.data === "map" ? { targetType: "map", targets: targets.map(({ targetId, gameplayRevisionId }) => ({ targetId, gameplayRevisionId: gameplayRevisionId! })) } : { targetType: "event", targetIds },
-      ));
-      return c.json({ contractVersion: "1", targetType: targetType.data, items });
-    } catch (error) {
-      if (error instanceof Error && error.message === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, error.message, "The review target does not exist");
-      throw error;
-    }
-  });
-
-  app.get("/v1/public/reviews/:targetType/:targetId/summary", async (c) => {
-    allowPortal(c);
-    c.header("Cache-Control", "private, no-store");
-    const target = parseReviewTarget(c);
-    if (!target.success) return errorResponse(c, 422, "INVALID_REVIEW_TARGET", "The review target is invalid");
-    try {
-      const summary = await logServiceOperation(c, "review_public_summary", () => servicesFor(c).getReviewSummary(target.data));
-      return c.json({ contractVersion: "1", summary });
-    } catch (error) {
-      if (error instanceof Error && error.message === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, error.message, "The review target does not exist");
-      throw error;
-    }
-  });
-
-  app.get("/v1/public/reviews/:targetType/:targetId/comments", async (c) => {
-    allowPortal(c);
-    c.header("Cache-Control", "private, no-store");
-    const target = parseReviewTarget(c);
-    const page = parsePublicReviewPage(c);
-    if (!target.success || !page) return errorResponse(c, 422, "INVALID_REQUEST", "The review comment request is invalid");
-    try {
-      const comments = await logServiceOperation(c, "review_public_comments", () => servicesFor(c).listPublicReviewComments({ ...target.data, ...page }));
-      return c.json({ contractVersion: "1", ...comments });
-    } catch (error) {
-      if (error instanceof Error && error.message === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, error.message, "The review target does not exist");
-      throw error;
-    }
+  registerPublicCatalogRoutes(app, {
+    services: dependencies.services,
+    allowPortal,
+    errorResponse,
+    requirePortalPlayer,
+    logServiceOperation,
+    cachedCatalogResponse,
   });
 
   app.get("/v1/public/achievement-icons/:titleKey/:version", async (c) => {
@@ -1000,80 +772,6 @@ export const createApp = (dependencies: AppDependencies) => {
     return c.body(icon.body, 200, { "Content-Type": icon.contentType });
   });
 
-  app.get("/v1/challenges", async (c) => {
-    const family = c.req.query("family");
-    if (family && family !== "map" && family !== "achievement") return errorResponse(c, 422, "INVALID_REQUEST", "The challenge family is invalid");
-    if (family === "map") {
-      allowPortal(c);
-      const cacheable = new URL(c.req.url).searchParams.getAll("family").length === 1 && new URL(c.req.url).searchParams.size === 1;
-      setPublicCatalogCache(c, cacheable && publicCacheEnabled(c));
-      return cachePublicResponse(c, {
-        operation: "catalog_map_challenges",
-        cacheKey: publicCacheKey(c.req.raw, { family: "map" }),
-        eligible: cacheable,
-        identityIndependent: true,
-        response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_map_challenges", () => servicesFor(c).listChallenges({ family: "map" })) }),
-        decorateHit: decoratePortalCacheHit(c),
-      });
-    }
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
-    c.header("Cache-Control", "private, no-store");
-    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_challenges", () => servicesFor(c).listChallenges({ family: family as "map" | "achievement" | undefined })) });
-  });
-
-  app.get("/v1/titles", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
-    c.header("Cache-Control", "private, no-store");
-    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_titles", () => servicesFor(c).listTitles({ mapId: c.req.query("mapId") || undefined })) });
-  });
-
-  app.get("/v1/maps", async (c) => {
-    allowPortal(c);
-    const cacheable = hasNoQuery(c.req.raw);
-    setPublicCatalogCache(c, cacheable && publicCacheEnabled(c));
-    return cachePublicResponse(c, {
-      operation: "catalog_maps",
-      cacheKey: publicCacheKey(c.req.raw),
-      eligible: cacheable,
-      identityIndependent: true,
-      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_maps", () => servicesFor(c).listMaps()) }),
-      decorateHit: decoratePortalCacheHit(c),
-    });
-  });
-
-  app.get("/v1/events", async (c) => {
-    allowPortal(c); const status = c.req.query("status");
-    if (status && status !== "implemented" && status !== "removed") return errorResponse(c, 422, "INVALID_REQUEST", "The event status is invalid");
-    const cacheable = hasNoQuery(c.req.raw);
-    setPublicCatalogCache(c, cacheable && publicCacheEnabled(c));
-    return cachePublicResponse(c, {
-      operation: "catalog_events",
-      cacheKey: publicCacheKey(c.req.raw),
-      eligible: cacheable,
-      identityIndependent: true,
-      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_events", () => servicesFor(c).listRandomEvents({ query: c.req.query("query")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, status: status as "implemented" | "removed" | undefined })) }),
-      decorateHit: decoratePortalCacheHit(c),
-    });
-  });
-  app.get("/v1/events/:eventId", async (c) => {
-    allowPortal(c);
-    const cacheable = hasNoQuery(c.req.raw);
-    setPublicCatalogCache(c, cacheable && publicCacheEnabled(c));
-    return cachePublicResponse(c, {
-      operation: "catalog_event",
-      cacheKey: publicCacheKey(c.req.raw),
-      eligible: cacheable,
-      identityIndependent: true,
-      response: async () => {
-        const event = await logServiceOperation(c, "catalog_get_event", () => servicesFor(c).getRandomEvent({ eventId: c.req.param("eventId") }));
-        return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist");
-      },
-      decorateHit: decoratePortalCacheHit(c),
-    });
-  });
-
   registerAgentRoutes(app, {
     services: dependencies.services,
     errorResponse,
@@ -1084,34 +782,26 @@ export const createApp = (dependencies: AppDependencies) => {
     bearerTokenMatches,
   });
 
-  app.post("/v1/player/uploads/session", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
+  app.post("/v1/player/uploads/session", portalPlayerRoute(async (c, access) => {
     const parsed = playerUploadSessionRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await servicesFor(c).createPlayerUploadSession(parsed.data, access.sessionToken!), 201); }
+    try { return c.json(await dependencies.services(c.env).createPlayerUploadSession(parsed.data, access.sessionToken), 201); }
     catch (error) { const code = error instanceof Error ? error.message : "UPLOAD_SESSION_FAILED"; if (["CHALLENGE_NOT_FOUND", "GAMEPLAY_REVISION_REQUIRED"].includes(code)) return errorResponse(c, 422, code, "The challenge revision is not available"); if (code === "CHALLENGE_AUTOMATIC") return errorResponse(c, 422, code, "该称号满足条件后自动获得，无需提交截图。"); if (code === "PLAYER_BANNED") return errorResponse(c, 403, code, "The player account is banned"); throw error; }
-  });
+  }));
 
-  app.put("/v1/uploads/:uploadId", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
-    try { await servicesFor(c).uploadEvidence({ uploadId: c.req.param("uploadId"), body: await c.req.raw.arrayBuffer(), contentType: c.req.header("content-type") ?? "" }, access.sessionToken!); return c.body(null, 204); }
+  app.put("/v1/uploads/:uploadId", portalPlayerRoute(async (c, access) => {
+    try { await dependencies.services(c.env).uploadEvidence({ uploadId: c.req.param("uploadId")!, body: await c.req.raw.arrayBuffer(), contentType: c.req.header("content-type") ?? "" }, access.sessionToken); return c.body(null, 204); }
     catch (error) { const code = error instanceof Error ? error.message : "UPLOAD_FAILED"; if (["UPLOAD_SESSION_INVALID", "UPLOAD_METADATA_MISMATCH", "UPLOAD_HASH_MISMATCH"].includes(code)) return errorResponse(c, 422, code, "The upload is invalid or expired"); throw error; }
-  });
+  }));
 
-  app.post("/v1/player/uploads/:uploadId/complete", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
-    try { return c.json(await servicesFor(c).completePlayerUpload({ uploadId: c.req.param("uploadId") }, access.sessionToken!, c.get("requestId"))); }
+  app.post("/v1/player/uploads/:uploadId/complete", portalPlayerRoute(async (c, access) => {
+    try { return c.json(await dependencies.services(c.env).completePlayerUpload({ uploadId: c.req.param("uploadId")! }, access.sessionToken, c.get("requestId"))); }
     catch (error) { if (error instanceof Error && error.message === "UPLOAD_SESSION_INVALID") return errorResponse(c, 422, "UPLOAD_SESSION_INVALID", "The upload is invalid or expired"); if (error instanceof Error && error.message === "UPLOAD_COMPLETION_IN_PROGRESS") return errorResponse(c, 409, error.message, "Upload completion is already in progress"); throw error; }
-  });
+  }));
 
-  app.post("/v1/player/submissions/:submissionId/manual-review", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
+  app.post("/v1/player/submissions/:submissionId/manual-review", portalPlayerRoute(async (c, access) => {
     try {
-      await servicesFor(c).requestManualReview({ submissionId: c.req.param("submissionId") }, access.sessionToken!);
+      await dependencies.services(c.env).requestManualReview({ submissionId: c.req.param("submissionId")! }, access.sessionToken);
       return c.body(null, 204);
     } catch (error) {
       const code = error instanceof Error ? error.message : "MANUAL_REVIEW_FAILED";
@@ -1119,7 +809,7 @@ export const createApp = (dependencies: AppDependencies) => {
       if (code === "MANUAL_REVIEW_NOT_ELIGIBLE") return errorResponse(c, 409, code, "The submission is not eligible for manual review");
       throw error;
     }
-  });
+  }));
 
   app.put("/v1/admin/qq/groups/:groupOpenId", maintainerRoute(requireMaintainer, async (c, auth) => {
     const idempotencyKey = c.req.header("idempotency-key");
