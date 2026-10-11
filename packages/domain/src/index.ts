@@ -23,7 +23,6 @@ import type {
   QqGroupRegistrationRequest,
   AdminPlayerDetail,
   AdminPlayerListResponse,
-  AdminPlayerStatusRequest,
   AdminPlayerIdentityRequest,
   CurrentPlayerResponse,
   CurrentPlayerTitlesResponse,

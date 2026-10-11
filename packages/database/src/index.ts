@@ -11,9 +11,12 @@ import { achievementChallengeMaps, achievementChallenges, attachments, auditEven
 import { userEvidenceObjectKey } from "./object-key";
 import { fetchQqAttachmentImage } from "./qq-attachment";
 import { matchOcrAgainstChallenges, type AutoMatchCandidate, type CanonicalOcrChallenge } from "./ocr-auto-match";
-import { assessChallengeOcrQuality, standaloneOcrMode, type OcrResponse } from "./ocr-response";
+import { standaloneOcrMode, type OcrResponse } from "./ocr-response";
 import { resolvePortalSession } from "./portal-session";
 import { createPlatformCache, instrumentDatabase } from "./platform-cache";
+import { createReviewServices } from "./review-service";
+
+export { maxReviewCommentLength, reviewSampleThreshold } from "./review-service";
 
 const now = () => Date.now();
 const ocrRetryEnqueueingPrefix = "ocr-retry-enqueueing:";
@@ -113,7 +116,19 @@ export const assessVerifiedRunOcrEvidence = (response: OcrResponse, compatibilit
 const logOcrEvent = (event: string, fields: Record<string, unknown>) => console.log(JSON.stringify({ layer: "ocr", event, ...fields }));
 const ocrkitRequestTimeoutMs = 20_000;
 const errorDetails = (error: unknown) => ({ errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message.slice(0, 256) : String(error).slice(0, 256) });
-const paginate = <T>(items: T[], page: number, pageSize: number) => ({ items: items.slice((page - 1) * pageSize, page * pageSize), page, pageSize, total: items.length, hasMore: page * pageSize < items.length });
+const pageResult = <T>(items: T[], page: number, pageSize: number, total: number) => ({ contractVersion: "1" as const, items, page, pageSize, total, hasMore: page * pageSize < total });
+const paginate = <T>(items: T[], page: number, pageSize: number) => pageResult(items.slice((page - 1) * pageSize, page * pageSize), page, pageSize, items.length);
+const groupBy = <T, K extends string>(items: Iterable<T>, keyOf: (item: T) => K, include?: (item: T) => boolean) => {
+  const groups = new globalThis.Map<K, T[]>();
+  for (const item of items) {
+    if (include && !include(item)) continue;
+    const key = keyOf(item);
+    const group = groups.get(key);
+    if (group) group.push(item);
+    else groups.set(key, [item]);
+  }
+  return groups;
+};
 type HistoricalMigrationItem = { status: string };
 const summarizeHistoricalMigration = (rows: HistoricalMigrationItem[], invite: { revokedAt: number | null; expiresAt: number }, claimStatus: string | undefined, timestamp: number, completedLegacyRedemption = false) => {
   const completedCount = rows.filter((row) => row.status === "created" || row.status === "reused").length;
@@ -148,8 +163,6 @@ const uploadTtlMs = 10 * 60 * 1000;
 const evidenceExtensions = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" } as const;
 const maxUploadBytes = 10 * 1024 * 1024;
 const maxTitleIconBytes = 512 * 1024;
-export const maxReviewCommentLength = 500;
-export const reviewSampleThreshold = 3;
 const titleIconContentTypes = new Map([["image/png", "png"], ["image/jpeg", "jpg"], ["image/webp", "webp"]]);
 // The stored object key is `.../<version>.<extension>`; the version segment is minted once at
 // upload time and is what the versioned public route matches against, so a previously issued
@@ -173,38 +186,29 @@ export const titleChallengeIsSubmittable = (status: string, startsAt: number | n
 };
 export const pioneerExceptionHasValidWindow = (startsAt: number | null, endsAt: number | null) => startsAt !== null && endsAt !== null && endsAt > startsAt;
 export const pioneerExceptionIsSubmittable = (enabled: number, startsAt: number | null, endsAt: number | null, timestamp: number) => enabled === 1 && pioneerExceptionHasValidWindow(startsAt, endsAt) && timestamp >= startsAt! && timestamp < endsAt!;
-const randomToken = (bytes = 32) => {
-  const value = new Uint8Array(bytes);
-  crypto.getRandomValues(value);
-  return Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("");
-};
-
-const randomCode = () => {
-  const value = new Uint8Array(6);
-  crypto.getRandomValues(value);
-  return Array.from(value, (byte) => codeAlphabet[byte % codeAlphabet.length]).join("");
-};
-const randomInviteCode = () => {
-  const value = new Uint8Array(12);
-  crypto.getRandomValues(value);
-  return Array.from(value, (byte) => codeAlphabet[byte % codeAlphabet.length]).join("");
-};
-
-const hashRequest = async (value: unknown) => {
-  const encoded = new TextEncoder().encode(JSON.stringify(value));
-  const digest = await crypto.subtle.digest("SHA-256", encoded);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-};
-
-
 const bytesToHex = (value: Uint8Array) => Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("");
+const sha256 = (value: BufferSource) => crypto.subtle.digest("SHA-256", value);
+const digestHex = async (value: BufferSource) => bytesToHex(new Uint8Array(await sha256(value)));
+const randomToken = (bytes = 32) => {
+  return bytesToHex(crypto.getRandomValues(new Uint8Array(bytes)));
+};
+
+const randomCode = (length: number) => {
+  const value = new Uint8Array(length);
+  crypto.getRandomValues(value);
+  return Array.from(value, (byte) => codeAlphabet[byte % codeAlphabet.length]).join("");
+};
+
+const hashRequest = (value: unknown) => digestHex(new TextEncoder().encode(JSON.stringify(value)));
+
+
 const hexToBytes = (value: string) => {
   if (!/^(?:[0-9a-f]{2})+$/i.test(value)) throw new Error("BINDING_INVITE_CODE_UNAVAILABLE");
   return Uint8Array.from(value.match(/.{2}/g)!, (pair) => Number.parseInt(pair, 16));
 };
 const bindingInviteCodeKey = async (secret?: string) => {
   if (!secret) throw new Error("BINDING_INVITE_CODE_ENCRYPTION_NOT_CONFIGURED");
-  const raw = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret));
+  const raw = await sha256(new TextEncoder().encode(secret));
   return crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
 };
 const encryptBindingInviteCode = async (code: string, secret?: string) => {
@@ -260,36 +264,6 @@ const recordAudit = async (db: ReturnType<typeof drizzle>, auth: AuthContext, op
   });
 };
 
-const asReviewRating = (value: number): ReviewRating => {
-  if (!Number.isInteger(value) || value < 1 || value > 5) throw new Error("REVIEW_RATING_INVALID");
-  return value as ReviewRating;
-};
-
-const normalizeReviewComment = (value: string | null | undefined) => {
-  const comment = value?.trim() ?? "";
-  if (Array.from(comment).length > maxReviewCommentLength) throw new Error("REVIEW_COMMENT_TOO_LONG");
-  return comment || null;
-};
-
-const asReviewRecord = (row: typeof reviews.$inferSelect): ReviewRecord => ({
-  reviewId: row.id,
-  playerAccountId: row.playerAccountId,
-  targetType: row.targetType as ReviewTargetType,
-  targetId: row.targetId,
-  gameplayRevisionId: row.gameplayRevisionId,
-  rating: asReviewRating(row.rating),
-  comment: row.comment,
-  commentStatus: row.commentStatus as ReviewRecord["commentStatus"],
-  anonymous: row.anonymous === 1,
-  status: row.status as ReviewRecord["status"],
-  createdAt: row.createdAt,
-  updatedAt: row.updatedAt,
-  withdrawnAt: row.withdrawnAt,
-  invalidatedAt: row.invalidatedAt,
-  invalidatedBy: row.invalidatedBy,
-  invalidationReason: row.invalidationReason,
-});
-
 const normalizePlayerName = (name: string) => name.trim().toLocaleLowerCase();
 
 const titleColor = (value: string) => JSON.parse(value) as { kind: "heroColor"; index: number } | { kind: "rgb"; value: [number, number, number] } | { kind: "palette"; name: "orange" | "red" | "purple" | "gold" | "blue" } | null;
@@ -308,11 +282,6 @@ const toAgentTitle = (row: typeof titleCatalog.$inferSelect): AgentTitle => ({
   color: titleColor(row.colorJson),
   gameVersion: row.gameVersion?.trim() || null,
 });
-
-const digestHex = async (value: ArrayBuffer) => {
-  const digest = await crypto.subtle.digest("SHA-256", value);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-};
 
 type EventImportRow = Omit<AdminRandomEventCreateRequest, "contractVersion">;
 const eventImportHeaders = ["事件名称", "事件效果", "事件类别", "稀有度级别", "类别概率", "内置冷却", "持续时间（秒）", "权重", "组内总权重", "组内个数", "单次失败率(Q)", "保底触发率", "最终出现概率", "全局出现概率", "版本", "效果类型", "事件状态"];
@@ -464,106 +433,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     .where(eq(titleCatalog.scope, "global"))
     .orderBy(titleCatalog.key))).map(toAgentTitle);
 
-  const findReviewAccount = async (subject: string) => db.select().from(playerAccounts).where(or(eq(playerAccounts.id, subject), eq(playerAccounts.playerId, subject))).get();
-  const findReviewTarget = async (input: ReviewTarget) => input.targetType === "event"
-    ? await db.select().from(randomEvents).where(eq(randomEvents.id, input.targetId)).get()
-    : await db.select({ map: maps, revision: gameplayRevisions }).from(maps)
-      .innerJoin(gameplayRevisions, and(eq(gameplayRevisions.mapId, maps.id), eq(gameplayRevisions.id, input.gameplayRevisionId)))
-      .where(eq(maps.id, input.targetId)).get();
-  type AdminReviewRow = {
-    review_id: string;
-    target_type: string;
-    target_id: string;
-    gameplay_revision_id: string | null;
-    target_name: string | null;
-    player_account_id: string;
-    player_id: string;
-    player_name: string;
-    rating: number;
-    comment: string | null;
-    anonymous: number;
-    comment_status: string;
-    status: string;
-    created_at: number;
-    updated_at: number;
-    withdrawn_at: number | null;
-    invalidated_at: number | null;
-    invalidated_by: string | null;
-    invalidation_reason: string | null;
-  };
-  const asAdminReview = (row: AdminReviewRow): AdminReview => {
-    if (!row.target_name) throw new Error("REVIEW_TARGET_NOT_FOUND");
-    return {
-      reviewId: row.review_id,
-      targetType: row.target_type as AdminReview["targetType"],
-      targetId: row.target_id,
-      gameplayRevisionId: row.gameplay_revision_id,
-      targetName: row.target_name,
-      playerAccountId: row.player_account_id,
-      playerId: row.player_id,
-      playerName: row.player_name,
-      rating: asReviewRating(row.rating),
-      comment: row.comment,
-      anonymous: row.anonymous === 1,
-      commentStatus: row.comment_status as AdminReview["commentStatus"],
-      status: row.status as AdminReview["status"],
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-      withdrawnAt: row.withdrawn_at,
-      invalidatedAt: row.invalidated_at,
-      invalidatedBy: row.invalidated_by,
-      invalidationReason: row.invalidation_reason,
-    };
-  };
-  const adminReviewQuery = `
-    FROM reviews r
-    INNER JOIN player_accounts p ON p.id = r.player_account_id
-    WHERE 1 = 1`;
-  const adminReviewSelect = `
-    SELECT r.id AS review_id, r.target_type, r.target_id, r.gameplay_revision_id,
-      CASE WHEN r.target_type = 'event' THEN (SELECT name FROM random_events WHERE id = r.target_id)
-           ELSE (SELECT name FROM maps WHERE id = r.target_id) END AS target_name,
-      r.player_account_id, p.player_id, p.player_name, r.rating, r.comment,
-      r.anonymous, r.comment_status, r.status, r.created_at, r.updated_at,
-      r.withdrawn_at, r.invalidated_at, r.invalidated_by, r.invalidation_reason
-    ${adminReviewQuery}`;
-
-  const mutateReviewComment = async (input: { reviewId: string; reason?: string }, auth: AuthContext, idempotencyKey: string, nextStatus: "visible" | "hidden"): Promise<ReviewRecord> => {
-    const operation = nextStatus === "hidden" ? "review.comment.hide" : "review.comment.restore";
-    const replay = await replayOrConflict<ReviewRecord>(db, auth.subject, operation, idempotencyKey, input);
-    if (replay) return replay;
-    const row = await db.select().from(reviews).where(eq(reviews.id, input.reviewId)).get();
-    if (!row) throw new Error("REVIEW_NOT_FOUND");
-    if (!row.comment) throw new Error("REVIEW_COMMENT_NOT_FOUND");
-    const timestamp = now();
-    if (row.commentStatus !== nextStatus) await db.update(reviews).set({ commentStatus: nextStatus, updatedAt: timestamp }).where(eq(reviews.id, row.id));
-    const response = asReviewRecord((await db.select().from(reviews).where(eq(reviews.id, row.id)).get())!);
-    await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, response);
-    await recordAudit(db, auth, operation, "review", row.id, { reason: input.reason ?? null, previousCommentStatus: row.commentStatus, commentStatus: response.commentStatus });
-    return response;
-  };
-
-  const mutateReviewState = async (input: { reviewId: string; reason?: string }, auth: AuthContext, idempotencyKey: string, nextStatus: "active" | "invalidated"): Promise<ReviewRecord> => {
-    const operation = nextStatus === "invalidated" ? "review.invalidate" : "review.restore";
-    const replay = await replayOrConflict<ReviewRecord>(db, auth.subject, operation, idempotencyKey, input);
-    if (replay) return replay;
-    const row = await db.select().from(reviews).where(eq(reviews.id, input.reviewId)).get();
-    if (!row) throw new Error("REVIEW_NOT_FOUND");
-    if (nextStatus === "invalidated" && row.status === "invalidated" || nextStatus === "active" && row.status !== "invalidated") {
-      const response = asReviewRecord(row);
-      await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, response);
-      return response;
-    }
-    const timestamp = now();
-    await db.update(reviews).set(nextStatus === "invalidated"
-      ? { status: "invalidated", invalidatedAt: timestamp, invalidatedBy: auth.subject, invalidationReason: input.reason ?? null, updatedAt: timestamp }
-      : { status: "active", invalidatedAt: null, invalidatedBy: null, invalidationReason: null, updatedAt: timestamp }).where(eq(reviews.id, row.id));
-    const response = asReviewRecord((await db.select().from(reviews).where(eq(reviews.id, row.id)).get())!);
-    await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, response);
-    await recordAudit(db, auth, operation, "review", row.id, { reason: input.reason ?? null, previousStatus: row.status, status: response.status });
-    return response;
-  };
-
   const performAuthorizedHistoricalTitleMigration = async (input: { inviteId: string; playerAccountId: string; claimId?: string; grantSource?: string; auth: AuthContext; mode: "automatic" | "reviewed" | "retry" }) => {
     const [invite, claim, items] = await Promise.all([
       db.select().from(bindingInvites).where(eq(bindingInvites.id, input.inviteId)).get(),
@@ -631,12 +500,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       WHERE authorization.invite_id = ?
         AND authorization.status NOT IN ('created', 'reused', 'conflict')
     `).bind(input.playerAccountId, input.inviteId).all<MigrationLookupRow>()).results;
-    const lookupRowsByItemId = new Map<string, MigrationLookupRow[]>();
-    for (const row of lookupRows) {
-      const rows = lookupRowsByItemId.get(row.itemId) ?? [];
-      rows.push(row);
-      lookupRowsByItemId.set(row.itemId, rows);
-    }
+    const lookupRowsByItemId = groupBy(lookupRows, (row) => row.itemId);
 
     const timestamp = now();
     const operations: Array<{ statements: any[]; audit?: { entityId: string; payload: Record<string, unknown> }; createsConqueror?: boolean }> = [];
@@ -852,12 +716,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           .where(inArray(achievementChallengeMaps.challengeId, challengeIds));
     const allowed = challengeIds && challengeIds.length > d1InBindSoftLimit ? new Set(challengeIds) : null;
     const grouped = new globalThis.Map<string, string[]>();
-    for (const { challengeId, mapId } of rows) {
-      if (allowed && !allowed.has(challengeId)) continue;
-      const current = grouped.get(challengeId);
-      if (current) current.push(mapId);
-      else grouped.set(challengeId, [mapId]);
-    }
+    for (const [challengeId, links] of groupBy(rows, (row) => row.challengeId, ({ challengeId }) => !allowed || allowed.has(challengeId))) grouped.set(challengeId, links.map(({ mapId }) => mapId));
     return grouped;
   };
 
@@ -1284,31 +1143,35 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     retiredVersion: challenge.retiredVersion ?? undefined,
   });
 
+  const enabledMapChallengeAssignment = () => and(
+    eq(gameplayRevisionChallengeAssignments.challengeFamily, "map_challenge"),
+    eq(gameplayRevisionChallengeAssignments.challengeId, achievementChallenges.id),
+    eq(gameplayRevisionChallengeAssignments.mapId, achievementChallenges.mapId),
+    eq(gameplayRevisionChallengeAssignments.enabled, 1),
+  );
+  const mapChallengeQuery = () => db.select({ challenge: achievementChallenges, map: maps, assignment: gameplayRevisionChallengeAssignments, revision: gameplayRevisions })
+    .from(achievementChallenges)
+    .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
+    .innerJoin(gameplayRevisionChallengeAssignments, enabledMapChallengeAssignment())
+    .innerJoin(gameplayRevisions, eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, gameplayRevisions.id))
+    .where(and(
+      inArray(achievementChallenges.status, ["active", "sunsetting"]),
+      eq(maps.status, "active"),
+      eq(gameplayRevisions.mapId, achievementChallenges.mapId),
+      inArray(gameplayRevisions.lifecycle, ["default", "selectable"]),
+      notExists(db.select({ legacyChallengeId: mapTitleRuleCompat.legacyChallengeId })
+        .from(mapTitleRuleCompat)
+        .where(and(
+          eq(mapTitleRuleCompat.legacyChallengeId, achievementChallenges.id),
+          eq(mapTitleRuleCompat.mapId, achievementChallenges.mapId),
+        ))),
+    ));
+
   // Fetch all currently public challenges in a bounded number of queries.
   // Used by the batch event list path and other composed catalog reads.
   const fetchAllPublicChallenges = async (eligibilityAt = now(), includeHiddenTitles = false): Promise<Challenge[]> => {
     const [mapRows, titleRows, mapIdsByChallenge] = await Promise.all([
-      platformCache.cached("catalog", "pub-challenge-map-rows", () => db.select({ challenge: achievementChallenges, map: maps, assignment: gameplayRevisionChallengeAssignments, revision: gameplayRevisions }).from(achievementChallenges)
-        .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
-        .innerJoin(gameplayRevisionChallengeAssignments, and(
-          eq(gameplayRevisionChallengeAssignments.challengeFamily, "map_challenge"),
-          eq(gameplayRevisionChallengeAssignments.challengeId, achievementChallenges.id),
-          eq(gameplayRevisionChallengeAssignments.mapId, achievementChallenges.mapId),
-          eq(gameplayRevisionChallengeAssignments.enabled, 1),
-        ))
-        .innerJoin(gameplayRevisions, eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, gameplayRevisions.id))
-        .where(and(
-        inArray(achievementChallenges.status, ["active", "sunsetting"]),
-        eq(maps.status, "active"),
-        eq(gameplayRevisions.mapId, achievementChallenges.mapId),
-        inArray(gameplayRevisions.lifecycle, ["default", "selectable"]),
-        notExists(db.select({ legacyChallengeId: mapTitleRuleCompat.legacyChallengeId })
-          .from(mapTitleRuleCompat)
-          .where(and(
-            eq(mapTitleRuleCompat.legacyChallengeId, achievementChallenges.id),
-            eq(mapTitleRuleCompat.mapId, achievementChallenges.mapId),
-          ))),
-        ))),
+      platformCache.cached("catalog", "pub-challenge-map-rows", () => mapChallengeQuery()),
       platformCache.cached("catalog", `pub-challenge-title-rows:${includeHiddenTitles ? "all" : "visible"}`, () => db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(and(inArray(titleChallenges.status, ["scheduled", "active", "sunsetting"]), eq(titleCatalog.lifecycle, "active"), includeHiddenTitles ? undefined : eq(titleCatalog.publicVisibility, 1)))),
       loadChallengeMapIds(),
     ]);
@@ -1366,12 +1229,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         ? db.select({ challenge: achievementChallenges, map: maps, assignment: gameplayRevisionChallengeAssignments, revision: gameplayRevisions })
           .from(achievementChallenges)
           .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
-          .innerJoin(gameplayRevisionChallengeAssignments, and(
-            eq(gameplayRevisionChallengeAssignments.challengeFamily, "map_challenge"),
-            eq(gameplayRevisionChallengeAssignments.challengeId, achievementChallenges.id),
-            eq(gameplayRevisionChallengeAssignments.mapId, achievementChallenges.mapId),
-            eq(gameplayRevisionChallengeAssignments.enabled, 1),
-          ))
+          .innerJoin(gameplayRevisionChallengeAssignments, enabledMapChallengeAssignment())
           .innerJoin(gameplayRevisions, eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, gameplayRevisions.id))
           .where(and(inArray(achievementChallenges.id, mapChallengeIds), inArray(achievementChallenges.status, ["active", "sunsetting"]), eq(maps.status, "active"), eq(gameplayRevisions.mapId, achievementChallenges.mapId), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])))
         : Promise.resolve([] as Array<{ challenge: typeof achievementChallenges.$inferSelect; map: typeof maps.$inferSelect; assignment: typeof gameplayRevisionChallengeAssignments.$inferSelect; revision: typeof gameplayRevisions.$inferSelect }>),
@@ -1799,18 +1657,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       "))" + assignmentFilter,
     ].join(" ")).bind(...(input.mapId ? [timestamp, timestamp, input.mapId] : [timestamp, timestamp])).all<AgentRevisionAssignmentRow>();
     const [mapResult, assignmentResult] = await Promise.all([mapQuery, assignmentQuery]);
-    const revisionsByMap = new globalThis.Map<string, AgentMapProjectionRow[]>();
-    for (const row of mapResult.results) {
-      const current = revisionsByMap.get(row.map_id) ?? [];
-      current.push(row);
-      revisionsByMap.set(row.map_id, current);
-    }
-    const assignmentsByRevision = new globalThis.Map<string, AgentRevisionAssignmentRow[]>();
-    for (const row of assignmentResult.results) {
-      const current = assignmentsByRevision.get(row.revision_id) ?? [];
-      current.push(row);
-      assignmentsByRevision.set(row.revision_id, current);
-    }
+    const revisionsByMap = groupBy(mapResult.results, (row) => row.map_id);
+    const assignmentsByRevision = groupBy(assignmentResult.results, (row) => row.revision_id);
     const items: AgentMap[] = [];
     for (const [mapId, rows] of revisionsByMap) {
       const first = rows[0];
@@ -2224,6 +2072,13 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       ...challengeEvidenceLifecycleStatements({ sourceSubmissionId: input.row.sourceSubmissionId, actorId: input.actor.actorId, timestamp, reason, action: input.nextStatus === "invalidated" ? "invalidate" : "restore" }),
     ];
   };
+  const findConflictingVerifiedRun = (input: { playerAccountId: string; matchCode: string; exceptRunId: string; activeOnly?: boolean }) =>
+    db.select({ id: verifiedRuns.id }).from(verifiedRuns).where(and(
+      eq(verifiedRuns.playerAccountId, input.playerAccountId),
+      eq(verifiedRuns.matchCode, input.matchCode),
+      input.activeOnly ? eq(verifiedRuns.status, "active") : undefined,
+      ne(verifiedRuns.id, input.exceptRunId),
+    )).get();
 
   const transitionVerifiedRun = async (input: { verifiedRunId: string; reason?: string }, actor: VerifiedRunActor, nextStatus: "active" | "invalidated"): Promise<VerifiedRun> => {
     const runId = input.verifiedRunId.trim();
@@ -2238,13 +2093,9 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       return asVerifiedRun(row);
     }
     if (nextStatus === "active") {
-      const activeDuplicate = await db.select({ id: verifiedRuns.id }).from(verifiedRuns).where(and(
-        eq(verifiedRuns.playerAccountId, row.playerAccountId),
-        eq(verifiedRuns.matchCode, row.matchCode),
-        eq(verifiedRuns.status, "active"),
-        ne(verifiedRuns.id, row.id),
-      )).get();
-      if (activeDuplicate) throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
+      if (await findConflictingVerifiedRun({ playerAccountId: row.playerAccountId, matchCode: row.matchCode, exceptRunId: row.id, activeOnly: true })) {
+        throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
+      }
     }
     await database.batch(prepareVerifiedRunTransitionStatements({ row, actor, nextStatus, reason: input.reason }));
     await reconcileVerifiedRunProgressChallenges({ verifiedRunIds: [row.id], actorId: actor.actorId, reason: input.reason });
@@ -3040,12 +2891,9 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     const reason = input.reason?.trim() || null;
 
     if (!sameFacts) {
-      const duplicate = await db.select({ id: verifiedRuns.id }).from(verifiedRuns).where(and(
-        eq(verifiedRuns.playerAccountId, previous.playerAccountId),
-        eq(verifiedRuns.matchCode, corrected.matchCode),
-        ne(verifiedRuns.id, previous.runId),
-      )).get();
-      if (duplicate) throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
+      if (await findConflictingVerifiedRun({ playerAccountId: previous.playerAccountId, matchCode: corrected.matchCode, exceptRunId: previous.runId })) {
+        throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
+      }
       const award = calculateVerifiedRunXpV2({
         difficulty: corrected.difficulty,
         mapFactor: previous.xpInputSnapshot.mapFactor,
@@ -3408,13 +3256,9 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     const reason = input.reason?.trim() || null;
     if (loaded.row.run.status !== nextStatus) {
       if (nextStatus === "active") {
-        const activeDuplicate = await db.select({ id: verifiedRuns.id }).from(verifiedRuns).where(and(
-          eq(verifiedRuns.playerAccountId, loaded.row.run.playerAccountId),
-          eq(verifiedRuns.matchCode, loaded.row.run.matchCode),
-          eq(verifiedRuns.status, "active"),
-          ne(verifiedRuns.id, loaded.row.run.id),
-        )).get();
-        if (activeDuplicate) throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
+        if (await findConflictingVerifiedRun({ playerAccountId: loaded.row.run.playerAccountId, matchCode: loaded.row.run.matchCode, exceptRunId: loaded.row.run.id, activeOnly: true })) {
+          throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
+        }
       }
       const timestamp = now();
       await database.batch([
@@ -3697,49 +3541,46 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   type CanonicalChallengeRow = typeof challenges.$inferSelect;
   // The canonical Challenge a reward resolves to, plus the writes needed to make it exist.
   type CanonicalChallengePlan = { row: CanonicalChallengeRow; archiveLegacyId: string | null; insert: boolean };
+  type CanonicalChallengeSource = { family: "title_challenge" | "map_challenge" | "map_title_rule"; sourceId: string; ruleId: string };
+
+  const sourceForRuleId = async (input: CanonicalChallengeInput, ruleId: string): Promise<CanonicalChallengeSource> => {
+    if (ruleId.startsWith("title-challenge:")) return {
+      family: "title_challenge",
+      sourceId: input.snapshot?.challengeId ?? ruleId.slice("title-challenge:".length),
+      ruleId,
+    };
+    if (ruleId.startsWith("challenge:")) return {
+      family: "map_challenge",
+      sourceId: input.snapshot?.challengeId ?? ruleId.slice("challenge:".length),
+      ruleId,
+    };
+    const compat = input.mapId
+      ? await db.select({ legacyChallengeId: mapTitleRuleCompat.legacyChallengeId }).from(mapTitleRuleCompat)
+        .where(and(eq(mapTitleRuleCompat.ruleId, ruleId), eq(mapTitleRuleCompat.mapId, input.mapId))).get()
+      : null;
+    return { family: "map_title_rule", sourceId: compat?.legacyChallengeId ?? ruleId, ruleId };
+  };
+
+  const sourceForLegacyId = async (input: CanonicalChallengeInput): Promise<CanonicalChallengeSource> => {
+    const titleChallenge = await db.select({ id: titleChallenges.id }).from(titleChallenges).where(eq(titleChallenges.id, input.legacyChallengeId)).get();
+    if (titleChallenge) return { family: "title_challenge", sourceId: titleChallenge.id, ruleId: "" };
+    const mapChallenge = await db.select({ id: achievementChallenges.id }).from(achievementChallenges).where(eq(achievementChallenges.id, input.legacyChallengeId)).get();
+    if (mapChallenge) return { family: "map_challenge", sourceId: mapChallenge.id, ruleId: "" };
+    const compat = input.mapId
+      ? await db.select({ legacyChallengeId: mapTitleRuleCompat.legacyChallengeId, ruleId: mapTitleRuleCompat.ruleId }).from(mapTitleRuleCompat)
+        .where(and(eq(mapTitleRuleCompat.legacyChallengeId, input.legacyChallengeId), eq(mapTitleRuleCompat.mapId, input.mapId))).get()
+      : null;
+    if (compat) return { family: "map_title_rule", sourceId: compat.legacyChallengeId, ruleId: compat.ruleId };
+    const rule = await db.select({ id: mapTitleRules.id }).from(mapTitleRules).where(eq(mapTitleRules.id, input.legacyChallengeId)).get();
+    if (!rule) throw new Error("CHALLENGE_NOT_FOUND");
+    return { family: "map_title_rule", sourceId: rule.id, ruleId: rule.id };
+  };
 
   const planCanonicalChallenge = async (input: CanonicalChallengeInput): Promise<CanonicalChallengePlan> => {
-    let ruleId = input.snapshot?.ruleId ?? "";
-    let family: "title_challenge" | "map_challenge" | "map_title_rule";
-    let sourceId: string;
-    if (ruleId.startsWith("title-challenge:")) {
-      family = "title_challenge";
-      sourceId = input.snapshot?.challengeId ?? ruleId.slice("title-challenge:".length);
-    } else if (ruleId.startsWith("challenge:")) {
-      family = "map_challenge";
-      sourceId = input.snapshot?.challengeId ?? ruleId.slice("challenge:".length);
-    } else if (ruleId) {
-      family = "map_title_rule";
-      const compat = input.mapId
-        ? await db.select({ legacyChallengeId: mapTitleRuleCompat.legacyChallengeId }).from(mapTitleRuleCompat)
-          .where(and(eq(mapTitleRuleCompat.ruleId, ruleId), eq(mapTitleRuleCompat.mapId, input.mapId))).get()
-        : null;
-      sourceId = compat?.legacyChallengeId ?? ruleId;
-    } else {
-      const titleChallenge = await db.select({ id: titleChallenges.id }).from(titleChallenges).where(eq(titleChallenges.id, input.legacyChallengeId)).get();
-      const mapChallenge = await db.select({ id: achievementChallenges.id }).from(achievementChallenges).where(eq(achievementChallenges.id, input.legacyChallengeId)).get();
-      const compat = input.mapId
-        ? await db.select({ legacyChallengeId: mapTitleRuleCompat.legacyChallengeId, ruleId: mapTitleRuleCompat.ruleId }).from(mapTitleRuleCompat)
-          .where(and(eq(mapTitleRuleCompat.legacyChallengeId, input.legacyChallengeId), eq(mapTitleRuleCompat.mapId, input.mapId))).get()
-        : null;
-      if (titleChallenge) {
-        family = "title_challenge";
-        sourceId = titleChallenge.id;
-      } else if (mapChallenge) {
-        family = "map_challenge";
-        sourceId = mapChallenge.id;
-      } else if (compat) {
-        family = "map_title_rule";
-        sourceId = compat.legacyChallengeId;
-        ruleId = compat.ruleId;
-      } else {
-        const rule = await db.select({ id: mapTitleRules.id }).from(mapTitleRules).where(eq(mapTitleRules.id, input.legacyChallengeId)).get();
-        if (!rule) throw new Error("CHALLENGE_NOT_FOUND");
-        family = "map_title_rule";
-        sourceId = rule.id;
-        ruleId = rule.id;
-      }
-    }
+    const source = input.snapshot?.ruleId
+      ? await sourceForRuleId(input, input.snapshot.ruleId)
+      : await sourceForLegacyId(input);
+    const { family, sourceId, ruleId } = source;
     const title = await db.select({ key: titleCatalog.key }).from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
     if (!title) throw new Error("TITLE_NOT_FOUND");
     const legacyTitleChallenge = family === "title_challenge"
@@ -4080,6 +3921,23 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     const existing = awards.get(key);
     if (!existing || (!existing.root && award.root)) awards.set(key, award);
   };
+  const selectCompletionGrantAwards = <T extends ChallengeCompletionAward & { grantId: string }>(
+    awards: T[],
+    directGrantsByScope: globalThis.Map<string, { canonicalChallengeId: string }>,
+  ) => {
+    const selected = new Map<string, T>();
+    for (const award of awards) {
+      if (!award.grantable) continue;
+      const scope = titleGrantScopeKey(award);
+      const directGrant = directGrantsByScope.get(scope);
+      if (directGrant) {
+        if (award.root && award.challengeId === directGrant.canonicalChallengeId) selected.set(scope, award);
+      } else if (!selected.has(scope)) {
+        selected.set(scope, award);
+      }
+    }
+    return selected;
+  };
 
   const challengeCompletionChains = async (input: {
     playerAccountId: string;
@@ -4369,16 +4227,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       grantId: grantIdsByScope.get(titleGrantScopeKey(award)) ?? crypto.randomUUID(),
     }));
     const directGrantsByScope = new Map(grantResults.map((result) => [titleGrantScopeKey(result.reward), result]));
-    const completionGrantsByScope = new Map<string, (typeof completionAwardRows)[number]>();
-    for (const award of completionAwardRows.filter((item) => item.grantable)) {
-      const scope = titleGrantScopeKey(award);
-      const directGrant = directGrantsByScope.get(scope);
-      if (directGrant) {
-        if (award.root && award.challengeId === directGrant.canonicalChallengeId) completionGrantsByScope.set(scope, award);
-      } else if (!completionGrantsByScope.has(scope)) {
-        completionGrantsByScope.set(scope, award);
-      }
-    }
+    const completionGrantsByScope = selectCompletionGrantAwards(completionAwardRows, directGrantsByScope);
     return { rewards, grantResults, completionAwardRows, completionGrantsByScope, directGrantsByScope };
   };
 
@@ -4411,7 +4260,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     const submission = await db.select({ playerAccountId: submissions.playerAccountId, gameplayRevisionId: submissions.gameplayRevisionId, createdAt: submissions.createdAt }).from(submissions).where(eq(submissions.id, input.submissionId)).get();
     if (!submission) throw new Error("SUBMISSION_NOT_FOUND");
     if (grants.some((grant) => grant.snapshot.gameplayRevisionId && submission.gameplayRevisionId && grant.snapshot.gameplayRevisionId !== submission.gameplayRevisionId)) throw new Error("SUBMISSION_REVISION_MISMATCH");
-    const grantId = primaryGrant.grantId;
     const completionAwards = new Map<string, ChallengeCompletionAward>();
     const completionChains = await challengeCompletionChains({
       playerAccountId: submission.playerAccountId,
@@ -4426,16 +4274,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       grantId: grants.find((item) => titleGrantScopeKey(item) === titleGrantScopeKey(award))?.grantId ?? crypto.randomUUID(),
     }));
     const directGrantsByScope = new Map(grants.map((grant) => [titleGrantScopeKey(grant), grant]));
-    const completionGrantsByScope = new Map<string, (typeof completionAwardRows)[number]>();
-    for (const award of completionAwardRows.filter((item) => item.grantable)) {
-      const scope = titleGrantScopeKey(award);
-      const directGrant = directGrantsByScope.get(scope);
-      if (directGrant) {
-        if (award.root && award.challengeId === directGrant.canonicalChallengeId) completionGrantsByScope.set(scope, award);
-      } else if (!completionGrantsByScope.has(scope)) {
-        completionGrantsByScope.set(scope, award);
-      }
-    }
+    const completionGrantsByScope = selectCompletionGrantAwards(completionAwardRows, directGrantsByScope);
     const statements: D1PreparedStatement[] = [
       database.prepare("UPDATE ocr_results SET request_id = ?, attempt = ?, status = 'matched', response_json = ?, match_json = ?, callback_claimed = 0, created_at = ? WHERE id = ? AND submission_id = ? AND status = 'pending' AND callback_claimed = 1 AND EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'ocr_pending')").bind(input.requestId, input.attempt, input.responseJson, input.matchJson, timestamp, input.requestId, input.submissionId, input.submissionId),
       database.prepare("INSERT OR IGNORE INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, ?, 'approved', NULL, 'system:ocr', ? WHERE EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'ocr_pending')").bind(reviewId, input.submissionId, timestamp, input.submissionId),
@@ -4675,74 +4514,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     }
   };
 
-  const getReviewSummaries = async (input: ReviewSummaryBatchInput): Promise<ReviewSummary[]> => {
-    type AggregateRow = { target_id: string; gameplay_revision_id: string | null; review_count: number; average_rating: number | null; rating_1: number | null; rating_2: number | null; rating_3: number | null; rating_4: number | null; rating_5: number | null };
-    const toSummary = (target: { targetId: string; gameplayRevisionId: string | null }, aggregate: AggregateRow | undefined): ReviewSummary => {
-      const reviewCount = Number(aggregate?.review_count ?? 0);
-      return {
-        targetType: input.targetType,
-        targetId: target.targetId,
-        gameplayRevisionId: target.gameplayRevisionId,
-        averageRating: aggregate?.average_rating === null || aggregate?.average_rating === undefined ? null : Number(Number(aggregate.average_rating).toFixed(2)),
-        reviewCount,
-        ratingDistribution: { 1: Number(aggregate?.rating_1 ?? 0), 2: Number(aggregate?.rating_2 ?? 0), 3: Number(aggregate?.rating_3 ?? 0), 4: Number(aggregate?.rating_4 ?? 0), 5: Number(aggregate?.rating_5 ?? 0) },
-        sampleInsufficient: reviewCount < reviewSampleThreshold,
-      };
-    };
-    if (input.targetType === "event") {
-      const targetIds = [...new Set(input.targetIds)];
-      if (!targetIds.length || targetIds.length > 100) throw new Error("REVIEW_TARGET_BATCH_INVALID");
-      const targetRows = await db.select({ id: randomEvents.id }).from(randomEvents).where(inArray(randomEvents.id, targetIds));
-      if (targetRows.length !== targetIds.length) throw new Error("REVIEW_TARGET_NOT_FOUND");
-      const placeholders = targetIds.map(() => "?").join(", ");
-      const aggregateResult = await database.prepare(`
-        SELECT target_id, NULL AS gameplay_revision_id, COUNT(*) AS review_count, AVG(rating) AS average_rating,
-          SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) AS rating_1,
-          SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) AS rating_2,
-          SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) AS rating_3,
-          SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) AS rating_4,
-          SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) AS rating_5
-        FROM reviews
-        WHERE target_type = 'event' AND target_id IN (${placeholders}) AND status = 'active'
-        GROUP BY target_id
-      `).bind(...targetIds).all<AggregateRow>();
-      const aggregates = new Map(aggregateResult.results.map((row) => [row.target_id, row]));
-      return targetIds.map((targetId) => toSummary({ targetId, gameplayRevisionId: null }, aggregates.get(targetId)));
-    }
-
-    const targets = [...new Map(input.targets.map((target) => [`${target.targetId}:${target.gameplayRevisionId}`, target])).values()];
-    if (!targets.length || targets.length > 100) throw new Error("REVIEW_TARGET_BATCH_INVALID");
-    const serializedTargets = JSON.stringify(targets);
-    const targetCount = await database.prepare(`
-      SELECT COUNT(*) AS count FROM json_each(?)
-      WHERE EXISTS (
-        SELECT 1 FROM gameplay_revisions revision
-        WHERE revision.id = json_extract(json_each.value, '$.gameplayRevisionId')
-          AND revision.map_id = json_extract(json_each.value, '$.targetId')
-      )
-    `).bind(serializedTargets).first<{ count: number }>();
-    if (Number(targetCount?.count ?? 0) !== targets.length) throw new Error("REVIEW_TARGET_NOT_FOUND");
-    const aggregateResult = await database.prepare(`
-      WITH requested AS (
-        SELECT json_extract(value, '$.targetId') AS target_id,
-               json_extract(value, '$.gameplayRevisionId') AS gameplay_revision_id
-        FROM json_each(?)
-      )
-      SELECT review.target_id, review.gameplay_revision_id, COUNT(*) AS review_count, AVG(review.rating) AS average_rating,
-        SUM(CASE WHEN review.rating = 1 THEN 1 ELSE 0 END) AS rating_1,
-        SUM(CASE WHEN review.rating = 2 THEN 1 ELSE 0 END) AS rating_2,
-        SUM(CASE WHEN review.rating = 3 THEN 1 ELSE 0 END) AS rating_3,
-        SUM(CASE WHEN review.rating = 4 THEN 1 ELSE 0 END) AS rating_4,
-        SUM(CASE WHEN review.rating = 5 THEN 1 ELSE 0 END) AS rating_5
-      FROM reviews AS review
-      INNER JOIN requested ON requested.target_id = review.target_id AND requested.gameplay_revision_id = review.gameplay_revision_id
-      WHERE review.target_type = 'map' AND review.status = 'active'
-      GROUP BY review.target_id, review.gameplay_revision_id
-    `).bind(serializedTargets).all<AggregateRow>();
-    const aggregates = new Map(aggregateResult.results.map((row) => [`${row.target_id}:${row.gameplay_revision_id}`, row]));
-    return targets.map((target) => toSummary(target, aggregates.get(`${target.targetId}:${target.gameplayRevisionId}`)));
-  };
-
   const recordVerifiedRun = async (input: VerifiedRunInput): Promise<RecordVerifiedRunResult> => {
     const planned = await planVerifiedRunRecord(input);
     if (!planned.statements.length) {
@@ -4852,7 +4623,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const query = input.query?.toLocaleLowerCase();
       const available = events.filter((event) => !suspendedVersions.has(event.gameVersion));
       const filtered = query ? available.filter((event) => [event.name, event.description, event.eventGroup ?? "", ...event.effectTags].some((value) => value.toLocaleLowerCase().includes(query))) : available;
-      return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
+      return paginate(filtered, input.page, input.pageSize);
     },
     async getAgentEvent(input) {
       const event = await this.getRandomEvent({ eventId: input.eventId, status: input.status });
@@ -4864,7 +4635,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const query = input.query?.toLocaleLowerCase();
       const mechanic = input.mechanic?.toLocaleLowerCase();
       const filtered = maps.filter((map) => (!query || map.mapName.toLocaleLowerCase().includes(query)) && (!mechanic || map.mechanics.some((value) => value.toLocaleLowerCase() === mechanic)));
-      return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
+      return paginate(filtered, input.page, input.pageSize);
     },
     async getAgentMap(input) {
       return (await loadAgentMapProjectionsFast({ mapId: input.mapId }))[0] ?? null;
@@ -4882,7 +4653,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           && (!input.status || challenge.status === input.status)
           && (!input.mapId || (challenge.family === "map" ? challenge.mapId === input.mapId : challenge.scope !== "map" || !challenge.mapIds?.length || challenge.mapIds.includes(input.mapId)));
       });
-      return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
+      return paginate(filtered, input.page, input.pageSize);
     },
     async getAgentAchievement(input) {
       const row = await db.select({ challenge: titleChallenges, title: titleCatalog })
@@ -4920,7 +4691,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const titles = globalTitles.concat(mapTitles);
       const query = input.query?.toLocaleLowerCase();
       const filtered = titles.filter((title) => (!query || [title.label, title.category, title.condition].some((value) => value.toLocaleLowerCase().includes(query))) && (!input.category || title.category === input.category) && (!input.scope || title.scope === input.scope) && (!input.mapId || title.scope === "global" || title.mapId === input.mapId));
-      return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
+      return paginate(filtered, input.page, input.pageSize);
     },
     async listAgentPlayerTitleGrants(input: AgentPlayerTitleGrantQuery) {
       const rows = await platformCache.cached("grants", "agent-player-title-grants", () => db.select({ playerId: playerAccounts.playerId, playerName: playerAccounts.playerName, titleKey: playerTitleGrants.titleKey, equipped: playerEquippedTitles.grantId, allTitles: playerTitleEntitlements.allTitles })
@@ -4937,7 +4708,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         if (row.equipped && row.titleKey && !current.allTitles && !current.titleKeys.includes(row.titleKey)) current.titleKeys.push(row.titleKey);
         grouped.set(row.playerId, current);
       }
-      return { contractVersion: "1" as const, ...paginate([...grouped.values()], input.page, input.pageSize) };
+      return paginate([...grouped.values()], input.page, input.pageSize);
     },
     async listAgentMapTitleHolders(input: AgentMapTitleHolderQuery) {
       const map = await this.getAgentMap({ mapId: input.mapId });
@@ -4951,7 +4722,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         .innerJoin(titleCatalog, and(eq(playerTitleGrants.titleKey, titleCatalog.key), ne(titleCatalog.lifecycle, "draft"), eq(titleCatalog.publicVisibility, 1), eq(titleCatalog.scope, "map"), isNotNull(titleCatalog.gameVersion)))
         .where(and(eq(playerTitleGrants.status, "active"), eq(playerTitleGrants.mapId, input.mapId), inArray(playerTitleGrants.gameplayRevisionId, projectableRevisionIds)))
         .orderBy(playerTitleGrants.gameplayRevisionId, playerTitleGrants.slot, playerAccounts.playerId, playerTitleGrants.titleKey));
-      return { contractVersion: "1" as const, ...paginate(rows.map((row) => ({ mapId: row.mapId!, gameplayRevisionId: row.gameplayRevisionId!, titleKey: row.titleKey, slot: row.slot as "pioneer" | "conqueror" | "dominator" | null, slotSemantics: row.slot ? "named" as const : "none" as const, playerId: row.playerId, playerName: row.playerName })), input.page, input.pageSize) };
+      return paginate(rows.map((row) => ({ mapId: row.mapId!, gameplayRevisionId: row.gameplayRevisionId!, titleKey: row.titleKey, slot: row.slot as "pioneer" | "conqueror" | "dominator" | null, slotSemantics: row.slot ? "named" as const : "none" as const, playerId: row.playerId, playerName: row.playerName })), input.page, input.pageSize);
     },
     async getAgentTitle(input) {
       const title = await db.select().from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
@@ -5035,7 +4806,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       if (!input.kind || input.kind === "map") results.push(...maps.filter((map) => [map.mapName, ...map.mechanics].some((value) => value.toLocaleLowerCase().includes(query))).map((map) => ({ kind: "map" as const, id: map.mapId, name: map.mapName, summary: map.mechanics.join("、") || `游戏版本 ${map.gameVersion}` })));
       if (!input.kind || input.kind === "achievement") results.push(...achievements.filter((challenge): challenge is Extract<Challenge, { family: "achievement" }> => challenge.family === "achievement" && [challenge.titleName, challenge.category, challenge.condition, challenge.evidenceRule].some((value) => value.toLocaleLowerCase().includes(query))).map((challenge) => ({ kind: "achievement" as const, id: challenge.challengeId, name: challenge.titleName, summary: challenge.condition })));
       if (!input.kind || input.kind === "title") results.push(...titles.filter((title) => [title.label, title.category, title.condition].some((value) => value.toLocaleLowerCase().includes(query))).map((title) => ({ kind: "title" as const, id: title.titleKey, name: title.label, summary: title.condition })));
-      return { contractVersion: "1" as const, ...paginate(results, input.page, input.pageSize) };
+      return paginate(results, input.page, input.pageSize);
     },
     async listRandomEvents(input) {
       const filters = [input.includeArchived ? undefined : isNull(randomEvents.archivedAt), input.status ? eq(randomEvents.releaseStatus, input.status) : input.includeArchived === undefined ? inArray(randomEvents.releaseStatus, ["implemented", "removed"]) : undefined, input.category ? eq(randomEvents.category, input.category) : undefined, input.rarity ? eq(randomEvents.rarity, input.rarity) : undefined, input.query ? like(randomEvents.name, `%${input.query}%`) : undefined].filter(Boolean) as any[];
@@ -5055,8 +4826,12 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         const byLabel = new Map(terms.flatMap((term) => [term.nameZh, ...term.aliases].map((label) => [label, term] as const)));
         const challengeById = new Map(allChallenges.map((c) => [c.challengeId, c]));
         const challengesByEvent = new Map<string, Challenge[]>(eventIds.map((id) => [id, []]));
-        for (const link of mapLinks) { const c = challengeById.get(link.challengeId); if (c) challengesByEvent.get(link.eventId)?.push(c); }
-        for (const link of titleLinks) { const c = challengeById.get(link.challengeId); if (c) challengesByEvent.get(link.eventId)?.push(c); }
+        for (const links of [mapLinks, titleLinks]) {
+          for (const link of links) {
+            const challenge = challengeById.get(link.challengeId);
+            if (challenge) challengesByEvent.get(link.eventId)?.push(challenge);
+          }
+        }
       return rows.map((row): RandomEvent => { const effectTags = JSON.parse(row.effectTagsJson) as string[]; return { eventId: row.id, name: row.name, category: row.category, rarity: row.rarity, description: row.description, durationSeconds: row.durationSeconds, cooldownSeconds: row.cooldownSeconds, weight: row.weight, gameVersion: row.gameVersion, eventGroup: row.eventGroup, effectTags, effectAnnotations: effectTags.flatMap((tag) => { const term = byLabel.get(tag); return term ? [{ tag, term }] : []; }), releaseStatus: row.releaseStatus as RandomEvent["releaseStatus"], archived: row.archivedAt !== null, challenges: challengesByEvent.get(row.id) ?? [] }; });
     },
     async getRandomEvent(input) {
@@ -5518,28 +5293,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     async listChallenges(input) {
       const items: Challenge[] = [];
       if (!input?.family || input.family === "map") {
-        const rows = [...await platformCache.cached("catalog", "pub-challenge-map-rows", () => db.select({ challenge: achievementChallenges, map: maps, assignment: gameplayRevisionChallengeAssignments, revision: gameplayRevisions })
-          .from(achievementChallenges)
-          .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
-          .innerJoin(gameplayRevisionChallengeAssignments, and(
-            eq(gameplayRevisionChallengeAssignments.challengeFamily, "map_challenge"),
-            eq(gameplayRevisionChallengeAssignments.challengeId, achievementChallenges.id),
-            eq(gameplayRevisionChallengeAssignments.mapId, achievementChallenges.mapId),
-            eq(gameplayRevisionChallengeAssignments.enabled, 1),
-          ))
-          .innerJoin(gameplayRevisions, eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, gameplayRevisions.id))
-          .where(and(
-            inArray(achievementChallenges.status, ["active", "sunsetting"]),
-            eq(maps.status, "active"),
-            eq(gameplayRevisions.mapId, achievementChallenges.mapId),
-            inArray(gameplayRevisions.lifecycle, ["default", "selectable"]),
-            notExists(db.select({ legacyChallengeId: mapTitleRuleCompat.legacyChallengeId })
-              .from(mapTitleRuleCompat)
-              .where(and(
-                eq(mapTitleRuleCompat.legacyChallengeId, achievementChallenges.id),
-                eq(mapTitleRuleCompat.mapId, achievementChallenges.mapId),
-              )))
-          )))]
+        const rows = [...await platformCache.cached("catalog", "pub-challenge-map-rows", () => mapChallengeQuery())]
           .sort((left, right) => compareText(left.map.name, right.map.name) || compareText(left.challenge.name, right.challenge.name));
         items.push(...rows.map(({ challenge, map, assignment, revision }) => toPublicMapChallenge(challenge, map, assignment, revision)));
         items.push(...await loadMapTitleRuleChallenges());
@@ -5588,12 +5342,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         const rows = await db.select({ challenge: achievementChallenges, map: maps, assignment: gameplayRevisionChallengeAssignments, revision: gameplayRevisions })
           .from(achievementChallenges)
           .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
-          .innerJoin(gameplayRevisionChallengeAssignments, and(
-            eq(gameplayRevisionChallengeAssignments.challengeFamily, "map_challenge"),
-            eq(gameplayRevisionChallengeAssignments.challengeId, achievementChallenges.id),
-            eq(gameplayRevisionChallengeAssignments.mapId, achievementChallenges.mapId),
-            eq(gameplayRevisionChallengeAssignments.enabled, 1),
-          ))
+          .innerJoin(gameplayRevisionChallengeAssignments, enabledMapChallengeAssignment())
           .innerJoin(gameplayRevisions, eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, gameplayRevisions.id))
           .where(and(
             input.status ? eq(achievementChallenges.status, input.status === "retired" ? "inactive" : input.status) : undefined,
@@ -5675,26 +5424,20 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           const existing = catalogTitles.get(title.key);
           catalogTitles.set(title.key, { title, hasChallenge: Boolean(existing?.hasChallenge || challenge) });
         }
-        items.push(...[...catalogTitles.values()].map(({ title, hasChallenge }): AdminChallenge => ({
-          challengeId: `title.${title.key}`,
-          family: "title_catalog",
-          type: "title_catalog",
-          titleKey: title.key,
-          titleName: title.label,
-          icon: title.icon,
-          iconUrl: title.iconUrl,
-          category: title.category,
-          condition: title.condition,
-          lifecycle: title.lifecycle as "draft" | "active" | "retired",
-          publicVisibility: title.publicVisibility === 1,
-          availability: title.lifecycle === "retired" ? "retired" : "active",
-          scope: title.scope as "global" | "map",
-          displayKind: title.displayKind as "fixed" | "map_pioneer" | "map_name_suffix",
-          color: titleColor(title.colorJson),
-          status: title.lifecycle as "draft" | "active" | "retired",
-          gameVersion: title.gameVersion,
-          hasChallenge,
-        })));
+        items.push(...[...catalogTitles.values()].map(({ title, hasChallenge }): AdminChallenge => {
+          const { label: titleName, ...titleFields } = toAgentTitle(title);
+          return {
+            ...titleFields,
+            challengeId: `title.${title.key}`,
+            family: "title_catalog",
+            type: "title_catalog",
+            titleName,
+            publicVisibility: title.publicVisibility === 1,
+            gameVersion: title.gameVersion,
+            status: title.lifecycle as "draft" | "active" | "retired",
+            hasChallenge,
+          };
+        }));
       }
       return { contractVersion: "1" as const, items };
     },
@@ -6204,6 +5947,19 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const safePage = Math.max(1, input.page);
       const safePageSize = Math.min(50, Math.max(1, input.pageSize));
       const query = input.query?.trim() ? `%${input.query.trim()}%` : undefined;
+      const historicalGrantStats = async () => {
+        const [row] = await db.select({
+          pendingHolderCount: sql<number>`count(distinct case when ${playerTitleGrants.id} is null then ${historicalTitleGrants.holderName} end)`,
+          unclaimedGrantCount: sql<number>`sum(case when ${playerTitleGrants.id} is null then 1 else 0 end)`,
+          migratedGrantCount: sql<number>`sum(case when ${playerTitleGrants.id} is not null then 1 else 0 end)`,
+        }).from(historicalTitleGrants)
+          .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id), eq(playerTitleGrants.titleKey, historicalTitleGrants.titleKey)));
+        return {
+          pendingHolderCount: Number(row?.pendingHolderCount ?? 0),
+          unclaimedGrantCount: Number(row?.unclaimedGrantCount ?? 0),
+          migratedGrantCount: Number(row?.migratedGrantCount ?? 0),
+        };
+      };
 
       let matchingHolderNames: string[] | null = null;
       if (query) {
@@ -6213,12 +5969,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           .where(or(like(historicalTitleGrants.holderName, query), like(titleCatalog.label, query)));
         matchingHolderNames = matched.map((row) => row.holderName);
         if (!matchingHolderNames.length) {
-          const [statsRow] = await db.select({
-            pendingHolderCount: sql<number>`count(distinct case when ${playerTitleGrants.id} is null then ${historicalTitleGrants.holderName} end)`,
-            unclaimedGrantCount: sql<number>`sum(case when ${playerTitleGrants.id} is null then 1 else 0 end)`,
-            migratedGrantCount: sql<number>`sum(case when ${playerTitleGrants.id} is not null then 1 else 0 end)`,
-          }).from(historicalTitleGrants)
-            .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id), eq(playerTitleGrants.titleKey, historicalTitleGrants.titleKey)));
           return {
             contractVersion: "1" as const,
             holders: [],
@@ -6227,11 +5977,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
             total: 0,
             hasMore: false,
             filter,
-            stats: {
-              pendingHolderCount: Number(statsRow?.pendingHolderCount ?? 0),
-              unclaimedGrantCount: Number(statsRow?.unclaimedGrantCount ?? 0),
-              migratedGrantCount: Number(statsRow?.migratedGrantCount ?? 0),
-            },
+            stats: await historicalGrantStats(),
           };
         }
       }
@@ -6256,7 +6002,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         .having(havingClause)
         .as("historical_holder_summary");
 
-      const [[{ total }], pageRows, [statsRow]] = await Promise.all([
+      const [[{ total }], pageRows, stats] = await Promise.all([
         db.select({ total: count() }).from(aggregated),
         db.select({
           holderName: aggregated.holderName,
@@ -6266,12 +6012,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           .orderBy(asc(aggregated.holderName))
           .limit(safePageSize)
           .offset((safePage - 1) * safePageSize),
-        db.select({
-          pendingHolderCount: sql<number>`count(distinct case when ${playerTitleGrants.id} is null then ${historicalTitleGrants.holderName} end)`,
-          unclaimedGrantCount: sql<number>`sum(case when ${playerTitleGrants.id} is null then 1 else 0 end)`,
-          migratedGrantCount: sql<number>`sum(case when ${playerTitleGrants.id} is not null then 1 else 0 end)`,
-        }).from(historicalTitleGrants)
-          .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id), eq(playerTitleGrants.titleKey, historicalTitleGrants.titleKey))),
+        historicalGrantStats(),
       ]);
 
       return {
@@ -6291,11 +6032,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         total: Number(total),
         hasMore: safePage * safePageSize < Number(total),
         filter,
-        stats: {
-          pendingHolderCount: Number(statsRow?.pendingHolderCount ?? 0),
-          unclaimedGrantCount: Number(statsRow?.unclaimedGrantCount ?? 0),
-          migratedGrantCount: Number(statsRow?.migratedGrantCount ?? 0),
-        },
+        stats,
       };
     },
 
@@ -7505,7 +7242,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         let grantId = crypto.randomUUID();
         if (reward) {
           const existing = await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).where(and(eq(playerTitleGrants.playerAccountId, row.playerAccountId), eq(playerTitleGrants.titleKey, reward.titleKey), eq(playerTitleGrants.status, "active"), reward.mapId ? eq(playerTitleGrants.mapId, reward.mapId) : isNull(playerTitleGrants.mapId), reward.gameplayRevisionId ? eq(playerTitleGrants.gameplayRevisionId, reward.gameplayRevisionId) : isNull(playerTitleGrants.gameplayRevisionId))).get();
-          if (existing) { alreadyOwned = true; grantId = existing.id as typeof grantId; }
         }
         const canonicalChallengeId = reward
           ? await canonicalChallengeIdForGrant({ snapshot: submissionSnapshot, legacyChallengeId: reward.challengeId, titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, timestamp })
@@ -7520,11 +7256,14 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         const completionAwardRows = [...completionAwards.values()].map((award) => ({ ...award, grantId: award.root ? grantId : crypto.randomUUID() }));
         const requestHash = await hashRequest(input);
         const playerVerifiedRunOutcome = verifiedRunOutcome ? playerVerifiedRunSubmissionOutcome(verifiedRunOutcome) : null;
+        const responseDetails = {
+          ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}),
+        };
         const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grantId: reward ? grantId : null, evidenceMatchOutcome: reviewedMatchOutcome, evidenceMatchedChallengeIds: reviewedChallengeIds, ...(!reward && retainedGrants.length ? { retainedGrants: retainedGrants.map(({ grantId: retainedGrantId, titleKey }) => ({ grantId: retainedGrantId, titleKey })) } : {}), ...(reward ? { titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, mapVariant: submissionSnapshot?.mapVariant ?? null, ruleId: submissionSnapshot?.ruleId ?? null, ruleRevision: submissionSnapshot?.ruleRevision ?? null } : {}), ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}) };
         const response: AdminSubmissionReviewResponse = reward
-          ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId, titleKey: reward.titleKey, titleName: reward.titleName, alreadyOwned, ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}) }
+          ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId, titleKey: reward.titleKey, titleName: reward.titleName, alreadyOwned, ...responseDetails }
           : input.decision === "approved" && retainedGrants.length
-            ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId: retainedGrants[0]!.grantId as `${string}-${string}-${string}-${string}-${string}`, titleKey: retainedGrants[0]!.titleKey, titleName: retainedGrants[0]!.titleName, alreadyOwned: true, grants: retainedGrants.map(({ grantId: retainedGrantId, titleKey, titleName }) => ({ grantId: retainedGrantId as `${string}-${string}-${string}-${string}-${string}`, titleKey, titleName, alreadyOwned: true })), ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}) }
+            ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId: retainedGrants[0]!.grantId as `${string}-${string}-${string}-${string}-${string}`, titleKey: retainedGrants[0]!.titleKey, titleName: retainedGrants[0]!.titleName, alreadyOwned: true, grants: retainedGrants.map(({ grantId: retainedGrantId, titleKey, titleName }) => ({ grantId: retainedGrantId as `${string}-${string}-${string}-${string}-${string}`, titleKey, titleName, alreadyOwned: true })), ...responseDetails }
           : input.decision === "approved"
             ? { contractVersion: "1", submissionId: row.id, decision: "approved", grant: null, verifiedRunOutcome: playerVerifiedRunOutcome! }
             : { contractVersion: "1", submissionId: row.id, decision: input.decision as "rejected" | "resubmission_required", grant: null };
@@ -7834,59 +7573,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       };
     },
 
-    async listAdminReviews(input: AdminReviewQuery, _auth: AuthContext) {
-      const clauses: string[] = [];
-      const values: unknown[] = [];
-      const add = (clause: string, value: unknown) => { clauses.push(` AND ${clause}`); values.push(value); };
-      if (input.targetType) add("r.target_type = ?", input.targetType);
-      if (input.targetId) add("r.target_id = ?", input.targetId);
-      if (input.status) add("r.status = ?", input.status);
-      if (input.commentStatus) add("r.comment_status = ?", input.commentStatus);
-      if (input.rating) add("r.rating = ?", input.rating);
-      if (input.from !== undefined) add("r.created_at >= ?", input.from);
-      if (input.to !== undefined) add("r.created_at <= ?", input.to);
-      const page = Math.max(1, Math.floor(input.page));
-      const pageSize = Math.min(50, Math.max(1, Math.floor(input.pageSize)));
-      const where = clauses.join("");
-      const [totalRow, result] = await Promise.all([
-        database.prepare(`SELECT COUNT(*) AS total ${adminReviewQuery}${where}`).bind(...values).first<{ total: number }>(),
-        database.prepare(`${adminReviewSelect}${where} ORDER BY r.created_at DESC, r.id DESC LIMIT ? OFFSET ?`).bind(...values, pageSize + 1, (page - 1) * pageSize).all<AdminReviewRow>(),
-      ]);
-      const hasMore = result.results.length > pageSize;
-      return {
-        contractVersion: "1" as const,
-        items: result.results.slice(0, pageSize).map(asAdminReview),
-        page,
-        pageSize,
-        total: Number(totalRow?.total ?? 0),
-        hasMore,
-      };
-    },
-
-    async getAdminReview(input: { reviewId: string }, _auth: AuthContext): Promise<AdminReviewDetail> {
-      const row = await database.prepare(`${adminReviewSelect} AND r.id = ?`).bind(input.reviewId).first<AdminReviewRow>();
-      if (!row) throw new Error("REVIEW_NOT_FOUND");
-      const auditRows = await database.prepare(`SELECT operation, actor_type, actor_id, payload_json, created_at FROM audit_events WHERE entity_type = 'review' AND entity_id = ? ORDER BY created_at DESC LIMIT 50`).bind(input.reviewId).all<{
-        operation: string;
-        actor_type: string;
-        actor_id: string;
-        payload_json: string;
-        created_at: number;
-      }>();
-      return {
-        contractVersion: "1",
-        review: asAdminReview(row),
-        audit: auditRows.results.map((audit) => {
-          let reason: string | null = null;
-          try {
-            const payload = JSON.parse(audit.payload_json) as { reason?: unknown };
-            if (typeof payload.reason === "string") reason = payload.reason;
-          } catch { /* Ignore malformed historical audit payloads. */ }
-          return { operation: audit.operation, actorType: audit.actor_type, actorId: audit.actor_id, reason, createdAt: audit.created_at };
-        }),
-      };
-    },
-
     async setAdminPlayerStatus(input, auth, idempotencyKey) {
       const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "admin.player.status", idempotencyKey, input);
       if (replay) return;
@@ -8124,7 +7810,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       };
     },
 
-    async createQqLoginAttempt(input: QqLoginAttemptRequest) {
+    async createQqLoginAttempt(_input: QqLoginAttemptRequest) {
       const timestamp = now();
       await pruneExpiredAuthRows(timestamp);
       const attemptId = crypto.randomUUID();
@@ -8132,7 +7818,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const tokenHash = await hashRequest(attemptToken);
       const maxCodeAttempts = 5;
       for (let attemptIndex = 0; attemptIndex < maxCodeAttempts; attemptIndex += 1) {
-        const code = randomCode();
+        const code = randomCode(6);
         try {
           await db.insert(qqLoginAttempts).values({ id: attemptId, tokenHash, codeHash: await hashRequest(code), status: "pending", expiresAt: timestamp + loginTtlMs, createdAt: timestamp });
           return { contractVersion: "1" as const, attemptId, attemptToken, code, expiresAt: timestamp + loginTtlMs };
@@ -8496,7 +8182,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const historicalIds = input.historicalTitleGrantIds ?? [];
       const historicalRows = historicalIds.length ? await db.select({ id: historicalTitleGrants.id, grantId: playerTitleGrants.id }).from(historicalTitleGrants).leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id), eq(playerTitleGrants.titleKey, historicalTitleGrants.titleKey))).where(inArray(historicalTitleGrants.id, historicalIds)) : [];
       if (historicalRows.length !== historicalIds.length || historicalRows.some((row) => row.grantId)) throw new Error("HISTORICAL_TITLE_GRANT_NOT_AVAILABLE");
-      const timestamp = now(); const code = randomInviteCode(); const inviteId = crypto.randomUUID();
+      const timestamp = now(); const code = randomCode(12); const inviteId = crypto.randomUUID();
       const response = { contractVersion: "1" as const, inviteId, code, playerName: input.playerName, playerId: input.playerId, expiresAt: timestamp + inviteTtlMs, historicalMigration: { status: historicalIds.length ? "authorized" as const : "not_requested" as const, requestedCount: historicalIds.length, completedCount: 0, conflictCount: 0, retryCount: 0 } };
       await db.batch([
         db.insert(bindingInvites).values({ id: inviteId, codeHash: await hashRequest(code), codeCiphertext: await encryptBindingInviteCode(code, bindingInviteCodeEncryptionKey), playerName: input.playerName, normalizedPlayerName: normalizePlayerName(input.playerName), playerId: input.playerId, createdBy: auth.subject, createdAt: timestamp, expiresAt: response.expiresAt }),
@@ -8513,7 +8199,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       if (replay) return replay;
       const timestamp = now();
       const codes = new Set<string>();
-      while (codes.size < input.invitations.length) codes.add(randomInviteCode());
+      while (codes.size < input.invitations.length) codes.add(randomCode(12));
       const prepared = await Promise.all(input.invitations.map(async (invitation, index) => {
         const code = [...codes][index]!;
         const inviteId = crypto.randomUUID();
@@ -8632,7 +8318,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       await pruneExpiredBindingClaims(timestamp);
       const pending = await db.select().from(bindingClaims).where(and(eq(bindingClaims.inviteId, invite.id), eq(bindingClaims.status, "pending_confirmation"))).get();
       if (pending) throw new Error("INVITE_INVALID");
-      const claimId = crypto.randomUUID(); const claimToken = randomToken(); const code = randomCode();
+      const claimId = crypto.randomUUID(); const claimToken = randomToken(); const code = randomCode(6);
       const insertStmt = db.insert(bindingClaims).values({ id: claimId, inviteId: invite.id, tokenHash: await hashRequest(claimToken), codeHash: await hashRequest(code), playerName: invite.playerName, normalizedPlayerName: invite.normalizedPlayerName, playerId: invite.playerId, status: "pending_confirmation", expiresAt: timestamp + bindingClaimTtlMs, createdAt: timestamp });
       try {
         await db.batch([insertStmt]);
@@ -8886,205 +8572,9 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       }
     },
 
-    async createBinding(input: QqBindingRequest, auth, idempotencyKey) {
-      // QQBot must use the invitation-claim verification contract. This legacy endpoint
-      // remains only to return a deterministic migration-safe error to older adapters.
-      void input; void auth; void idempotencyKey;
+    async createBinding() {
+      // Older adapters receive a deterministic migration-safe response.
       throw new Error("INVITE_REQUIRED");
-      /*
-      const group = await db.select().from(qqGroupAccess).where(and(eq(qqGroupAccess.groupOpenId, input.groupOpenId), eq(qqGroupAccess.status, "active"), eq(qqGroupAccess.bindEnabled, 1))).get();
-      if (!group) throw new Error("BINDING_GROUP_NOT_ALLOWED");
-
-      const existing = await db.select().from(bindings).where(and(eq(bindings.provider, input.provider), eq(bindings.memberOpenId, input.memberOpenId))).get();
-      const normalizedPlayerName = normalizePlayerName(input.playerName);
-      let account = existing
-        ? await db.select().from(playerAccounts).where(eq(playerAccounts.id, existing.playerAccountId)).get()
-        : await db.select().from(playerAccounts).where(and(eq(playerAccounts.normalizedPlayerName, normalizedPlayerName), eq(playerAccounts.playerId, input.playerId))).get();
-      if (existing && (account?.playerId !== input.playerId || account.normalizedPlayerName !== normalizedPlayerName)) throw new Error("BINDING_CONFLICT");
-      if (account?.status === "banned") throw new Error("PLAYER_BANNED");
-      if (!account) {
-        const timestamp = now();
-        account = { id: crypto.randomUUID(), playerId: input.playerId, playerName: input.playerName, normalizedPlayerName, isAdmin: 0, status: "active", bannedAt: null, bannedBy: null, banReason: null, createdAt: timestamp, updatedAt: timestamp };
-        await db.insert(playerAccounts).values(account);
-      } else if (account.playerName !== input.playerName) {
-        await db.update(playerAccounts).set({ playerName: input.playerName, normalizedPlayerName, updatedAt: now() }).where(eq(playerAccounts.id, account.id));
-        account = { ...account, playerName: input.playerName, normalizedPlayerName, updatedAt: now() };
-      }
-      if (!account) throw new Error("PLAYER_NOT_FOUND");
-
-      if (existing) {
-        if (existing.playerAccountId !== account.id) throw new Error("BINDING_CONFLICT");
-        const response = { contractVersion: "1" as const, bindingId: existing.id, identityId: existing.identityId, provider: "qq" as const, groupOpenId: existing.groupOpenId, memberOpenId: existing.memberOpenId, playerName: account.playerName, playerId: account.playerId };
-        await recordIdempotency(db, auth.subject, "qq.binding.create", idempotencyKey, input, response);
-        return response;
-      }
-
-      const identityId = crypto.randomUUID();
-      const bindingId = crypto.randomUUID();
-      const timestamp = now();
-      await db.insert(identities).values({ id: identityId, createdAt: timestamp, updatedAt: timestamp });
-      await db.insert(bindings).values({ id: bindingId, identityId, playerAccountId: account.id, provider: input.provider, groupOpenId: input.groupOpenId, memberOpenId: input.memberOpenId, createdAt: timestamp });
-      const response = { contractVersion: "1" as const, bindingId, identityId, provider: "qq" as const, groupOpenId: input.groupOpenId, memberOpenId: input.memberOpenId, playerName: account.playerName, playerId: account.playerId };
-      await recordIdempotency(db, auth.subject, "qq.binding.create", idempotencyKey, input, response);
-      await recordAudit(db, auth, "qq.binding.create", "binding", bindingId, { provider: input.provider });
-      return response;
-      */
-    },
-
-    async getReviewSummary(input: ReviewTarget): Promise<ReviewSummary> {
-      const summaries = input.targetType === "event"
-        ? await getReviewSummaries({ targetType: "event", targetIds: [input.targetId] })
-        : await getReviewSummaries({ targetType: "map", targets: [{ targetId: input.targetId, gameplayRevisionId: input.gameplayRevisionId }] });
-      return summaries[0]!;
-    },
-
-    getReviewSummaries,
-
-    async listPublicReviewComments(input: PublicReviewCommentQuery): Promise<PublicReviewCommentPage> {
-      const target = await findReviewTarget(input);
-      if (!target) throw new Error("REVIEW_TARGET_NOT_FOUND");
-      const page = Math.max(1, Math.floor(input.page));
-      const pageSize = Math.min(50, Math.max(1, Math.floor(input.pageSize)));
-      const result = await database.prepare(`
-        SELECT
-          r.rating,
-          r.comment,
-          r.anonymous,
-          r.created_at,
-          p.player_name,
-          COUNT(*) OVER () AS total_count
-        FROM reviews r
-        INNER JOIN player_accounts p ON p.id = r.player_account_id
-        WHERE r.target_type = ?
-          AND r.target_id = ?
-          AND r.gameplay_revision_id IS ?
-          AND r.status = 'active'
-          AND r.comment_status = 'visible'
-          AND r.comment IS NOT NULL
-        ORDER BY r.created_at DESC, r.id DESC
-        LIMIT ? OFFSET ?
-      `).bind(input.targetType, input.targetId, input.targetType === "map" ? input.gameplayRevisionId : null, pageSize, (page - 1) * pageSize).all<{
-        rating: number;
-        comment: string;
-        anonymous: number;
-        created_at: number;
-        player_name: string;
-        total_count: number;
-      }>();
-      const total = Number(result.results[0]?.total_count ?? 0);
-      return {
-        targetType: input.targetType,
-        targetId: input.targetId,
-        gameplayRevisionId: input.targetType === "map" ? input.gameplayRevisionId : null,
-        items: result.results.map((row) => ({
-          rating: asReviewRating(row.rating),
-          comment: row.comment,
-          author: row.anonymous === 1 ? null : { displayName: row.player_name },
-          createdAt: row.created_at,
-        })),
-        page,
-        pageSize,
-        total,
-        hasMore: page * pageSize < total,
-      };
-    },
-
-    async getPlayerReview(input: ReviewTarget, auth: AuthContext): Promise<ReviewRecord | null> {
-      const account = await findReviewAccount(auth.subject);
-      if (!account) throw new Error("PLAYER_NOT_FOUND");
-      if (!await findReviewTarget(input)) throw new Error("REVIEW_TARGET_NOT_FOUND");
-      const row = await db.select().from(reviews).where(and(
-        eq(reviews.playerAccountId, account.id),
-        eq(reviews.targetType, input.targetType),
-        eq(reviews.targetId, input.targetId),
-        input.targetType === "map" ? eq(reviews.gameplayRevisionId, input.gameplayRevisionId) : isNull(reviews.gameplayRevisionId),
-      )).get();
-      return row ? asReviewRecord(row) : null;
-    },
-
-    async upsertReview(input: ReviewUpsertInput, auth: AuthContext, idempotencyKey: string): Promise<ReviewRecord> {
-      const operation = "review.upsert";
-      const replay = await replayOrConflict<ReviewRecord>(db, auth.subject, operation, idempotencyKey, input);
-      if (replay) return replay;
-      const account = await findReviewAccount(auth.subject);
-      if (!account) throw new Error("PLAYER_NOT_FOUND");
-      if (account.status === "banned") throw new Error("PLAYER_BANNED");
-      const target = await findReviewTarget(input);
-      if (!target) throw new Error("REVIEW_TARGET_NOT_FOUND");
-      const canAccept = input.targetType === "event"
-        ? "archivedAt" in target && target.releaseStatus === "implemented" && target.archivedAt === null
-        : "map" in target && target.map.status === "active" && target.revision.lifecycle === "default";
-      if (!canAccept) throw new Error("REVIEW_TARGET_NOT_RATEABLE");
-      const rating = asReviewRating(input.rating);
-      const comment = normalizeReviewComment(input.comment);
-      const existing = await db.select().from(reviews).where(and(
-        eq(reviews.playerAccountId, account.id),
-        eq(reviews.targetType, input.targetType),
-        eq(reviews.targetId, input.targetId),
-        input.targetType === "map" ? eq(reviews.gameplayRevisionId, input.gameplayRevisionId) : isNull(reviews.gameplayRevisionId),
-      )).get();
-      if (existing?.status === "invalidated") throw new Error("REVIEW_INVALIDATED");
-      const timestamp = now();
-      const reviewId = existing?.id ?? crypto.randomUUID();
-      await database.prepare(`
-        INSERT INTO reviews (
-          id, player_account_id, target_type, target_id, gameplay_revision_id, rating, comment,
-          comment_status, anonymous, status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
-        ON CONFLICT DO UPDATE SET rating = excluded.rating, comment = excluded.comment,
-          anonymous = excluded.anonymous, status = 'active', updated_at = excluded.updated_at,
-          withdrawn_at = NULL
-      `).bind(
-        reviewId, account.id, input.targetType, input.targetId,
-        input.targetType === "map" ? input.gameplayRevisionId : null,
-        rating, comment, existing?.commentStatus ?? "visible", input.anonymous ? 1 : 0,
-        existing?.createdAt ?? timestamp, timestamp,
-      ).run();
-      const row = await db.select().from(reviews).where(and(
-        eq(reviews.playerAccountId, account.id),
-        eq(reviews.targetType, input.targetType),
-        eq(reviews.targetId, input.targetId),
-        input.targetType === "map" ? eq(reviews.gameplayRevisionId, input.gameplayRevisionId) : isNull(reviews.gameplayRevisionId),
-      )).get();
-      if (!row || row.status === "invalidated") throw new Error("REVIEW_INVALIDATED");
-      const response = asReviewRecord(row);
-      await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, response);
-      await recordAudit(db, auth, existing ? "review.update" : "review.create", "review", response.reviewId, { targetType: response.targetType, targetId: response.targetId, rating: response.rating, commentProvided: Boolean(response.comment), anonymous: response.anonymous, previousStatus: existing?.status ?? null });
-      return response;
-    },
-
-    async withdrawReview(input, auth, idempotencyKey): Promise<ReviewRecord> {
-      const operation = "review.withdraw";
-      const replay = await replayOrConflict<ReviewRecord>(db, auth.subject, operation, idempotencyKey, input);
-      if (replay) return replay;
-      const account = await findReviewAccount(auth.subject);
-      if (!account) throw new Error("PLAYER_NOT_FOUND");
-      const row = await db.select().from(reviews).where(eq(reviews.id, input.reviewId)).get();
-      if (!row) throw new Error("REVIEW_NOT_FOUND");
-      if (row.playerAccountId !== account.id) throw new Error("REVIEW_NOT_OWNED");
-      if (row.status === "invalidated") throw new Error("REVIEW_INVALIDATED");
-      const timestamp = now();
-      if (row.status === "active") await db.update(reviews).set({ status: "withdrawn", withdrawnAt: timestamp, updatedAt: timestamp }).where(and(eq(reviews.id, row.id), eq(reviews.status, "active")));
-      const response = asReviewRecord((await db.select().from(reviews).where(eq(reviews.id, row.id)).get())!);
-      await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, response);
-      await recordAudit(db, auth, operation, "review", row.id, { previousStatus: row.status, status: response.status });
-      return response;
-    },
-
-    async hideReviewComment(input, auth, idempotencyKey): Promise<ReviewRecord> {
-      return mutateReviewComment(input, auth, idempotencyKey, "hidden");
-    },
-
-    async restoreReviewComment(input, auth, idempotencyKey): Promise<ReviewRecord> {
-      return mutateReviewComment(input, auth, idempotencyKey, "visible");
-    },
-
-    async invalidateReview(input, auth, idempotencyKey): Promise<ReviewRecord> {
-      return mutateReviewState(input, auth, idempotencyKey, "invalidated");
-    },
-
-    async restoreReview(input, auth, idempotencyKey): Promise<ReviewRecord> {
-      return mutateReviewState(input, auth, idempotencyKey, "active");
     },
 
     async getSubmission(input, _auth) {
@@ -9093,6 +8583,12 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const verifiedRunOutcome = await loadVerifiedRunSubmissionOutcome(submission.id);
       return { contractVersion: "1" as const, submissionId: submission.id, status: playerSubmissionStatus(submission.status), resubmissionRequired: submission.status === "resubmission_required", mapName: submission.mapName, challengeId: submission.challengeId ?? undefined, difficulty: submission.difficulty ?? undefined, reason: verifiedRunOutcome?.status === "conflict" ? undefined : submission.reviewReason ?? undefined, ...playerVerifiedRunSubmissionOutcomeFields(verifiedRunOutcome), createdAt: submission.createdAt, updatedAt: submission.updatedAt };
     },
+    ...createReviewServices(database, db, {
+      now,
+      replayOrConflict: <T>(actorId: string, operation: string, key: string, input: unknown) => replayOrConflict<T>(db, actorId, operation, key, input),
+      recordIdempotency: (actorId, operation, key, input, response) => recordIdempotency(db, actorId, operation, key, input, response),
+      recordAudit: (auth, operation, entityType, entityId, payload) => recordAudit(db, auth, operation, entityType, entityId, payload),
+    }),
   };
 };
 
