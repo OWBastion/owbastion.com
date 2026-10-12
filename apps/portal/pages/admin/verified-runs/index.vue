@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { TableColumn } from "@nuxt/ui";
-import type { AdminVerifiedRun, AdminVerifiedRunCorrectionChanges, AdminVerifiedRunCorrectionResponse, AdminVerifiedRunDetail, AdminVerifiedRunProjection } from "~/composables/useAdminApi";
+import type { AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunStateResponse } from "@owbastion/contracts";
+import type { AdminVerifiedRun, AdminVerifiedRunCorrectionChanges, AdminVerifiedRunCorrectionResponse, AdminVerifiedRunDetail } from "~/composables/useAdminApi";
 import { createRequestId } from "~/utils/request-id";
 import { portalErrorDetails } from "~/utils/portal-error";
 
@@ -10,7 +11,7 @@ useSeoMeta({ title: "通关记录 · 躲避堡垒 3" });
 type PendingAction =
   | { kind: "state"; action: "invalidate" | "restore" }
   | { kind: "conflict"; submissionId: string; action: "keep_existing" | "invalidate_existing" };
-type VerifiedRunActionResponse = { contractVersion: "1"; run: AdminVerifiedRun; projection: AdminVerifiedRunProjection };
+type VerifiedRunActionResponse = AdminVerifiedRunStateResponse | AdminVerifiedRunConflictResolutionResponse;
 
 const api = useAdminApi();
 const toast = useToast();
@@ -38,7 +39,6 @@ const pendingAction = shallowRef<PendingAction | null>(null);
 const reason = ref("");
 const saving = ref(false);
 
-const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const runStatusLabel = (value: AdminVerifiedRun["status"]) => value === "active" ? "有效" : "已作废";
 const acceptanceSourceLabel = (value: AdminVerifiedRun["acceptanceSource"]) => value === "submission_automatic" ? "自动通过" : "人工核对";
 const actionLabel = computed(() => {
@@ -248,7 +248,7 @@ watch([matchCode, playerAccountId, unresolvedConflictsOnly, mapId, difficulty, r
           </div>
         </template>
         <template #map-cell="{ row }"><strong>{{ row.original.mapName }}</strong><span class="table-meta">{{ row.original.mapId }}</span></template>
-        <template #playerName-cell="{ row }"><NuxtLink class="player-link" :to="`/admin/players/${encodeURIComponent(row.original.playerAccountId)}`">{{ row.original.playerName }}</NuxtLink><span class="table-meta">{{ row.original.playerId }}</span></template>
+        <template #playerName-cell="{ row }"><NuxtLink class="accent-link" :to="`/admin/players/${encodeURIComponent(row.original.playerAccountId)}`">{{ row.original.playerName }}</NuxtLink><span class="table-meta">{{ row.original.playerId }}</span></template>
         <template #matchCode-cell="{ row }"><span class="run-code">{{ row.original.matchCode }}</span></template>
         <template #status-cell="{ row }"><StatusBadge :label="runStatusLabel(row.original.status)" :tone="row.original.status === 'active' ? 'success' : 'warning'" /></template>
         <template #acceptanceSource-cell="{ row }"><span class="table-meta">{{ acceptanceSourceLabel(row.original.acceptanceSource) }}</span></template>
@@ -282,9 +282,6 @@ watch([matchCode, playerAccountId, unresolvedConflictsOnly, mapId, difficulty, r
 .verified-run-filters { display: flex; flex-wrap: wrap; gap: .5rem; width: 100%; }
 .verified-run-filters > * { flex: 1 1 10rem; min-width: 9rem; }
 .table-meta { display: block; color: var(--quiet); font-size: .78rem; }
-.player-link { color: var(--accent); font-weight: 600; text-decoration: none; }
-.player-link:hover,
-.player-link:focus-visible { text-decoration: underline; }
 .run-code { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: .82rem; }
 .pagination { display: flex; justify-content: center; margin-top: .75rem; }
 .detail-loading { display: grid; gap: .625rem; }

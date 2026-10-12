@@ -19,7 +19,6 @@ const total = ref(0);
 type OcrField = { confidence?: unknown };
 type OcrPayload = { data?: { map_name?: unknown; achievement_titles?: unknown }; fields?: Record<string, OcrField> };
 const formatStatus = (value: string) => submissionStatusText[value] ?? value;
-const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 type ReviewStatus = "queue" | "all" | keyof typeof submissionStatusText;
 function parseReviewStatus(value: unknown): ReviewStatus {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -195,7 +194,7 @@ watch(() => route.fullPath, (path) => { queuePath.value = path; }, { immediate: 
       <template #select-cell="{ row }"><UCheckbox :model-value="selected.includes(row.original.submissionId)" :aria-label="`选择 ${row.original.playerName} 的提交`" @update:model-value="toggleOne(row.original.submissionId, Boolean($event))" /></template>
       <template #ocrContent-cell="{ row }"><strong>{{ ocrMapName(row.original) }}</strong><small class="table-meta">成就挑战：{{ ocrAchievementTitles(row.original) }}</small></template>
       <template #ocrConfidence-cell="{ row }"><span class="table-meta">地图 {{ ocrConfidence(row.original, "map_name") }}</span><span class="table-meta">成就 {{ ocrConfidence(row.original, "achievement_titles") }}</span></template>
-      <template #playerName-cell="{ row }"><NuxtLink class="player-link" :to="`/admin/players/${encodeURIComponent(row.original.playerAccountId)}`">{{ row.original.playerName }}</NuxtLink></template>
+      <template #playerName-cell="{ row }"><NuxtLink class="accent-link" :to="`/admin/players/${encodeURIComponent(row.original.playerAccountId)}`">{{ row.original.playerName }}</NuxtLink></template>
       <template #status-cell="{ row }"><StatusBadge :label="formatStatus(row.original.status)" :tone="submissionStatusTone(row.original.status)" /></template>
       <template #spotCheck-cell="{ row }"><StatusBadge v-if="row.original.spotCheck" :label="spotCheckLabel(row.original)" :tone="spotCheckTone(row.original)" /><span v-else class="table-meta">—</span></template>
       <template #updatedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.updatedAt) }}</span></template>
@@ -213,8 +212,5 @@ watch(() => route.fullPath, (path) => { queuePath.value = path; }, { immediate: 
 <style scoped>
 .review-filters { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .table-meta { display: block; color: var(--quiet); font-size: var(--type-caption-size); }
-.player-link { color: var(--accent); font-weight: 600; text-decoration: none; }
-.player-link:hover, .player-link:focus-visible { text-decoration: underline; }
-.pagination { display: flex; justify-content: center; margin-top: var(--space-3); }
 @media (max-width: 48rem) { .review-filters { display: grid; grid-template-columns: 1fr; width: 100%; } }
 </style>

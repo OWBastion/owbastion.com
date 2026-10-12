@@ -1,24 +1,19 @@
 import type {
+  CurrentPlayerResponse as ContractCurrentPlayerResponse,
   CurrentPlayerMasteryResponse as ContractCurrentPlayerMasteryResponse,
+  PlayerActivityDay as ContractPlayerActivityDay,
+  PlayerActivityResponse as ContractPlayerActivityResponse,
   Map,
   PlayerChallengeProgress as ContractPlayerChallengeProgress,
   PlayerChallengeProgressListResponse as ContractPlayerChallengeProgressListResponse,
   PlayerMasteryMapProfile as ContractPlayerMasteryMapProfile,
-  PlayerSubmissionStatus,
+  PlayerSubmissionDetail,
   PlayerVerifiedRun as ContractPlayerVerifiedRun,
-  VerifiedRunDifficulty as ContractVerifiedRunDifficulty,
 } from "@owbastion/contracts";
-import { createRequestId, REQUEST_ID_HEADER } from "~/utils/request-id";
-import { recordPortalError, type PortalErrorData } from "~/utils/portal-error";
+import { createApiClient, type ApiFetcher } from "~/utils/api-client";
+import type { PortalErrorData } from "~/utils/portal-error";
 
-export type SubmissionStatus = PlayerSubmissionStatus;
-
-export type VerifiedRunSubmissionOutcome = {
-  status: "created" | "reused" | "ineligible" | "invalidated";
-  awardedXp: number;
-};
-
-export type VerifiedRunDifficulty = ContractVerifiedRunDifficulty;
+export type VerifiedRunSubmissionOutcome = NonNullable<PlayerSubmissionDetail["verifiedRunOutcome"]>;
 
 export type PlayerVerifiedRun = ContractPlayerVerifiedRun;
 
@@ -32,38 +27,17 @@ export type PlayerChallengeProgressListResponse = ContractPlayerChallengeProgres
 
 export type CurrentPlayerMasteryResponse = ContractCurrentPlayerMasteryResponse;
 
-export type PlayerActivityDay = { date: string; runCount: number };
+export type PlayerActivityDay = ContractPlayerActivityDay;
 
-export type PlayerActivityResponse = { contractVersion: "1"; days: PlayerActivityDay[] };
+export type PlayerActivityResponse = ContractPlayerActivityResponse;
 
-export type CurrentPlayer = {
-  contractVersion: "1";
-  player: { playerId: string; playerName: string; isAdmin: boolean };
-  recentSubmissions: Array<{ submissionId: string; status: SubmissionStatus; resubmissionRequired?: boolean; mapName: string; challengeId?: string; difficulty?: string; reason?: string; verifiedRunOutcome?: VerifiedRunSubmissionOutcome; createdAt: number; updatedAt: number }>;
-};
+export type CurrentPlayer = ContractCurrentPlayerResponse;
 
 export type PortalApiError = Error & { statusCode?: number; requestId?: string; data?: { error?: PortalErrorData }; response?: { status?: number; headers?: Headers; _data?: unknown } };
 
-const requestOptions = (options: Parameters<typeof $fetch>[1], requestId: string) => {
-  const headers = new Headers(options?.headers as HeadersInit | undefined);
-  if (!headers.has(REQUEST_ID_HEADER)) headers.set(REQUEST_ID_HEADER, requestId);
-  return { ...options, headers };
-};
-
-type PlainFetch = <T>(url: string, options?: Record<string, unknown>) => Promise<T>;
-
 export function usePortalApi() {
-  // Each branch is cast on its own: letting the compiler reduce the union of the two typed Nitro fetch signatures recurses past its depth limit.
-  const requestFetch = (import.meta.server ? (useRequestFetch() as unknown as PlainFetch) : ($fetch as unknown as PlainFetch));
-
-  return async <T>(path: string, options: Parameters<typeof $fetch<T>>[1] = {}) => {
-    const requestId = createRequestId();
-    try {
-      return await requestFetch<T>(`/api/portal${path}`, { ...requestOptions(options, requestId), credentials: "include", retry: 0, timeout: 8_000 });
-    } catch (error) {
-      Object.assign(error as object, { requestId });
-      recordPortalError(error, { operation: path, requestId });
-      throw error;
-    }
-  };
+  const requestFetch: ApiFetcher = import.meta.server
+    ? <T>(request: string, options?: Parameters<ApiFetcher>[1]) => (useRequestFetch() as (request: string, options?: never) => Promise<T>)(request, options as never)
+    : $fetch as ApiFetcher;
+  return createApiClient("/api/portal", requestFetch);
 }

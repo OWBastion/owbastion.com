@@ -131,7 +131,7 @@ onMounted(() => {
 
       <div v-if="showPasskeyNudge" class="passkey-nudge surface-card" role="region" aria-label="添加 Passkey">
         <UIcon name="i-lucide-fingerprint" class="passkey-nudge-icon" aria-hidden="true" />
-        <div class="passkey-nudge-copy">
+        <div class="passkey-nudge-copy content-stack">
           <strong>添加 Passkey，下次一键登录</strong>
           <span>用设备的指纹、面容或屏幕锁登录，无需在 QQ 群里验证。</span>
         </div>
@@ -286,7 +286,7 @@ onMounted(() => {
 .me-alert { margin-bottom: var(--space-5); }
 .passkey-nudge { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-8); padding: var(--space-4) var(--space-5); }
 .passkey-nudge-icon { flex: 0 0 auto; width: 1.5rem; height: 1.5rem; color: var(--accent); }
-.passkey-nudge-copy { display: grid; flex: 1; gap: var(--space-1); min-width: 0; }
+.passkey-nudge-copy { flex: 1; }
 .passkey-nudge-copy span { color: var(--muted); font-size: .86rem; line-height: 1.5; }
 .passkey-nudge-actions { display: flex; flex: 0 0 auto; align-items: center; gap: var(--space-2); }
 .section-block { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
@@ -305,7 +305,6 @@ onMounted(() => {
 .me-skeleton-intro-copy { display: grid; gap: var(--space-3); min-width: 0; }
 .me-skeleton-intro-action { flex: 0 0 auto; width: 132px; height: 44px; border-radius: var(--radius-pill); }
 .me-skeleton-heading { width: min(58%, 360px); height: 46px; }
-.me-skeleton-avatar { flex: 0 0 auto; width: 48px; height: 48px; border-radius: 50%; }
 .me-skeleton-section { display: grid; gap: var(--space-4); margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
 .me-skeleton-section.titles-section { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
 .me-skeleton-section-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }

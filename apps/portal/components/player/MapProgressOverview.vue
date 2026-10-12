@@ -27,7 +27,6 @@ const rows = computed(() => buildMapProgressRows({
 const targetMapCount = computed(() => rows.value.filter((row) => row.challenges.length).length);
 const totalChallengeCount = computed(() => rows.value.reduce((count, row) => count + row.challenges.length, 0));
 const earnedChallengeCount = computed(() => rows.value.reduce((count, row) => count + row.earnedChallenges.length, 0));
-const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(timestamp);
 const isComplete = (row: (typeof rows.value)[number]) => props.titleProgressAvailable && row.challenges.length > 0 && row.earnedChallenges.length === row.challenges.length;
 const statusLabel = (row: (typeof rows.value)[number]) => {
   if (!row.challenges.length) return "暂无地图成就";

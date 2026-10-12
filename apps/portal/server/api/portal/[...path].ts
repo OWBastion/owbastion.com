@@ -1,4 +1,4 @@
-import { proxyUnavailable, requestIdForEvent, setRequestId, upstreamRequestId } from "../../utils/request-tracing";
+import { proxyResponseBody, proxyUnavailable, requestIdForEvent, setRequestId, upstreamRequestId } from "../../utils/request-tracing";
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
@@ -27,15 +27,5 @@ export default defineEventHandler(async (event) => {
   setRequestId(event, responseId);
   const setCookie = response.headers.get("set-cookie");
   if (setCookie) setResponseHeader(event, "set-cookie", setCookie);
-  const contentType = response.headers.get("content-type");
-  if (contentType) setResponseHeader(event, "content-type", contentType);
-  setResponseStatus(event, response.status);
-  if (response.status === 204) return null;
-  const responseText = await response.text();
-  try {
-    return JSON.parse(responseText);
-  } catch {
-    setResponseHeader(event, "content-type", "application/json");
-    return { contractVersion: "1", error: { code: `UPSTREAM_${response.status}`, message: responseText.trim() || "上游 API 返回了无效响应。", requestId: responseId } };
-  }
+  return proxyResponseBody(event, response, responseId);
 });

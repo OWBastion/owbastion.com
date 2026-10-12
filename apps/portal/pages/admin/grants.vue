@@ -1,21 +1,22 @@
 <script setup lang="ts">
 import { watchDebounced } from "@vueuse/core";
+import type { AdminManualTitleGrantBatchResponse } from "@owbastion/contracts";
+import { loadAdminTitleOptions, type AdminTitleOption } from "~/composables/admin-title-options";
+import type { AdminPlayer } from "~/composables/useAdminApi";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "批量授予称号 · 躲避堡垒 3" });
 
-type Player = { playerAccountId: string; playerId: string; playerName: string; status: "active" | "banned" };
-type Title = { titleKey: string; label: string; category: string; availability: "active" | "retired"; scope: "global" | "map"; mapId?: string };
-type TitleOption = Title & { value: string; mapName?: string };
-type BatchResult = { batchId: string; requestedCount: number; createdCount: number; alreadyOwnedCount: number };
+type Player = Pick<AdminPlayer, "playerAccountId" | "playerId" | "playerName" | "status">;
+type BatchResult = Pick<AdminManualTitleGrantBatchResponse, "batchId" | "requestedCount" | "createdCount" | "alreadyOwnedCount">;
 
 const api = useAdminApi();
 const toast = useToast();
 const players = shallowRef<Player[]>([]);
 const selectedPlayers = shallowRef<Player[]>([]);
-const titles = shallowRef<TitleOption[]>([]);
+const titles = shallowRef<AdminTitleOption[]>([]);
 const selectedTitleValues = shallowRef<string[]>([]);
 const playerQuery = shallowRef("");
 const titleQuery = shallowRef("");
@@ -31,7 +32,7 @@ const result = shallowRef<BatchResult | null>(null);
 
 const selectedPlayerIds = computed(() => new Set(selectedPlayers.value.map((player) => player.playerAccountId)));
 const selectedTitleSet = computed(() => new Set(selectedTitleValues.value));
-function compareTitles(left: TitleOption, right: TitleOption) {
+function compareTitles(left: AdminTitleOption, right: AdminTitleOption) {
   if (left.scope !== right.scope) return left.scope === "global" ? -1 : 1;
   const map = (left.mapName ?? "").localeCompare(right.mapName ?? "", "zh-CN");
   if (map) return map;
@@ -52,10 +53,10 @@ const requestedCount = computed(() => selectedPlayers.value.length * selectedTit
 const tooLarge = computed(() => requestedCount.value > 500);
 const canConfirm = computed(() => !saving.value && !loadingTitles.value && selectedPlayers.value.length > 0 && selectedTitles.value.length > 0 && !tooLarge.value);
 
-function titleLabel(title: TitleOption) {
+function titleLabel(title: AdminTitleOption) {
   return `${title.label}${title.availability === "retired" ? "（不再发放）" : ""}`;
 }
-function titleDescription(title: TitleOption) {
+function titleDescription(title: AdminTitleOption) {
   return title.mapName ? `${title.mapName} · ${titleLabel(title)}` : titleLabel(title);
 }
 function togglePlayer(player: Player, checked: boolean) {
@@ -63,7 +64,7 @@ function togglePlayer(player: Player, checked: boolean) {
     ? [...selectedPlayers.value.filter((item) => item.playerAccountId !== player.playerAccountId), player]
     : selectedPlayers.value.filter((item) => item.playerAccountId !== player.playerAccountId);
 }
-function toggleTitle(title: TitleOption, checked: boolean) {
+function toggleTitle(title: AdminTitleOption, checked: boolean) {
   selectedTitleValues.value = checked
     ? [...new Set([...selectedTitleValues.value, title.value])]
     : selectedTitleValues.value.filter((value) => value !== title.value);
@@ -81,16 +82,7 @@ const playerData = useAdminAsyncData("manual-grants-players", () => api<{ items:
 });
 const loadingPlayers = playerData.loading;
 const searchingPlayers = computed(() => playerData.pending.value && !loadingPlayers.value);
-const titleData = useAdminAsyncData("manual-grants-titles", async () => {
-    const mapsResponse = await api<{ items: Array<{ mapId: string; mapName: string }> }>("/v1/maps");
-    const responses = await Promise.all([
-      api<{ items: Title[] }>("/v1/titles"),
-      ...mapsResponse.items.map((map) => api<{ items: Title[] }>(`/v1/titles?mapId=${encodeURIComponent(map.mapId)}`)),
-    ]);
-    const mapNames = new Map(mapsResponse.items.map((map) => [map.mapId, map.mapName]));
-    const options = responses.flatMap((response) => response.items).map((title) => ({ ...title, mapName: title.mapId ? mapNames.get(title.mapId) : undefined, value: `${title.titleKey}:${title.mapId ?? ""}` }));
-    return [...new Map(options.map((title) => [title.value, title])).values()].sort(compareTitles);
-  }, {
+const titleData = useAdminAsyncData("manual-grants-titles", async () => loadAdminTitleOptions(api), {
     onStart: () => { errorMessage.value = ""; },
     onData: (response) => { titles.value = response; },
     onError: (error) => { errorMessage.value = portalErrorDetails(error, "无法读取称号目录，请稍后重试。").description; },
@@ -156,7 +148,7 @@ watchDebounced(playerQuery, () => {
         <div v-if="loadingPlayers" class="selector-state" role="status">读取中…</div>
         <div v-else-if="!players.length" class="selector-state">暂无匹配玩家。</div>
         <div v-else class="selector-list" role="group" aria-label="玩家结果">
-          <UCheckbox v-for="player in players" :key="player.playerAccountId" class="selector-option" :model-value="selectedPlayerIds.has(player.playerAccountId)" :disabled="saving" @update:model-value="(value) => togglePlayer(player, value === true)"><span class="selector-copy"><strong>{{ player.playerName }}#{{ player.playerId }}</strong><small>{{ player.playerAccountId }}</small></span></UCheckbox>
+          <UCheckbox v-for="player in players" :key="player.playerAccountId" class="selector-option" :model-value="selectedPlayerIds.has(player.playerAccountId)" :disabled="saving" @update:model-value="(value) => togglePlayer(player, value === true)"><span class="selector-copy content-stack"><strong>{{ player.playerName }}#{{ player.playerId }}</strong><small>{{ player.playerAccountId }}</small></span></UCheckbox>
         </div>
         <UPagination v-if="playerTotal > playerPageSize" v-model:page="playerPage" :total="playerTotal" :items-per-page="playerPageSize" :disabled="saving || searchingPlayers" class="selector-pagination" />
       </div>
@@ -169,7 +161,7 @@ watchDebounced(playerQuery, () => {
         <div v-if="loadingTitles" class="selector-state" role="status">读取中…</div>
         <div v-else-if="!filteredTitles.length" class="selector-state">暂无匹配称号。</div>
         <div v-else class="selector-list" role="group" aria-label="称号结果">
-          <UCheckbox v-for="title in filteredTitles" :key="title.value" class="selector-option" :model-value="selectedTitleSet.has(title.value)" :disabled="saving" @update:model-value="(value) => toggleTitle(title, value === true)"><span class="selector-copy"><strong>{{ titleDescription(title) }}</strong><small>{{ title.category }} · {{ title.scope === 'map' ? '地图称号' : '全局称号' }}</small></span></UCheckbox>
+          <UCheckbox v-for="title in filteredTitles" :key="title.value" class="selector-option" :model-value="selectedTitleSet.has(title.value)" :disabled="saving" @update:model-value="(value) => toggleTitle(title, value === true)"><span class="selector-copy content-stack"><strong>{{ titleDescription(title) }}</strong><small>{{ title.category }} · {{ title.scope === 'map' ? '地图称号' : '全局称号' }}</small></span></UCheckbox>
         </div>
       </div>
     </section>
@@ -204,7 +196,6 @@ watchDebounced(playerQuery, () => {
 .selector-list { display: grid; gap: var(--space-1); max-height: 22rem; overflow-y: auto; }
 .selector-option { display: flex; align-items: start; gap: var(--space-3); min-width: 0; min-height: 2.75rem; padding: var(--space-3) var(--space-2); border-radius: var(--radius-control); cursor: pointer; }
 .selector-option:hover { background: var(--accent-surface); }
-.selector-copy { display: grid; min-width: 0; gap: var(--space-1); }
 .selector-option strong { overflow-wrap: anywhere; }
 .selector-option small { color: var(--quiet); overflow-wrap: anywhere; }
 .selector-state { min-height: 5rem; display: grid; place-items: center; color: var(--quiet); font-size: var(--type-label-sm-size); }

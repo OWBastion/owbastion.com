@@ -14,7 +14,6 @@ const emit = defineEmits<{
   retry: [];
 }>();
 
-const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(timestamp);
 const currentPage = computed(() => props.history?.page ?? 1);
 const pageSize = computed(() => props.history?.pageSize ?? 10);
 const totalPages = computed(() => Math.max(1, Math.ceil((props.history?.total ?? 0) / pageSize.value)));
@@ -31,7 +30,7 @@ const totalPages = computed(() => Math.max(1, Math.ceil((props.history?.total ??
     <template v-else>
       <ol class="mastery-history-list">
         <li v-for="run in history.runs" :key="run.runId">
-          <div class="mastery-history-copy"><strong>{{ mapName }} · {{ run.difficulty }}</strong><span><time :datetime="new Date(run.acceptedAt).toISOString()">{{ formatDate(run.acceptedAt) }}</time> · {{ formatMasteryDuration(run.completionDurationSeconds) }}</span></div>
+          <div class="mastery-history-copy content-stack"><strong>{{ mapName }} · {{ run.difficulty }}</strong><span><time :datetime="new Date(run.acceptedAt).toISOString()">{{ formatDate(run.acceptedAt) }}</time> · {{ formatMasteryDuration(run.completionDurationSeconds) }}</span></div>
           <div class="mastery-history-outcome"><strong>{{ run.awardedXp }} XP</strong><UBadge v-if="run.status !== 'active'" label="已失效" color="neutral" variant="subtle" /></div>
         </li>
       </ol>
@@ -53,7 +52,6 @@ const totalPages = computed(() => Math.max(1, Math.ceil((props.history?.total ??
 .mastery-history-loading > * { height: 64px; border-radius: var(--radius-control); }
 .mastery-history-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
 .mastery-history-list li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); min-width: 0; padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
-.mastery-history-copy { display: grid; min-width: 0; gap: var(--space-1); }
 .mastery-history-copy strong { overflow-wrap: anywhere; color: var(--text); font-size: .82rem; }
 .mastery-history-copy span { color: var(--quiet); font-size: .73rem; }
 .mastery-history-outcome { display: flex; flex: 0 0 auto; align-items: center; gap: var(--space-2); }

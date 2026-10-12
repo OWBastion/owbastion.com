@@ -33,7 +33,6 @@ const emit = defineEmits<{
   "retry-ocr": [];
 }>();
 
-const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const formatStatus = (value: string) => submissionStatusText[value] ?? value;
 const actionsLoading = computed(() => Boolean(props.actionLoading || props.ocrRetryLoading));
 
@@ -415,16 +414,6 @@ function spotCheckLoading(decision: SpotCheckDecision) {
 .detail-meta__time {
   color: var(--quiet);
 }
-.player-link {
-  color: var(--accent);
-  font-weight: 600;
-  text-decoration: none;
-}
-.player-link:hover,
-.player-link:focus-visible {
-  text-decoration: underline;
-}
-
 .surface-panel,
 .flow-evidence,
 .flow-actions,

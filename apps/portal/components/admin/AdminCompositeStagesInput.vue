@@ -1,19 +1,9 @@
 <script setup lang="ts">
 import { agentSpatialConfigSchema } from "@owbastion/contracts";
 import AdminSpatialCoordinatesInput from "./AdminSpatialCoordinatesInput.vue";
+import { createEmptyCompositeConfig, createEmptyCompositeStage, isCompositeForMode, type CompositeConfig, type CompositeStage, type ValidationIssue } from "~/utils/composite-spatial-config";
 import type { SpatialConfigValue } from "~/utils/spatial-config-import";
-
-type Detection = { position: unknown[]; radius: unknown };
-type CompositeStage = Record<string, unknown> & { stageId: string; setupDetection?: Detection };
-type CompositeConfig = SpatialConfigValue & {
-  composition: {
-    selectionCount: number;
-    firstStageSelection: { mode: "random" } | { mode: "setup_detection"; fallbackStageId: string };
-    remainingStageSelection: string;
-  };
-  stages: CompositeStage[];
-};
-type ValidationIssue = { path: PropertyKey[]; message: string };
+import { spatialNumberInput, spatialTextInput } from "~/utils/spatial-config-input";
 
 const props = withDefaults(defineProps<{
   modelValue: SpatialConfigValue;
@@ -29,25 +19,7 @@ const emit = defineEmits<{
   valid: [value: boolean];
 }>();
 
-const isComposite = (value: SpatialConfigValue): value is CompositeConfig =>
-  Array.isArray(value.stages) && Boolean(value.composition && typeof value.composition === "object") && (props.mode === "legacy" || "endPosition" in value);
-
-function emptyStage(stageId: string): CompositeStage {
-  return props.mode === "legacy"
-    ? { stageId, bastionPositions: [], resetPosition: null, endPosition: null, thirdPersonPosition: null, creditsPosition: null, control: null, portalPositions: [], springboardPositions: [] }
-    : { stageId, bastionPositions: [], control: null, portalPositions: [], springboardPositions: [] };
-}
-
-function defaultConfig(): CompositeConfig {
-  const route = props.mode === "current" ? { resetPosition: null, endPosition: null, thirdPersonPosition: null, creditsPosition: null, control: null } : {};
-  return {
-    ...route,
-    composition: { selectionCount: 2, firstStageSelection: { mode: "random" }, remainingStageSelection: "random_unique" },
-    stages: [emptyStage("stage-1"), emptyStage("stage-2")],
-  };
-}
-
-const config = computed(() => isComposite(props.modelValue) ? props.modelValue : defaultConfig());
+const config = computed(() => isCompositeForMode(props.modelValue, props.mode) ? props.modelValue : createEmptyCompositeConfig(props.mode));
 const stages = computed(() => config.value.stages);
 const fallbackStageItems = computed(() => stages.value.map((stage) => ({ value: stage.stageId, label: stage.stageId || "未命名阶段" })));
 const issues = computed(() => {
@@ -136,7 +108,7 @@ function nextStageId() {
 
 function addStage() {
   if (stages.value.length >= 16) return;
-  commit({ ...config.value, stages: [...stages.value, emptyStage(nextStageId())] });
+  commit({ ...config.value, stages: [...stages.value, createEmptyCompositeStage(nextStageId(), props.mode)] });
 }
 
 function removeStage(index: number) {
@@ -152,23 +124,12 @@ function removeStage(index: number) {
   commit({ ...config.value, composition, stages: nextStages });
 }
 
-function coordinateInputValue(value: unknown): number | null {
-  if (value === "" || value === null || value === undefined) return null;
-  if (typeof value !== "string" && typeof value !== "number") return null;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
-function detectionInputValue(value: unknown): string {
-  return value === null || value === undefined ? "" : String(value);
-}
-
 function updateDetectionPosition(index: number, axis: number, value: unknown) {
   const stage = stages.value[index];
   if (!stage) return;
   const detection = stage.setupDetection ?? { position: [null, null, null], radius: null };
   const position = [...detection.position];
-  position[axis] = coordinateInputValue(value);
+  position[axis] = spatialNumberInput(value);
   updateStage(index, { ...stage, setupDetection: { ...detection, position } });
 }
 
@@ -176,7 +137,7 @@ function updateDetectionRadius(index: number, value: unknown) {
   const stage = stages.value[index];
   if (!stage) return;
   const detection = stage.setupDetection ?? { position: [null, null, null], radius: null };
-  updateStage(index, { ...stage, setupDetection: { ...detection, radius: coordinateInputValue(value) } });
+  updateStage(index, { ...stage, setupDetection: { ...detection, radius: spatialNumberInput(value) } });
 }
 
 function updateStage(index: number, stage: CompositeStage) {
@@ -280,12 +241,12 @@ function updateStageCoordinateValidity(index: number, stage: CompositeStage, val
           <p v-if="fieldError('stages', index, 'setupDetection')" class="field-error" role="alert">{{ fieldError('stages', index, 'setupDetection') }}</p>
           <UFormField label="检测位置" required>
             <div class="detection-position" role="group" :aria-label="stage.stageId + ' 检测位置'">
-              <UInput v-for="(axis, axisIndex) in ['X', 'Y', 'Z']" :key="axis" type="number" step="any" :model-value="detectionInputValue(stage.setupDetection?.position?.[axisIndex])" :disabled="disabled" :aria-label="stage.stageId + ' 检测位置 ' + axis" @update:model-value="updateDetectionPosition(index, axisIndex, $event)" />
+              <UInput v-for="(axis, axisIndex) in ['X', 'Y', 'Z']" :key="axis" type="number" step="any" :model-value="spatialTextInput(stage.setupDetection?.position?.[axisIndex])" :disabled="disabled" :aria-label="stage.stageId + ' 检测位置 ' + axis" @update:model-value="updateDetectionPosition(index, axisIndex, $event)" />
             </div>
             <p v-if="nestedFieldError('stages', index, 'setupDetection', 'position')" class="field-error" role="alert">{{ nestedFieldError('stages', index, 'setupDetection', 'position') }}</p>
           </UFormField>
           <UFormField label="检测半径" required>
-            <UInput type="number" min="0" step="any" :model-value="detectionInputValue(stage.setupDetection?.radius)" :disabled="disabled" :aria-label="stage.stageId + ' 检测半径'" @update:model-value="updateDetectionRadius(index, $event)" />
+            <UInput type="number" min="0" step="any" :model-value="spatialTextInput(stage.setupDetection?.radius)" :disabled="disabled" :aria-label="stage.stageId + ' 检测半径'" @update:model-value="updateDetectionRadius(index, $event)" />
             <p v-if="nestedFieldError('stages', index, 'setupDetection', 'radius')" class="field-error" role="alert">{{ nestedFieldError('stages', index, 'setupDetection', 'radius') }}</p>
           </UFormField>
         </div>
@@ -358,18 +319,6 @@ function updateStageCoordinateValidity(index: number, stage: CompositeStage, val
   min-height: 2.5rem;
   display: flex;
   align-items: center;
-}
-.field-hint {
-  margin: 0;
-  font-size: var(--type-caption-size);
-  line-height: 1.5;
-  color: var(--quiet);
-}
-.field-error {
-  margin: 0.375rem 0 0;
-  color: var(--danger);
-  font-size: var(--type-caption-size);
-  line-height: 1.4;
 }
 @container (max-width: 23.99rem) {
   .stage-editor__fields { grid-template-columns: minmax(0, 1fr); }

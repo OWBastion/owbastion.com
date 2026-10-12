@@ -3,7 +3,6 @@ import type { AdminReviewDetail } from "~/composables/useAdminApi";
 
 defineProps<{ detail: AdminReviewDetail }>();
 const emit = defineEmits<{ moderate: [action: "hide-comment" | "restore-comment" | "invalidate" | "restore"] }>();
-const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const targetTypeLabel = (value: "event" | "map") => value === "event" ? "随机事件" : "地图";
 const statusLabel = (value: AdminReviewDetail["review"]["status"]) => value === "active" ? "有效" : value === "withdrawn" ? "已撤回" : "已失效";
 const commentStatusLabel = (value: AdminReviewDetail["review"]["commentStatus"]) => value === "visible" ? "公开" : "已隐藏";
@@ -14,12 +13,12 @@ const commentStatusLabel = (value: AdminReviewDetail["review"]["commentStatus"])
     <section class="review-detail__section" aria-labelledby="review-context-heading">
       <h2 id="review-context-heading">评价内容</h2>
       <dl class="review-detail__facts">
-        <div><dt>目标</dt><dd><strong>{{ detail.review.targetName }}</strong><span class="table-meta">{{ targetTypeLabel(detail.review.targetType) }} · {{ detail.review.targetId }}</span></dd></div>
-        <div><dt>评分</dt><dd aria-label="评分">{{ "★".repeat(detail.review.rating) }}<span class="table-meta">{{ detail.review.rating }} / 5</span></dd></div>
-        <div><dt>评价状态</dt><dd><StatusBadge :label="statusLabel(detail.review.status)" :tone="detail.review.status === 'active' ? 'success' : detail.review.status === 'invalidated' ? 'warning' : 'default'" /></dd></div>
-        <div><dt>评论状态</dt><dd><StatusBadge :label="commentStatusLabel(detail.review.commentStatus)" :tone="detail.review.commentStatus === 'visible' ? 'success' : 'warning'" /></dd></div>
-        <div><dt>提交时间</dt><dd>{{ formatTime(detail.review.createdAt) }}</dd></div>
-        <div><dt>公开匿名</dt><dd>{{ detail.review.anonymous ? "是" : "否" }}</dd></div>
+        <div><dt>目标</dt><dd class="content-stack"><strong>{{ detail.review.targetName }}</strong><span class="table-meta">{{ targetTypeLabel(detail.review.targetType) }} · {{ detail.review.targetId }}</span></dd></div>
+        <div><dt>评分</dt><dd class="content-stack" aria-label="评分">{{ "★".repeat(detail.review.rating) }}<span class="table-meta">{{ detail.review.rating }} / 5</span></dd></div>
+        <div><dt>评价状态</dt><dd class="content-stack"><StatusBadge :label="statusLabel(detail.review.status)" :tone="detail.review.status === 'active' ? 'success' : detail.review.status === 'invalidated' ? 'warning' : 'default'" /></dd></div>
+        <div><dt>评论状态</dt><dd class="content-stack"><StatusBadge :label="commentStatusLabel(detail.review.commentStatus)" :tone="detail.review.commentStatus === 'visible' ? 'success' : 'warning'" /></dd></div>
+        <div><dt>提交时间</dt><dd class="content-stack">{{ formatTime(detail.review.createdAt) }}</dd></div>
+        <div><dt>公开匿名</dt><dd class="content-stack">{{ detail.review.anonymous ? "是" : "否" }}</dd></div>
       </dl>
       <blockquote v-if="detail.review.comment" class="review-detail__comment">{{ detail.review.comment }}</blockquote>
       <p v-else class="review-detail__muted">未填写评论。</p>
@@ -28,14 +27,14 @@ const commentStatusLabel = (value: AdminReviewDetail["review"]["commentStatus"])
     <section class="review-detail__section" aria-labelledby="review-player-heading">
       <h2 id="review-player-heading">提交玩家</h2>
       <dl class="review-detail__facts review-detail__facts--player">
-        <div><dt>玩家</dt><dd><strong>{{ detail.review.playerName }}</strong><span class="table-meta">战网 ID：{{ detail.review.playerId }}</span></dd></div>
-        <div><dt>账号记录</dt><dd class="review-detail__id">{{ detail.review.playerAccountId }}</dd></div>
+        <div><dt>玩家</dt><dd class="content-stack"><strong>{{ detail.review.playerName }}</strong><span class="table-meta">战网 ID：{{ detail.review.playerId }}</span></dd></div>
+        <div><dt>账号记录</dt><dd class="content-stack review-detail__id">{{ detail.review.playerAccountId }}</dd></div>
       </dl>
     </section>
 
     <section class="review-detail__section" aria-labelledby="review-audit-heading">
       <h2 id="review-audit-heading">审计记录</h2>
-      <ol v-if="detail.audit.length" class="review-detail__audit">
+      <ol v-if="detail.audit.length" class="review-detail__audit stacked-list">
         <li v-for="entry in detail.audit" :key="`${entry.operation}-${entry.createdAt}-${entry.actorId}`">
           <div><strong>{{ entry.operation }}</strong><span class="table-meta">{{ formatTime(entry.createdAt) }} · {{ entry.actorType }}：{{ entry.actorId }}</span></div>
           <span v-if="entry.reason" class="table-meta">理由：{{ entry.reason }}</span>
@@ -60,12 +59,11 @@ const commentStatusLabel = (value: AdminReviewDetail["review"]["commentStatus"])
 .review-detail__facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); margin: 0; }
 .review-detail__facts > div { min-width: 0; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); }
 .review-detail__facts dt { color: var(--quiet); font-size: var(--type-caption-size); font-weight: 700; }
-.review-detail__facts dd { display: grid; gap: var(--space-1); margin: var(--space-2) 0 0; min-width: 0; overflow-wrap: anywhere; }
+.review-detail__facts dd { margin: var(--space-2) 0 0; overflow-wrap: anywhere; }
 .table-meta { display: block; color: var(--quiet); font-size: var(--type-caption-size); }
 .review-detail__comment { margin: 0; padding: var(--space-4); border-inline-start: 3px solid var(--accent); border-radius: 0 var(--radius-control) var(--radius-control) 0; background: var(--accent-surface); white-space: pre-wrap; overflow-wrap: anywhere; }
 .review-detail__muted { margin: 0; color: var(--quiet); }
 .review-detail__id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--type-caption-size); }
-.review-detail__audit { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .review-detail__audit li { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); overflow-wrap: anywhere; }
 .review-detail__audit li > div { display: grid; gap: var(--space-1); }
 .review-detail__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); padding-top: var(--space-1); }
