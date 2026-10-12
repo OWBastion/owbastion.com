@@ -61,7 +61,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   );
   CREATE TABLE submission_challenge_selections (id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, position INTEGER NOT NULL, challenge_type TEXT NOT NULL, challenge_id TEXT NOT NULL, target_map_id TEXT, gameplay_revision_id TEXT, map_name TEXT NOT NULL, difficulty TEXT, rule_snapshot_json TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
   ${verifiedRunsSchema(true)}
-  CREATE UNIQUE INDEX mastery_runs_active_player_run_code_idx ON mastery_runs(player_account_id, run_code) WHERE status = 'active';
+  CREATE UNIQUE INDEX mastery_runs_active_player_map_version_run_code_idx ON mastery_runs(player_account_id, map_id, game_version, run_code) WHERE status = 'active';
   CREATE TABLE mastery_run_lifecycle_events (id TEXT PRIMARY KEY NOT NULL, mastery_run_id TEXT NOT NULL REFERENCES mastery_runs(id), transition TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, reason TEXT, created_at INTEGER NOT NULL);
   ${submissionOutcomesWithReferencesSchema}
   ${idempotencyKeysRequiredIdSchema}
@@ -121,6 +121,23 @@ describe("verified run ledger", () => {
     expect(await services.recordVerifiedRun(input({ playerAccountId: "account-2", sourceSubmissionId: "submission-3", acceptedAt: 1_300 }))).toMatchObject({ outcome: "created", run: { playerAccountId: "account-2", matchCode: "1234-5678-9012" } });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs").get()).toEqual({ count: 2 });
     expect(sqlite.prepare("SELECT transition, COUNT(*) AS count FROM mastery_run_lifecycle_events GROUP BY transition").all()).toEqual([{ transition: "accepted", count: 2 }]);
+  });
+
+  it("treats the same match code on another map or game version as a separate run for the same player", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seed(sqlite);
+    sqlite.exec("INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES ('map.other', 'Other', '26.0810.1', 'active', '26.0810.1', 1, 1);");
+    sqlite.exec("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, created_at, updated_at) VALUES ('revision:map.other:initial', 'map.other', 'default', NULL, NULL, NULL, '26.0810.1', 1, 1);");
+    const services = createPlatformServices(database);
+
+    const first = await services.recordVerifiedRun(input());
+    const otherMap = await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-2", mapId: "map.other", gameplayRevisionId: "revision:map.other:initial", acceptedAt: 1_100 }));
+    const otherVersion = await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-4", gameVersion: "26.0810.2", acceptedAt: 1_200 }));
+    expect(first.outcome).toBe("created");
+    expect(otherMap).toMatchObject({ outcome: "created", run: { mapId: "map.other" } });
+    expect(otherVersion).toMatchObject({ outcome: "created", run: { gameVersion: "26.0810.2" } });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs WHERE player_account_id = 'account-1'").get()).toEqual({ count: 3 });
   });
 
   it("settles concurrent same-player run-code writes as one run without duplicate XP", async () => {

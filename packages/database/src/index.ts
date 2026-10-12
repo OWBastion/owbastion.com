@@ -654,6 +654,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     const bySource = await db.select().from(verifiedRuns).where(eq(verifiedRuns.sourceSubmissionId, candidate.sourceSubmissionId)).get();
     const existing = bySource ?? await db.select().from(verifiedRuns).where(and(
       eq(verifiedRuns.playerAccountId, candidate.playerAccountId),
+      eq(verifiedRuns.mapId, candidate.mapId),
+      eq(verifiedRuns.gameVersion, candidate.gameVersion),
       eq(verifiedRuns.matchCode, candidate.matchCode),
     )).get();
     if (existing && bySource && existing.status === "invalidated" && existing.invalidationReason === submissionReopenedReason) {
@@ -836,6 +838,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         if (!runRow) throw new Error("VERIFIED_RUN_NOT_FOUND");
         const activeDuplicate = await db.select({ id: verifiedRuns.id }).from(verifiedRuns).where(and(
           eq(verifiedRuns.playerAccountId, runRow.playerAccountId),
+          eq(verifiedRuns.mapId, runRow.mapId),
+          eq(verifiedRuns.gameVersion, runRow.gameVersion),
           eq(verifiedRuns.matchCode, runRow.matchCode),
           eq(verifiedRuns.status, "active"),
           ne(verifiedRuns.id, runRow.id),
@@ -1662,6 +1666,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     const persistedBySource = await db.select().from(verifiedRuns).where(eq(verifiedRuns.sourceSubmissionId, planned.candidate.sourceSubmissionId)).get();
     const persisted = persistedBySource ?? await db.select().from(verifiedRuns).where(and(
       eq(verifiedRuns.playerAccountId, planned.candidate.playerAccountId),
+      eq(verifiedRuns.mapId, planned.candidate.mapId),
+      eq(verifiedRuns.gameVersion, planned.candidate.gameVersion),
       eq(verifiedRuns.matchCode, planned.candidate.matchCode),
     )).get();
     if (!persisted) throw new Error("VERIFIED_RUN_PERSIST_FAILED");

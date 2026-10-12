@@ -161,9 +161,11 @@ export const playerMasteryProfileView = (profile: MasteryMapProfile, gameplayRev
   };
 };
 
-export const findConflictingVerifiedRun = (db: Database, input: { playerAccountId: string; matchCode: string; exceptRunId: string; activeOnly?: boolean }) =>
+export const findConflictingVerifiedRun = (db: Database, input: { playerAccountId: string; mapId: string; gameVersion: string; matchCode: string; exceptRunId: string; activeOnly?: boolean }) =>
   db.select({ id: verifiedRuns.id }).from(verifiedRuns).where(and(
     eq(verifiedRuns.playerAccountId, input.playerAccountId),
+    eq(verifiedRuns.mapId, input.mapId),
+    eq(verifiedRuns.gameVersion, input.gameVersion),
     eq(verifiedRuns.matchCode, input.matchCode),
     input.activeOnly ? eq(verifiedRuns.status, "active") : undefined,
     ne(verifiedRuns.id, input.exceptRunId),

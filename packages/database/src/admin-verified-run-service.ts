@@ -269,7 +269,7 @@ export const createAdminVerifiedRunServices = ({
     const reason = input.reason?.trim() || null;
 
     if (!sameFacts) {
-      if (await findConflictingVerifiedRun(db, { playerAccountId: previous.playerAccountId, matchCode: corrected.matchCode, exceptRunId: previous.runId })) {
+      if (await findConflictingVerifiedRun(db, { playerAccountId: previous.playerAccountId, mapId: corrected.mapId, gameVersion: corrected.gameVersion, matchCode: corrected.matchCode, exceptRunId: previous.runId })) {
         throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
       }
       const award = calculateVerifiedRunXpV2({
@@ -350,7 +350,7 @@ export const createAdminVerifiedRunServices = ({
       return asVerifiedRun(row);
     }
     if (nextStatus === "active") {
-      if (await findConflictingVerifiedRun(db, { playerAccountId: row.playerAccountId, matchCode: row.matchCode, exceptRunId: row.id, activeOnly: true })) {
+      if (await findConflictingVerifiedRun(db, { playerAccountId: row.playerAccountId, mapId: row.mapId, gameVersion: row.gameVersion, matchCode: row.matchCode, exceptRunId: row.id, activeOnly: true })) {
         throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
       }
     }
@@ -369,7 +369,7 @@ export const createAdminVerifiedRunServices = ({
     const reason = input.reason?.trim() || null;
     if (loaded.row.run.status !== nextStatus) {
       if (nextStatus === "active") {
-        if (await findConflictingVerifiedRun(db, { playerAccountId: loaded.row.run.playerAccountId, matchCode: loaded.row.run.matchCode, exceptRunId: loaded.row.run.id, activeOnly: true })) {
+        if (await findConflictingVerifiedRun(db, { playerAccountId: loaded.row.run.playerAccountId, mapId: loaded.row.run.mapId, gameVersion: loaded.row.run.gameVersion, matchCode: loaded.row.run.matchCode, exceptRunId: loaded.row.run.id, activeOnly: true })) {
           throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
         }
       }
