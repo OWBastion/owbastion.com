@@ -222,7 +222,7 @@ function onIconFile(value: File | null | undefined) {
           </UFormField>
         </template>
 
-        <template v-if="asTitle(item) && !asCatalog(item)">
+        <template v-if="asTitle(item) && !asCatalog(item) && item.status !== 'retired'">
           <UFormField class="editor-field" label="开始时间">
             <AdminDateTimePicker class="editor-control" :model-value="asTitle(item)!.startsAt" :disabled="saving" placeholder="选择开始时间" @update:model-value="setScheduleTime('startsAt', $event)" />
           </UFormField>

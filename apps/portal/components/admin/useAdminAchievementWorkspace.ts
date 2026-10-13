@@ -114,7 +114,7 @@ export function useAdminAchievementWorkspace() {
       ...(item.gameVersion?.trim() ? { gameVersion: item.gameVersion.trim() } : status === "scheduled" ? { gameVersion: null } : {}),
       ...(item.scope === "map" ? { mapVariant: item.mapVariant } : {}),
       ...(status === "sunsetting" && (retiredVersion ?? item.retiredVersion)?.trim() ? { retiredVersion: (retiredVersion ?? item.retiredVersion)!.trim() } : {}),
-      ...(status === "scheduled" ? {
+      ...(status !== "retired" ? {
         ...(item.startsAt && item.startsAt > 0 ? { startsAt: item.startsAt } : {}),
         ...(item.endsAt && item.endsAt > 0 ? { endsAt: item.endsAt } : {}),
       } : {}),
