@@ -204,7 +204,7 @@ export const installSchema = (sqlite: DatabaseSync) => {
       UNIQUE (submission_id, position)
     );
     ${verifiedRunsSchema(false)}
-    CREATE UNIQUE INDEX mastery_runs_active_player_run_code_idx ON mastery_runs(player_account_id, run_code) WHERE status = 'active';
+    CREATE UNIQUE INDEX mastery_runs_active_player_map_version_run_code_idx ON mastery_runs(player_account_id, map_id, game_version, run_code) WHERE status = 'active';
     CREATE TABLE mastery_run_lifecycle_events (
       id TEXT PRIMARY KEY NOT NULL,
       mastery_run_id TEXT NOT NULL REFERENCES mastery_runs(id),

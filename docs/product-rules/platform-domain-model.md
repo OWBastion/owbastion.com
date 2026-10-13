@@ -331,13 +331,13 @@ Implementation work should converge the existing run model and naming.
 The strong gameplay duplicate boundary is:
 
 ~~~text
-(playerAccountId, matchCode)
+(playerAccountId, mapId, gameVersion, matchCode)
 ~~~
 
 The match code identifies a room/run, so different Players from the same room
 may independently own Verified Runs with the same `matchCode`.
 
-For one Player and one match code:
+For one Player, Map, game version and match code:
 
 - the first accepted occurrence creates one valid Run;
 - equivalent replays reuse that Run and do not award additional XP;
