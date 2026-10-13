@@ -5,14 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 import ProfilePage from "./profile.vue";
 import type { OwnedTitle } from "~/types/title";
 import type { CurrentPlayerMasteryResponse, PlayerActivityDay, PortalMap } from "~/composables/usePortalApi";
-import type { MapProgressChallenge } from "~/utils/map-progress";
 
 type Player = { player: { playerId: string; playerName: string; isAdmin: boolean }; recentSubmissions: never[] };
 
 const mapOne = { mapId: "map.one", mapName: "地图一", defaultGameplayRevisionId: "rev.one" };
 const mapTwo = { mapId: "map.two", mapName: "地图二", defaultGameplayRevisionId: "rev.two" };
-const challengeOneP: MapProgressChallenge = { challengeId: "c.one.p", mapId: "map.one", gameplayRevisionId: "rev.one", titleKey: "ONE_PIONEER", name: "开拓者", status: "active" };
-const challengeOneC: MapProgressChallenge = { challengeId: "c.one.c", mapId: "map.one", gameplayRevisionId: "rev.one", titleKey: "ONE_CONQUEROR", name: "征服者", status: "active" };
 
 const title = (overrides: Partial<OwnedTitle>): OwnedTitle => ({
   grantId: "grant-1",
@@ -49,8 +46,7 @@ const activityDays = ref<PlayerActivityDay[]>([]);
 const activityLoading = ref(false);
 const activityReady = ref(false);
 const activityError = ref("");
-const catalog = ref<{ maps: PortalMap[]; challenges: MapProgressChallenge[] }>({ maps: [], challenges: [] });
-const catalogError = ref<Error | null>(null);
+const mapCatalog = ref<{ items: PortalMap[] }>({ items: [] });
 const masteryRuns = ref<CurrentPlayerMasteryResponse["runs"]>([]);
 const masteryProfiles = ref<CurrentPlayerMasteryResponse["profiles"]>([]);
 const masteryFails = ref(false);
@@ -61,7 +57,6 @@ const refreshActivity = vi.fn(async () => {
   activityReady.value = true;
   return { contractVersion: "1" as const, days: activityDays.value };
 });
-const refreshCatalog = vi.fn(async () => catalog.value);
 const portalApi = vi.fn(async (path: string) => {
   if (path === "/v1/me/mastery?page=1&pageSize=10") {
     if (masteryFails.value) throw new Error("mastery unavailable");
@@ -74,7 +69,7 @@ mockNuxtImport("useCurrentPlayer", () => () => ({ player, status, refresh: refre
 mockNuxtImport("usePlayerTitles", () => () => ({ items: titles, refresh: refreshTitles }));
 mockNuxtImport("usePlayerActivity", () => () => ({ days: activityDays, loading: activityLoading, ready: activityReady, error: activityError, refresh: refreshActivity }));
 mockNuxtImport("usePortalApi", () => () => portalApi);
-mockNuxtImport("useAsyncData", () => () => ({ data: catalog, error: catalogError, refresh: refreshCatalog }));
+mockNuxtImport("useAsyncData", () => () => ({ data: mapCatalog }));
 
 async function mountPage(): Promise<VueWrapper> {
   const wrapper = await mountSuspended(ProfilePage, {
@@ -101,10 +96,6 @@ async function mountPage(): Promise<VueWrapper> {
 }
 
 const stat = (wrapper: VueWrapper, label: string) => wrapper.findAll(".stat-sheet__item").find((item) => item.get("dt").text() === label)!.get("dd").text().replace(/\s+/g, " ");
-const openUntouched = async (wrapper: VueWrapper) => {
-  await wrapper.findAll("button").find((button) => button.text().includes("没有记录"))!.trigger("click");
-  await flushPromises();
-};
 
 function reset(overrides?: { runs?: CurrentPlayerMasteryResponse["runs"]; profiles?: CurrentPlayerMasteryResponse["profiles"] }) {
   player.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
@@ -114,8 +105,7 @@ function reset(overrides?: { runs?: CurrentPlayerMasteryResponse["runs"]; profil
   activityLoading.value = false;
   activityReady.value = false;
   activityError.value = "";
-  catalog.value = { maps: [mapOne, mapTwo], challenges: [challengeOneP, challengeOneC] };
-  catalogError.value = null;
+  mapCatalog.value = { items: [mapOne, mapTwo] };
   masteryRuns.value = overrides?.runs ?? [];
   masteryProfiles.value = overrides?.profiles ?? [];
   masteryFails.value = false;
@@ -137,7 +127,7 @@ describe("me profile page", () => {
     expect(wrapper.text()).toContain("Player#1");
     expect(wrapper.get(".profile-hero__titles").text()).toContain("极限操作");
     expect(stat(wrapper, "称号")).toBe("3个");
-    expect(stat(wrapper, "地图成就")).toBe("1/ 2");
+    expect(wrapper.text()).not.toContain("地图成就");
   });
 
   it("groups earned titles into series with the map series first", async () => {
@@ -155,7 +145,7 @@ describe("me profile page", () => {
     expect(groups[0]!.text()).toContain("征服者 1 · 开拓者 1");
     expect(groups[0]!.findAll(".title-badge").map((item) => item.attributes("aria-label"))).toEqual(["地图一 征服者，查看详情", "地图一 开拓者，查看详情"]);
     expect(groups[1]!.findAll(".title-badge").map((item) => item.attributes("aria-label"))).toEqual(["最新称号，查看详情", "最早称号，查看详情"]);
-    expect(wrapper.findAll('a[href="/achievements"]').map((link) => link.text())).toContain("查看全部成就");
+    expect(wrapper.findAll('a[href="/me/achievements"]').map((link) => link.text())).toContain("查看全部成就");
   });
 
   it("opens a title in a detail dialog with its condition and date", async () => {
@@ -199,38 +189,24 @@ describe("me profile page", () => {
     expect(stat(wrapper, "精通 XP")).toBe("900");
   });
 
-  it("shows honest empty states and keeps zero-progress maps visible", async () => {
+  it("shows honest empty states and does not compute map progress", async () => {
     reset();
 
     const wrapper = await mountPage();
     expect(wrapper.text()).toContain("暂无称号");
     expect(wrapper.text()).toContain("过去一年暂无通关记录");
-    expect(wrapper.find(".map-progress-list").exists()).toBe(false);
-    await openUntouched(wrapper);
-    const overview = wrapper.get(".map-progress-list");
-    expect(overview.findAll("h3").map((heading) => heading.text())).toEqual(["地图一", "地图二"]);
-    expect(overview.text()).toContain("已获得 0 / 2");
-    expect(overview.text()).toContain("暂无地图成就");
     expect(wrapper.text()).toContain("暂无通关记录");
+    expect(wrapper.find(".map-progress-list").exists()).toBe(false);
   });
 
-  it("keeps map challenge completion distinct from repeatable mastery facts", async () => {
-    reset({
-      profiles: [{ mapId: "map.one", gameplayRevisionId: "rev.one", gameplayRevisionLifecycle: "default", totalXp: 900, verifiedRunCount: 4, difficultyStats: [], lowestDeaths: 0, fewestSkips: 0, highestSingleRunXp: 300, highestCompletedDifficulty: "困难", recentRuns: [run()] }],
-      runs: [run()],
-    });
-    titles.value = [title({ grantId: "g1", label: "地图一 开拓者", scope: "map", mapId: "map.one", gameplayRevisionId: "rev.one", mapName: "地图一", titleKey: "ONE_PIONEER" })];
+  it("links a recent run to its per-map achievement detail", async () => {
+    reset({ runs: [run()] });
 
     const wrapper = await mountPage();
-    const overview = wrapper.get(".map-progress-list");
-    expect(overview.text()).toContain("已获得 1 / 2");
-    expect(overview.text()).toContain("900 XP");
-    expect(overview.text()).toContain("4 次");
-    expect(overview.findAll(".map-target-list li.earned")).toHaveLength(1);
     const recentRun = wrapper.get(".recent-run");
     expect(recentRun.text()).toContain("地图一 · 困难");
     expect(recentRun.text()).toContain("300 XP");
-    expect(recentRun.attributes("href")).toBe("/maps?mapId=map.one");
+    expect(recentRun.attributes("href")).toBe("/me/achievements/maps/map.one");
   });
 
   it("limits 最近通关 to active runs on the current default revision", async () => {
@@ -251,20 +227,6 @@ describe("me profile page", () => {
     expect(wrapper.text()).not.toContain("999 XP");
   });
 
-  it("does not leak unearned hidden goals or count off-revision grants", async () => {
-    reset();
-    // A hidden challenge is simply absent from the public catalog; an owned
-    // grant from a non-default revision must not count toward current progress.
-    titles.value = [title({ grantId: "g-old", label: "旧称号", scope: "map", mapId: "map.one", gameplayRevisionId: "rev.old", mapName: "地图一", titleKey: "ONE_PIONEER" })];
-
-    const wrapper = await mountPage();
-    await openUntouched(wrapper);
-    const overview = wrapper.get(".map-progress-list");
-    expect(overview.text()).toContain("已获得 0 / 2");
-    expect(overview.text()).not.toContain("隐藏");
-    expect(stat(wrapper, "地图成就")).toBe("0/ 2");
-  });
-
   it("keeps other sections usable when titles fail and supports retry", async () => {
     reset({ runs: [run()] });
     refreshTitles.mockRejectedValueOnce(new Error("titles unavailable"));
@@ -272,11 +234,7 @@ describe("me profile page", () => {
     const wrapper = await mountPage();
     expect(wrapper.text()).toContain("无法读取称号");
     expect(wrapper.text()).toContain("地图一 · 困难");
-    await openUntouched(wrapper);
-    expect(wrapper.get(".map-progress-list").text()).toContain("称号进度暂不可用");
-    // 称号数据不可用时，hero 不得用空/过期列表伪造进度统计。
     expect(stat(wrapper, "称号")).toBe("—");
-    expect(stat(wrapper, "地图成就")).toBe("—");
 
     titles.value = [title({ grantId: "g1", label: "恢复的称号" })];
     refreshTitles.mockResolvedValueOnce(titles.value);
@@ -286,7 +244,7 @@ describe("me profile page", () => {
     expect(wrapper.get(".title-badge").attributes("aria-label")).toBe("恢复的称号，查看详情");
   });
 
-  it("surfaces activity and mastery failures without falsifying map progress", async () => {
+  it("surfaces activity and mastery failures", async () => {
     reset();
     masteryFails.value = true;
     refreshActivity.mockImplementationOnce(async () => {
@@ -296,11 +254,6 @@ describe("me profile page", () => {
 
     const wrapper = await mountPage();
     expect(wrapper.text()).toContain("无法读取通关记录");
-    await openUntouched(wrapper);
-    const overview = wrapper.get(".map-progress-list");
-    expect(overview.text()).toContain("已获得 0 / 2");
-    expect(overview.text()).not.toContain("暂无精通记录");
-    expect(wrapper.text()).toContain("地图一");
   });
 
   it("settles loading and shows a full-page error with retry when the player cannot load", async () => {
