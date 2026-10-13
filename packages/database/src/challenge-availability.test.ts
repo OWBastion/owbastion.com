@@ -41,6 +41,17 @@ describe("scheduled title challenge availability", () => {
     expect(publicTitleChallengeStatus("scheduled", null, 3_000, 3_001)).toBe(null);
   });
 
+  it("applies the time window to active and sunsetting challenges", () => {
+    expect(publicTitleChallengeStatus("active", null, null, 9_000)).toBe("active");
+    expect(publicTitleChallengeStatus("active", 2_000, 3_000, 1_999)).toBe("scheduled");
+    expect(publicTitleChallengeStatus("active", 2_000, 3_000, 2_999)).toBe("active");
+    expect(publicTitleChallengeStatus("active", null, 3_000, 3_000)).toBe(null);
+    expect(publicTitleChallengeStatus("sunsetting", null, 3_000, 2_999)).toBe("sunsetting");
+    expect(publicTitleChallengeStatus("sunsetting", null, 3_000, 3_000)).toBe(null);
+    expect(publicTitleChallengeStatus("retired", null, null, 2_000)).toBe(null);
+    expect(titleChallengeIsSubmittable("active", null, 3_000, 3_000)).toBe(false);
+  });
+
   it("keeps missing release metadata unavailable", () => {
     expect(publicTitleChallengeStatus("active", null, null, 2_000, null)).toBe(null);
     expect(publicTitleChallengeStatus("scheduled", 1_000, null, 2_000, null)).toBe(null);

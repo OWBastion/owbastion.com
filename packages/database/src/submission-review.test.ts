@@ -297,11 +297,10 @@ describe("maintainer Challenge confirmation during submission review", () => {
     await expect(services.reviewSubmission({ submissionId: "submission.add", decision: "approved", confirmedChallengeIds: [heroId] }, auth, "add.owned")).rejects.toThrow("CHALLENGE_CONFIRMATION_INELIGIBLE");
 
     sqlite.prepare("DELETE FROM player_title_grants WHERE id = 'grant.hero.owned'").run();
-    // The canonical Challenge window starts after the Submission was created, so the Completion chain must refuse it.
+    // A window that starts after the Submission was created takes the Challenge out of the eligible candidates.
     sqlite.prepare("UPDATE title_challenges SET starts_at = ? WHERE id = 'title.hero'").run(now + 60_000);
-    const notStartedId = (await services.previewSubmissionReview({ submissionId: "submission.add" }, auth)).candidates.find((candidate) => candidate.titleName === "称号 HERO")!.challengeId;
-    expect(await services.previewSubmissionReview({ submissionId: "submission.add", confirmedChallengeIds: [notStartedId] }, auth)).toMatchObject({ approvable: false, blockingCode: "CHALLENGE_NOT_COMPLETABLE", titles: [] });
-    await expect(services.reviewSubmission({ submissionId: "submission.add", decision: "approved", confirmedChallengeIds: [notStartedId] }, auth, "add.not-started")).rejects.toThrow("CHALLENGE_NOT_COMPLETABLE");
+    expect((await services.previewSubmissionReview({ submissionId: "submission.add" }, auth)).candidates.some((candidate) => candidate.titleName === "称号 HERO")).toBe(false);
+    await expect(services.reviewSubmission({ submissionId: "submission.add", decision: "approved", confirmedChallengeIds: [heroId] }, auth, "add.not-started")).rejects.toThrow("CHALLENGE_CONFIRMATION_INELIGIBLE");
 
     expect(writeCounts(sqlite, "submission.add")).toEqual({ reviews: 0, completions: 0, grants: 0, status: "ocr_review_required" });
   });

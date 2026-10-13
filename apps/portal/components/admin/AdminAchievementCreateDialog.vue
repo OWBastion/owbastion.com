@@ -81,8 +81,8 @@ function submit() {
     ...(form.gameVersion.trim() ? { gameVersion: form.gameVersion.trim() } : {}),
     categoryOverride: form.categoryOverride.trim() || null,
     iconUrl: form.iconUrl.trim() || null,
-    ...(form.status === "scheduled" && form.startsAt ? { startsAt: form.startsAt } : {}),
-    ...(form.status === "scheduled" && form.endsAt ? { endsAt: form.endsAt } : {}),
+    ...(form.status !== "retired" && form.startsAt ? { startsAt: form.startsAt } : {}),
+    ...(form.status !== "retired" && form.endsAt ? { endsAt: form.endsAt } : {}),
     ...(form.status === "sunsetting" && form.retiredVersion.trim() ? { retiredVersion: form.retiredVersion.trim() } : {}),
   }, iconFile.value);
 }
@@ -101,7 +101,7 @@ function submit() {
           <UFormField class="editor-field" label="最低难度"><USelect v-model="form.progressDifficultyAtLeast" class="editor-control" :items="progressDifficultyItems" :disabled="props.saving" /></UFormField>
           <UFormField v-if="!form.progressGameMode" class="editor-field editor-field--wide" label="要求地图" hint="玩家在活动时间内于每张地图各留下至少一条有效已验证通关即完成。"><USelect v-model="form.progressMapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
         </template>
-        <template v-if="form.status === 'scheduled'"><UFormField class="editor-field" label="开始时间"><AdminDateTimePicker class="editor-control" :model-value="form.startsAt" :disabled="props.saving" @update:model-value="setScheduleTime('startsAt', $event)" /></UFormField><UFormField class="editor-field" label="结束时间"><AdminDateTimePicker class="editor-control" :model-value="form.endsAt" :disabled="props.saving" @update:model-value="setScheduleTime('endsAt', $event)" /></UFormField></template>
+        <template v-if="form.status !== 'retired'"><UFormField class="editor-field" label="开始时间"><AdminDateTimePicker class="editor-control" :model-value="form.startsAt" :disabled="props.saving" @update:model-value="setScheduleTime('startsAt', $event)" /></UFormField><UFormField class="editor-field" label="结束时间"><AdminDateTimePicker class="editor-control" :model-value="form.endsAt" :disabled="props.saving" @update:model-value="setScheduleTime('endsAt', $event)" /></UFormField></template>
         <UFormField v-if="form.status === 'sunsetting'" class="editor-field" label="计划下线版本" required><UInput v-model="form.retiredVersion" class="editor-control" placeholder="例如 26.0801.1" :disabled="props.saving" required /></UFormField>
         <details class="editor-field editor-field--wide more-settings">
           <summary>更多设置</summary>

@@ -68,10 +68,10 @@ export const titleIconVersionOf = (objectKey: string): string => {
 };
 export const publicTitleChallengeStatus = (status: string, startsAt: number | null, endsAt: number | null, timestamp: number, gameVersion: string | null | undefined = "known") => {
   if (!gameVersion?.trim()) return null;
-  if (status !== "scheduled") return status === "active" || status === "sunsetting" ? status : null;
+  if (status !== "scheduled" && status !== "active" && status !== "sunsetting") return null;
   if (endsAt !== null && timestamp >= endsAt) return null;
-  if (startsAt === null || timestamp < startsAt) return "scheduled";
-  return "active";
+  if (status === "scheduled") return startsAt === null || timestamp < startsAt ? "scheduled" : "active";
+  return startsAt !== null && timestamp < startsAt ? "scheduled" : status;
 };
 export const titleChallengeIsSubmittable = (status: string, startsAt: number | null, endsAt: number | null, timestamp: number, gameVersion: string | null | undefined = "known") => {
   const publicStatus = publicTitleChallengeStatus(status, startsAt, endsAt, timestamp, gameVersion);
