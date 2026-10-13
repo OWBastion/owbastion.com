@@ -90,7 +90,6 @@
 | 分段进度 | 等宽小段，已达成用 `--accent`，其余 `--line` | `PlayerNextGoals` |
 | 系列架 | 按系列的卡片，内部是一行图标，超出折叠并写总数 | `PlayerTitleShelf` |
 | 详情弹层 | 点开看大图与条件，沿用 Nuxt UI 浮层 | `PlayerTitleInspectDialog` |
-| 折叠剩余 | 一个整行按钮展开剩余项 | `PlayerMapProgressSection` |
 | 指针倾斜 | `useIconTilt`；仅限精确指针且可悬停，减少动态时关闭 | `PlayerTitleBadge` |
 
 装饰的上限：一个页面最多一处径向渐变、一类光晕；不使用氛围色块、多重渐变、原始色值和循环动画。

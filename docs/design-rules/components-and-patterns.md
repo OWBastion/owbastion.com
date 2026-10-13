@@ -12,7 +12,7 @@
    subfolders): e.g. `AdminWorkspace`, `AdminDataTable`,
    `AdminResponsiveDialog`, `StatusBadge`, `SubmissionStatusBadge`,
    `PageSectionHeader`, catalog and player components (`PlayerProfileHero`, `PlayerStatSheet`,
-   `PlayerTitleBadge`, `PlayerNextGoals`, `PlayerMapProgressSection`, … — the
+   `PlayerTitleBadge`, `PlayerNextGoals`, … — the
    reference implementations of [`design-direction.md`](design-direction.md)).
 2. **Nuxt UI primitives** (`@nuxt/ui` v4): `UButton`, `UCard`, `UAlert`,
    `UEmpty`, `UForm` / `UFormField`, `UInput`, `USelect`, `UTextarea`,

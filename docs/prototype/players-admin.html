@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>玩家管理 · 原型</title>
+<style>
+:root{--bg:#f3efe3;--surface:#fbf9f2;--raised:#fff;--ink:#1f1d18;--muted:#6b665a;--quiet:#8b8576;--line:#e2dccb;--accent:#b4530a;--accent-soft:#f6e3cf;--ok:#2f7d4f;--ok-soft:#dcefe2;--warn:#a15c00;--warn-soft:#fbecc8;--bad:#b3261e;--bad-soft:#f8dcd8;--info:#1d5f8f;--info-soft:#dbeaf5}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
+button,input,textarea{font:inherit;color:inherit}button{cursor:pointer}
+.app{max-width:78rem;margin:0 auto;padding:1.25rem 1.25rem 3rem}
+h1{margin:0 0 1rem;font-size:1.5rem}
+.split{display:grid;grid-template-columns:22rem minmax(0,1fr);gap:1.25rem;align-items:start}
+.btn{border:1px solid var(--line);background:var(--raised);border-radius:10px;padding:.5rem .95rem;font-weight:500;min-height:2.5rem}
+.btn:hover{border-color:#cfc7b0}.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.danger{background:var(--bad-soft);border-color:#ecbcb5;color:var(--bad)}.btn.sm{padding:.2rem .65rem;min-height:2rem;font-size:13px;border-radius:8px}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}.btn:disabled{opacity:.5;cursor:not-allowed}
+/* list */
+.list{position:sticky;top:.75rem;background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden;max-height:calc(100vh - 1.5rem);display:flex;flex-direction:column}
+.search{padding:.75rem;border-bottom:1px solid var(--line)}
+.search input{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:.55rem .8rem;background:#fff;outline:none}
+.search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.chips{display:flex;gap:.35rem;margin-top:.55rem}
+.chip{border:1px solid var(--line);background:transparent;border-radius:99px;padding:.15rem .7rem;font-size:13px;color:var(--muted)}
+.chip[aria-pressed=true]{background:var(--ink);border-color:var(--ink);color:#fff}
+.rows{overflow:auto;flex:1}
+.row{display:grid;grid-template-columns:auto 1fr auto;gap:.7rem;align-items:center;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:transparent;padding:.7rem .85rem}
+.row:hover{background:#f6f2e6}.row[aria-current=true]{background:#fff;box-shadow:inset 3px 0 0 var(--accent)}
+.av{width:2.4rem;height:2.4rem;border-radius:50%;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:.9rem}
+.row.banned .av{background:#e5e0d2;color:var(--quiet)}
+.nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nm small{font-weight:400;color:var(--quiet)}
+.meta{font-size:12.5px;color:var(--quiet)}
+.tag{font-size:11.5px;font-weight:600;padding:.05rem .5rem;border-radius:99px;background:var(--warn-soft);color:var(--warn);white-space:nowrap}
+.tag.bad{background:var(--bad-soft);color:var(--bad)}.tag.ok{background:var(--ok-soft);color:var(--ok)}.tag.info{background:var(--info-soft);color:var(--info)}
+.empty{padding:2.5rem 1rem;text-align:center;color:var(--quiet)}
+/* detail */
+.detail{display:grid;gap:1rem;min-width:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:1.1rem 1.25rem}
+.head{display:flex;gap:1rem;align-items:center;flex-wrap:wrap}
+.head .av{width:4rem;height:4rem;font-size:1.3rem}
+.head h2{margin:0;font-size:1.5rem;line-height:1.2;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.head h2 small{font-size:1rem;color:var(--quiet);font-weight:400}
+.grow{flex:1;min-width:0}
+.stats{display:flex;flex-wrap:wrap;gap:.4rem 1.1rem;margin-top:.3rem;color:var(--muted);font-size:14px}
+.stats b{color:var(--ink)}
+.acts{display:flex;gap:.5rem;position:relative}
+.menu{position:absolute;right:0;top:calc(100% + .35rem);background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.15);min-width:14rem;padding:.3rem;z-index:10;display:none}
+.menu.open{display:block}
+.menu button{display:block;width:100%;text-align:left;border:0;background:transparent;border-radius:8px;padding:.5rem .7rem}
+.menu button:hover{background:#f6f2e6}.menu hr{border:0;border-top:1px solid var(--line);margin:.3rem 0}.menu .red{color:var(--bad)}
+.alert{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;padding:.7rem 1rem;border-radius:12px;background:var(--warn-soft);color:#6b4000;font-size:14px}
+.alert.bad{background:var(--bad-soft);color:#7a1b15}.alert span{flex:1;min-width:12rem}
+.tabs{display:flex;gap:.25rem;border-bottom:1px solid var(--line);margin:-.2rem 0 1rem}
+.tab{border:0;background:transparent;padding:.55rem .9rem;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:500}
+.tab[aria-selected=true]{color:var(--ink);border-color:var(--accent)}
+.tab i{font-style:normal;font-size:12px;color:var(--quiet);margin-left:.3rem}
+.group{margin-bottom:1.1rem}.group h3{margin:0 0 .5rem;font-size:13px;color:var(--quiet);font-weight:600;letter-spacing:.03em}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(14rem,1fr));gap:.55rem}
+.title{display:grid;grid-template-columns:auto 1fr auto;gap:.6rem;align-items:center;background:#fff;border:1px solid var(--line);border-radius:12px;padding:.55rem .7rem}
+.title .ic{font-size:1.3rem}.title.off{opacity:.5}.title .t{font-weight:600;font-size:14.5px}.title .m{font-size:12px;color:var(--quiet)}
+.title .x{opacity:0;border:0;background:transparent;color:var(--bad);font-size:12.5px;padding:.2rem .4rem;border-radius:6px}
+.title:hover .x,.title:focus-within .x{opacity:1}.title .x:hover{background:var(--bad-soft)}.title .x.ok{color:var(--ok)}
+.star{color:#c98a00}
+@media (hover:none){.title .x{opacity:1}}
+.tl{list-style:none;margin:0;padding:0 0 0 1rem;border-left:2px solid var(--line);display:grid;gap:.9rem}
+.tl li{position:relative;display:grid;grid-template-columns:1fr auto;gap:.5rem}
+.tl li::before{content:"";position:absolute;left:-1.37rem;top:.45rem;width:.6rem;height:.6rem;border-radius:50%;background:var(--accent);border:2px solid var(--surface)}
+.tl li.run::before{background:var(--ok)}.tl li.done::before{background:var(--info)}
+.tl .t{font-weight:600}.tl .m{font-size:13px;color:var(--muted)}.tl time{font-size:12.5px;color:var(--quiet);white-space:nowrap}
+.kv{display:grid;grid-template-columns:7rem 1fr auto;gap:.4rem .75rem;align-items:center;font-size:14px}.kv dt{color:var(--quiet)}.kv dd{margin:0;overflow-wrap:anywhere}.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px}
+.bind{display:flex;justify-content:space-between;gap:1rem;align-items:center;padding:.6rem .8rem;border:1px solid var(--line);border-radius:12px;background:#fff;margin-top:.5rem}
+.sep{border:0;border-top:1px solid var(--line);margin:1.1rem 0}
+/* dialogs + toast */
+dialog{border:0;border-radius:18px;padding:0;max-width:30rem;width:calc(100vw - 2rem);box-shadow:0 20px 60px rgba(0,0,0,.3)}dialog::backdrop{background:rgba(31,29,24,.45)}
+.dlg{padding:1.3rem;display:grid;gap:.85rem}.dlg h3{margin:0}.dlg p{margin:0;color:var(--muted);font-size:14px}.foot{display:flex;justify-content:flex-end;gap:.5rem}
+.dlg input[type=text],.dlg textarea{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:.5rem .7rem;background:#fff}
+.pick{max-height:14rem;overflow:auto;border:1px solid var(--line);border-radius:12px;background:#fff}
+.pick label{display:flex;gap:.6rem;align-items:center;padding:.45rem .75rem;border-bottom:1px solid var(--line);cursor:pointer}
+.pick label small{color:var(--quiet);margin-left:auto}
+.sel{display:flex;flex-wrap:wrap;gap:.35rem}.sel .tag{background:var(--accent-soft);color:var(--accent)}
+.toast{position:fixed;left:50%;bottom:1rem;transform:translate(-50%,160%);transition:transform .25s;background:var(--ink);color:#fff;border-radius:14px;padding:.55rem .6rem .55rem 1rem;display:flex;gap:.8rem;align-items:center;z-index:30}
+.toast.show{transform:translate(-50%,0)}.toast button{background:rgba(255,255,255,.18);border:0;color:#fff;border-radius:8px;padding:.3rem .75rem}
+.back{display:none}
+@media (max-width:50rem){
+ .split{grid-template-columns:1fr}.list{position:static;max-height:none}
+ .app[data-view=detail] .list{display:none}.app[data-view=list] .detail{display:none}
+ .back{display:inline-flex}
+ .head .grow{flex:1 1 9rem}.acts{width:100%}.acts .primary{flex:1}.menu{right:0}
+}
+</style>
+</head>
+<body>
+<div class="app" id="app" data-view="list">
+  <h1>玩家管理</h1>
+  <div class="split">
+    <aside class="list">
+      <div class="search">
+        <input id="q" type="search" placeholder="搜索战网 ID 或 QQ 标识" autofocus aria-label="搜索玩家" autocomplete="off">
+        <div class="chips" id="chips"></div>
+      </div>
+      <div class="rows" id="rows"></div>
+    </aside>
+    <main class="detail" id="detail"></main>
+  </div>
+</div>
+<div class="toast" id="toast"><span id="toastText"></span><button id="undo">撤销</button></div>
+<dialog id="dlg"><div class="dlg" id="dlgBody"></div></dialog>
+
+<script>
+const now=Date.now(),H=36e5,D=24*H;
+const CATALOG=[
+ {k:"g1",t:"一周年纪念",c:"global",ic:"🎂"},{k:"g2",t:"测试员",c:"global",ic:"🧪"},{k:"g3",t:"赌徒",c:"global",ic:"🎲"},{k:"g4",t:"心之钢",c:"global",ic:"❤️"},
+ {k:"m1",t:"征服者",c:"map",map:"66号公路",ic:"⚔️"},{k:"m2",t:"主宰",c:"map",map:"66号公路",ic:"👑"},{k:"m3",t:"征服者",c:"map",map:"萨摩亚",ic:"⚔️"},{k:"m4",t:"开拓者",c:"map",map:"萨摩亚",ic:"🚩"},{k:"m5",t:"老兵",c:"map",map:"多拉多",ic:"🎖️"}];
+const src={manual:"人工发放",submission:"截图核对",automatic:"自动获得",historical:"历史迁移"};
+const g=(k,s,d,extra={})=>({id:k+d,k,src:s,at:now-d*D,on:true,...extra});
+let players=[
+ {id:"a1",name:"Teakowa",tag:"5266",status:"active",upd:now-2*H,pending:1,bind:[{id:"b1",grp:"G-7F3A…91C2",mem:"M-02AD…E710"}],runs:38,
+  grants:[g("g1","automatic",40,{eq:true}),g("g2","manual",30,{eq:true}),g("m1","submission",12,{eq:true}),g("m2","submission",9),g("m3","automatic",3),g("g3","manual",2,{on:false,rev:true})],
+  feed:[{ty:"sub",t:"征服者 · 萨摩亚",m:"待审核 · 截图已上传",at:now-2*H,sid:"s1",tone:"warn"},{ty:"run",t:"萨摩亚 · 地狱",m:"26.1004.6 · +600 XP",at:now-5*H},{ty:"done",t:"主宰",m:"66号公路 · 截图核对",at:now-9*D},{ty:"sub",t:"开拓者 · 萨摩亚",m:"已拒绝 · 截图与地图不符",at:now-11*D,tone:"bad"}]},
+ {id:"a2",name:"Nova",tag:"1823",status:"active",upd:now-6*H,pending:0,bind:[],runs:5,grants:[g("g1","automatic",40)],feed:[{ty:"run",t:"多拉多 · 困难",m:"26.1001.2 · +225 XP",at:now-6*H}]},
+ {id:"a3",name:"Zarya猫",tag:"3041",status:"active",upd:now-1*D,pending:2,bind:[{id:"b2",grp:"G-7F3A…91C2",mem:"M-77B1…00AA"},{id:"b3",grp:"G-12CC…0E4F",mem:"M-77B1…00AA"}],runs:112,needsEquip:true,
+  grants:Array.from({length:12},(_,i)=>g(CATALOG[i%9].k,"historical",100+i,{id:"h"+i})),feed:[{ty:"sub",t:"主宰 · 66号公路",m:"待审核",at:now-1*D,tone:"warn"},{ty:"sub",t:"征服者 · 多拉多",m:"待审核",at:now-1*D-H,tone:"warn"}]},
+ {id:"a4",name:"CheaterX",tag:"9999",status:"banned",upd:now-3*D,pending:0,bind:[{id:"b4",grp:"G-7F3A…91C2",mem:"M-DEAD…BEEF"}],runs:2,grants:[],feed:[{ty:"sub",t:"主宰 · 66号公路",m:"已拒绝 · 疑似伪造截图",at:now-3*D,tone:"bad"}],banReason:"截图伪造"},
+ {id:"a5",name:"Mercy酱",tag:"2210",status:"active",upd:now-2*D,pending:0,bind:[{id:"b5",grp:"G-12CC…0E4F",mem:"M-1111…2222"}],runs:21,grants:[g("g1","automatic",40),g("g4","manual",20)],feed:[]},
+ {id:"a6",name:"Reinhardt",tag:"7788",status:"active",upd:now-5*D,pending:0,bind:[],runs:0,grants:[],feed:[]},
+];
+const ST={q:"",f:"all",sel:null,tab:"titles"};
+const $=s=>document.querySelector(s);
+const ago=t=>{const d=now-t;return d<H?Math.max(1,Math.round(d/6e4))+" 分钟前":d<D?Math.round(d/H)+" 小时前":Math.round(d/D)+" 天前"};
+const dt=t=>new Date(t).toLocaleDateString("zh-CN",{month:"short",day:"numeric"});
+const cat=k=>CATALOG.find(c=>c.k===k);
+const P=()=>players.find(p=>p.id===ST.sel);
+const activeGrants=p=>p.grants.filter(x=>x.on);
+
+function renderList(){
+ const q=ST.q.trim().toLowerCase();
+ const rows=players.filter(p=>(ST.f==="all"||p.status===ST.f)&&(!q||(p.name+"#"+p.tag).toLowerCase().includes(q)||p.bind.some(b=>b.mem.toLowerCase().includes(q))));
+ $("#chips").innerHTML=[["all","全部"],["active","正常"],["banned","已封禁"]].map(([v,l])=>`<button class="chip" data-f="${v}" aria-pressed="${ST.f===v}">${l}</button>`).join("");
+ $("#rows").innerHTML=rows.length?rows.map(p=>`<button class="row ${p.status}" data-id="${p.id}" aria-current="${p.id===ST.sel}">
+  <span class="av">${p.name.slice(0,2)}</span>
+  <span><div class="nm">${p.name}<small>#${p.tag}</small></div><div class="meta">${p.bind.length?`QQ ${p.bind.length} 个绑定`:"未绑定 QQ"} · ${ago(p.upd)}</div></span>
+  <span>${p.status==="banned"?'<span class="tag bad">已封禁</span>':p.pending?`<span class="tag">待审 ${p.pending}</span>`:""}</span></button>`).join(""):`<div class="empty">没有匹配的玩家<br><small>试试战网 ID 的一部分，或 QQ 标识</small></div>`;
+}
+function renderDetail(){
+ const p=P(); const el=$("#detail");
+ if(!p){el.innerHTML=`<div class="card empty">在左边搜索并选择一位玩家<br><small>处理过的玩家会保留在列表里，可以用 ↑ ↓ 快速切换</small></div>`;return}
+ const ag=activeGrants(p);
+ const alerts=[];
+ if(p.status==="banned")alerts.push(`<div class="alert bad"><span><b>此玩家已被封禁</b>${p.banReason?" · "+p.banReason:""}。封禁期间无法继续使用当前帐号。</span><button class="btn sm" data-act="unban">解除封禁</button></div>`);
+ if(p.needsEquip)alerts.push(`<div class="alert"><span><b>需要选择佩戴称号</b> 迁移保留了全部称号，但没有初始化佩戴选择。</span><button class="btn sm" data-act="equip">选择佩戴</button></div>`);
+ if(p.pending)alerts.push(`<div class="alert"><span><b>${p.pending} 个提交等待审核</b></span><button class="btn sm" data-act="review">去审核</button></div>`);
+ el.innerHTML=`
+ <button class="btn sm back" data-act="back" style="justify-self:start">← 玩家列表</button>
+ <section class="card"><div class="head">
+   <span class="av">${p.name.slice(0,2)}</span>
+   <div class="grow"><h2>${p.name}<small>#${p.tag}</small> ${p.status==="banned"?'<span class="tag bad">已封禁</span>':'<span class="tag ok">正常</span>'}</h2>
+    <div class="stats"><span><b>${ag.length}</b> 个称号</span><span><b>${p.runs}</b> 次已核验通关</span><span><b>${p.feed.filter(f=>f.ty==="sub").length}</b> 次近期提交</span><span><b>${p.bind.length}</b> 个 QQ 绑定</span></div></div>
+   <div class="acts"><button class="btn primary" data-act="grant">＋ 发放称号</button><button class="btn" data-act="more" aria-haspopup="menu">⋯</button>
+    <div class="menu" id="menu" role="menu"><button data-act="rename">编辑战网 ID</button><button data-act="recover">签发 Passkey 恢复链接</button><button data-act="equip">编辑佩戴选择</button><hr>${p.status==="active"?'<button class="red" data-act="ban">封禁玩家…</button>':'<button data-act="unban">解除封禁</button>'}</div></div>
+ </div></section>
+ ${alerts.join("")}
+ <section class="card">
+  <div class="tabs" role="tablist">${[["titles","称号",ag.length],["feed","动态",p.feed.length],["account","账号",""]].map(([v,l,n])=>`<button class="tab" role="tab" data-tab="${v}" aria-selected="${ST.tab===v}">${l}${n!==""?`<i>${n}</i>`:""}</button>`).join("")}</div>
+  ${ST.tab==="titles"?tabTitles(p):ST.tab==="feed"?tabFeed(p):tabAccount(p)}
+ </section>`;
+}
+function titleCard(p,x){const c=cat(x.k);return `<div class="title ${x.on?"":"off"}"><span class="ic">${c.ic}</span><div><div class="t">${c.t} ${x.eq?'<span class="star" title="已佩戴">★</span>':""}</div><div class="m">${x.on?src[x.src]+" · "+dt(x.at):"已回收"}</div></div>
+ ${x.on?`<button class="x" data-revoke="${x.id}">回收</button>`:`<button class="x ok" data-restore="${x.id}">恢复</button>`}</div>`}
+function tabTitles(p){
+ if(!p.grants.length)return `<div class="empty">还没有称号<br><button class="btn primary" style="margin-top:.6rem" data-act="grant">＋ 发放称号</button></div>`;
+ const glob=p.grants.filter(x=>cat(x.k).c==="global"),maps={};p.grants.filter(x=>cat(x.k).c==="map").forEach(x=>(maps[cat(x.k).map]??=[]).push(x));
+ return (glob.length?`<div class="group"><h3>全局称号</h3><div class="grid">${glob.map(x=>titleCard(p,x)).join("")}</div></div>`:"")+Object.entries(maps).map(([m,l])=>`<div class="group"><h3>${m}</h3><div class="grid">${l.map(x=>titleCard(p,x)).join("")}</div></div>`).join("");
+}
+function tabFeed(p){
+ if(!p.feed.length)return `<div class="empty">还没有提交或通关记录</div>`;
+ return `<ol class="tl">${[...p.feed].sort((a,b)=>b.at-a.at).map(f=>`<li class="${f.ty}"><div><div class="t">${f.t}</div><div class="m">${f.tone?`<span class="tag ${f.tone==="bad"?"bad":""}">${f.m.split(" · ")[0]}</span> ${f.m.split(" · ").slice(1).join(" · ")}`:f.m}</div></div><time>${ago(f.at)}</time></li>`).join("")}</ol>`;
+}
+function tabAccount(p){
+ return `<dl class="kv"><dt>战网 ID</dt><dd>${p.name}#${p.tag}</dd><dd><button class="btn sm" data-act="rename">编辑</button></dd>
+  <dt>平台账号 ID</dt><dd class="mono">3f9c2b7e-${p.id}0d1-4c55-9e2a-b81f6a4c</dd><dd><button class="btn sm" data-copy>复制</button></dd>
+  <dt>最近更新</dt><dd>${ago(p.upd)}</dd><dd></dd></dl>
+ <hr class="sep"><h3 style="margin:0 0 .2rem;font-size:15px">QQ 绑定</h3>
+ ${p.bind.length?p.bind.map(b=>`<div class="bind"><div><div class="mono">${b.grp}</div><div class="meta mono">${b.mem}</div></div><button class="btn sm" data-unbind="${b.id}">解绑</button></div>`).join(""):'<p class="meta">暂无 QQ 绑定</p>'}
+ <hr class="sep"><h3 style="margin:0 0 .2rem;font-size:15px">玩家丢失了 Passkey？</h3><p class="meta" style="margin:0 0 .6rem">核验身份后签发一次性恢复链接，原有提交、称号和精通记录都会保留。</p>
+ <button class="btn" data-act="recover" ${p.status!=="active"?"disabled":""}>签发恢复链接…</button>`;
+}
+
+/* dialogs */
+const dlg=$("#dlg"),dlgBody=$("#dlgBody");
+function modal(html,wire){dlgBody.innerHTML=html;dlg.showModal();wire?.();dlgBody.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>dlg.close())}
+let tt,undoFn;
+function toast(t,u){$("#toastText").textContent=t;undoFn=u;$("#undo").style.display=u?"":"none";$("#toast").classList.add("show");clearTimeout(tt);tt=setTimeout(()=>$("#toast").classList.remove("show"),6000)}
+$("#undo").onclick=()=>{undoFn?.();undoFn=null;$("#toast").classList.remove("show")};
+function refresh(){renderList();renderDetail()}
+
+function grantDlg(){const p=P();const owned=new Set(activeGrants(p).map(x=>x.k));let sel=new Set(),q="";
+ const draw=()=>{const items=CATALOG.filter(c=>!q||(c.t+(c.map||"")).includes(q));
+  dlgBody.innerHTML=`<h3>给 ${p.name} 发放称号</h3><input type="text" id="gq" placeholder="搜索称号或地图，可多选" value="${q}">
+   <div class="pick">${items.map(c=>`<label><input type="checkbox" data-k="${c.k}" ${sel.has(c.k)?"checked":""} ${owned.has(c.k)?"disabled":""}> ${c.ic} ${c.t}<small>${owned.has(c.k)?"已拥有":c.map||"全局"}</small></label>`).join("")||'<div class="empty">无匹配</div>'}</div>
+   ${sel.size?`<div class="sel">${[...sel].map(k=>`<span class="tag">${cat(k).t}${cat(k).map?" · "+cat(k).map:""}</span>`).join("")}</div>`:""}
+   <input type="text" id="gr" placeholder="原因（可选）：漏发、申诉纠正…">
+   <div class="foot"><button class="btn" data-close>取消</button><button class="btn primary" id="gok" ${sel.size?"":"disabled"}>发放${sel.size?` ${sel.size} 个`:""}</button></div>`;
+  const qi=$("#gq");qi.focus();qi.setSelectionRange(q.length,q.length);qi.oninput=e=>{q=e.target.value;draw()};
+  dlgBody.querySelectorAll("[data-k]").forEach(c=>c.onchange=()=>{c.checked?sel.add(c.dataset.k):sel.delete(c.dataset.k);const keep=q;draw()});
+  dlgBody.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>dlg.close());
+  $("#gok").onclick=()=>{const added=[...sel].map(k=>{const x={id:k+Date.now(),k,src:"manual",at:Date.now(),on:true};p.grants.push(x);return x.id});dlg.close();ST.tab="titles";refresh();toast(`已发放 ${added.length} 个称号`,()=>{p.grants=p.grants.filter(x=>!added.includes(x.id));refresh()})};
+ };dlg.showModal();draw()}
+function banDlg(){const p=P();modal(`<h3>封禁 ${p.name}#${p.tag}</h3><p>封禁后，玩家无法继续使用当前帐号。随时可以解除。</p><textarea id="br" rows="2" placeholder="封禁原因（可选）"></textarea><div class="foot"><button class="btn" data-close>取消</button><button class="btn danger" id="ok">封禁</button></div>`,()=>{$("#ok").onclick=()=>{p.status="banned";p.banReason=$("#br").value.trim();dlg.close();refresh();toast("玩家已封禁",()=>{p.status="active";refresh()})}})}
+function unbindDlg(id){const p=P();modal(`<h3>解除 QQ 绑定</h3><p>解除后，历史提交会保留。</p><div class="foot"><button class="btn" data-close>取消</button><button class="btn danger" id="ok">解除绑定</button></div>`,()=>{$("#ok").onclick=()=>{p.bind=p.bind.filter(b=>b.id!==id);dlg.close();refresh();toast("QQ 绑定已解除")}})}
+function recoverDlg(){const p=P();modal(`<h3>签发 Passkey 恢复链接</h3><p>签发后会立即移除 ${p.name} 现有的 Passkey，并撤销其所有 Portal 会话。玩家重新注册后仍使用原帐号。</p><label style="display:flex;gap:.5rem;align-items:flex-start"><input type="checkbox" id="v"> <span>我已通过独立方式核验玩家身份，并确认恢复到此帐号。</span></label><div class="foot"><button class="btn" data-close>取消</button><button class="btn primary" id="ok" disabled>签发一次性链接</button></div>`,()=>{$("#v").onchange=e=>$("#ok").disabled=!e.target.checked;$("#ok").onclick=()=>{modal(`<h3>恢复链接已签发</h3><p>一次性有效，24 小时内使用。</p><input type="text" readonly value="https://owbastion.com/recover/9fA2…c81">  <div class="foot"><button class="btn" data-close>关闭</button><button class="btn primary" id="cp">复制链接</button></div>`,()=>{$("#cp").onclick=()=>{$("#cp").textContent="已复制"}})}})}
+function renameDlg(){const p=P();modal(`<h3>编辑战网 ID</h3><input type="text" id="n" value="${p.name}#${p.tag}"><div class="foot"><button class="btn" data-close>取消</button><button class="btn primary" id="ok">保存</button></div>`,()=>{$("#ok").onclick=()=>{const [n,t]=$("#n").value.split("#");if(n)p.name=n;if(t)p.tag=t;dlg.close();refresh();toast("战网 ID 已更新")}})}
+function equipDlg(){const p=P();const list=activeGrants(p);let sel=new Set(list.filter(x=>x.eq).map(x=>x.id));
+ const draw=()=>{dlgBody.innerHTML=`<h3>佩戴称号</h3><p>最多选 10 个（已选 ${sel.size}/10）。只改佩戴，不影响其他称号。</p><div class="pick">${list.map(x=>`<label><input type="checkbox" data-i="${x.id}" ${sel.has(x.id)?"checked":""} ${!sel.has(x.id)&&sel.size>=10?"disabled":""}> ${cat(x.k).ic} ${cat(x.k).t}<small>${cat(x.k).map||"全局"}</small></label>`).join("")}</div><div class="foot"><button class="btn" data-close>取消</button><button class="btn primary" id="ok">保存</button></div>`;
+  dlgBody.querySelectorAll("[data-i]").forEach(c=>c.onchange=()=>{c.checked?sel.add(c.dataset.i):sel.delete(c.dataset.i);draw()});dlgBody.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>dlg.close());
+  $("#ok").onclick=()=>{p.grants.forEach(x=>x.eq=sel.has(x.id));p.needsEquip=false;dlg.close();refresh();toast("佩戴选择已保存")}};dlg.showModal();draw()}
+
+/* events */
+document.addEventListener("click",e=>{
+ const t=e.target;
+ if(!t.closest(".acts"))document.getElementById("menu")?.classList.remove("open");
+ const row=t.closest(".row");if(row){ST.sel=row.dataset.id;ST.tab="titles";$("#app").dataset.view="detail";refresh();return}
+ const f=t.closest("[data-f]");if(f){ST.f=f.dataset.f;renderList();return}
+ const tab=t.closest("[data-tab]");if(tab){ST.tab=tab.dataset.tab;renderDetail();return}
+ const rv=t.closest("[data-revoke]");if(rv){const p=P(),x=p.grants.find(y=>y.id===rv.dataset.revoke);x.on=false;refresh();toast(`已回收「${cat(x.k).t}」`,()=>{x.on=true;refresh()});return}
+ const rs=t.closest("[data-restore]");if(rs){const x=P().grants.find(y=>y.id===rs.dataset.restore);x.on=true;refresh();toast(`已恢复「${cat(x.k).t}」`);return}
+ const ub=t.closest("[data-unbind]");if(ub){unbindDlg(ub.dataset.unbind);return}
+ if(t.closest("[data-copy]")){t.closest("[data-copy]").textContent="已复制";return}
+ const a=t.closest("[data-act]")?.dataset.act;if(!a)return;
+ if(a==="more"){document.getElementById("menu").classList.toggle("open");return}
+ document.getElementById("menu")?.classList.remove("open");
+ ({grant:grantDlg,ban:banDlg,recover:recoverDlg,rename:renameDlg,equip:equipDlg,
+  back:()=>{$("#app").dataset.view="list"},
+  unban:()=>{const p=P();p.status="active";refresh();toast("玩家已解封",()=>{p.status="banned";refresh()})},
+  review:()=>alert("原型：跳转到该玩家的待审提交（审核页，按玩家过滤）")})[a]?.();
+});
+$("#q").addEventListener("input",e=>{ST.q=e.target.value;renderList()});
+document.addEventListener("keydown",e=>{
+ if(dlg.open||!["ArrowDown","ArrowUp"].includes(e.key)||e.target.closest("textarea"))return;
+ const vis=[...document.querySelectorAll(".row")];if(!vis.length)return;e.preventDefault();
+ let i=vis.findIndex(r=>r.dataset.id===ST.sel);i=e.key==="ArrowDown"?Math.min(vis.length-1,i+1):Math.max(0,i<0?0:i-1);
+ ST.sel=vis[i].dataset.id;refresh();document.querySelector('.row[aria-current="true"]')?.scrollIntoView({block:"nearest"});
+});
+ST.sel="a1";refresh();
+</script>
+</body>
+</html>

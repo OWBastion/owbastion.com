@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OWBastion Portal 全站原型</title>
+<link rel="stylesheet" href="shared.css">
+<link rel="stylesheet" href="review.css">
+<style>
+.evbar{display:grid;grid-template-columns:minmax(0,1fr) 12rem 10rem;gap:var(--space-3)}
+@container (max-width:52rem){.evbar{grid-template-columns:1fr 1fr}.evbar>.search{grid-column:1/-1}}
+.evflt{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-3);align-items:center;margin-top:var(--space-3)}
+.fchip{display:inline-flex;align-items:center;gap:.375rem;min-height:2.25rem;padding:0 var(--space-3);border:1px solid var(--line-strong);border-radius:var(--radius-pill);font-size:.8125rem;font-weight:500;background:var(--surface)}
+.fchip .n{font-size:.75rem;color:var(--quiet);font-weight:500}
+.fchip[aria-pressed=true]{background:var(--accent-surface);border-color:transparent;font-weight:600}
+.fchip[aria-pressed=true] .n{color:var(--text)}
+.fchip:disabled{color:var(--disabled-text,var(--quiet));border-style:dashed;opacity:.6;cursor:not-allowed}
+.vr{width:1px;height:1.5rem;background:var(--line-strong)}
+.flt-btn{display:none}
+@container (max-width:44rem){.flt-adv{display:none}.flt-btn{display:inline-flex}}
+.popw{position:relative}
+.pop{position:absolute;top:calc(100% + .375rem);left:0;z-index:8;width:16rem;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);box-shadow:0 .5rem 1.5rem var(--shadow);padding:var(--space-3);display:grid;gap:var(--space-2)}
+.plist{display:grid;max-height:14rem;overflow:auto;margin:0 calc(var(--space-2) * -1)}
+.popi{display:flex;align-items:center;gap:var(--space-2);padding:.4rem var(--space-2);border-radius:var(--radius-control);font-size:.875rem;text-align:left}
+.popi:hover:not(:disabled){background:var(--surface-raised)}.popi:disabled{opacity:.45;cursor:not-allowed}.popi .n{margin-left:auto}
+.cb{width:1.125rem;height:1.125rem;border:1.5px solid var(--line-strong);border-radius:.3rem;display:grid;place-items:center;flex:none}
+.popi[aria-checked=true] .cb{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}.cb .i{width:.8em;height:.8em;stroke-width:3}
+.evquick{display:grid;gap:var(--space-2);margin-top:var(--space-3);padding:var(--space-3);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--surface-raised)}
+.evquick .qr{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}.evquick .lbl{min-width:3.5rem}
+.fchip.grp[aria-pressed=false]{border-color:var(--accent);color:var(--text)}
+.pm{display:flex;align-items:center;gap:.5rem;font-size:.75rem;color:var(--muted)}.pmt{flex:1;height:.375rem;border-radius:var(--radius-pill);background:var(--line);overflow:hidden}.pmt i{display:block;height:100%;background:var(--accent);border-radius:inherit;min-width:2px}.pm .num{color:var(--text);font-weight:600;min-width:3rem;text-align:right}
+.pbig{display:grid;gap:var(--space-2)}.pbig .v{font-size:2rem;font-weight:700;line-height:1.1;color:var(--accent)}
+.evsum{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center;margin:var(--space-4) 0 var(--space-3);padding-top:var(--space-3);border-top:1px solid var(--line)}
+.evsum .sp{flex:1}
+.evgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(17rem,1fr));gap:var(--space-3);list-style:none;padding:0}
+.evgroup{margin-top:var(--space-5)}
+.evc{display:grid;grid-template-rows:auto auto minmax(3.2em,1fr) auto auto;gap:var(--space-2);width:100%;height:100%;text-align:left;padding:var(--space-4);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card)}
+.evc:hover{border-color:var(--line-strong)}
+.evmeta{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+.ecat{display:inline-flex;align-items:center;gap:.375rem;font-size:.8125rem;font-weight:600}
+.ecat i{width:.5rem;height:.5rem;border-radius:50%;background:var(--info)}.ecat.g i{background:var(--success)}.ecat.b i{background:var(--danger)}
+.erar{font-size:.75rem;font-weight:700;padding:.0625rem .5rem;border-radius:var(--radius-pill);border:1px solid var(--line-strong);color:var(--muted)}
+.erar.rSR{background:var(--accent-surface);border-color:transparent;color:var(--text)}
+.erar.rSSR{background:var(--accent);border-color:transparent;color:var(--on-accent)}
+.evdesc{max-height:3.1em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:.875rem;line-height:1.55;color:var(--muted)}
+.evtags{display:flex;flex-wrap:wrap;gap:.375rem;align-items:center;min-height:1.5rem}
+.tg{display:inline-flex;align-items:center;height:1.5rem;padding:0 .625rem;border-radius:var(--radius-pill);background:var(--surface-raised);font-size:.75rem;font-weight:500}
+.evfoot{display:flex;gap:var(--space-3);align-items:center;padding-top:var(--space-2);border-top:1px solid var(--line);min-height:1.75rem}
+.evfoot .rate{margin-left:auto;display:inline-flex;gap:.25rem;align-items:center;color:var(--warning)}
+.lead{font-size:1.0625rem;line-height:1.65;color:var(--text)}
+.keys{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:var(--space-3)}
+.effs{display:grid;gap:0;border:1px solid var(--line);border-radius:var(--radius-control);overflow:hidden}
+.effs>div{display:grid;grid-template-columns:7.5rem minmax(0,1fr);gap:var(--space-3);padding:.625rem var(--space-3);border-top:1px solid var(--line);font-size:.875rem}
+.effs>div:first-child{border-top:0}.effs dt{font-weight:600}.effs dd{margin:0;color:var(--muted)}
+.acc{border:1px solid var(--line);border-radius:var(--radius-control);padding:var(--space-3) var(--space-4)}.acc summary{cursor:pointer;font-weight:600;font-size:.9375rem}
+.sel{display:block}
+.mpgrid{grid-template-columns:repeat(auto-fill,minmax(17rem,1fr))}
+.mpc{padding:0;overflow:hidden;grid-template-rows:auto 1fr;gap:0}
+.mpc .in{display:grid;grid-template-rows:auto auto minmax(1.5rem,auto) 1fr;gap:var(--space-2);padding:var(--space-4);align-content:start}
+.mpc .cover{aspect-ratio:2/1;font-size:2rem;font-weight:700;letter-spacing:.1em;color:var(--accent);background:var(--accent-surface);border-radius:0}
+.mpc .evfoot{align-self:end}
+.tier{display:inline-flex;align-items:center;height:1.375rem;padding:0 .5rem;border-radius:.4rem;font-size:.75rem;font-weight:700;letter-spacing:.02em;background:var(--surface-raised);border:1px solid var(--line-strong);color:var(--text)}
+.mpc .slot{font-size:.6875rem;padding:0 .4rem}
+</style>
+</head>
+<body>
+<div class="bench" id="bench"></div>
+<script src="shared.js"></script>
+<script src="review.js"></script>
+<script>
+/* ================= state & data ================= */
+const S={route:'/',w:PT.get('w','desktop'),theme:PT.get('theme','light'),role:PT.get('role','player'),menu:false,sheet:false,dlg:null,toast:'',
+  st:'ok',sub:'processing',qq:'idle',bind:'ready',ach:'all',evCat:'all',evQ:'',mapQ:'',mapRt:'all',tab:{},rev:'cur',myStar:0,nudge:true,rv:0,
+  grant:{players:['示例玩家'],titles:[],done:false},revAct:''};
+const SLOT=['开拓者','征服者','主宰'],COND=['首次通关','困难难度通关','无伤通关'];
+const MAPS=[
+ {id:1,name:'示例地图一',rt:'S',slots:[1,1,1],m:18,cl:0,avg:4.6,n:32},
+ {id:2,name:'示例地图二',rt:'A',slots:[1,1,0],m:6,cl:0,avg:4.1,n:18},
+ {id:3,name:'示例地图三',rt:'A',slots:[1,0,0],m:2,cl:1,avg:3.8,n:9},
+ {id:4,name:'示例地图四',rt:'B',slots:[0,0,0],m:0,cl:0,avg:0,n:0},
+ {id:5,name:'示例地图五',rt:'B',slots:[0,0,0],m:0,cl:0,avg:4.4,n:5}];
+
+const PLAYER_TITLES=[{n:'无伤通关',c:'极限操作系列',on:1,w:1},{n:'百次通关',c:'里程碑系列',on:1,w:1},{n:'极限速通',c:'极限操作系列',on:0},{n:'千次通关',c:'里程碑系列',on:0}];
+const SUBS={processing:['识别中','info','正在识别，通常几分钟内完成'],review:['待人工核对','warn','识别结果需要人工核对，已进入审核队列'],resubmit:['需重新提交','bad','截图无法确认结果，请按建议重新提交'],done:['已通过','ok','已通过，称号已记入你的公开主页']};
+const B=(t,k='')=>({b:k,t});
+const NOTES={};
+
+/* ================= small ui helpers ================= */
+const L=p=>'#/'+p;
+const pageTitle=(t,right='')=>`<div class="row between"><h1 class="h1">${t}</h1>${right?`<div class="row">${right}</div>`:''}</div>`;
+const badge=(t,k='')=>`<span class="badge ${k}">${t}</span>`;
+const alertE=(t,d,act='retry')=>`<div class="alert err"><span><b>${t}</b>　${d}</span><button class="btn btn-outline btn-sm" data-act="${act}">${ic('refresh')}重试</button></div>`;
+const need=(html,adminOnly)=>{
+  if(S.role==='guest')return `<main class="pg narrow"><div class="card empty"><span class="h3">需要登录</span><a class="btn btn-primary btn-lg" href="${L('login')}">登录</a></div></main>`;
+  if(adminOnly&&S.role!=='admin')return `<main class="pg narrow"><div class="card empty"><span class="h3">没有访问权限</span><span>此页面仅管理员可见。请在上方将「身份」切换为管理员。</span></div></main>`;
+  return html;
+};
+const slotChips=(s)=>`<div class="slots">${s.map((v,i)=>`<span class="slot ${v?'on':''}">${ic(v?'ok':'circle')}${SLOT[i]}<span class="sr">${v?'已获得':'未获得'}</span></span>`).join('')}</div>`;
+function reviewSection(o){
+  const cm=[[5,'示例玩家 B','很有意思。','3 天前'],[4,'示例玩家 C','难度合适。','1 周前']];
+  const star=i=>`<button data-act="star" data-n="${i}" aria-label="${i} 分" style="color:${i<=S.myStar?'var(--warning)':'var(--line-strong)'}">${ic('star').replace('<svg class="i"','<svg class="i" style="width:1.5em;height:1.5em;fill:'+(i<=S.myStar?'currentColor':'none')+'"')}</button>`;
+  const editor=S.role==='guest'?`<span class="cap">登录后可评价　<a href="${L('login')}" style="color:var(--accent)">登录</a></span>`
+   :S.evWrite?`<div class="card pad" style="display:grid;gap:var(--space-3)"><div class="row" style="gap:.25rem">${[1,2,3,4,5].map(star).join('')}</div><textarea class="inp" placeholder="分享你的实际体验（可选）" aria-label="评价内容"></textarea><label class="row" style="gap:.5rem;font-size:.8125rem"><input type="checkbox"> 匿名展示</label><div class="row"><button class="btn btn-primary" data-act="toast" data-m="评价已保存" ${S.myStar?'':'disabled'}>提交评价</button><button class="btn btn-ghost" data-act="evwrite">取消</button></div></div>`
+   :`<button class="btn btn-outline" data-act="evwrite">${o.n?'写评价':'写第一条评价'}</button>`;
+  return `<section aria-labelledby="rvh"><div class="row between"><h3 class="h3" id="rvh">玩家评价</h3>${o.n?`<span class="row" style="gap:.5rem">${stars(o.avg)}<span class="val num">${o.avg.toFixed(1)}</span><span class="cap num">${o.n} 条${o.n<10?' · 样本较少':''}</span></span>`:'<span class="cap">暂无评价</span>'}</div>
+   ${o.n?`<div class="card list clip mt">${cm.map(([s,u,t,d])=>`<div style="align-items:flex-start"><div><div class="row" style="gap:.5rem"><span class="val">${u}</span>${stars(s)}</div><div class="body" style="font-size:.875rem">${t}</div></div><span class="cap">${d}</span></div>`).join('')}</div>`:''}
+   <div class="mt">${editor}</div></section>`;
+}
+
+/* ================= public screens ================= */
+const PUBLIC_NAV_ICONS=()=>[['events','随机事件','zap'],['maps','地图','map'],['achievements','成就','award'],['changelog','版本更新','history'],['blog','开发日志','msg']];
+function home(){return `<main class="pg"><h1 class="h1" style="font-size:clamp(2.6rem,7vw,5rem);letter-spacing:-.04em">躲避堡垒 3</h1>
+ <h2 class="h2 sec">目录</h2><div class="grid w mt">${PUBLIC_NAV_ICONS().map(([p,l,i])=>`<a class="card pad row" href="${L(p)}">${ic(i)}<span class="h3">${l}</span></a>`).join('')}</div></main>`}
+
+/* ================= events ================= */
+const GL={'治疗效果':'恢复生命值','受到伤害':'承受伤害的判定','生命值改变':'直接改变生命值','心之钢':'可累积层数的资源','赌徒':'赌注类事件','永久':'效果持续到本局结束','主动交互':'需要玩家主动触发','伤害减免':'降低受到的伤害','移速加成':'提升移动速度','治疗增益':'提升受到的治疗','视野收窄':'缩小可视范围','减速':'降低移动速度'};
+const E=(id,name,cat,rar,ver,desc,dur,cd,w,tags,o={})=>({id,name,cat,rar,ver,desc,dur,cd,w,tags,st:'implemented',avg:0,n:0,ch:[],...o});
+const EV=[
+ E(1,'赌徒：乐于助人','机制','R','5.0','长按装填(R)：75% 概率使所有友方恢复 85% 最大生命值；25% 概率使所有玩家生命值降低至 1',15,null,1,['治疗效果','受到伤害','生命值改变']),
+ E(2,'赌徒：梭哈艺术','机制','SR','5.0','长按装填(R)以 25% 心之钢层数为赌注：8% 概率获得赌注等值 ×5 的心之钢层数',15,null,.9,['心之钢'],{avg:4.3,n:12}),
+ E(3,'赌徒：心之钢','机制','SSR','5.0','长按装填(R)：40% 概率使心之钢层数 ×1.5；60% 概率失去 50% 层数',15,null,.7,['心之钢','赌徒'],{avg:3.6,n:8}),
+ E(4,'赌徒：赢家通吃','机制','SR','5.0','长按装填(R)以 25% 心之钢层数为赌注：10% 概率清空奖池，拿走所有心之钢层数',15,null,1,['心之钢']),
+ E(5,'赌徒：掷骰狂人','机制','SSR','5.0','长按装填(R)掷出一颗永久改变属性的骰子：1 点损失 5 层心之钢；2 点损失 2% 移速加成；3 点损失 2% 伤害减免与治疗增益；4 点获得 2% 移速加成……',20,null,1.2,['永久','心之钢','伤害减免','移速加成','治疗增益'],{avg:4.6,n:21,ch:[{f:'achievement',t:'示例成就挑战'}]}),
+ E(6,'赌徒：短期投资','机制','R','4.0','长按装填(R)：以接下来 3 个事件均为减益为代价，75% 的概率永久获得 4 层心之钢层数',15,null,1,['心之钢','永久','主动交互']),
+ E(7,'赌徒：长期投资','机制','SSR','4.0','长按装填(R)：以接下来 5 个事件均为减益为代价，33% 的概率永久获得 24 层心之钢层数',15,null,1.1,['心之钢','永久'],{avg:4.0,n:6}),
+ E(15,'作弊：循环往复','机制','SR','2026周年','长按R消耗6层心之钢（约4.5%最大生命值），下个事件将重演最近一次可重现的增益',15,null,.6,['心之钢','主动交互']),
+ E(16,'作弊：先知','机制','SR','2026周年','可看到其他玩家的下一个事件',90,null,.6,['主动交互']),
+ E(17,'任务：有福同享','增益','SSR','2026周年','选择1名友方，双方通过终点后各获得16层心之钢',120,0,.4,['心之钢','主动交互']),
+ E(18,'任务：同行链','机制','R','2026周年','与一名友方相连，被持续牵引向对方',45,null,1,['主动交互']),
+ E(19,'任务：在哪里跌倒','增益','SSR','2026周年','受到致命伤害时被击倒，友方靠近可使用互动将你扶起并恢复40%生命值',60,2,.4,['治疗效果','主动交互']),
+ E(8,'示例增益事件 A','增益','R','5.0','（示例）持续期间获得移速加成',30,90,1,['移速加成'],{avg:4.8,n:22}),
+ E(9,'示例增益事件 B','增益','SR','4.0','（示例）持续期间受到的治疗提升',20,120,.8,['治疗增益','治疗效果']),
+ E(10,'示例增益事件 C','增益','SSR','3.0','（示例）获得一次伤害减免',15,180,.6,['伤害减免'],{avg:4.1,n:9}),
+ E(11,'示例减益事件 A','减益','R','5.0','（示例）持续期间移动速度降低',30,90,1.2,['减速'],{avg:3.5,n:14,ch:[{f:'map',t:'示例地图一 事件生存'}]}),
+ E(12,'示例减益事件 B','减益','SR','3.0','（示例）持续期间视野收窄',20,120,.9,['视野收窄','受到伤害']),
+ E(13,'示例减益事件 C','减益','SSR','4.0','（示例）已从游戏中移除的事件',15,null,null,['受到伤害'],{st:'removed'}),
+ E(14,'示例机制事件 X','机制','SR','5.1','（示例）开发中的事件',15,null,null,['主动交互'],{st:'development'})
+];
+const CATS=['增益','减益','机制'],RARS=['R','SR','SSR'],CAT_P={增益:.425,减益:.375,机制:.2};
+S.ev={cat:[],rar:[],tags:[],ver:[],grp:[],incl:false,pop:''};S.evQ='';S.evTq='';S.evSort='ver';S.evGroup='none';S.evWrite=false;
+const grpOf=e=>{const i=e.name.indexOf('：');return i>0?e.name.slice(0,i):null};
+const ALLGRP=Object.entries(EV.reduce((m,e)=>{const g=grpOf(e);if(g)m[g]=(m[g]||0)+1;return m},{})).filter(([,n])=>n>=2).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
+const grpKey=e=>ALLGRP.includes(grpOf(e))?grpOf(e):'其他';
+const TOPTAGS=Object.entries(EV.flatMap(e=>e.tags).reduce((m,t)=>(m[t]=(m[t]||0)+1,m),{})).sort((a,b)=>b[1]-a[1]).slice(0,6).map(x=>x[0]);
+const ALLTAGS=[...new Set(EV.flatMap(e=>e.tags))],ALLVER=[...new Set(EV.map(e=>e.ver))].sort((a,b)=>b.localeCompare(a,undefined,{numeric:true}));
+function prob(e){
+  const g=EV.filter(x=>x.st==='implemented'&&x.cat===e.cat),ws=g.map(x=>x.w);
+  if(e.w==null||ws.some(w=>w==null)||e.st!=='implemented')return null;
+  const tot=ws.reduce((a,b)=>a+b,0),n=g.length,succ=Math.min(1,tot/(n*2.5)),fail=1-succ,guar=fail**8;
+  const app=(e.w/(n*2.5))*(1-guar)/((1-fail)||1)+guar/n;
+  return {cat:CAT_P[e.cat],fail,guar,app,glob:CAT_P[e.cat]*app};
+}
+const PMAX=()=>Math.max(...EV.map(e=>prob(e)?.glob||0));
+const pct=v=>v==null?'—':new Intl.NumberFormat('zh-CN',{maximumFractionDigits:1}).format(v*100)+'%';
+function evMatch(e,skip){
+  const f=S.ev,q=S.evQ.trim();
+  return (skip==='st'||f.incl||e.st==='implemented')&&(skip==='cat'||!f.cat.length||f.cat.includes(e.cat))&&(skip==='rar'||!f.rar.length||f.rar.includes(e.rar))
+   &&(skip==='grp'||!f.grp.length||f.grp.includes(grpKey(e)))&&(skip==='tags'||!f.tags.length||f.tags.every(t=>e.tags.includes(t)))&&(skip==='ver'||!f.ver.length||f.ver.includes(e.ver))&&(!q||(e.name+e.desc+e.tags.join('')).includes(q));
+}
+const facet=(d,v)=>['rate','mech','mver'].includes(d)?mfacet(d,v):EV.filter(e=>evMatch(e,d)&&(d==='cat'?e.cat===v:d==='rar'?e.rar===v:d==='ver'?e.ver===v:d==='grp'?grpKey(e)===v:e.tags.includes(v))).length;
+const evList=()=>{
+  const l=EV.filter(e=>evMatch(e));
+  const cmp={ver:(a,b)=>b.ver.localeCompare(a.ver,undefined,{numeric:true})||a.name.localeCompare(b.name),name:(a,b)=>a.name.localeCompare(b.name),prob:(a,b)=>(prob(b)?.glob??-1)-(prob(a)?.glob??-1),rate:(a,b)=>(b.avg||-1)-(a.avg||-1)}[S.evSort];
+  return l.sort(cmp);
+};
+const catCls=c=>c==='增益'?'g':c==='减益'?'b':'m';
+const catEl=c=>`<span class="ecat ${catCls(c)}"><i></i>${c}</span>`;
+const rarEl=r=>`<span class="erar r${r}">${r}</span>`;
+const fchip=(d,v,label)=>{const on=S.ev[d].includes(v),n=facet(d,v);return `<button class="fchip ${d==='grp'?'grp':''}" data-act="ftog" data-d="${d}" data-v="${v}" aria-pressed="${on}" ${!on&&!n?'disabled':''}>${label||v}<span class="n num">${n}</span></button>`};
+function popBtn(k,label,sel,body){
+  const open=S.ev.pop===k;
+  return `<span class="popw"><button class="fchip pb" data-act="pop" data-v="${k}" aria-expanded="${open}" aria-haspopup="dialog">${label}${sel.length?`<span class="badge acc">${sel.length}</span>`:''}${ic('down')}</button>${open?`<div class="pop" role="dialog" aria-label="${label}">${body}</div>`:''}</span>`;
+}
+const tagBody=()=>{
+  const q=S.evTq.trim(),l=ALLTAGS.filter(t=>!q||t.includes(q)).sort((a,b)=>facet('tags',b)-facet('tags',a));
+  return `<label class="search" style="max-width:none"><span class="sr">搜索效果</span>${ic('search')}<input class="inp" data-bind="evTq" value="${esc(S.evTq)}" placeholder="搜索效果"></label>
+   <p class="cap">同时包含所选的全部效果</p><div class="plist">${l.map(t=>{const on=S.ev.tags.includes(t),n=facet('tags',t);return `<button role="checkbox" aria-checked="${on}" class="popi" data-act="ftog" data-d="tags" data-v="${t}" ${!on&&!n?'disabled':''}><span class="cb">${on?ic('check'):''}</span><span>${t}</span><span class="n cap num">${n}</span></button>`}).join('')||'<span class="cap">没有匹配的效果</span>'}</div>`;
+};
+const verBody=()=>`<div class="plist">${ALLVER.map(v=>{const on=S.ev.ver.includes(v),n=facet('ver',v);return `<button role="checkbox" aria-checked="${on}" class="popi" data-act="ftog" data-d="ver" data-v="${v}" ${!on&&!n?'disabled':''}><span class="cb">${on?ic('check'):''}</span><span>${v}</span><span class="n cap num">${n}</span></button>`}).join('')}</div>`;
+const nActive=()=>S.ev.grp.length+S.ev.cat.length+S.ev.rar.length+S.ev.tags.length+S.ev.ver.length+(S.ev.incl?1:0);
+function fltDlg(){
+  return {title:'筛选',lg:false,body:`<div><div class="lbl">事件组</div><div class="row mt" style="gap:.5rem">${ALLGRP.map(c=>fchip('grp',c)).join('')}</div></div>
+   <div><div class="lbl">类别</div><div class="row mt" style="gap:.5rem">${CATS.map(c=>fchip('cat',c)).join('')}</div></div>
+   <div><div class="lbl">稀有度</div><div class="row mt" style="gap:.5rem">${RARS.map(c=>fchip('rar',c)).join('')}</div></div>
+   <div><div class="lbl">效果（同时包含）</div><div class="row mt" style="gap:.5rem">${ALLTAGS.map(t=>fchip('tags',t)).join('')}</div></div>
+   <div><div class="lbl">版本</div><div class="row mt" style="gap:.5rem">${ALLVER.map(v=>fchip('ver',v)).join('')}</div></div>
+   <div class="sw"><span class="val">包含已移除与开发中</span><button class="tog" role="switch" aria-checked="${S.ev.incl}" aria-label="包含已移除与开发中" data-act="incl"></button></div>`,
+   foot:`<button class="btn btn-ghost" data-act="fclear">清除</button><button class="btn btn-primary" data-act="close">显示 ${evList().length} 项事件</button>`};
+}
+function evCard(e){
+  const p=prob(e),t=e.tags.slice(0,3),more=e.tags.length-t.length;
+  return `<li><button class="evc" data-act="evopen" data-id="${e.id}" aria-haspopup="dialog">
+   <span class="row between" style="align-items:flex-start;gap:.5rem"><span class="h3">${e.name}</span>${e.st!=='implemented'?badge(e.st==='removed'?'已移除':'开发中','warn'):''}</span>
+   <span class="evmeta">${catEl(e.cat)}${rarEl(e.rar)}<span class="cap num">${e.ver}</span></span>
+   <span class="evdesc">${e.desc}</span>
+   <span class="evtags">${t.map(x=>`<span class="tg">${x}</span>`).join('')}${more?`<span class="cap">+${more}</span>`:''}</span>
+   ${p?`<span class="pm" title="出现概率 ${pct(p.glob)}，相对最高概率事件"><span>概率</span><span class="pmt"><i style="width:${(p.glob/PMAX()*100).toFixed(0)}%"></i></span><span class="num">${pct(p.glob)}</span></span>`:''}
+   <span class="evfoot cap num">${e.dur?`<span>${e.dur} 秒</span>`:''}${e.cd?`<span>冷却 ${e.cd} 秒</span>`:''}${e.w!=null?`<span>权重 ${e.w}</span>`:''}${e.n?`<span class="rate">${ic('star').replace('<svg class="i"','<svg class="i" style="fill:currentColor"')}${e.avg.toFixed(1)}</span>`:''}</span></button></li>`;
+}
+function events(){
+  if(S.st==='loading')return `<main class="pg">${pageTitle('随机事件')}<div class="grid w mt-l">${'<div class="sk" style="height:12rem"></div>'.repeat(6)}</div></main>`;
+  if(S.st==='error')return `<main class="pg">${pageTitle('随机事件')}<div class="mt-l">${alertE('无法读取事件','请稍后重试。')}</div></main>`;
+  const list=S.st==='empty'?[]:evList(),f=S.ev,act=[...f.grp.map(v=>['grp',v]),...f.cat.map(v=>['cat',v]),...f.rar.map(v=>['rar',v]),...f.tags.map(v=>['tags',v]),...f.ver.map(v=>['ver',v])];
+  let body;
+  if(!list.length)body=`<div class="card empty">${S.evQ||act.length?'<span class="val">没有同时满足这些条件的事件</span><span>试试去掉部分条件</span><button class="btn btn-outline" data-act="fclear">清除全部条件</button>':'<span class="val">暂无事件</span>'}</div>`;
+  else if(S.evGroup==='none')body=`<ul class="evgrid">${list.map(evCard).join('')}</ul>`;
+  else{const gm={ver:[ALLVER,e=>e.ver],cat:[CATS,e=>e.cat],grp:[[...ALLGRP,'其他'],grpKey]}[S.evGroup];body=gm[0].map(k=>{const g=list.filter(e=>gm[1](e)===k);return g.length?`<section class="evgroup"><div class="sec-h" style="margin-bottom:var(--space-2)"><h2 class="lbl">${k}</h2><span class="cap num">${g.length} 项</span></div><ul class="evgrid">${g.map(evCard).join('')}</ul></section>`:''}).join('')}
+  return `<main class="pg">${pageTitle('随机事件')}
+  <div class="evbar mt-l"><label class="search" style="max-width:none"><span class="sr">搜索事件</span>${ic('search')}<input class="inp" data-bind="evQ" value="${esc(S.evQ)}" placeholder="搜索名称、描述或效果"></label>
+   <label class="sel"><span class="sr">排序</span><select class="inp" data-bind="evSort">${[['ver','最新版本'],['name','名称'],['prob','出现概率 高→低'],['rate','评分 高→低']].map(([v,l])=>`<option value="${v}" ${S.evSort===v?'selected':''}>排序：${l}</option>`).join('')}</select></label>
+   <label class="sel"><span class="sr">分组</span><select class="inp" data-bind="evGroup">${[['none','不分组'],['grp','按事件组分组'],['ver','按版本分组'],['cat','按类别分组']].map(([v,l])=>`<option value="${v}" ${S.evGroup===v?'selected':''}>${l}</option>`).join('')}</select></label></div>
+  <div class="evquick"><div class="qr" role="group" aria-label="事件组"><span class="lbl">事件组</span>${ALLGRP.map(g=>fchip('grp',g)).join('')}</div>
+   <div class="qr" role="group" aria-label="常见效果"><span class="lbl">常见效果</span>${TOPTAGS.map(t=>fchip('tags',t)).join('')}</div></div>
+  <div class="evflt"><div class="row" style="gap:.5rem" role="group" aria-label="类别">${CATS.map(c=>fchip('cat',c)).join('')}</div>
+   <div class="flt-adv row" style="gap:.5rem"><span class="vr"></span><div class="row" style="gap:.5rem" role="group" aria-label="稀有度">${RARS.map(c=>fchip('rar',c)).join('')}</div><span class="vr"></span>${popBtn('tags','效果',S.ev.tags,tagBody())}${popBtn('ver','版本',S.ev.ver,verBody())}</div>
+   <button class="fchip flt-btn" data-act="fopen">筛选${nActive()?`<span class="badge acc">${nActive()}</span>`:''}</button></div>
+  <div class="evsum" aria-live="polite"><span class="lbl num">${list.length} 项事件</span>
+   ${act.map(([d,v])=>`<span class="chip on">${v}<button data-act="frm" data-d="${d}" data-v="${v}" aria-label="移除条件 ${v}">${ic('x')}</button></span>`).join('')}${act.length||S.evQ?`<button class="btn btn-ghost btn-sm" data-act="fclear">清除</button>`:''}
+   <span class="sp"></span><label class="row" style="gap:.5rem;font-size:.8125rem;color:var(--muted)">包含已移除与开发中<button class="tog" role="switch" aria-checked="${S.ev.incl}" data-act="incl"></button></label></div>
+  ${body}</main>`;
+}
+function evDlg(id){
+  const e=EV.find(x=>x.id==id);
+  if(!e)return '';
+  const p=prob(e);
+  const keys=[['持续',e.dur?`${e.dur} 秒`:null],['冷却',e.cd?`${e.cd} 秒`:null]].filter(k=>k[1]);
+  return `<div class="scrim" data-act="evscrim"><div class="dlg lg" role="dialog" aria-modal="true" aria-label="${esc(e.name)}">
+   <div class="dlg-h" style="align-items:flex-start"><div><h2 class="h2" style="font-size:1.5rem">${e.name}</h2><div class="evmeta mt">${catEl(e.cat)}${rarEl(e.rar)}<span class="cap num">${e.ver}</span>${e.st!=='implemented'?badge(e.st==='removed'?'已移除':'开发中','warn'):''}</div></div><button class="btn btn-ghost btn-sm" data-act="evclose" aria-label="关闭">${ic('x')}</button></div>
+   <div class="dlg-b" style="gap:var(--space-5)">
+    <p class="lead">${e.desc}</p>
+    ${p?(()=>{const impl=EV.filter(x=>prob(x)).sort((a,b)=>prob(b).glob-prob(a).glob),rk=impl.findIndex(x=>x.id===e.id)+1;return `<section class="card pad pbig" aria-label="出现概率"><div class="lbl">出现概率</div><div class="v num">${pct(p.glob)}</div><div class="pm"><span class="pmt"><i style="width:${(p.glob/PMAX()*100).toFixed(0)}%"></i></span></div><p class="cap">平均每触发约 ${Math.round(1/p.glob)} 次随机事件会出现 1 次 · 概率排名 第 ${rk} / ${impl.length} · 权重 ${e.w}（${e.cat}类别内${e.w>=1?'偏高':e.w>=.6?'中等':'偏低'}）</p></section>`})():''}
+    ${keys.length?`<div class="keys">${keys.map(([l,v])=>`<div class="card pad"><div class="lbl">${l}</div><div class="stat-v num">${v}</div></div>`).join('')}</div>`:''}
+    <section aria-labelledby="ef"><h3 class="h3" id="ef">效果</h3><dl class="effs mt">${e.tags.map(t=>`<div><dt>${t}</dt><dd>${GL[t]||'—'}</dd></div>`).join('')}</dl></section>
+    ${e.ch.length?`<section><h3 class="h3">开放挑战</h3><div class="card list clip mt">${e.ch.map(c=>`<a href="${L(c.f==='map'?'maps':'achievements')}"><span class="val">${c.t}</span><span class="cap">${c.f==='map'?'查看地图':'查看成就'}</span></a>`).join('')}</div></section>`:''}
+    ${p?`<details class="acc"><summary>概率详情</summary><dl class="kv mt"><dt>权重</dt><dd class="num">${e.w}</dd><dt>类别概率</dt><dd class="num">${pct(p.cat)}</dd><dt>单次失败率</dt><dd class="num">${pct(p.fail)}</dd><dt>保底触发率</dt><dd class="num">${pct(p.guar)}</dd><dt>最终出现概率</dt><dd class="num">${pct(p.app)}</dd></dl></details>`:''}
+    ${reviewSection(e)}
+   </div></div></div>`;
+}
+
+/* ================= maps (same directory layout as events) ================= */
+const M=(id,name,ver,rate,mech,ch,slots,runs,xp,cl,avg,n)=>({id,name,ver,rate,mech,ch,slots,runs,xp,cl,avg,n});
+const MP=[
+ M(1,'示例地图一','5.0',4,['示例机制 A','示例机制 B'],[['首次通关','普通','进行中'],['困难通关','困难','进行中'],['无伤通关','困难','进行中']],[1,1,1],18,3620,0,4.6,32),
+ M(2,'示例地图二','5.0',3,['示例机制 A'],[['首次通关','普通','进行中'],['困难通关','困难','进行中'],['无伤通关','困难','进行中']],[1,1,0],6,1180,0,4.1,18),
+ M(3,'示例地图三','4.0',3,['示例机制 C'],[['首次通关','普通','进行中'],['困难通关','困难','进行中'],['无伤通关','困难','计划下线']],[1,0,0],2,420,1,3.8,9),
+ M(4,'示例地图四','4.0',0,[],[['首次通关','普通','进行中']],[0,0,0],0,0,0,0,0),
+ M(5,'示例地图五','3.0',5,['示例机制 B','示例机制 C','示例机制 A'],[['首次通关','普通','进行中'],['困难通关','困难','进行中']],[0,0,0],0,0,0,4.4,5),
+ M(6,'示例地图六','5.0',0,[],[['首次通关','普通','进行中']],[1,1,1],31,5210,0,4.8,44),
+ M(7,'示例地图七','3.0',4,['示例机制 A'],[],[0,0,0],0,0,0,0,0),
+ M(8,'示例地图八','5.0',2,['示例机制 B'],[['首次通关','普通','进行中'],['困难通关','困难','进行中']],[1,0,0],4,760,0,3.4,7)];
+Object.assign(S.ev,{rate:[],mech:[],mver:[]});S.mpQ='';S.mpSort='ver';S.mpProg='all';S.mpTq='';
+const ALLMECH=[...new Set(MP.flatMap(m=>m.mech))],ALLMVER=[...new Set(MP.map(m=>m.ver))].sort((a,b)=>b.localeCompare(a,undefined,{numeric:true}));
+const nDone=m=>m.slots.filter(Boolean).length;
+function mpMatch(m,skip){
+  const f=S.ev,q=S.mpQ.trim(),pg=S.role==='guest'?'all':S.mpProg;
+  return (skip==='rate'||!f.rate.length||f.rate.includes(String(m.rate)))&&(skip==='mech'||!f.mech.length||f.mech.every(t=>m.mech.includes(t)))&&(skip==='mver'||!f.mver.length||f.mver.includes(m.ver))
+   &&(skip==='prog'||pg==='all'||(pg==='some'?nDone(m)>0&&nDone(m)<3:pg==='none'?nDone(m)===0:nDone(m)===3))&&(!q||(m.name+m.mech.join('')).includes(q));
+}
+const mfacet=(d,v)=>MP.filter(m=>mpMatch(m,d)&&(d==='rate'?String(m.rate)===v:d==='mver'?m.ver===v:m.mech.includes(v))).length;
+const pips=n=>`<span class="tier t${n}" aria-label="评级 T${n}">T${n}</span>`;
+function mpList(){
+  const cmp={ver:(a,b)=>b.ver.localeCompare(a.ver,undefined,{numeric:true})||a.name.localeCompare(b.name),name:(a,b)=>a.name.localeCompare(b.name),rate:(a,b)=>a.rate-b.rate,rating:(a,b)=>(b.avg||-1)-(a.avg||-1),prog:(a,b)=>nDone(b)-nDone(a)||b.runs-a.runs}[S.mpSort];
+  return MP.filter(m=>mpMatch(m)).sort(cmp);
+}
+const mActive=()=>S.ev.rate.length+S.ev.mech.length+S.ev.mver.length+(S.role!=='guest'&&S.mpProg!=='all'?1:0);
+const mechBody=()=>{const q=S.mpTq.trim(),l=ALLMECH.filter(t=>!q||t.includes(q)).sort((a,b)=>mfacet('mech',b)-mfacet('mech',a));
+  return `<p class="cap">同时包含所选的全部机制</p><div class="plist">${l.map(t=>{const on=S.ev.mech.includes(t),n=mfacet('mech',t);return `<button role="checkbox" aria-checked="${on}" class="popi" data-act="ftog" data-d="mech" data-v="${t}" ${!on&&!n?'disabled':''}><span class="cb">${on?ic('check'):''}</span><span>${t}</span><span class="n cap num">${n}</span></button>`}).join('')}</div>`};
+const mverBody=()=>`<div class="plist">${ALLMVER.map(v=>{const on=S.ev.mver.includes(v),n=mfacet('mver',v);return `<button role="checkbox" aria-checked="${on}" class="popi" data-act="ftog" data-d="mver" data-v="${v}" ${!on&&!n?'disabled':''}><span class="cb">${on?ic('check'):''}</span><span>${v}</span><span class="n cap num">${n}</span></button>`}).join('')}</div>`;
+const progChips=()=>[['all','全部'],['some','进行中'],['none','未开始'],['done','已集齐']].map(([v,l])=>`<button class="fchip" data-act="mprog" data-v="${v}" aria-pressed="${S.mpProg===v}">${l}</button>`).join('');
+function mfltDlg(){
+  return {title:'筛选',body:`${S.role!=='guest'?`<div><div class="lbl">我的称号进度</div><div class="row mt" style="gap:.5rem">${progChips()}</div></div>`:''}
+   <div><div class="lbl">评级</div><div class="row mt" style="gap:.5rem">${[0,1,2,3,4,5].map(r=>fchip('rate',String(r),'T'+r)).join('')}</div></div>
+   <div><div class="lbl">特殊机制（同时包含）</div><div class="row mt" style="gap:.5rem">${ALLMECH.map(t=>fchip('mech',t)).join('')}</div></div>
+   <div><div class="lbl">版本</div><div class="row mt" style="gap:.5rem">${ALLMVER.map(v=>fchip('mver',v)).join('')}</div></div>`,
+   foot:`<button class="btn btn-ghost" data-act="fclear">清除</button><button class="btn btn-primary" data-act="close">显示 ${mpList().length} 张地图</button>`};
+}
+function mpCard(m){
+  const g=S.role!=='guest',t=m.mech.slice(0,3),more=m.mech.length-t.length;
+  return `<li><button class="evc mpc" data-act="mopen" data-id="${m.id}" aria-haspopup="dialog">
+   <span class="cover" style="border-radius:0" aria-hidden="true">${m.name.slice(-1)}</span>
+   <span class="in"><span class="row between" style="align-items:baseline;gap:.5rem"><span class="h3">${m.name}</span><span class="cap num">${m.ver}</span></span>
+   <span class="evmeta">${pips(m.rate)}<span class="cap num">挑战 ${m.ch.length} 项</span></span>
+   <span class="evtags">${t.map(x=>`<span class="tg">${x}</span>`).join('')}${more?`<span class="cap">+${more}</span>`:''}${!m.mech.length?'<span class="cap">无特殊机制</span>':''}</span>
+   <span class="evfoot cap num">${g?`<span class="slots">${m.slots.map((v,i)=>`<span class="slot ${v?'on':''}" title="${SLOT[i]}${v?'已获得':'未获得'}">${SLOT[i]}<span class="sr">${v?'已获得':'未获得'}</span></span>`).join('')}</span>`:''}${m.n?`<span class="rate">${ic('star').replace('<svg class="i"','<svg class="i" style="fill:currentColor"')}${m.avg.toFixed(1)}</span>`:''}</span></span></button></li>`;
+}
+function maps(){
+  if(S.st==='loading')return `<main class="pg">${pageTitle('地图')}<div class="grid w mt-l">${'<div class="sk" style="height:18rem"></div>'.repeat(6)}</div></main>`;
+  if(S.st==='error')return `<main class="pg">${pageTitle('地图')}<div class="mt-l">${alertE('无法读取地图','请稍后重试。')}</div></main>`;
+  const g=S.role!=='guest',list=S.st==='empty'?[]:mpList(),f=S.ev,act=[...f.rate.map(v=>['rate',v,'评级 '+v]),...f.mech.map(v=>['mech',v,v]),...f.mver.map(v=>['mver',v,v])];
+  const body=list.length?`<ul class="evgrid mpgrid">${list.map(mpCard).join('')}</ul>`:`<div class="card empty">${S.mpQ||mActive()?'<span class="val">没有同时满足这些条件的地图</span><span>试试去掉部分条件</span><button class="btn btn-outline" data-act="fclear">清除全部条件</button>':'<span class="val">暂无地图</span>'}</div>`;
+  return `<main class="pg">${pageTitle('地图')}
+  <div class="evbar mt-l" style="grid-template-columns:minmax(0,1fr) 12rem"><label class="search" style="max-width:none"><span class="sr">搜索地图</span>${ic('search')}<input class="inp" data-bind="mpQ" value="${esc(S.mpQ)}" placeholder="搜索地图名称或特殊机制"></label>
+   <label class="sel"><span class="sr">排序</span><select class="inp" data-bind="mpSort">${[['ver','最新版本'],['name','名称'],['rate','评级 T0→T5'],['rating','评分 高→低'],...(g?[['prog','我的进度']]:[])].map(([v,l])=>`<option value="${v}" ${S.mpSort===v?'selected':''}>排序：${l}</option>`).join('')}</select></label></div>
+  <div class="evflt">${g?`<div class="row" style="gap:.5rem" role="group" aria-label="我的称号进度">${progChips()}</div><span class="vr flt-adv"></span>`:''}
+   <div class="flt-adv row" style="gap:.5rem">${popBtn('rate','评级',f.rate,`<div class="plist">${[0,1,2,3,4,5].map(r=>{const on=f.rate.includes(String(r)),n=mfacet('rate',String(r));return `<button role="checkbox" aria-checked="${on}" class="popi" data-act="ftog" data-d="rate" data-v="${r}" ${!on&&!n?'disabled':''}><span class="cb">${on?ic('check'):''}</span>${pips(r)}<span class="n cap num">${n}</span></button>`}).join('')}</div>`)}${popBtn('mech','特殊机制',f.mech,mechBody())}${popBtn('mver','版本',f.mver,mverBody())}</div>
+   <button class="fchip flt-btn" data-act="mfopen">筛选${mActive()?`<span class="badge acc">${mActive()}</span>`:''}</button></div>
+  <div class="evsum" aria-live="polite"><span class="lbl num">${list.length} 张地图</span>
+   ${act.map(([d,v,l])=>`<span class="chip on">${l}<button data-act="frm" data-d="${d}" data-v="${v}" aria-label="移除条件 ${l}">${ic('x')}</button></span>`).join('')}${act.length||S.mpQ||(g&&S.mpProg!=='all')?`<button class="btn btn-ghost btn-sm" data-act="fclear">清除</button>`:''}</div>
+  ${body}</main>`;
+}
+function mapDlg(id){
+  const m=MP.find(x=>x.id==id);if(!m)return '';
+  const g=S.role!=='guest',hist=S.rev==='old',done=hist?[1,0,0]:m.slots;
+  return `<div class="scrim" data-act="mscrim"><div class="dlg lg" role="dialog" aria-modal="true" aria-label="${esc(m.name)}">
+   <div class="dlg-h" style="align-items:flex-start"><div><h2 class="h2" style="font-size:1.5rem">${m.name}</h2><div class="evmeta mt">${pips(m.rate)}<span class="cap num">${m.ver}</span></div></div><button class="btn btn-ghost btn-sm" data-act="mclose" aria-label="关闭">${ic('x')}</button></div>
+   <div class="dlg-b" style="gap:var(--space-5)">
+    <div class="keys"><div class="card pad"><div class="lbl">挑战</div><div class="stat-v num">${m.ch.length}<small> 项</small></div></div>${g?`<div class="card pad"><div class="lbl">我的地图称号</div><div class="stat-v num">${nDone(m)}<small> / 3</small></div></div><div class="card pad"><div class="lbl">精通</div><div class="stat-v num">${m.runs}<small> 次通关</small></div></div>`:''}</div>
+    ${m.mech.length?`<section><h3 class="h3">特殊机制</h3><div class="row mt" style="gap:.375rem">${m.mech.map(t=>`<span class="tg">${t}</span>`).join('')}</div></section>`:''}
+    <section aria-labelledby="mt"><div class="row between"><h3 class="h3" id="mt">地图称号</h3>${m.cl?`<span class="seg" data-k="rev">${[['cur','当前版本'],['old','经典版本']].map(([v,l])=>`<button data-v="${v}" aria-pressed="${S.rev===v}">${l}</button>`).join('')}</span>`:''}</div>
+     ${hist?'<p class="cap mt">经典版本的进度不计入当前进度。</p>':''}
+     <div class="card list clip mt">${SLOT.map((s,i)=>`<div><div><div class="val">${s}</div><div class="cap">${COND[i]}</div></div>${g?badge(done[i]?'已获得':'未获得',done[i]?'ok':''):''}</div>`).join('')}</div></section>
+    ${m.ch.length?`<section><h3 class="h3">挑战</h3><div class="card list clip mt">${m.ch.map(([n,d,st])=>`<div><span class="val">${n}</span><span class="row" style="gap:.5rem"><span class="cap">${d}</span>${st!=='进行中'?badge(st,'warn'):''}</span></div>`).join('')}</div></section>`:''}
+    <section aria-labelledby="ms"><h3 class="h3" id="ms">我的精通</h3>${g?(m.runs?`<div class="card list clip mt">${['今天 14:20 · 困难','9月20日 · 普通','9月3日 · 普通'].map(x=>`<div><span class="val num">${x}</span></div>`).join('')}<div class="pager"><span class="num">共 ${m.runs} 次通关</span><span class="row"><button class="btn btn-outline btn-sm" disabled>上一页</button><button class="btn btn-outline btn-sm">下一页</button></span></div></div>`:'<p class="cap mt">还没有通关记录。</p>'):`<div class="row between card pad mt"><span class="body" style="font-size:.875rem">登录后查看你的称号进度与通关记录</span><a class="btn btn-outline btn-sm" href="${L('login')}">登录</a></div>`}</section>
+    ${reviewSection(m)}
+    <div class="row"><a class="btn btn-primary btn-lg" href="${L('submit')}">${ic('upload')}提交截图</a></div>
+   </div></div></div>`;
+}
+
+function achievements(){
+  const guest=S.role==='guest',f=S.ach,list=PLAYER_TITLES.filter(a=>guest||f==='all'||(f==='on'?a.on:!a.on));
+  return `<main class="pg">${pageTitle('成就')}
+  ${guest?'':`<div class="tb"><span class="seg" data-k="ach">${[['all','全部'],['on','已获得'],['off','未获得']].map(([v,l])=>`<button data-v="${v}" aria-pressed="false">${l}</button>`).join('')}</span></div>`}
+  <section class="${guest?'sec':''}" aria-labelledby="g-t"><div class="sec-h"><h2 class="h2" id="g-t">通用成就</h2>${guest?'':'<span class="lbl num">已佩戴 3 / 10</span>'}</div>
+   <ul class="grid">${list.map(a=>`<li class="card tcard ${a.on||guest?'':'off'}"><span class="ico">${ic('award')}</span><div><div class="val">${a.n}</div><div class="cap">${a.c}</div></div>${guest?'':a.on?`<button class="btn btn-outline btn-sm" style="margin-left:auto" data-act="toast" data-m="${a.w?'已取消佩戴':'已佩戴'}（修改会在后续游戏版本同步后生效）">${a.w?'取消佩戴':'佩戴'}</button>`:'<span class="badge" style="margin-left:auto">未获得</span>'}</li>`).join('')||'<li class="card empty" style="grid-column:1/-1">没有符合条件的成就</li>'}</ul></section>
+  <section class="sec"><div class="sec-h"><h2 class="h2">地图成就</h2>${guest?'':`<a class="btn btn-outline btn-sm" href="profile-267.html#/u/1">在公开主页查看我的进度${ic('right')}</a>`}</div>
+   <div class="card list clip">${SLOT.map((s,i)=>`<div><div><div class="val">${s}</div><div class="cap">${COND[i]}</div></div><span class="lbl">在每张地图上单独获得</span></div>`).join('')}</div></section></main>`;
+}
+
+const LOGS=[['v2.3.0','2026年9月24日',['新增地图：示例地图五','调整示例事件三的出现概率']],['v2.2.1','2026年9月10日',['修复通关码重复提交时的计数问题']],['v2.2.0','2026年8月27日',['新增玩家评价','事件目录增加效果释义']]];
+const POSTS=[['关于地图称号规则的调整','2026年9月18日','为什么要把版本修订与称号规则分开'],['提交流程的下一步','2026年9月2日','截图识别之后我们计划做什么']];
+function changelog(){return `<main class="pg narrow">${pageTitle('版本更新')}<div class="mt-l" style="display:grid;gap:var(--space-5)">${LOGS.map(([v,d,li])=>`<article class="card pad-l"><div class="row between"><h2 class="h3">${v}</h2><span class="cap num">${d}</span></div><ul class="body" style="padding-left:1.1rem;margin-top:var(--space-2)">${li.map(x=>`<li>${x}</li>`).join('')}</ul></article>`).join('')}</div></main>`}
+function blog(){return `<main class="pg narrow">${pageTitle('开发日志')}<div class="card list clip mt-l">${POSTS.map((p,i)=>`<a href="${L('blog/'+(i+1))}" style="display:grid"><span class="h3">${p[0]}</span><span class="cap num">${p[1]}</span><span class="body" style="font-size:.875rem">${p[2]}</span></a>`).join('')}</div></main>`}
+function post(i){const p=POSTS[(i-1)||0]||POSTS[0];return `<main class="pg narrow"><a class="crumb" href="${L('blog')}">${ic('back')}开发日志</a><h1 class="h1" style="font-size:clamp(1.75rem,4vw,2.6rem)">${p[0]}</h1><p class="cap num mt">${p[1]}</p><div class="prose mt-l"><p>${p[2]}。这里是文章正文的排版示例，沿用现有 EditorialArticle 的版式。</p><h2 class="h3">小节标题</h2><p>正文段落，行宽限制在 42rem 以内以保证可读性。</p></div></main>`}
+
+/* ================= auth ================= */
+function login(){
+  const q=S.qq;
+  return `<main class="pg narrow"><section class="card pad-l" aria-labelledby="lt"><h1 class="h1" id="lt" style="font-size:clamp(1.75rem,4vw,2.4rem)">登录玩家帐号</h1>
+  <div class="mt-l" style="display:grid;gap:var(--space-5)">
+   <section><h2 class="h3">Passkey</h2><p class="body" style="font-size:.875rem">使用此设备的指纹、面容或屏幕锁验证，无需输入验证码。</p><button class="btn btn-primary btn-lg btn-block mt" data-act="pk">${ic('fp')}使用 Passkey 登录</button></section>
+   <hr style="border:0;border-top:1px solid var(--line)">
+   <section aria-live="polite"><h2 class="h3">QQ 群验证</h2>
+   ${q==='wait'?`<div class="mt" style="display:grid;gap:var(--space-3)"><div class="row between"><span class="body">在已开放的 QQ 群中发送：</span><b class="num">04:32</b></div><div class="code">@机器人 验证 384 921</div><p class="cap">请手动输入 @，从列表选择机器人，再发送上方指令。验证码仅保存在当前标签页。</p><div class="row"><button class="btn btn-outline" data-act="copy">${ic('copy')}复制指令</button><button class="btn btn-ghost" data-act="qq" data-v="idle">取消</button><button class="btn btn-ghost" data-act="qq" data-v="expired">演示：已过期</button><button class="btn btn-primary" data-act="qqok">演示：验证成功</button></div></div>`
+   :`<p class="body" style="font-size:.875rem">适用于已绑定 QQ 的帐号，在 QQ 群内向机器人发送验证码。</p>${q==='expired'?'<p class="mt" style="color:var(--warning);font-size:.875rem">验证码已过期，请重新获取。</p>':''}<button class="btn btn-outline btn-lg btn-block mt" data-act="qq" data-v="wait">${ic('msg')}${q==='expired'?'重新获取验证码':'使用 QQ 验证登录'}</button>`}</section>
+  </div></section></main>`;
+}
+function loginDone(){return `<main class="pg narrow"><section class="card pad-l empty"><h1 class="h2">登录成功</h1><a class="btn btn-primary btn-lg" href="${L('me')}">进入玩家中心</a></section></main>`}
+function bind(){
+  const s=S.bind,T={ready:['绑定 QQ','请使用管理员发送的绑定链接打开此页面。'],waiting:['示例玩家#0000','请手动输入 @，从列表选择机器人，再发送指令。验证成功后自动完成首次绑定。'],review:['示例玩家#0000','涉及现有绑定或其他冲突，待处理。'],expired:['示例玩家#0000','确认码已过期，可使用原绑定链接重新生成。'],rejected:['示例玩家#0000','绑定申请未通过。'],done:['示例玩家#0000','绑定完成，进入玩家中心…']};
+  return `<main class="pg narrow">${pageTitle('绑定 QQ')}<section class="card pad-l mt-l" aria-live="polite" style="display:grid;gap:var(--space-3)">
+   ${s!=='ready'?`<h2 class="h2" style="font-size:1.6rem">${T[s][0]}</h2>`:''}${s==='waiting'?`<p class="body">在已开放的 QQ 群中发送：</p><div class="code">@机器人 绑定 552 018</div>`:''}
+   <p class="${s==='rejected'?'':'body'}" style="${s==='rejected'?'color:var(--danger)':s==='expired'?'color:var(--warning)':''}">${T[s][1]}</p>
+   <div class="row">${s==='ready'?`<button class="btn btn-primary" data-act="bind" data-v="waiting">演示：打开绑定链接</button>`:''}${s==='waiting'?`<button class="btn btn-primary" data-act="copy">${ic('copy')}复制指令</button><button class="btn btn-outline" data-act="bind" data-v="done">${ic('refresh')}刷新状态</button>`:''}${s==='expired'?`<button class="btn btn-primary" data-act="bind" data-v="waiting">重新生成确认码</button>`:''}${s==='review'||s==='rejected'?`<button class="btn btn-outline" data-act="bind" data-v="waiting">${ic('refresh')}刷新状态</button>`:''}${s==='done'?`<a class="btn btn-primary" href="${L('me')}">进入玩家中心</a>`:''}
+   ${s!=='ready'?[['review','演示：待处理'],['expired','演示：已过期'],['rejected','演示：未通过']].filter(x=>x[0]!==s).map(([v,l])=>`<button class="btn btn-ghost btn-sm" data-act="bind" data-v="${v}">${l}</button>`).join(''):''}</div></section></main>`;
+}
+function recover(){return `<main class="pg narrow"><section class="card pad-l" style="display:grid;gap:var(--space-4)"><h1 class="h1" style="font-size:clamp(1.75rem,4vw,2.4rem)">恢复玩家帐号</h1><p class="body">管理员已为原有帐号签发一次性恢复凭据。注册新 Passkey 后，BattleTag、提交记录、称号和精通记录仍保留。</p><div class="field"><label for="pkn">新 Passkey 名称</label><input class="inp" id="pkn" placeholder="例如：新手机"></div><button class="btn btn-primary btn-lg" data-act="pk">${ic('fp')}注册新 Passkey 并恢复登录</button></section></main>`}
+
+/* ================= player ================= */
+function me(){
+  return need(`<main class="pg">${S.st==='loading'?`<div class="sk" style="height:3rem;width:50%"></div><div class="sk mt-l" style="height:6rem"></div><div class="sk mt-l" style="height:14rem"></div>`:S.st==='error'?alertE('无法读取玩家信息','请稍后重试。'):`
+  <div class="row between"><h1 class="h1">你好，示例玩家</h1><div class="row"><a class="btn btn-outline btn-lg" href="profile-267.html#/u/1">${ic('globe')}我的公开主页</a><a class="btn btn-primary btn-lg" href="${L('submit')}">${ic('upload')}提交截图</a></div></div>
+  ${S.st==='partial'?`<div class="alert warn mt-l"><span><b>玩家信息可能不是最新</b></span><button class="btn btn-outline btn-sm" data-act="retry">${ic('refresh')}重试</button></div>`:''}
+  ${S.nudge?`<div class="alert mt-l"><span><b>添加 Passkey，下次一键登录</b></span><span class="row"><a class="btn btn-primary btn-sm" href="${L('me/settings')}">去添加</a><button class="btn btn-ghost btn-sm" data-act="nopk">不再提醒</button></span></div>`:''}
+  <div class="alert warn mt-l"><span><b>1 条提交需要重新提交</b>　示例地图三</span><a class="btn btn-outline btn-sm" href="${L('submissions/3')}" onclick="S.sub='resubmit'">查看</a></div>
+  <section class="sec" aria-labelledby="sb"><div class="sec-h"><h2 class="h2" id="sb">最近提交</h2></div>${S.st==='empty'?`<div class="card empty"><span class="val">暂无提交</span><a class="btn btn-primary" href="${L('submit')}">${ic('upload')}提交截图</a></div>`:`<div class="card list clip">
+   ${[['示例地图二','今天 14:20','processing'],['示例地图三','昨天','resubmit'],['示例地图一','9月20日','done']].map(([n,d,s],i)=>`<a href="${L('submissions/'+(i+1))}"><span><span class="val">${n}</span><span class="cap num" style="margin-left:var(--space-3)">${d}</span></span>${badge(SUBS[s][0],SUBS[s][1])}</a>`).join('')}</div>`}</section>
+  <section class="sec" aria-labelledby="pg"><div class="sec-h"><h2 class="h2" id="pg">地图进度</h2><a class="btn btn-outline btn-sm" href="profile-267.html#/u/1">在公开主页查看${ic('right')}</a></div>
+   <div class="card clip">${MAPS.slice(0,3).map(m=>`<a class="maprow" href="${L('maps/'+m.id)}"><div><div class="val">${m.name}</div><div class="cap num">地图称号 ${m.slots.filter(Boolean).length} / 3</div></div>${slotChips(m.slots)}<div class="mast"><div class="lbl">精通</div><div class="val num">${m.m?`通关 ${m.m} 次`:'暂无记录'}</div></div></a>`).join('')}</div></section>`}</main>`);
+}
+function settings(){
+  return need(`<main class="pg narrow"><a class="crumb" href="${L('me')}">${ic('back')}玩家中心</a>${pageTitle('个人设置')}
+  <section class="sec" style="margin-top:var(--space-5)"><h2 class="h3">帐号</h2><div class="card pad mt"><div class="val">示例玩家</div><div class="cap num">BattleTag 示例玩家#0000</div></div></section>
+  <section class="sec"><div class="sec-h"><h2 class="h3">登录方式</h2><button class="btn btn-primary btn-sm" data-act="toast" data-m="已添加 Passkey（原型）">${ic('plus')}添加 Passkey</button></div><div class="card list clip">${[['MacBook','2026年8月2日'],['手机','2026年9月1日']].map(([n,d])=>`<div><span class="row" style="gap:.5rem">${ic('key')}<span><span class="val">${n}</span><span class="cap num" style="margin-left:var(--space-2)">添加于 ${d}</span></span></span><button class="btn btn-ghost btn-sm" data-act="delpk" data-n="${n}">删除</button></div>`).join('')}</div></section>
+  <section class="sec"><h2 class="h3">公开主页</h2><div class="card list clip mt"><a href="profile-267.html#/u/1"><span class="row" style="gap:.5rem">${ic('globe')}<span class="val">可见范围与展示内容</span></span>${ic('right')}</a></div></section></main>`);
+}
+function submit(){
+  return need(`<main class="pg"><a class="crumb" href="${L('me')}">${ic('back')}玩家中心</a>${pageTitle('提交完成截图')}
+  <div class="split sec" style="margin-top:var(--space-5)"><section class="card pad-l" aria-labelledby="up"><h2 class="h3" id="up">上传截图</h2><button class="drop mt" data-act="toast" data-m="已选择 1 张截图">${ic('upload')}<span class="val">点击选择、拖拽或粘贴截图</span><span class="cap">PNG / JPG</span></button>
+   <p class="cap row mt" style="gap:.25rem">${ic('lock')}截图仅本人与管理员可见</p><div class="row mt" style="justify-content:flex-end"><a class="btn btn-primary btn-lg" href="${L('submissions/1')}" onclick="S.sub='processing'">上传并识别截图</a></div></section>
+   <aside class="card pad" aria-labelledby="rq"><h2 class="h3" id="rq">截图要求</h2><ul class="lbl mt" style="padding-left:1.1rem;display:grid;gap:.25rem"><li>包含结算界面与匹配码</li><li>保持原始比例，不裁剪</li><li>每次提交一张</li></ul></aside></div></main>`);
+}
+function submission(){
+  const [tx,k,msg]=SUBS[S.sub],st=S.sub;
+  const steps=[['已上传',1],['识别中',st==='processing'?.5:1],['核对',st==='processing'?0:st==='review'?.5:1],['结果',st==='done'||st==='resubmit'?1:0]];
+  return need(`<main class="pg"><a class="crumb" href="${L('me')}">${ic('back')}玩家中心</a>${pageTitle('示例地图二',badge(tx,k))}
+  <div class="alert mt-l ${k==='bad'?'err':k==='warn'?'warn':k==='ok'?'ok':''}"><span><b>${msg}</b></span>
+   ${st==='done'?`<a class="btn btn-primary btn-sm" href="profile-267.html#/u/1">查看公开主页${ic('right')}</a>`:st==='resubmit'?`<a class="btn btn-primary btn-sm" href="${L('submit')}">重新提交截图</a>`:`<span class="row"><button class="btn btn-outline btn-sm" data-act="toast" data-m="已申请人工核对">申请人工核对</button><button class="btn btn-outline btn-sm" data-act="toast" data-m="状态已刷新">${ic('refresh')}刷新状态</button></span>`}</div>
+  ${st==='done'?`<div class="alert ok mt"><span><b>已记录一次新的通关</b>　示例地图二 · 困难</span></div>`:''}
+  <div class="split mt-l"><div style="display:grid;gap:var(--space-4)"><section class="card pad"><h2 class="h3">提交截图</h2><div class="evidence mt">截图（原始比例）</div></section>
+   ${st!=='processing'?`<section class="card pad"><h2 class="h3">识别摘要</h2><dl class="kv mt"><dt>地图</dt><dd>示例地图二</dd><dt>难度</dt><dd>困难</dd><dt>匹配码</dt><dd class="num">AB12CD</dd></dl><div class="row mt" style="border-top:1px solid var(--line);padding-top:var(--space-3)"><span class="lbl">识别结果是否准确？</span><button class="btn btn-outline btn-sm" data-act="toast" data-m="感谢反馈">准确</button><button class="btn btn-outline btn-sm" data-act="toast" data-m="感谢反馈">不准确</button></div></section>`:''}
+   ${st==='resubmit'?`<section class="card pad"><h2 class="h3">重新提交建议</h2><ul class="body mt" style="padding-left:1.1rem"><li>确保结算界面完整可见</li><li>不要裁剪或加滤镜</li></ul></section>`:''}</div>
+   <section class="card pad"><h2 class="h3">进度</h2><ol class="steps mt">${steps.map(([l,v])=>`<li class="${v===1?'done':v?'cur':''}"><span class="dot">${v===1?'✓':''}</span><span class="val">${l}</span></li>`).join('')}</ol></section></div></main>`);
+}
+
+/* ================= admin ================= */
+const ADNAV=[['总览',[['','总览','layout']]],['内容',[['achievements','称号与挑战','award'],['maps','地图','map'],['events','随机事件','zap']]],['玩家',[['players','玩家','user'],['bindings','绑定与邀请','link'],['player-reviews','评价审核','msg']]],['审核',[['reviews','截图审核','eye','_'],['verified-runs','通关记录','trophy'],['screenshot-sets','截图集','image']]],['工具',[['grants','手动授予','send'],['titles','称号迁移','history'],['channels','QQ 群','hash']]]];
+function adShell(key,inner){
+  const cur=ADNAV.flatMap(g=>g[1]).find(x=>x[0]===key);
+  return need(`<div class="ad"><details class="ad-nav" ${S.adOpen?'open':''}><summary>${cur?cur[1]:'管理导航'}${ic('down')}</summary><div class="in">${ADNAV.map(([g,it])=>`<div class="g">${g}</div>${it.map(([p,l,i,b])=>`<a href="${L('admin'+(p?'/'+p:''))}" ${p===key?'aria-current="page"':''}>${ic(i)}${l}${b?`<span class="badge acc">${p==='reviews'?rvLeft().length:b}</span>`:''}</a>`).join('')}`).join('')}</div></details><div style="min-width:0">${inner}</div></div>`,true);
+}
+const cell=v=>v&&v.t!==undefined?badge(v.t,v.b):v&&v.s?stars(v.s):v;
+const AD={
+ achievements:{t:'称号与挑战',tabs:['挑战','称号'],primary:['新建挑战','新建称号'],f:[[['全部状态','进行中','计划下线','已结束']],[['全部状态','草稿','已启用','已退休']]],
+  cols:[['挑战','状态','类型','提交方式','持有人数'],['称号','生命周期','范围','系列','公开']],
+  rows:[[['首次通关示例地图一',B('进行中','ok'),'地图通关','手动提交','312'],['困难通关示例地图二',B('进行中','ok'),'地图通关','手动提交','96'],['事件生存挑战',B('计划下线','warn'),'成就挑战','手动提交','41'],['百次通关',B('进行中','ok'),'成就挑战','自动获得','208'],['旧版挑战',B('已结束'),'成就挑战','手动提交','12']],
+        [['开拓者',B('已启用','ok'),'地图称号','标准地图称号','是'],['无伤通关',B('已启用','ok'),'全局称号','极限操作系列','是'],['百次通关',B('已启用','ok'),'全局称号','里程碑系列','是'],['旧版称号',B('已退休'),'全局称号','历史系列','否'],['新称号草稿',B('草稿'),'全局称号','—','否']]],
+  acts:[['编辑','outline'],['计划下线','outline'],['结束挑战','danger']]},
+ maps:{t:'地图',href:i=>L('admin/maps/'+(i+1)),primary:['新建地图'],f:[['全部评级','S','A','B']],cols:[['地图','状态','评级','默认版本','修订数']],
+  rows:[MAPS.map((m,i)=>[m.name,B(i===3?'准备中':'已发布',i===3?'warn':'ok'),m.rt,'v2.'+(3-i%3),String(1+m.cl)])]},
+ events:{t:'随机事件',primary:['新建事件','导入 CSV'],f:[['全部分类','增益','减益','环境']],cols:[['事件','状态','分类','稀有度','版本']],
+  rows:[EV.map(e=>[e.name,e.st==='implemented'?B('已实装','ok'):e.st==='removed'?B('已移除'):B('开发中','warn'),e.cat,e.rar,e.ver])],acts:[['编辑','outline'],['版本可用性','outline'],['归档','danger']]},
+ players:{t:'玩家',href:i=>L('admin/players/'+(i+1)),f:[['全部状态','正常','已封禁']],cols:[['玩家','状态','称号','最近提交','QQ 绑定']],
+  rows:[[['示例玩家#0000',B('正常','ok'),'8','今天','已绑定'],['示例玩家 B#1111',B('正常','ok'),'3','3 天前','已绑定'],['示例玩家 C#2222',B('正常','ok'),'0','—','已绑定'],['示例玩家 D#3333',B('已封禁','bad'),'5','2 周前','已解除']]]},
+ bindings:{t:'绑定与邀请',tabs:['绑定例外','邀请'],primary:['','新建邀请'],f:[[['全部状态','待处理','已批准','已拒绝','已撤销']],[['全部状态','有效','已使用','已撤销']]],
+  cols:[['申请人','状态','类型','时间','来源'],['邀请码','状态','BattleTag','有效期至','创建人']],
+  rows:[[['示例玩家 E#4444',B('待处理','warn'),'换绑','今天 10:02','QQ'],['示例玩家 F#5555',B('待处理','warn'),'身份冲突','昨天','QQ'],['示例玩家 G#6666',B('已批准','ok'),'换绑','9月20日','QQ']],
+        [['INV-A1B2C3',B('有效','ok'),'示例玩家 H#7777','10月15日','管理员'],['INV-D4E5F6',B('已使用'),'示例玩家 I#8888','9月30日','管理员'],['INV-G7H8I9',B('已撤销'),'示例玩家 J#9999','9月10日','管理员']]],
+  acts:[['批准','primary'],['拒绝','outline'],['撤销','danger']]},
+ 'player-reviews':{t:'评价审核',f:[['全部目标','地图','随机事件'],['全部评价状态','有效','已隐藏','已撤回','已失效'],['全部评分','1 分','2 分','3 分','4 分','5 分']],cols:[['目标','状态','评分','评论','玩家']],
+  rows:[[['示例地图一',B('有效','ok'),{s:5},'很有意思','示例玩家 B'],['示例事件三',B('有效','ok'),{s:2},'（不当内容示例）','示例玩家 C'],['示例地图二',B('已隐藏','warn'),{s:1},'（已隐藏）','示例玩家 D'],['示例事件一',B('已撤回'),{s:4},'—','示例玩家 E']]],acts:[['隐藏评论','outline'],['恢复','outline']]},
+ 'verified-runs':{t:'通关记录',f:[['全部难度','普通','困难'],['全部状态','有效','已纠正','冲突'],['全部来源','提交识别','人工']],cols:[['通关码','状态','玩家','地图','接受时间']],
+  rows:[[['AB12CD',B('有效','ok'),'示例玩家','示例地图二','今天 14:20'],['EF34GH',B('冲突','warn'),'示例玩家 B','示例地图一','昨天'],['IJ56KL',B('已纠正','info'),'示例玩家 C','示例地图三','9月20日']]],acts:[['纠正','outline'],['处理冲突','primary']]},
+ 'screenshot-sets':{t:'截图集',primary:['新建截图集'],f:[['全部状态','草稿','已定稿','已废弃']],cols:[['名称','状态','版本','成员数','创建时间']],
+  rows:[[['结算界面基准集',B('已定稿','ok'),'v3','1,204','9月10日'],['低分辨率补充集',B('草稿'),'v1','86','9月25日'],['旧版界面集',B('已废弃'),'v2','640','7月2日']]],acts:[['定稿','primary'],['废弃','danger']]},
+ titles:{t:'称号迁移',f:[['全部状态','待关联','已关联']],cols:[['历史称号','状态','历史持有人','候选玩家','来源']],
+  rows:[[['旧版称号甲',B('待关联','warn'),'42','38','历史数据'],['旧版称号乙',B('待关联','warn'),'17','17','历史数据'],['旧版称号丙',B('已关联','ok'),'9','9','历史数据']]],acts:[['确认关联','primary']]},
+ channels:{t:'QQ 群',f:[['全部环境','生产','测试']],cols:[['群','状态','环境','命令策略','成员']],
+  rows:[[['示例群一',B('活动群','ok'),'生产','允许验证与绑定','1,020'],['示例群二',B('未启用'),'生产','仅通知','380'],['测试群',B('未启用'),'测试','全部','6']]],acts:[['设为活动群','primary'],['保存配置','outline']]}
+};
+function adList(key){
+  const c=AD[key],ti=+(S.tab[key]||0),cols=(c.cols[ti]||c.cols[0]),rows=c.rows[ti]||c.rows[0],f=Array.isArray(c.f[0][0])?c.f[ti]:c.f,pr=(c.primary||[])[ti]!==undefined?[c.primary[ti]]:(c.primary||[]);
+  const tpl='2fr 1fr '+'1fr '.repeat(cols.length-2);
+  return `${pageTitle(c.t)}
+  ${c.tabs?`<div class="tabs mt-l" role="tablist">${c.tabs.map((t,i)=>`<button role="tab" aria-selected="${i===ti}" data-act="atab" data-key="${key}" data-i="${i}">${t}</button>`).join('')}</div>`:''}
+  <div class="tb"><label class="search"><span class="sr">搜索</span>${ic('search')}<input class="inp" placeholder="搜索"></label>${(f||[]).map(o=>`<select class="inp" style="width:auto" aria-label="${o[0]}">${o.map(x=>`<option>${x}</option>`).join('')}</select>`).join('')}<span class="sp"></span>${pr.filter(Boolean).map((p,i)=>`<button class="btn ${i?'btn-outline':'btn-primary'}" data-act="toast" data-m="${p}（原型）">${ic('plus')}${p}</button>`).join('')}</div>
+  <div class="card clip rows" style="--cols:${tpl}">${S.st==='loading'?'<div class="pad" style="display:grid;gap:8px">'+'<div class="sk" style="height:2.5rem"></div>'.repeat(4)+'</div>':S.st==='error'?`<div class="pad">${alertE('无法读取列表','请稍后重试。')}</div>`:S.st==='empty'?'<div class="empty">没有符合条件的记录</div>':`
+   <div class="rhead">${cols.map((h,i)=>`<span class="${i>2?'lo':''}">${h}</span>`).join('')}</div>
+   ${rows.map((r,i)=>{const inner=r.map((v,j)=>`<span class="${j===0?'pri':''} ${j>2?'lo':''}">${cell(v)}</span>`).join('');return c.href?`<a class="rrow" href="${c.href(i)}">${inner}</a>`:`<button class="rrow" data-act="row" data-key="${key}" data-tab="${ti}" data-i="${i}">${inner}</button>`}).join('')}
+   <div class="pager"><span class="num">共 ${rows.length*6} 条 · 第 1 / 6 页</span><span class="row"><button class="btn btn-outline btn-sm" disabled>上一页</button><button class="btn btn-outline btn-sm">下一页</button></span></div>`}</div>`;
+}
+function adRowDialog(key,ti,i){
+  const c=AD[key],cols=c.cols[ti]||c.cols[0],r=(c.rows[ti]||c.rows[0])[i];
+  const plain=v=>v&&v.t!==undefined?v.t:v&&v.s?v.s+' 分':v;
+  return {title:plain(r[0]),body:`<dl class="kv">${cols.slice(1).map((h,j)=>`<dt>${h}</dt><dd>${cell(r[j+1])}</dd>`).join('')}</dl>`,
+   foot:`<button class="btn btn-ghost" data-act="close">取消</button>${(c.acts||[['编辑','outline']]).map(([l,k])=>`<button class="btn ${k==='primary'?'btn-primary':k==='danger'?'btn-danger':'btn-outline'}" data-act="done" data-m="${l}">${l}</button>`).join('')}`};
+}
+function adDash(){return `${pageTitle('管理后台')}<div class="kpis mt-l">${[['截图审核','待审核 7','reviews'],['绑定与邀请','待处理 2','bindings'],['通关记录','未解决冲突 1','verified-runs'],['评价审核','待处理 3','player-reviews']].map(([t,v,p])=>`<a class="card" href="${L('admin/'+p)}"><span class="lbl">${t}</span><span class="stat-v num" style="font-size:1.25rem">${v}</span></a>`).join('')}</div>
+ <section class="sec"><h2 class="h2">最近记录</h2><div class="card list clip mt">${[['审核通过 示例地图一 · 困难','10 分钟前'],['批准换绑 示例玩家 G','1 小时前'],['导入事件 CSV，新增 2 条','昨天'],['授予称号 无伤通关 × 5','昨天']].map(([a,b])=>`<div><span class="val">${a}</span><span class="cap">${b}</span></div>`).join('')}</div></section>`}
+function adMapDetail(id){
+  const m=MAPS.find(x=>x.id==id)||MAPS[0],ti=+(S.tab.map||0);
+  return `<a class="crumb" href="${L('admin/maps')}">${ic('back')}地图</a>${pageTitle(m.name,`<button class="btn btn-primary" data-act="toast" data-m="已保存">保存地图属性</button>`)}
+  <div class="tabs mt-l" role="tablist">${['地图身份','版本修订','称号规则','记录'].map((t,i)=>`<button role="tab" aria-selected="${i===ti}" data-act="atab" data-key="map" data-i="${i}">${t}</button>`).join('')}</div>
+  <div class="mt-l">${[
+   `<div class="card pad-l" style="display:grid;gap:var(--space-4);grid-template-columns:repeat(auto-fit,minmax(14rem,1fr))"><div class="field"><label>地图名称</label><input class="inp" value="${m.name}"></div><div class="field"><label>难度评级</label><select class="inp"><option>${m.rt}</option></select></div><div class="field"><label>地图变体</label><input class="inp" value="标准"></div><div class="field"><label>封面地址</label><input class="inp" placeholder="https://"></div><div class="field"><label>背景地址</label><input class="inp" placeholder="https://"></div><div class="field"><label>特殊机制</label><input class="inp"></div></div>`,
+   `<div class="row between"><span class="lbl">默认版本决定当前进度的分母</span><button class="btn btn-primary btn-sm" data-act="newrev">${ic('plus')}新建修订</button></div><div class="card list clip mt">${[['v2.3',B('默认','ok'),'目标游戏版本 2.3'],['v2.4',B('准备中','warn'),'目标游戏版本 2.4'],...(m.cl?[['经典版',B('可选','info'),'目标游戏版本 1.9']]:[])].map(([a,b,c])=>`<div><span><span class="val">${a}</span> <span class="cap">${c}</span></span>${cell(b)}</div>`).join('')}</div>`,
+   `<div class="card list clip">${SLOT.map((s,i)=>`<div><div><div class="val">${s}</div><div class="cap">${COND[i]} · 截图规则 · 展示方式 ${i?'地图名 + 后缀称号':'地图名 + 开拓者'}</div></div><button class="btn btn-outline btn-sm">编辑</button></div>`).join('')}</div>`,
+   `<div class="card list clip">${[['修改地图属性','今天'],['创建修订 v2.4','9月20日']].map(([a,b])=>`<div><span class="val">${a}</span><span class="cap">${b}</span></div>`).join('')}</div>`][ti]}</div>`;
+}
+function adPlayer(id){
+  return `<a class="crumb" href="${L('admin/players')}">${ic('back')}玩家列表</a>${pageTitle('示例玩家#0000',badge('正常','ok'))}
+  <div class="split mt-l" style="grid-template-columns:minmax(0,1fr) 20rem"><div style="display:grid;gap:var(--space-4)">
+   <section class="card pad"><div class="row between"><h2 class="h3">身份</h2><button class="btn btn-outline btn-sm">编辑</button></div><dl class="kv mt"><dt>BattleTag</dt><dd>示例玩家#0000</dd><dt>QQ 绑定</dt><dd>已绑定</dd><dt>Passkey</dt><dd>2 个</dd></dl></section>
+   <section class="card clip"><div class="pad row between"><h2 class="h3">称号</h2><a class="btn btn-outline btn-sm" href="${L('admin/grants')}">授予称号</a></div><div class="list">${['无伤通关','百次通关','示例地图一 主宰'].map(t=>`<div><span class="val">${t}</span><button class="btn btn-ghost btn-sm" data-act="revoke" data-n="${t}">撤销</button></div>`).join('')}</div></section></div>
+   <aside class="card pad" style="display:grid;gap:var(--space-3)"><h2 class="h3">操作</h2><button class="btn btn-outline" data-act="recover">${ic('key')}签发 Passkey 恢复链接</button><a class="btn btn-outline" href="${L('admin/verified-runs')}">${ic('trophy')}查看通关记录</a><button class="btn btn-danger" data-act="ban">封禁玩家</button></aside></div>`;
+}
+const GP=['示例玩家','示例玩家 B','示例玩家 C','示例玩家 D'],GT=['无伤通关','百次通关','极限速通'];
+function adGrants(){
+  const g=S.grant,units=g.players.length*g.titles.length;
+  const pick=(k,arr,sel)=>arr.map(x=>`<button class="chip ${sel.includes(x)?'on':''}" data-act="gsel" data-k="${k}" data-v="${x}" aria-pressed="${sel.includes(x)}">${sel.includes(x)?ic('check'):''}${x}</button>`).join('');
+  return `${pageTitle('手动授予')}
+  ${g.done?`<div class="alert ok mt-l"><span><b>已处理 ${units} 个授予单元</b></span><button class="btn btn-outline btn-sm" data-act="greset">再来一批</button></div>`:`<div class="split mt-l" style="grid-template-columns:minmax(0,1fr) 20rem"><div style="display:grid;gap:var(--space-4)">
+   <section class="card pad"><h2 class="h3">选择玩家</h2><div class="row mt" style="gap:.5rem">${pick('players',GP,g.players)}</div></section>
+   <section class="card pad"><h2 class="h3">选择称号</h2><div class="row mt" style="gap:.5rem">${pick('titles',GT,g.titles)}</div></section></div>
+   <aside class="card pad" aria-labelledby="gp"><h2 class="h3" id="gp">授予计划</h2>${units?`<dl class="kv mt"><dt>玩家</dt><dd class="num">${g.players.length}</dd><dt>称号</dt><dd class="num">${g.titles.length}</dd><dt>授予单元</dt><dd class="num">${units}</dd></dl><p class="cap mt">已持有的会自动跳过。一次最多 500 个单元。</p>`:'<p class="body mt" style="font-size:.875rem">选择玩家和称号后显示计划。</p>'}
+   <div class="field mt"><label for="gr">发放原因（可选）</label><input class="inp" id="gr"></div><button class="btn btn-primary btn-block mt" data-act="gdo" ${units?'':'disabled'}>确认授予</button></aside></div>`}`;
+}
+function admin(){
+  const seg=S.route.split('/').filter(Boolean),k=seg[1]||'';
+  if(!k)return adShell('',adDash());
+  if(k==='maps'&&seg[2])return adShell('maps',adMapDetail(seg[2]));
+  if(k==='players'&&seg[2])return adShell('players',adPlayer(seg[2]));
+  if(k==='reviews'&&seg[2])return need(rvDetail(seg[2]),true);
+  if(k==='reviews')return adShell('reviews',rvQueue());
+  if(k==='grants')return adShell('grants',adGrants());
+  return AD[k]?adShell(k,adList(k)):adShell('',adDash());
+}
+
+/* ================= notes ================= */
+Object.assign(NOTES,{
+ '/admin/reviews':{t:'截图审核',b:[['问题','放不大图片；决定、OCR 重试、准确性标记、字段校正、Challenge 判定、提交信息全部平铺在同一层；驳回和要求重提各多一个确认弹窗；每审一张要回到队列再点下一张。'],['结论优先','右侧第一张卡片只回答三件事：能不能通过、通过后会发生什么、下一步做什么。顶部色带三种状态：可直接通过 / 需要你确认一项 / 无法通过。'],['一步通过','常见路径是识别满足条件：点「通过」（快捷键 A）即完成，并自动进入下一条。需确认时把「截图可证明」做成一个开关，打开后再通过；无匹配时才出现「添加 Challenge」搜索。'],['看图','查看器占左侧主体：滚轮缩放、拖动平移、双击在适应与原始大小间切换、全屏（F）、0 / 1 / + / − 快捷键。识别核对表里悬停某个字段会在截图上框出对应区域，点击直接放大到该区域（依赖识别结果提供位置信息，需与 OCRKit 确认）。'],['降噪','字段校正合并进识别核对表：每行是「值 + 置信度」，置信度低的行提示，点勾确认或点齿轮修改，取代原来的复选框加输入框。重新识别、准确性标记、提交信息收进「更多」。'],['队列','按预判分类（可通过 / 需确认 / 无法通过 / 抽检）并显示等待时长，「开始审核」从最早一条连续处理；审核页为专注模式，不带侧栏。']],l:['决定不要求填写理由；要求重提与驳回点击后在原位展开可选说明，回车确认，不再弹窗','通过后自动前进可关闭','快捷键：A 通过 · R 要求重提 · X 驳回 · J/K 上下一条 · F 全屏','抽检模式：A 确认抽检，X 撤销称号']},
+ '/':{t:'首页',b:[['调整','头部导航固定：5 个公开入口 + 提交截图 + 账号菜单，所有页面一致。玩家相关入口全部进账号菜单。']],l:['访客只看到「登录」，不显示玩家入口']},
+ '/events':{t:'随机事件',b:[['1 搜索与筛选','搜索同时匹配名称、描述和效果；类别、稀有度常驻为可组合的切换按钮，效果与版本收进下拉；每个选项旁显示在当前条件下的数量，0 项的选项置灰，不会走进死胡同。已选条件以可移除的标签列在结果数上方，一键清除。窄屏合并为一个「筛选」入口，打开底部面板。'],['2 卡片','所有卡片同一版式：名称 → 类别（圆点+文字）· 稀有度（胶囊，R/SR/SSR 逐级加重）· 版本 → 描述 2 行 → 效果标签 → 关键数据（持续、概率、评分）。整张卡片是一个按钮，标签不再是嵌套按钮，因此高度一致；没有评分不显示「暂无评分」；「已实装」不再重复显示，只在开发中/已移除时标注。'],['3 分类','默认不分组，按最新版本排序，版本只是卡片上的一个小标注；需要时可切换按版本或按类别分组，也可按名称、出现概率、评分排序。'],['4 详情','先是一句话描述，再是最多三块关键数据（未知的不显示），然后是效果（每条一行说明，手机上不依赖悬停），挑战仅在有时显示，技术性的概率细节折叠，评价是紧凑的一行汇总加「写评价」按钮，展开才出现表单。地址为 #/events/编号，可分享。']],l:['效果筛选为「同时包含」；类别/稀有度/版本为「任一」','效果释义为示例文案']},
+ '/maps':{t:'地图（与随机事件同一套布局）',b:[['复用了什么','搜索 + 排序、可组合的筛选按钮（附数量、0 项置灰）、已选条件标签、结果数、卡片网格、点开的详情面板、可分享的地址 #/maps/编号，全部与随机事件一致。'],['地图特有的','卡片带封面；评级用 5 点，同时写数字；登录后卡片底部显示三个地图称号的获得情况，并多一个「我的称号进度」筛选（进行中 / 未开始 / 已集齐）和「我的进度」排序。访客不显示任何个人信息，只在详情里出现一处登录提示，不再每张卡片重复「登录后查看」。'],['详情','先是关键数据（挑战数、我的称号、通关次数），再是特殊机制、地图称号（含当前/经典版本切换，经典版本不计入当前进度）、挑战、我的精通与最近通关，最后是评价。']],l:['特殊机制筛选为「同时包含」；评级、版本为「任一」','机制、挑战名称为示例']},
+ '/achievements':{t:'成就',b:[['调整','成就只做目录与佩戴；标题固定为「成就」，个人地图进度不再在此重复，链接到公开主页。']],l:['访客：只读目录，无佩戴与过滤']},
+ '/changelog':{t:'版本更新',b:[['说明','沿用现有版式，只收录已发布内容。']]},'/blog':{t:'开发日志',b:[['说明','沿用现有版式；文章页限制行宽 42rem。']]},
+ '/login':{t:'登录',b:[['调整','Passkey 为首选主按钮，QQ 群验证为次选；QQ 验证在同一位置展开为验证码面板，有倒计时、复制、取消，过期后原位重试。']],l:['验证码只保存在当前标签页']},
+ '/bind':{t:'绑定 QQ',b:[['调整','一个卡片承载全部状态；顶部工具栏可演示：等待验证 / 待处理 / 已过期 / 未通过 / 完成。']]},'/recover':{t:'恢复帐号',b:[['说明','仅一个输入 + 一个主按钮；无效链接给出返回登录。']]},
+ '/me':{t:'玩家中心',b:[['问题','原来它同时承担「个人进度展示」和「工作台」，与成就页重复。'],['调整','玩家中心只做「接下来要做什么」：提交、待处理提示、最近提交、进度快照。展示类内容（称号、热力图、分享）交给公开主页（#267）。']],l:['顶部动作固定：公开主页、提交截图','需要处理的提交用一条提示突出，不再散落']},
+ '/me/settings':{t:'个人设置',b:[['调整','帐号、登录方式（多 Passkey 列表）、公开主页入口三块；退出登录在账号菜单。']]},
+ '/submit':{t:'提交截图',b:[['调整','头部常驻入口；上传后直接进入详情。']]},
+ '/submissions':{t:'提交详情',b:[['调整','状态与下一步在最上；四种状态可用「提交状态」切换：识别中 / 待人工核对 / 需重新提交 / 已通过。通过后主动作是查看公开主页。']],l:['证据保持原始比例；OCR 反馈仅在有识别结果后出现']},
+ '/admin':{t:'管理后台',b:[['问题','原侧栏 11 个入口，「玩家/邀请/更多」多层嵌套，绑定例外与邀请在同一页却分在两个菜单。'],['调整','按工作流分五组：总览、内容、玩家、审核、工具。绑定与邀请合并为一页两个 Tab；评价审核归到玩家。'],['统一范式','列表：文档级滚动、服务端分页；窄屏变记录列表（状态 + 主标识优先）；点击行打开详情/决定对话框，手机端为底部抽屉。']],l:['所有审批/驳回/撤销不强制填写原因，备注可选','仅管理员可见；其他身份显示无权限']}
+});
+function notes(){
+  const key=Object.keys(NOTES).sort((a,b)=>b.length-a.length).find(k=>k==='/'?S.route==='/':S.route===k||S.route.startsWith(k+'/'));
+  return noteHTML(NOTES[key]||{t:'—'})+siteMap('portal.html')+`<h3>全局信息架构</h3><ul><li><b>公开：</b>随机事件 · 地图 · 成就 · 版本更新 · 开发日志</li><li><b>玩家：</b>提交截图（常驻）· 玩家中心 · 公开主页 · 个人设置</li><li><b>管理：</b>总览 · 内容 · 玩家 · 审核 · 工具</li></ul>`;
+}
+
+/* ================= router ================= */
+function screen(){
+  const r=S.route,seg=r.split('/').filter(Boolean),a=seg[0]||'';
+  switch(a){
+   case '':return home();case 'events':return events();case 'maps':return maps();
+   case 'achievements':return achievements();case 'changelog':return changelog();case 'blog':return seg[1]?post(seg[1]):blog();
+   case 'login':return seg[1]?loginDone():login();case 'bind':return bind();case 'recover':return recover();
+   case 'me':return seg[1]==='settings'?settings():me();case 'submit':return submit();case 'submissions':return submission();
+   case 'admin':return admin();
+  }
+  return `<main class="pg"><div class="card empty"><span class="h3">页面不存在</span><a class="btn btn-outline" href="#/">返回首页</a></div></main>`;
+}
+const sync=bench({S,render:()=>render(),onAct,extra:[
+  {k:'st',label:'数据状态',opts:[['ok','正常'],['empty','空'],['loading','读取中'],['partial','部分失败'],['error','失败']]},
+  {k:'sub',label:'提交状态',opts:[['processing','识别中'],['review','待核对'],['resubmit','需重提'],['done','已通过']]}]});
+function render(){
+  sync();
+  const admin=S.route.startsWith('/admin'),fr=$('#frame');
+  const sg=S.route.split('/').filter(Boolean);
+  const dl=sg[0]==='events'&&sg[1]?evDlg(sg[1]):sg[0]==='maps'&&sg[1]?mapDlg(sg[1]):dialog(S.dlg&&S.dlg.dyn?(S.dlg.dyn==='mflt'?mfltDlg():fltDlg()):S.dlg);
+  fr.innerHTML=header(S,{route:S.route,adminPage:admin&&S.role==='admin'})+screen()+dl+toast(S);
+  $('#notes').innerHTML=notes();
+  rvAfterRender();
+  const first=S.route.split('/').filter(Boolean)[0]||'';
+  document.querySelector('[data-row=st]').hidden=!['events','maps','me','admin'].includes(first);
+  document.querySelector('[data-row=sub]').hidden=first!=='submissions';
+  document.querySelectorAll('.seg[data-k]').forEach(g=>g.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(S[g.dataset.k]===b.dataset.v))));
+}
+function onAct(act,el,e){
+  const rv=rvAct(act,el,e);if(rv)return rv.render?undefined:false;
+  const d=el.dataset;
+  switch(act){
+   case 'toast':S.toast=d.m;clearTimeout(flash.t);flash.t=setTimeout(()=>{S.toast='';render()},1800);return;
+   case 'done':S.dlg=null;S.toast='已执行：'+d.m+'（原型）';clearTimeout(flash.t);flash.t=setTimeout(()=>{S.toast='';render()},1800);return;
+   case 'ftog':{const a=S.ev[d.d];S.ev[d.d]=a.includes(d.v)?a.filter(x=>x!==d.v):[...a,d.v];return}
+   case 'frm':S.ev[d.d]=S.ev[d.d].filter(x=>x!==d.v);return;
+   case 'fclear':S.ev={cat:[],rar:[],tags:[],ver:[],grp:[],incl:false,pop:'',rate:[],mech:[],mver:[]};S.evQ='';S.evTq='';S.mpQ='';S.mpTq='';S.mpProg='all';return;
+   case 'mprog':S.mpProg=d.v;return;
+   case 'mfopen':S.dlg={title:'筛选',dyn:'mflt'};return;
+   case 'mopen':location.hash='#/maps/'+d.id;return false;
+   case 'mclose':location.hash='#/maps';return false;
+   case 'mscrim':if(e.target!==el)return false;location.hash='#/maps';return false;
+   case 'incl':S.ev.incl=!S.ev.incl;return;
+   case 'pop':S.ev.pop=S.ev.pop===d.v?'':d.v;return;
+   case 'fopen':S.dlg={title:'筛选',dyn:'flt'};return;
+   case 'evopen':location.hash='#/events/'+d.id;return false;
+   case 'evclose':location.hash='#/events';return false;
+   case 'evscrim':if(e.target!==el)return false;location.hash='#/events';return false;
+   case 'evwrite':S.evWrite=!S.evWrite;return;
+   case 'retry':S.st='ok';return;
+   case 'nopk':S.nudge=false;return;
+   case 'delpk':S.dlg={title:'删除 Passkey',body:`<p class="body">删除「${d.n}」后，该设备将无法用它登录。</p>`,foot:`<button class="btn btn-ghost" data-act="close">取消</button><button class="btn btn-danger" data-act="done" data-m="删除 ${d.n}">删除</button>`};return;
+   case 'pk':S.role='player';PT.set('role','player');location.hash='#/login/done';return false;
+   case 'qq':S.qq=d.v;return;
+   case 'qqok':S.role='player';PT.set('role','player');location.hash='#/login/done';return false;
+   case 'bind':S.bind=d.v;return;
+   case 'copy':S.toast='已复制';clearTimeout(flash.t);flash.t=setTimeout(()=>{S.toast='';render()},1500);return;
+   case 'star':S.myStar=+d.n;return;
+   case 'atab':S.tab[d.key]=+d.i;return;
+   case 'row':S.dlg=adRowDialog(d.key,+d.tab,+d.i);return;
+   case 'gsel':{const a=S.grant[d.k],v=d.v;S.grant[d.k]=a.includes(v)?a.filter(x=>x!==v):[...a,v];return}
+   case 'gdo':S.grant.done=true;return;case 'greset':S.grant={players:[],titles:[],done:false};return;
+   case 'newrev':S.dlg={title:'新建版本修订',body:`<div class="field"><label>来源版本修订</label><select class="inp"><option>v2.3</option></select></div><div class="field"><label>目标游戏版本</label><input class="inp" placeholder="例如 2.5"></div><label class="row" style="gap:.5rem"><input type="checkbox"> 复制空间配置和挑战分配</label><p class="cap">从准备中开始。复制配置不会复制玩家进度。</p>`,foot:`<button class="btn btn-ghost" data-act="close">取消</button><button class="btn btn-primary" data-act="done" data-m="创建修订">创建修订</button>`};return;
+   case 'revoke':S.dlg={title:'撤销称号',body:`<p class="body">撤销「${d.n}」？此操作会写入审计记录。</p>`,foot:`<button class="btn btn-ghost" data-act="close">取消</button><button class="btn btn-danger" data-act="done" data-m="撤销 ${d.n}">确认撤销</button>`};return;
+   case 'ban':S.dlg={title:'封禁玩家',body:`<div class="field"><label for="br">封禁原因（可选）</label><input class="inp" id="br"></div>`,foot:`<button class="btn btn-ghost" data-act="close">取消</button><button class="btn btn-danger" data-act="done" data-m="封禁">确认封禁</button>`};return;
+   case 'recover':S.dlg={title:'签发 Passkey 恢复链接',body:`<label class="row" style="gap:.5rem;align-items:flex-start"><input type="checkbox" id="vf"> <span>我已通过独立方式核验玩家身份，并确认恢复到此帐号。</span></label>`,foot:`<button class="btn btn-ghost" data-act="close">取消</button><button class="btn btn-primary" data-act="rec2">核验并签发恢复链接</button>`};return;
+   case 'rec2':S.dlg={title:'一次性恢复链接已签发',body:`<div class="code">https://example.invalid/recover?token=••••••••</div>`,foot:`<button class="btn btn-outline" data-act="copy">${ic('copy')}复制恢复链接</button><button class="btn btn-primary" data-act="close">完成</button>`};return;
+  }
+}
+/* text inputs keep focus across re-render */
+document.addEventListener('input',e=>{const k=e.target.dataset&&e.target.dataset.bind;if(!k)return;S[k]=e.target.value;const p=e.target.selectionStart;render();const n=document.querySelector(`[data-bind=${k}]`);n.focus();try{n.setSelectionRange(p,p)}catch{}});
+document.addEventListener('click',e=>{if(S.ev.pop&&!e.target.closest('.popw')){S.ev.pop='';render()}});
+function nav(){S.route=location.hash.slice(1)||'/';RV.pend='';RV.edit='';RV.add='';RV.full=false;VW.fit=true;S.evWrite=false;S.ev.pop='';S.menu=false;S.sheet=false;S.dlg=null;S.st='ok';if(S.route.startsWith('/admin')&&S.role==='guest')S.role='guest';render();window.scrollTo(0,0)}
+addEventListener('hashchange',nav);nav();
+</script>
+</body>
+</html>
