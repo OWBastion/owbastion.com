@@ -71,8 +71,6 @@
   asks for a new upload), one summary row (`PlayerStatSheet`), the unfinished
   map goals the player is already on (`PlayerNextGoals`), recent submissions,
   recently earned titles, then map progress.
-- Map progress lists started maps and collapses the rest behind one control
-  (`PlayerMapProgressSection`); it never renders a wall of empty cards.
 - Use `PageSectionHeader`, `PlayerRecentSubmissions`, `PlayerTitleBadge`.
 - Collapse to one column on narrow screens; on a phone the primary action leads
   and the secondary links share one row.

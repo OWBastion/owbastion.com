@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OWBastion 公开主页原型 (#267)</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+.prof{display:grid;grid-template-columns:16.5rem minmax(0,1fr);gap:var(--space-6);max-width:75rem;margin:0 auto;padding:var(--space-6) var(--space-4) var(--space-7);align-items:start}
+@container (max-width:52rem){.prof{grid-template-columns:1fr;gap:var(--space-5)}}
+.side{display:grid;gap:var(--space-4)}
+.avatar{width:6rem;height:6rem;border-radius:50%;background:var(--accent-surface);color:var(--accent);display:grid;place-items:center;font-size:2.5rem;font-weight:700}
+@container (max-width:52rem){.side{grid-template-columns:auto minmax(0,1fr);gap:var(--space-4);align-items:center}.side .avatar{width:4.5rem;height:4.5rem;font-size:1.75rem}.side .more{grid-column:1/-1}}
+.hm-wrap{overflow-x:auto;padding-bottom:var(--space-2)}
+.hm{display:grid;grid-template-columns:auto 1fr;gap:0 var(--space-2);min-width:46rem;font-size:.75rem;color:var(--quiet)}
+.hm-months{display:grid;grid-template-columns:repeat(53,1fr);height:1.25rem;grid-column:2}
+.hm-days{display:grid;grid-template-rows:repeat(7,.8125rem);gap:3px;align-items:center}
+.hm-grid{display:grid;grid-template-columns:repeat(53,1fr);gap:3px}
+.hm-col{display:grid;grid-template-rows:repeat(7,.8125rem);gap:3px}
+.hc{width:100%;height:100%;border-radius:3px;border:0;padding:0;box-shadow:inset 0 0 0 1px var(--line)}
+.hc.blank{visibility:hidden}
+.hc[aria-pressed=true]{outline:2px solid var(--text);outline-offset:1px}
+.legend{display:inline-flex;align-items:center;gap:3px}.legend i{width:.8125rem;height:.8125rem;border-radius:3px;display:inline-block;box-shadow:inset 0 0 0 1px var(--line)}
+.priv{display:flex;gap:var(--space-3);align-items:center;justify-content:space-between;flex-wrap:wrap;padding:var(--space-3) var(--space-4);border:1px dashed var(--line-strong);border-radius:var(--radius-card);color:var(--muted);font-size:.875rem}
+.ownerbar{display:flex;gap:var(--space-3);align-items:center;justify-content:space-between;flex-wrap:wrap;max-width:75rem;margin:var(--space-4) auto 0;padding:var(--space-3) var(--space-4);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);font-size:.875rem;margin-left:var(--space-4);margin-right:var(--space-4)}
+@container (min-width:76rem){.ownerbar{margin-left:auto;margin-right:auto}}
+.ogcard{border:1px solid var(--line-strong);border-radius:var(--radius-card);overflow:hidden;background:var(--page)}
+</style>
+</head>
+<body>
+<div class="bench" id="bench"></div>
+<script src="shared.js"></script>
+<script>
+const S={route:'/u/1',w:PT.get('w','desktop'),theme:PT.get('theme','light'),role:PT.get('role','player'),menu:false,sheet:false,dlg:null,toast:'',
+  st:'ok',vis:'link',show:{titles:true,maps:true,heat:true,runs:true},preview:false,day:'',draft:null};
+const SLOT=['开拓者','征服者','主宰'];
+const MAPS=[{id:1,name:'示例地图一',slots:[1,1,1],m:18,cl:0},{id:2,name:'示例地图二',slots:[1,1,0],m:6,cl:0},{id:3,name:'示例地图三',slots:[1,0,0],m:2,cl:1},{id:4,name:'示例地图四',slots:[0,0,0],m:0,cl:0},{id:5,name:'示例地图五',slots:[0,0,0],m:0,cl:0}];
+const TITLES=[{n:'示例地图一 主宰',m:'示例地图一',d:'2026年8月28日',w:1},{n:'无伤通关',m:'极限操作系列',d:'2026年8月14日',w:1},{n:'百次通关',m:'里程碑系列',d:'2026年7月2日',w:1},{n:'示例地图一 征服者',m:'示例地图一',d:'2026年9月3日'},{n:'示例地图一 开拓者',m:'示例地图一',d:'2026年9月20日'},{n:'示例地图二 开拓者',m:'示例地图二',d:'2026年8月9日'},{n:'示例地图二 征服者',m:'示例地图二',d:'2026年7月21日'},{n:'示例地图三 开拓者',m:'示例地图三',d:'2026年7月11日'}];
+const DIFF=['普通','困难'];
+
+/* heatmap data: deterministic pseudo-random so the prototype is stable */
+function rng(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const END=new Date(2026,8,30);const START=new Date(END);START.setDate(START.getDate()-364);START.setDate(START.getDate()-START.getDay());
+const key=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const cn=d=>`${d.getMonth()+1}月${d.getDate()}日`;
+const HEAT={};{const r=rng(267);for(let d=new Date(START);d<=END;d.setDate(d.getDate()+1)){const burst=Math.sin(d.getTime()/8.64e7/9)>0.2;const x=r();HEAT[key(d)]=x<(burst?.45:.78)?0:x<(burst?.7:.9)?1:x<(burst?.86:.96)?2:x<.98?3:4}}
+const heatOf=()=>S.st==='empty'?{}:HEAT;
+const level=n=>n>=4?4:n;
+
+/* ---------- pieces ---------- */
+const owner=()=>S.role!=='guest'&&S.route==='/u/1'&&!S.preview;
+const visible=k=>owner()||S.show[k];
+const hidden=k=>owner()&&!S.show[k];
+const alertE=(t,d)=>`<div class="alert err"><span><b>${t}</b>　${d}</span><button class="btn btn-outline btn-sm" data-act="retry">${ic('refresh')}重试</button></div>`;
+const hiddenNote=(k,label)=>`<div class="priv"><span>${ic('lock')} ${label}目前仅你自己可见</span><button class="btn btn-outline btn-sm" data-act="vis">在可见性设置中开启</button></div>`;
+const slotChips=s=>`<div class="slots">${s.map((v,i)=>`<span class="slot ${v?'on':''}">${ic(v?'ok':'circle')}${SLOT[i]}<span class="sr">${v?'已获得':'未获得'}</span></span>`).join('')}</div>`;
+const secH=(t,right='')=>`<div class="sec-h"><h2 class="h2" style="font-size:1.375rem">${t}</h2>${right}</div>`;
+
+function heat(){
+  if(S.st==='partial')return alertE('无法读取通关记录','其他内容不受影响。');
+  const H=heatOf(),weeks=[];let total=0,days=0,max=0;
+  for(let w=0;w<53;w++){const col=[];for(let i=0;i<7;i++){const d=new Date(START);d.setDate(d.getDate()+w*7+i);const k=key(d);if(d>END||!(k in HEAT)){col.push(null);continue}const n=H[k]||0;total+=n;if(n)days++;max=Math.max(max,n);col.push({k,d,n})}weeks.push(col)}
+  const months=weeks.map((c,w)=>{const f=c.find(Boolean);return f&&f.d.getDate()<=7?`<span style="grid-column:${w+1}/span 3">${f.d.getMonth()+1}月</span>`:''}).join('');
+  const sel=S.day&&HEAT[S.day]!==undefined?S.day:'';
+  const sd=sel&&heatOf()[sel]?sel:'';
+  const detail=sd?(()=>{const n=heatOf()[sd],r=rng(sd.length*31+sd.charCodeAt(9)+sd.charCodeAt(8));return `<div class="row mt" style="border-top:1px solid var(--line);padding-top:var(--space-3)"><span class="val num">${cn(new Date(sd))}</span><span class="lbl num">${n} 次通关</span>${Array.from({length:Math.min(n,3)},()=>`<span class="chip">${MAPS[Math.floor(r()*3)].name} · ${DIFF[Math.floor(r()*2)]}</span>`).join('')}</div>`})():'';
+  return `<div class="row between"><span class="val num">${total?`过去一年 ${total} 次通关`:'过去一年没有通关'}</span><button class="btn btn-ghost btn-sm" data-act="rule">${ic('info')}统计口径</button></div>
+  <div class="hm-wrap mt" id="hmw"><div class="hm" role="group" aria-label="每日通关次数">
+   <span></span><div class="hm-months" aria-hidden="true">${months}</div>
+   <div class="hm-days" aria-hidden="true"><span></span><span>周一</span><span></span><span>周三</span><span></span><span>周五</span><span></span></div>
+   <div class="hm-grid">${weeks.map(c=>`<div class="hm-col">${c.map(x=>x?`<button class="hc" data-act="day" data-d="${x.k}" aria-pressed="${x.k===sd}" title="${cn(x.d)}：${x.n} 次通关" aria-label="${cn(x.d)}：${x.n} 次通关" style="background:var(--h${level(x.n)})"></button>`:'<i class="hc blank"></i>').join('')}</div>`).join('')}</div></div></div>
+  <div class="row between mt"><span class="cap num">${days} 天有记录 · 单日最多 ${max} 次</span><span class="legend cap">少<i style="background:var(--h0)"></i><i style="background:var(--h1)"></i><i style="background:var(--h2)"></i><i style="background:var(--h3)"></i><i style="background:var(--h4)"></i>多</span></div>${detail}`;
+}
+
+function sideCol(){
+  const own=owner(),n=TITLES.length;
+  return `<aside class="side"><div class="avatar" aria-hidden="true">示</div>
+   <div><h1 class="h1" style="font-size:1.75rem;letter-spacing:-.02em">示例玩家</h1><div class="cap num">示例玩家#0000</div></div>
+   <div class="more" style="display:grid;gap:var(--space-3)">
+    ${visible('titles')?`<div><div class="lbl">佩戴称号</div><div class="row mt" style="gap:.375rem">${TITLES.filter(t=>t.w).map(t=>`<span class="badge acc">${t.n}</span>`).join('')}</div></div>`:''}
+    <dl class="kv" style="grid-template-columns:auto 1fr;gap:.25rem var(--space-3)"><dt>加入时间</dt><dd class="num">2026年5月</dd>${visible('titles')?`<dt>已获得称号</dt><dd class="num">${S.st==='empty'?0:n}</dd>`:''}${visible('maps')?`<dt>地图挑战</dt><dd class="num">${S.st==='empty'?0:6} / 15</dd>`:''}</dl>
+    <div class="row"><button class="btn btn-outline btn-sm" data-act="share">${ic('link')}分享主页</button>${own?`<button class="btn btn-outline btn-sm" data-act="vis">${ic('eye')}可见性设置</button>`:''}</div>
+   </div></aside>`;
+}
+function mainCol(){
+  const empty=S.st==='empty',titles=empty?[]:TITLES,maps=empty?MAPS.map(m=>({...m,slots:[0,0,0],m:0,cl:0})):MAPS;
+  const sec=(k,label,inner,right='')=>visible(k)?`<section class="card pad-l" aria-label="${label}">${secH(label,right)}${inner}</section>`:hidden(k)?hiddenNote(k,label):'';
+  return `<div style="display:grid;gap:var(--space-4);min-width:0">
+   ${sec('heat','通关',heat())}
+   ${sec('titles','称号',S.st==='partial'?alertE('无法读取称号','其他内容不受影响。'):titles.length?`<ul class="grid">${[...titles].sort((a,b)=>(b.w||0)-(a.w||0)).map(t=>`<li class="card tcard"><span class="ico">${ic('award')}</span><div><div class="val">${t.n}</div><div class="cap num">${t.m} · ${t.d}</div></div>${t.w?'<span class="badge acc" style="margin-left:auto">佩戴中</span>':''}</li>`).join('')}</ul>`:`<div class="empty">还没有称号</div>`)}
+   ${sec('maps','地图挑战',`<div class="card clip">${maps.map(m=>`<div class="maprow"><div><div class="val">${m.name}</div><div class="cap num">地图称号 ${m.slots.filter(Boolean).length} / 3${m.cl?' · 经典版本 1 项另计':''}</div></div>${slotChips(m.slots)}<div class="mast"><div class="lbl">精通</div><div class="val num">${S.st==='partial'?'暂不可用':m.m?`通关 ${m.m} 次`:'暂无记录'}</div></div></div>`).join('')}</div>`,`<span class="lbl num">已获得 ${empty?0:6} / 15</span>`)}
+   ${sec('runs','最近通关',empty?'<div class="empty">还没有通关</div>':`<div class="card list clip">${[['示例地图二','困难','9月30日'],['示例地图一','困难','9月28日'],['示例地图一','普通','9月26日'],['示例地图三','普通','9月20日']].map(([m,d,t])=>`<div><span class="val">${m} <span class="chip">${d}</span></span><span class="cap num">${t}</span></div>`).join('')}</div>`)}
+  </div>`;
+}
+
+function page(){
+  const seg=S.route.split('/').filter(Boolean),id=seg[1];
+  if(id!=='1'&&id!=='2')return `<main class="pg narrow"><div class="card empty"><span class="h2">找不到这个主页</span><span>链接可能有误，或该玩家已更改主页地址。</span><a class="btn btn-outline" href="portal.html#/">返回首页</a></div></main>`;
+  const own=owner();
+  if(id==='2'||(!own&&S.vis==='private'))return `<main class="pg narrow"><div class="card empty">${ic('lock')}<span class="h2">这个主页未公开</span><span>${S.role==='guest'?'如果这是你的主页，请登录后在设置里开启。':'玩家没有开放这个主页。'}</span>${S.role==='guest'?`<a class="btn btn-primary" href="portal.html#/login">登录</a>`:''}</div></main>`;
+  if(S.st==='loading')return `<div class="prof"><div class="side"><div class="sk" style="width:6rem;height:6rem;border-radius:50%"></div><div class="sk" style="height:1.75rem"></div></div><div style="display:grid;gap:var(--space-4)"><div class="sk" style="height:12rem"></div><div class="sk" style="height:10rem"></div></div></div>`;
+  if(S.st==='error')return `<main class="pg narrow">${alertE('无法读取这个主页','请稍后重试。')}</main>`;
+  const visLbl={private:'仅自己可见',link:'知道链接的人可见'}[S.vis];
+  const bar=(S.role!=='guest'&&S.route==='/u/1')?`<div class="ownerbar"><span class="row" style="gap:.5rem">${ic(S.vis==='private'?'lock':'globe')}${S.preview?'正在以访客视角预览':`当前状态：<b>${visLbl}</b>`}</span><span class="row"><button class="btn btn-outline btn-sm" data-act="preview">${S.preview?'退出预览':'以访客视角预览'}</button>${S.preview?'':`<button class="btn btn-primary btn-sm" data-act="vis">可见性设置</button>`}</span></div>`:'';
+  return bar+`<div class="prof">${sideCol()}${mainCol()}</div>`;
+}
+
+/* ---------- dialogs ---------- */
+function dVis(){
+  const d=S.draft||(S.draft={vis:S.vis,show:{...S.show}});
+  const sw=(k,l)=>`<div class="sw"><span class="val">${l}</span><button class="tog" role="switch" aria-checked="${d.show[k]}" aria-label="${l}" data-act="dshow" data-k="${k}"></button></div>`;
+  return {title:'公开主页可见性',lg:true,body:`
+   <div style="display:grid;gap:var(--space-2)" role="radiogroup" aria-label="可见范围">
+    <button class="radio" role="radio" aria-checked="${d.vis==='private'}" data-act="dvis" data-v="private"><span class="dotr"></span><span><span class="val">仅自己</span><br><span class="cap">默认。只有你登录后能看到。</span></span></button>
+    <button class="radio" role="radio" aria-checked="${d.vis==='link'}" data-act="dvis" data-v="link"><span class="dotr"></span><span><span class="val">知道链接的人</span><br><span class="cap">拿到链接的人无需登录即可查看，不会出现在任何列表或搜索中。</span></span></button></div>
+   <div style="opacity:${d.vis==='private'?.55:1}"><div class="lbl">展示内容</div><div class="card pad mt" style="padding-block:var(--space-1)">${sw('heat','通关热力图')}<hr style="border:0;border-top:1px solid var(--line)">${sw('titles','称号')}<hr style="border:0;border-top:1px solid var(--line)">${sw('maps','地图挑战')}<hr style="border:0;border-top:1px solid var(--line)">${sw('runs','最近通关')}</div></div>
+   <div class="alert">${ic('shield')}<span><b>以下内容不会出现在任何公开主页</b>　QQ 信息、截图与证据、审核记录、识别结果、风险信息。</span></div>`,
+   foot:`<button class="btn btn-ghost" data-act="close">取消</button><button class="btn btn-primary" data-act="dsave">保存</button>`};
+}
+const dShare=()=>({title:'分享主页',body:S.vis==='private'?`<div class="alert warn"><span><b>主页目前仅自己可见</b>　分享前请先开启「知道链接的人」。</span><button class="btn btn-outline btn-sm" data-act="vis">去开启</button></div>`
+  :`<div class="row"><div class="code" style="flex:1;min-width:0">https://owbastion.com/u/x7k2m9</div><button class="btn btn-primary" data-act="copy">${ic('copy')}复制</button></div>
+   <div><div class="lbl">链接预览</div><div class="ogcard mt"><div class="pad"><div class="val">示例玩家 · 躲避堡垒 3</div><div class="cap num mt">8 个称号 · 地图挑战 6 / 15 · 过去一年 ${Object.values(HEAT).reduce((a,b)=>a+b,0)} 次通关</div></div></div></div>`,foot:`<button class="btn btn-primary" data-act="close">完成</button>`});
+const dRule=()=>({title:'统计口径',body:`<ul class="body" style="padding-left:1.1rem;display:grid;gap:.375rem"><li>按接受日期统计<b>通关</b>的次数，同一通关码只计一次。</li><li>不统计截图上传次数，也不代表游玩时长。</li><li>由多个称号或投影派生的同一次通关不会重复计数。</li><li>日期按东八区计算。</li></ul>`,foot:`<button class="btn btn-primary" data-act="close">知道了</button>`});
+
+/* ---------- notes ---------- */
+function notes(){
+  return `<h2>公开主页 · #267</h2>${siteMap('portal.html')}
+  <h3>做了什么</h3><p>把「玩家中心」里的展示内容独立成一个可链接的主页，参考 GitHub 个人主页：左侧身份，右侧热力图、称号、地图挑战、最近通关。</p>
+  <h3>三种视角</h3><ul><li><b>访客：</b>登录状态选「访客」；只看到被开启的内容，未公开时显示占位页</li><li><b>本人：</b>选「玩家」；顶部条显示当前可见范围，可预览访客视角、打开设置；关闭的板块以虚线占位提示</li><li><b>他人：</b>用下面的演示入口</li></ul>
+  <p><a href="#/u/1">我的主页</a> · <a href="#/u/2">他人（未公开）</a> · <a href="#/u/x">不存在</a></p>
+  <h3>热力图口径</h3><p>标题写「通关」，不写活跃度或游玩时间。按接受日期、同一通关码只计一次，点格子看当天明细，「统计口径」里写明不含截图上传。没有连续天数、排行等激励设计。</p>
+  <h3>隐私</h3><ul><li>默认「仅自己」；开启后为「知道链接的人」，不进任何列表</li><li>逐板块开关；设置弹窗底部写明永不公开的字段</li><li>页面不含通关码、截图、审核信息</li></ul>
+  <h3 style="color:var(--warning)">需要你拍板（与 Issue 原文冲突）</h3><ul><li>#267 原文明确「本期不新增持久化可见性设置」，也不做公开可发现。这份原型按你的意图加了可见性设置，落地需要新增一项持久化数据，并更新 Issue 范围。</li><li>热力图数据源要先定义合同：仅用通关的接受时间。</li><li>链接形式：随机短码（当前）还是可读用户名。前者不易被枚举，后者更像 GitHub。</li><li>社区目录/搜索不在这版；要做需另开范围。</li></ul>
+  <h3>约束</h3><ul><li>文档级滚动；窄屏单列，侧栏折叠为顶部身份行</li><li>热力图是矩阵数据，允许其内部横向滚动，页面不横向溢出</li><li>读取中 / 空 / 部分失败 / 失败 / 未公开 / 不存在均已覆盖</li></ul>`;
+}
+
+/* ---------- wiring ---------- */
+const sync=bench({S,render:()=>render(),onAct,extra:[{k:'st',label:'档案数据状态',opts:[['ok','正常'],['empty','无进度'],['loading','读取中'],['partial','部分失败'],['error','读取失败']]}]});
+function render(){
+  sync();
+  $('#frame').innerHTML=header(S,{base:'portal.html',route:'/u'})+page()+dialog(S.dlg)+toast(S);
+  $('#notes').innerHTML=notes();
+  const w=$('#hmw');if(w&&!render.done){w.scrollLeft=w.scrollWidth}
+  document.querySelectorAll('.seg[data-k]').forEach(g=>g.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(S[g.dataset.k]===b.dataset.v))));
+}
+function tst(m){S.toast=m;clearTimeout(flash.t);flash.t=setTimeout(()=>{S.toast='';render()},1600)}
+function onAct(act,el){
+  const d=el.dataset;
+  switch(act){
+   case 'retry':S.st='ok';return;
+   case 'day':S.day=S.day===d.d?'':d.d;return;
+   case 'rule':S.dlg=dRule();return;
+   case 'share':S.dlg=dShare();return;
+   case 'vis':S.draft=null;S.dlg=dVis();return;
+   case 'dvis':S.draft.vis=d.v;S.dlg=dVis();return;
+   case 'dshow':S.draft.show[d.k]=!S.draft.show[d.k];S.dlg=dVis();return;
+   case 'dsave':S.vis=S.draft.vis;S.show=S.draft.show;S.draft=null;S.dlg=null;tst('已保存');return;
+   case 'preview':S.preview=!S.preview;return;
+   case 'copy':tst('链接已复制');return;
+  }
+}
+function nav(){S.route=location.hash.slice(1)||'/u/1';S.menu=false;S.sheet=false;S.dlg=null;S.preview=false;render();window.scrollTo(0,0)}
+addEventListener('hashchange',nav);nav();
+</script>
+</body>
+</html>

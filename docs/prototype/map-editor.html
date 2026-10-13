@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>地图编辑器 · 原型</title>
+<style>
+:root{
+  --bg:#f3efe3; --surface:#fbf9f2; --raised:#fff; --ink:#1f1d18; --muted:#6b665a; --quiet:#8b8576; --line:#e2dccb;
+  --accent:#b4530a; --accent-soft:#f6e3cf; --ok:#2f7d4f; --ok-soft:#dcefe2; --warn:#a15c00; --warn-soft:#fbecc8; --info:#1d5f8f; --info-soft:#dbeaf5; --bad:#b3261e;
+  --r:12px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.wrap{max-width:68rem;margin:0 auto;padding:0 1.25rem 7rem}
+
+/* header */
+.top{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;padding:1.25rem 0 .75rem}
+.crumb{font-size:13px;color:var(--quiet);margin:0 0 .25rem}
+.crumb a{color:inherit;text-decoration:none}
+h1{margin:0;font-size:1.75rem;line-height:1.2;letter-spacing:-.01em}
+.sub{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-top:.4rem;color:var(--muted);font-size:13px}
+.tag{display:inline-flex;align-items:center;gap:.25rem;padding:.1rem .55rem;border-radius:99px;background:var(--surface);border:1px solid var(--line);font-size:12px;color:var(--muted)}
+.btn{border:1px solid var(--line);background:var(--raised);border-radius:10px;padding:.5rem .9rem;font-weight:500;min-height:2.5rem}
+.btn:hover{border-color:#cfc7b0}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:disabled{background:#d9cfbd;border-color:#d9cfbd;cursor:not-allowed}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.btn.sm{padding:.25rem .65rem;min-height:2rem;font-size:13px;border-radius:8px}
+
+/* revision strip */
+.strip{position:sticky;top:0;z-index:5;background:linear-gradient(var(--bg) 85%,transparent);padding:.5rem 0 .9rem}
+.revs{display:flex;gap:.6rem;overflow-x:auto;padding:.1rem .1rem .3rem;scrollbar-width:none}
+.rev{flex:0 0 auto;min-width:13rem;text-align:left;border:1.5px solid var(--line);background:var(--surface);border-radius:var(--r);padding:.65rem .9rem;display:grid;gap:.15rem}
+.rev[aria-selected=true]{border-color:var(--accent);background:#fff;box-shadow:0 0 0 3px var(--accent-soft)}
+.rev .t{display:flex;align-items:center;gap:.5rem;font-weight:600}
+.rev .m{font-size:12.5px;color:var(--muted)}
+.dot{width:.5rem;height:.5rem;border-radius:50%;background:var(--ok)}
+.pill{font-size:11.5px;font-weight:600;padding:.05rem .5rem;border-radius:99px}
+.pill.default{background:var(--ok-soft);color:var(--ok)}
+.pill.sel{background:var(--info-soft);color:var(--info)}
+.pill.prep{background:var(--warn-soft);color:var(--warn)}
+.pill.hist{background:#e9e5d8;color:var(--muted)}
+.rev.add{min-width:auto;border-style:dashed;background:transparent;color:var(--muted);align-content:center;justify-items:center}
+
+/* readiness */
+.ready{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1.25rem;padding:.75rem 1rem;border-radius:var(--r);background:var(--surface);border:1px solid var(--line);margin-bottom:1rem}
+.ready .items{display:flex;flex-wrap:wrap;gap:.4rem 1rem;flex:1;font-size:13.5px}
+.chk{display:inline-flex;gap:.35rem;align-items:center}
+.chk i{font-style:normal;width:1.1rem;height:1.1rem;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;background:var(--ok-soft);color:var(--ok)}
+.chk.no i{background:var(--warn-soft);color:var(--warn)}
+.chk.no{color:var(--warn)}
+.live-note{font-size:13.5px;color:var(--muted);flex:1}
+
+/* sections */
+section.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:1.25rem 1.35rem;margin-bottom:1rem}
+.sec-h{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:.9rem}
+.sec-h h2{margin:0;font-size:1.15rem;display:flex;gap:.6rem;align-items:center}
+.num{width:1.6rem;height:1.6rem;border-radius:50%;background:var(--ink);color:#fff;font-size:13px;display:grid;place-items:center}
+.sec-h p{margin:0;color:var(--muted);font-size:13.5px}
+.seg{display:inline-flex;background:#ebe5d3;border-radius:10px;padding:3px}
+.seg button{border:0;background:transparent;border-radius:8px;padding:.35rem .9rem;font-size:14px;color:var(--muted);font-weight:500}
+.seg button[aria-pressed=true]{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+
+/* paste */
+.paste{position:relative}
+.paste textarea{width:100%;min-height:9rem;resize:vertical;border:1.5px dashed #cdbf9f;background:#fff;border-radius:12px;padding:.9rem 1rem;font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;outline:none}
+.paste textarea:focus{border-style:solid;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.paste .hint{position:absolute;inset:0;display:grid;place-content:center;text-align:center;color:var(--quiet);pointer-events:none;gap:.2rem}
+.paste .hint b{font-size:16px;color:var(--muted)}
+.found{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.7rem;align-items:center}
+.chip{display:inline-flex;gap:.35rem;align-items:center;padding:.2rem .65rem;border-radius:99px;font-size:13px;background:var(--ok-soft);color:#1f5c38}
+.chip.miss{background:var(--warn-soft);color:var(--warn)}
+.chip.opt{background:#ece7d8;color:var(--muted)}
+.chip.flash{animation:fl .9s ease}
+@keyframes fl{0%{box-shadow:0 0 0 0 rgba(180,83,10,.5)}100%{box-shadow:0 0 0 10px rgba(180,83,10,0)}}
+.row-actions{display:flex;gap:.5rem;margin-top:.6rem;flex-wrap:wrap;align-items:center}
+.pts{margin-top:.8rem;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}
+.pts summary{padding:.6rem .9rem;cursor:pointer;font-size:13.5px;color:var(--muted);display:flex;justify-content:space-between}
+.pts table{width:100%;border-collapse:collapse;font:12.5px ui-monospace,Menlo,monospace}
+.pts td,.pts th{padding:.3rem .9rem;text-align:left;border-top:1px solid var(--line);font-weight:400}
+.pts th{color:var(--quiet);font-family:inherit}
+
+/* multi */
+.rule{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;background:#fff;border:1px solid var(--line);border-radius:12px;padding:.7rem .9rem;margin-bottom:.9rem;font-size:14.5px}
+.rule select,.rule input{border:1px solid var(--line);border-radius:8px;padding:.25rem .5rem;background:var(--surface)}
+.rule input{width:3.2rem;text-align:center}
+.stages{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.8rem;align-items:center}
+.stg{border:1px solid var(--line);background:#fff;border-radius:99px;padding:.3rem .85rem;font-size:14px;display:inline-flex;gap:.4rem;align-items:center}
+.stg[aria-selected=true]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.stg .c{font-size:12px;opacity:.7}
+.stg.shared{border-style:dashed}
+
+/* honors */
+.honors{display:grid;gap:.7rem}
+.honor{background:#fff;border:1.5px solid var(--line);border-radius:14px;overflow:hidden;transition:border-color .15s}
+.honor.on{border-color:#d7a979}
+.honor.na{opacity:.55}
+.h-head{display:grid;grid-template-columns:auto 1fr auto;gap:.9rem;align-items:center;padding:.85rem 1rem}
+.badge{width:2.6rem;height:2.6rem;border-radius:12px;display:grid;place-items:center;font-size:1.3rem;background:#efe9d8}
+.honor.on .badge{background:var(--accent-soft)}
+.h-title{font-weight:600;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.h-sub{font-size:13px;color:var(--muted);margin-top:.1rem}
+.sw{position:relative;width:2.8rem;height:1.6rem;border-radius:99px;background:#cfc8b3;border:0;transition:background .15s;flex:0 0 auto}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:1.2rem;height:1.2rem;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .15s}
+.sw[aria-checked=true]{background:var(--accent)}
+.sw[aria-checked=true]::after{transform:translateX(1.2rem)}
+.sw:disabled{cursor:not-allowed}
+.h-body{border-top:1px solid var(--line);padding:.8rem 1rem 1rem;background:#fdfbf6;display:grid;gap:.7rem}
+.links{display:grid;gap:.4rem}
+.link{display:flex;gap:.6rem;align-items:center;font-size:13.5px;color:var(--muted)}
+.link b{font-weight:500;color:var(--ink)}
+.kind{font-size:11.5px;padding:.05rem .45rem;border-radius:6px;background:#ece7d8;color:var(--muted)}
+.eff{font-size:13.5px;background:#f4efe1;border-radius:10px;padding:.55rem .75rem;color:var(--muted)}
+.eff b{color:var(--ink);font-weight:500}
+.ov{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:.6rem}
+.ov label{display:grid;gap:.2rem;font-size:12.5px;color:var(--muted)}
+.ov input,.ov select{border:1px solid var(--line);border-radius:8px;padding:.4rem .6rem;background:#fff}
+.sched{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;font-size:13.5px}
+.sched input{border:1px solid var(--line);border-radius:8px;padding:.35rem .5rem;background:#fff}
+.linkbtn{background:none;border:0;color:var(--accent);padding:0;font-size:13px;text-decoration:underline;text-underline-offset:3px}
+
+.mastery{display:grid;grid-template-columns:repeat(auto-fit,minmax(5.5rem,1fr));gap:.5rem;margin-top:.6rem}
+.mx{background:#fff;border:1px solid var(--line);border-radius:10px;padding:.45rem .6rem;text-align:center}
+.mx small{display:block;color:var(--quiet);font-size:12px}
+.mx b{font-size:1.05rem}
+
+/* draft bar */
+.draft{position:fixed;left:50%;bottom:1rem;transform:translate(-50%,160%);transition:transform .25s cubic-bezier(.2,.9,.3,1.1);display:flex;gap:.8rem;align-items:center;background:var(--ink);color:#fff;border-radius:14px;padding:.6rem .7rem .6rem 1.1rem;box-shadow:0 10px 30px rgba(0,0,0,.28);z-index:20;max-width:calc(100vw - 1.5rem)}
+.draft.show{transform:translate(-50%,0)}
+.draft .btn{border-color:transparent}
+.draft .btn.ghost{color:#d9d4c6}
+.toast{position:fixed;left:50%;bottom:1rem;transform:translate(-50%,160%);transition:transform .25s;background:var(--ok);color:#fff;border-radius:14px;padding:.6rem .8rem .6rem 1.1rem;display:flex;gap:.9rem;align-items:center;z-index:21}
+.toast.show{transform:translate(-50%,0)}
+.toast button{background:rgba(255,255,255,.2);border:0;color:#fff;border-radius:8px;padding:.3rem .7rem}
+
+/* dialog */
+dialog{border:0;border-radius:18px;padding:0;max-width:28rem;width:calc(100vw - 2rem);box-shadow:0 20px 60px rgba(0,0,0,.3)}
+dialog::backdrop{background:rgba(31,29,24,.45)}
+.dlg{padding:1.4rem;display:grid;gap:.9rem}
+.dlg h3{margin:0;font-size:1.2rem}
+.dlg p{margin:0;color:var(--muted);font-size:14px}
+.opts{display:grid;gap:.5rem}
+.opt{display:flex;gap:.7rem;align-items:flex-start;border:1.5px solid var(--line);border-radius:12px;padding:.7rem .8rem;text-align:left;background:#fff}
+.opt[aria-pressed=true]{border-color:var(--accent);background:#fffaf3}
+.opt b{display:block}
+.opt span{font-size:13px;color:var(--muted)}
+.dlg .foot{display:flex;justify-content:flex-end;gap:.5rem}
+
+@media (max-width:40rem){
+  h1{font-size:1.4rem}.top{flex-direction:column}
+  .rev{min-width:11rem}
+  .wrap{padding-inline:.9rem}
+  section.card{padding:1rem}
+  .h-head{grid-template-columns:auto 1fr auto;gap:.65rem}
+  .draft{width:calc(100vw - 1.5rem);justify-content:space-between}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <p class="crumb"><a href="#">地图管理</a> / <span class="mono">map.route66</span></p>
+      <h1>66号公路</h1>
+      <div class="sub"><span class="tag">目录版本 2026.07.15</span><span class="tag">评级 T3</span><span class="tag">连续跳跃</span><button class="linkbtn" id="metaBtn">地图资料</button><button class="linkbtn" id="logBtn">修改记录</button></div>
+    </div>
+  </header>
+
+  <div class="strip">
+    <div class="revs" id="revs" role="tablist" aria-label="版本修订"></div>
+  </div>
+
+  <div class="ready" id="ready"></div>
+
+  <section class="card" id="secSpatial">
+    <div class="sec-h">
+      <h2><span class="num">1</span>点位</h2>
+      <div class="seg" role="group" aria-label="路线类型">
+        <button data-mode="single" aria-pressed="true">单一地图</button>
+        <button data-mode="composite" aria-pressed="false">多合一（每局随机抽几段）</button>
+      </div>
+    </div>
+    <div id="spatialBody"></div>
+  </section>
+
+  <section class="card" id="secHonors">
+    <div class="sec-h">
+      <div><h2><span class="num">2</span>成就与称号</h2><p style="margin-top:.25rem">打开一个称号 = 同时打开它对应的地图挑战和称号规则。</p></div>
+      <button class="btn sm" id="applyRec">套用推荐</button>
+    </div>
+    <div class="honors" id="honors"></div>
+    <div style="margin-top:1.1rem">
+      <div class="sec-h" style="margin-bottom:.2rem"><h2 style="font-size:1rem">精通进度 <span class="tag">自动</span></h2></div>
+      <p style="margin:0;color:var(--muted);font-size:13.5px" id="masteryNote"></p>
+      <div class="mastery">
+        <div class="mx"><small>简单</small><b>100</b></div><div class="mx"><small>一般</small><b>150</b></div><div class="mx"><small>困难</small><b>225</b></div>
+        <div class="mx"><small>专家</small><b>325</b></div><div class="mx"><small>传奇</small><b>450</b></div><div class="mx"><small>地狱</small><b>600</b></div>
+      </div>
+      <p style="margin:.5rem 0 0;color:var(--quiet);font-size:12.5px">每次通关截图通过后按难度累计 XP（表中为基础值，另有无死亡/无跳过加成）。无需在此配置。</p>
+    </div>
+  </section>
+</div>
+
+<div class="draft" id="draft" role="status">
+  <span id="draftText">有未保存的修改</span>
+  <button class="btn ghost sm" id="discard">放弃</button>
+  <button class="btn primary" id="save">保存</button>
+</div>
+<div class="toast" id="toast"><span id="toastText">已保存</span><button id="undo">撤销</button></div>
+
+<dialog id="promoteDlg"><div class="dlg" id="promoteBody"></div></dialog>
+<dialog id="newDlg"><div class="dlg" id="newBody"></div></dialog>
+
+<script>
+const REQUIRED=[["bastion","Bastion 出生点"],["reset","重置点"],["end","终点"],["third","第三人称点"],["credits","结算点"]];
+const OPTIONAL=[["portal","传送点"],["spring","跳板点"]];
+const LABEL=Object.fromEntries([...REQUIRED,...OPTIONAL]);
+const SAMPLE=`Global.bastionPosition[0] = Vector(-95.624, 12.66, -5.541);
+Global.bastionPosition[1] = Vector(-61.87, 10.87, 5.36);
+Global.bastionPosition[2] = Vector(-38.68, 12.75, -22.136);
+Global.bastionPosition[3] = Vector(-20.44, 12.17, -15.13);
+Global.bastionPosition[4] = Vector(26.871, 7.01, 2.468);
+Global.bastionPosition[5] = Vector(53.82, 12.86, 10.55);
+Global.bastionPosition[6] = Vector(33.75, 5.54, 48.5);
+Global.endPosition = Vector(47.956, 5.2, 47.318);
+Global.heroRingPosition = Vector(-115.228, 5.799, -49.59);
+Global.resetPosition = Vector(-115.01, 4.5, -46.01);
+Global.creditsPosition = Vector(-113.27, 7.5, -63.14);`;
+
+/* ---- parsing (mirrors utils/spatial-config-import.ts behaviour, simplified) ---- */
+const V="(?:Vector|vect|矢量)\\s*\\(\\s*([-+]?[\\d.]+)\\s*,\\s*([-+]?[\\d.]+)\\s*,\\s*([-+]?[\\d.]+)\\s*\\)";
+const ALIAS={bastion:["bastionPosition","bastionPositions"],reset:["resetPosition"],end:["endPosition"],third:["thirdPersonPosition","heroRingPosition"],credits:["creditsPosition"],portal:["portalPosition","portalPositions"],spring:["springboardPosition","springboardPositions"]};
+function parse(src){
+  src=src.replaceAll("全局","Global");
+  const out={};
+  for(const [k,names] of Object.entries(ALIAS)){
+    const list=[];
+    for(const n of names){
+      const idx=new Map();
+      for(const m of src.matchAll(new RegExp(`(?:Global\\.)?${n}\\s*\\[\\s*(\\d+)\\s*\\]\\s*=\\s*${V}`,"g")))idx.set(+m[1],[+m[2],+m[3],+m[4]]);
+      [...idx.entries()].sort((a,b)=>a[0]-b[0]).forEach(([,v])=>list.push(v));
+      for(const m of src.matchAll(new RegExp(`(?:Global\\.)?${n}\\s*=\\s*${V}`,"g")))list.push([+m[1],+m[2],+m[3]]);
+      for(const m of src.matchAll(new RegExp(`Append To Array\\s*,\\s*${V}`,"g")))if(n===names[0]&&k==="bastion")list.push([+m[1],+m[2],+m[3]]);
+    }
+    if(list.length)out[k]=list;
+  }
+  return out;
+}
+const count=(p)=>Object.values(p).reduce((a,v)=>a+v.length,0);
+const fmt=(v)=>`(${v.map(n=>n.toFixed(2)).join(", ")})`;
+
+/* ---- data ---- */
+const HONORS=[
+  {key:"conqueror",icon:"⚔️",name:"征服者",sub:"完成指定难度通关",kind:"difficulty_completion",challenge:"征服者 · 地图挑战",rule:"征服者 · 地图称号规则",cond:"在「专家」及以上难度通关本图",evid:"通关结算截图",mode:"自动审核",appliesTo:["default","classic","limited"]},
+  {key:"dominator",icon:"👑",name:"主宰",sub:"更高难度通关",kind:"difficulty_completion",challenge:"主宰 · 地图挑战",rule:"主宰 · 地图称号规则",cond:"在「地狱」难度通关本图",evid:"通关结算截图",mode:"自动审核",appliesTo:["default","classic","limited"]},
+  {key:"pioneer",icon:"🚩",name:"开拓者",sub:"地图重置 / 新图上线后的限时挑战",kind:"pioneer",challenge:"开拓者 · 地图挑战",rule:"开拓者 · 地图称号规则",cond:"在限时窗口内首批通关",evid:"通关结算截图",mode:"人工审核",appliesTo:["default","limited"],timed:true},
+  {key:"veteran",icon:"🎖️",name:"老兵",sub:"经典版自定义称号",kind:"classic_completion",challenge:"老兵 · 地图挑战",rule:"老兵 · 地图称号规则",cond:"通关经典版",evid:"通关结算截图（经典版标识）",mode:"自动审核",appliesTo:["classic"]},
+];
+const kindOf=(r)=>r.variant==="classic"?"classic":r.default?"default":"limited";
+const mk=(o)=>({mode:"single",stages:[{id:"stage-1",code:""}],shared:"",honors:{},...o});
+let revs=[
+  mk({id:"initial",name:"正式版",life:"default",variant:null,ver:"2026.07.15",default:true,code:SAMPLE,honors:{conqueror:{on:true},dominator:{on:true}},updated:"2025年7月15日"}),
+  mk({id:"ac8b",name:"2026镜中回响",life:"selectable",variant:null,ver:"2026.10.09",code:"",honors:{},updated:"2026年10月9日",tag:"限时"}),
+];
+let saved=JSON.stringify(revs), cur="initial", lastSaved=null;
+const $=(s)=>document.querySelector(s);
+const R=()=>revs.find(r=>r.id===cur);
+
+/* ---- render ---- */
+function lifePill(r){return r.life==="default"?'<span class="pill default">正式</span>':r.life==="selectable"?'<span class="pill sel">可选</span>':r.life==="prep"?'<span class="pill prep">准备中</span>':'<span class="pill hist">历史</span>'}
+function nHonors(r){return Object.values(r.honors).filter(h=>h.on).length}
+function renderRevs(){
+  $("#revs").innerHTML=revs.map(r=>`<button class="rev" role="tab" aria-selected="${r.id===cur}" data-id="${r.id}">
+    <span class="t">${r.default?'<span class="dot"></span>':''}${r.name}${lifePill(r)}${r.tag?`<span class="tag">${r.tag}</span>`:''}</span>
+    <span class="m">${r.ver} · ${r.variant==="classic"?"经典版":"标准"} · ${nHonors(r)} 个称号 · ${pts(r)} 个点位</span></button>`).join("")+
+    `<button class="rev add" id="addRev">＋ 新建修订</button>`;
+}
+function pts(r){return r.mode==="single"?count(parse(r.code)):count(parse(r.shared))+r.stages.reduce((a,s)=>a+count(parse(s.code)),0)}
+function problems(r){
+  const p=[];
+  if(r.mode==="single"){
+    const f=parse(r.code);
+    if(!r.code.trim())p.push("还没有粘贴点位");
+    else REQUIRED.forEach(([k,l])=>{if(!f[k])p.push(`缺少${l}`)});
+  }else{
+    const sh=parse(r.shared);
+    ["reset","end","third","credits"].forEach(k=>{if(!sh[k])p.push(`共用点位缺少${LABEL[k]}`)});
+    r.stages.forEach((s,i)=>{if(!parse(s.code).bastion)p.push(`阶段 ${i+1} 缺少 Bastion 出生点`)});
+    if(r.sel>r.stages.length)p.push("抽取段数大于阶段数");
+  }
+  return p;
+}
+function renderReady(){
+  const r=R(), p=problems(r), hon=nHonors(r)>0;
+  const items=[`<span class="chk ${p.length?"no":""}"><i>${p.length?"!":"✓"}</i>${p.length?p[0]+(p.length>1?` 等 ${p.length} 项`:""):"点位完整"}</span>`,
+    `<span class="chk ${hon?"":"no"}"><i>${hon?"✓":"!"}</i>${hon?`已关联 ${nHonors(r)} 个称号`:"尚未关联称号"}</span>`];
+  let right="";
+  if(r.default) right=`<span class="live-note">这是正式版：玩家的挑战、称号和精通进度都在这里累计。</span>`;
+  else right=`<button class="btn primary" id="promote" ${p.length||!hon?"disabled":""}>设为正式版</button>`;
+  $("#ready").innerHTML=`<div class="items">${items.join("")}</div>${right}`;
+  $("#ready").style.background=r.default?"var(--ok-soft)":"";
+}
+function chipsFor(f,optional=true){
+  const c=REQUIRED.map(([k,l])=>f[k]?`<span class="chip" data-k="${k}">✓ ${l}${k==="bastion"?" "+f[k].length:""}</span>`:`<span class="chip miss">缺 ${l}</span>`);
+  if(optional)OPTIONAL.forEach(([k,l])=>{if(f[k])c.push(`<span class="chip opt" data-k="${k}">${l} ${f[k].length}</span>`)});
+  return c.join("");
+}
+function pasteBox(id,value,label){
+  const f=parse(value);
+  return `<div class="paste"><textarea data-paste="${id}" spellcheck="false" aria-label="${label}">${value.replace(/</g,"&lt;")}</textarea>
+   ${value.trim()?"":`<div class="hint"><b>在游戏里复制，粘贴到这里</b><span>${label} · 自动识别，无需点“解析”</span></div>`}</div>
+   <div class="found" id="found-${id}">${value.trim()?chipsFor(f):""}</div>
+   ${value.trim()?`<details class="pts"><summary><span>坐标明细</span><span>${count(f)} 个点位</span></summary><table>${Object.entries(f).map(([k,l])=>`<tr><th>${LABEL[k]}</th><td>${l.map(fmt).join("  ")}</td></tr>`).join("")}</table></details>`:""}`;
+}
+let stageIdx=0;
+function renderSpatial(){
+  const r=R();
+  document.querySelectorAll("[data-mode]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mode===r.mode)));
+  if(r.mode==="single"){ $("#spatialBody").innerHTML=pasteBox("single",r.code,"这张图的完整点位代码"); return; }
+  r.sel??=2; r.first??="random"; r.rest??="random_unique";
+  const tabs=[`<button class="stg shared" aria-selected="${stageIdx===-1}" data-stg="-1">共用点位 <span class="c">${count(parse(r.shared))}</span></button>`,
+    ...r.stages.map((s,i)=>`<button class="stg" aria-selected="${stageIdx===i}" data-stg="${i}">阶段 ${i+1} <span class="c">${count(parse(s.code))}</span></button>`),
+    `<button class="btn sm" id="addStage">＋ 阶段</button>`].join("");
+  const cur_=stageIdx===-1?pasteBox("shared",r.shared,"所有阶段共用：重置点、终点、第三人称点、结算点"):pasteBox("stage"+stageIdx,r.stages[stageIdx].code,`阶段 ${stageIdx+1} 的 Bastion 出生点（及专属传送点/跳板点）`);
+  $("#spatialBody").innerHTML=`<div class="rule">每局从 <b>${r.stages.length}</b> 段里随机抽 <input id="selN" type="number" min="2" max="${r.stages.length}" value="${r.sel}"> 段；第一段
+    <select id="firstSel"><option value="random" ${r.first==="random"?"selected":""}>随机</option><option value="detect" ${r.first==="detect"?"selected":""}>按玩家所在位置检测</option></select>，其余
+    <select id="restSel"><option value="random_unique" ${r.rest==="random_unique"?"selected":""}>不重复随机</option><option value="cycle" ${r.rest==="cycle"?"selected":""}>按阶段顺序</option></select></div>
+    <div class="stages">${tabs}</div>${cur_}
+    ${stageIdx>0||(stageIdx===0&&r.stages.length>2)?`<div class="row-actions"><button class="btn ghost sm" id="delStage">删除此阶段</button></div>`:""}`;
+}
+function renderHonors(){
+  const r=R(), k=kindOf(r);
+  $("#honors").innerHTML=HONORS.map(h=>{
+    const st=r.honors[h.key]||{}, na=!h.appliesTo.includes(k), on=!!st.on&&!na;
+    return `<div class="honor ${on?"on":""} ${na?"na":""}" data-h="${h.key}">
+      <div class="h-head"><div class="badge">${h.icon}</div>
+        <div><div class="h-title">${h.name}${h.timed?'<span class="kind">限时</span>':''}${h.key==="veteran"?'<span class="kind">仅经典版</span>':''}</div>
+        <div class="h-sub">${na?(h.key==="veteran"?"此修订不是经典版，不适用":"此修订不适用"):h.sub}</div></div>
+        <button class="sw" role="switch" aria-checked="${on}" aria-label="${h.name}" ${na?"disabled":""}></button></div>
+      ${on?`<div class="h-body">
+        <div class="links"><div class="link"><span class="kind">挑战</span><b>${h.challenge}</b></div><div class="link"><span class="kind">称号</span><b>${h.rule}</b></div></div>
+        ${h.timed?`<div class="sched">有效期 <input type="date" value="${st.from||""}" data-f="from"> 至 <input type="date" value="${st.to||""}" data-f="to"><span style="color:var(--quiet);font-size:12.5px">${st.from&&st.to?"":"建议填写，一般不超过半个月"}</span></div>`:""}
+        <div class="eff">${st.custom?"本图自定义条件":"沿用规则默认"}：<b>${st.cond||h.cond}</b> · 证据：${st.evid||h.evid} · ${st.smode||h.mode}
+          <button class="linkbtn" data-custom style="margin-left:.4rem">${st.custom?"恢复默认":"本图自定义"}</button></div>
+        ${st.custom?`<div class="ov"><label>通关条件<input data-f="cond" value="${st.cond||h.cond}"></label><label>证据<input data-f="evid" value="${st.evid||h.evid}"></label>
+          <label>审核方式<select data-f="smode"><option ${((st.smode||h.mode)==="自动审核")?"selected":""}>自动审核</option><option ${((st.smode||h.mode)==="人工审核")?"selected":""}>人工审核</option></select></label></div>`:""}
+      </div>`:""}</div>`}).join("");
+  $("#masteryNote").textContent=r.default?"当前版本即正式版，玩家每次上传通关截图都会在这里累计精通经验。":`成为正式版后才开始累计；当前正式版（${revs.find(x=>x.default).ver}）的精通记录会原样保留为历史。`;
+}
+function renderAll(){renderRevs();renderReady();renderSpatial();renderHonors();syncDraft()}
+
+/* ---- dirty / draft ---- */
+function dirty(){return JSON.stringify(revs)!==saved}
+function syncDraft(){
+  const d=dirty(); $("#draft").classList.toggle("show",d);
+  if(d){const before=JSON.parse(saved);const n=revs.filter(r=>JSON.stringify(r)!==JSON.stringify(before.find(b=>b.id===r.id))).length;
+    $("#draftText").textContent=`「${R().name}」有未保存的修改`+(n>1?`（共 ${n} 个修订）`:"");}
+}
+$("#save").onclick=()=>{lastSaved=saved;saved=JSON.stringify(revs);syncDraft();$("#toastText").textContent="已保存";showToast()};
+$("#discard").onclick=()=>{revs=JSON.parse(saved);if(!revs.some(r=>r.id===cur))cur=revs[0].id;renderAll()};
+$("#undo").onclick=()=>{if(!lastSaved)return;revs=JSON.parse(lastSaved);saved=lastSaved;lastSaved=null;hideToast();renderAll()};
+let tt;function showToast(){const t=$("#toast");t.classList.add("show");clearTimeout(tt);tt=setTimeout(hideToast,6000)}
+function hideToast(){$("#toast").classList.remove("show")}
+
+/* ---- events ---- */
+document.addEventListener("click",e=>{
+  const rv=e.target.closest(".rev[data-id]"); if(rv){cur=rv.dataset.id;stageIdx=R().mode==="composite"?0:stageIdx;renderAll();return}
+  if(e.target.closest("#addRev")){openNew();return}
+  const md=e.target.closest("[data-mode]"); if(md&&md.dataset.mode!==R().mode){R().mode=md.dataset.mode;stageIdx=md.dataset.mode==="composite"?-1:0;
+    if(md.dataset.mode==="composite"&&!R().stages.length)R().stages=[{id:"stage-1",code:""},{id:"stage-2",code:""}];
+    if(md.dataset.mode==="composite"&&R().stages.length<2)R().stages.push({id:"stage-2",code:""});
+    renderAll();return}
+  const sg=e.target.closest("[data-stg]"); if(sg){stageIdx=+sg.dataset.stg;renderSpatial();return}
+  if(e.target.closest("#addStage")){const r=R();r.stages.push({id:"stage-"+(r.stages.length+1),code:""});stageIdx=r.stages.length-1;renderAll();return}
+  if(e.target.closest("#delStage")){const r=R();r.stages.splice(stageIdx,1);stageIdx=Math.max(0,stageIdx-1);renderAll();return}
+  const sw=e.target.closest(".sw"); if(sw&&!sw.disabled){const h=sw.closest("[data-h]").dataset.h;const r=R();r.honors[h]={...(r.honors[h]||{}),on:!r.honors[h]?.on};renderAll();return}
+  const cu=e.target.closest("[data-custom]"); if(cu){const h=cu.closest("[data-h]").dataset.h,r=R(),s=r.honors[h];s.custom=!s.custom;if(!s.custom){delete s.cond;delete s.evid;delete s.smode}renderAll();return}
+  if(e.target.closest("#applyRec")){applyRec();return}
+  if(e.target.closest("#promote")){openPromote();return}
+});
+document.addEventListener("input",e=>{
+  const ta=e.target.closest("[data-paste]"); if(ta){
+    const id=ta.dataset.paste,r=R();
+    const before=id==="single"?r.code:id==="shared"?r.shared:r.stages[+id.slice(5)].code;
+    const prev=parse(before);
+    if(id==="single")r.code=ta.value;else if(id==="shared")r.shared=ta.value;else r.stages[+id.slice(5)].code=ta.value;
+    const f=parse(ta.value);
+    document.getElementById("found-"+id).innerHTML=ta.value.trim()?chipsFor(f):"";
+    const hint=ta.parentElement.querySelector(".hint"); if(hint)hint.style.display=ta.value.trim()?"none":"";
+    if(!ta.value.trim()||true){ // refresh dependent UI without losing focus
+      renderRevs();renderReady();syncDraft();
+      const d=ta.closest(".card").querySelector("details.pts");
+    }
+    return}
+  const f=e.target.dataset.f; if(f){const h=e.target.closest("[data-h]").dataset.h;R().honors[h][f]=e.target.value;syncDraft();return}
+  if(e.target.id==="selN"){R().sel=+e.target.value;renderReady();syncDraft()}
+});
+document.addEventListener("change",e=>{
+  if(e.target.id==="firstSel"){R().first=e.target.value;syncDraft()}
+  if(e.target.id==="restSel"){R().rest=e.target.value;syncDraft()}
+  if(e.target.matches("[data-paste]")){renderSpatial()}
+  if(e.target.matches("[data-f=smode]")){renderHonors()}
+});
+
+function applyRec(){
+  const r=R(),k=kindOf(r);
+  const rec={default:["conqueror","dominator"],classic:["veteran"],limited:["conqueror","dominator","pioneer"]}[k];
+  HONORS.forEach(h=>{r.honors[h.key]={...(r.honors[h.key]||{}),on:rec.includes(h.key)}});
+  renderAll();
+}
+
+/* ---- promote ---- */
+function openPromote(){
+  const r=R(),old=revs.find(x=>x.default);let keep="selectable";
+  const draw=()=>{$("#promoteBody").innerHTML=`<h3>把「${r.name}」设为正式版？</h3>
+    <p>同一时间只能有一个正式版。设置后，新玩家的挑战、称号和精通进度都会记在「${r.name}」上。</p>
+    <div class="opts"><p style="font-size:13px;margin-bottom:.1rem">原正式版「${old.name} ${old.ver}」改为：</p>
+      <button class="opt" data-keep="selectable" aria-pressed="${keep==="selectable"}"><div><b>保留为可选版本</b><span>玩家仍可选择它玩（适合限时版并行）</span></div></button>
+      <button class="opt" data-keep="historical" aria-pressed="${keep==="historical"}"><div><b>归档为历史版本</b><span>不再开放，已有记录全部保留</span></div></button></div>
+    <p style="font-size:12.5px">不会复制或清除任何玩家进度。</p>
+    <div class="foot"><button class="btn" id="pCancel">取消</button><button class="btn primary" id="pOk">确认设为正式版</button></div>`;
+    $("#promoteBody").querySelectorAll("[data-keep]").forEach(b=>b.onclick=()=>{keep=b.dataset.keep;draw()});
+    $("#pCancel").onclick=()=>$("#promoteDlg").close();
+    $("#pOk").onclick=()=>{old.default=false;old.life=keep;r.default=true;r.life="default";$("#promoteDlg").close();$("#toastText").textContent=`「${r.name}」已是正式版`;saved=JSON.stringify(revs);lastSaved=null;showToast();renderAll()};
+  };draw();$("#promoteDlg").showModal();
+}
+/* ---- new revision ---- */
+function openNew(){
+  let kind="limited";
+  const draw=()=>{$("#newBody").innerHTML=`<h3>新建修订</h3><p>从你要做的事开始选，其余都会预设好。</p>
+    <div class="opts">
+      <button class="opt" data-k="limited" aria-pressed="${kind==="limited"}"><div><b>限时 / 活动版本</b><span>周年庆、万圣节等，默认关联征服者、主宰、开拓者</span></div></button>
+      <button class="opt" data-k="rework" aria-pressed="${kind==="rework"}"><div><b>地图重置 / 重做</b><span>复制当前正式版点位，之后改动；准备好再设为正式版</span></div></button>
+      <button class="opt" data-k="classic" aria-pressed="${kind==="classic"}"><div><b>经典版</b><span>默认只关联老兵</span></div></button></div>
+    <label style="display:grid;gap:.25rem;font-size:13px;color:var(--muted)">名称<input id="nName" style="border:1px solid var(--line);border-radius:8px;padding:.45rem .6rem" value="${{limited:"万圣节2026",rework:"重制版",classic:"经典版"}[kind]}"></label>
+    <div class="foot"><button class="btn" id="nCancel">取消</button><button class="btn primary" id="nOk">创建</button></div>`;
+    $("#newBody").querySelectorAll("[data-k]").forEach(b=>b.onclick=()=>{kind=b.dataset.k;draw()});
+    $("#nCancel").onclick=()=>$("#newDlg").close();
+    $("#nOk").onclick=()=>{
+      const base=revs.find(x=>x.default),id="n"+Math.random().toString(16).slice(2,6);
+      const r=mk({id,name:$("#nName").value||"新修订",life:"prep",variant:kind==="classic"?"classic":null,ver:"2026.10.10",code:kind==="rework"?base.code:"",honors:{},updated:"刚刚",tag:kind==="limited"?"限时":undefined});
+      revs.push(r);cur=id;applyRecFor(r,kind);$("#newDlg").close();stageIdx=0;renderAll()};
+  };draw();$("#newDlg").showModal();
+}
+function applyRecFor(r,kind){
+  const rec={limited:["conqueror","dominator","pioneer"],rework:["conqueror","dominator","pioneer"],classic:["veteran"]}[kind];
+  rec.forEach(k=>r.honors[k]={on:true});
+}
+$("#metaBtn").onclick=()=>alert("原型：地图资料（评级、机制标签、封面）收进抽屉，不占编辑区。");
+$("#logBtn").onclick=()=>alert("原型：修改记录收进抽屉。");
+renderAll();
+</script>
+</body>
+</html>

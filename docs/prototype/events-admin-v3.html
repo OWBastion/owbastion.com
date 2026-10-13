@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>事件管理 · 草稿式工作台原型</title>
+<style>
+:root{--bg:#f3efe6;--panel:#fcfaf5;--panel2:#f5f0e4;--line:#e3dac8;--text:#2a1d12;--muted:#6f5f4c;--quiet:#8d7d68;--accent:#b4500c;--accent2:#e8884a;--accent-soft:#f6e2cf;--ok:#2f7d45;--bad:#b3392b;--warn:#a8741a;--info:#2f6a9a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,"PingFang SC",sans-serif}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+.page{max-width:1280px;margin:0 auto;padding:22px 20px 90px;display:grid;gap:14px}
+header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+h1{margin:0;font-size:34px;letter-spacing:-.02em;line-height:1}
+h1 small{font-size:13px;color:var(--quiet);font-weight:500;margin-left:8px}
+.btn{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 14px;min-height:38px;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--quiet)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn.ghost{background:none;border-color:transparent}
+.btn.sm{min-height:30px;padding:3px 10px;font-size:13px}
+.btn:disabled{opacity:.45;cursor:default}
+
+/* pool strip */
+.pool{display:flex;gap:18px;align-items:center;flex-wrap:wrap;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.pool b{font-size:18px}.pool span.l{color:var(--muted);font-size:12.5px;margin-left:4px}
+.pool .sp{flex:1}
+.ver{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:2px 10px 2px 8px;border-radius:999px;border:1px solid var(--line);background:none}
+.ver i{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.ver.off{color:var(--quiet);text-decoration:line-through}.ver.off i{background:var(--warn)}
+
+/* toolbar */
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.search{flex:1 1 220px;min-width:160px;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
+.seg button{border:0;background:none;padding:7px 12px;color:var(--muted)}
+.seg button[aria-pressed=true]{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.seg button small{margin-left:4px;color:var(--quiet)}
+select.sel{padding:7px 10px;border-radius:10px;border:1px solid var(--line);background:var(--panel)}
+
+/* action band: draft / selection (in flow, sticky) */
+.band{position:sticky;top:8px;z-index:6;display:none;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 12px;border-radius:12px;border:1px solid var(--accent2);background:#fff6ec;box-shadow:0 6px 24px #b4500c22}
+.band.show{display:flex}
+.band .sp{flex:1}
+.band.sel{border-color:var(--line);background:var(--panel2);box-shadow:none}
+.band b{font-weight:700}
+.delta-list{font-size:12.5px;color:var(--muted)}
+
+/* table */
+.card{border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow:hidden}
+table{width:100%;border-collapse:collapse}
+th{position:sticky;top:0;background:var(--panel2);text-align:left;font-size:12.5px;color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;user-select:none}
+th.s{cursor:pointer}th.s:hover{color:var(--text)}
+td{padding:6px 10px;border-bottom:1px solid #eee6d6;vertical-align:middle}
+tr:hover td{background:#fffdf8}
+tr.sel td{background:#fbeedd}
+tr.dim td{opacity:.55}
+td.n{font-variant-numeric:tabular-nums}
+.name{font-weight:600;cursor:pointer;background:none;border:0;padding:0;text-align:left}
+.name:hover{color:var(--accent);text-decoration:underline}
+.cell{border:1px solid transparent;background:none;border-radius:8px;padding:4px 6px;min-width:0;width:100%}
+.cell:hover{border-color:var(--line);background:#fff}
+.cell:focus{outline:2px solid var(--accent2);background:#fff}
+input.cell.w{width:70px;text-align:right;font-variant-numeric:tabular-nums}
+.chg{background:var(--accent-soft)!important;border-color:var(--accent2)!important;font-weight:600}
+.prob{display:flex;align-items:center;gap:8px;min-width:150px}
+.prob .t{flex:1;height:6px;background:#eadfc8;border-radius:3px;overflow:hidden;min-width:40px}
+.prob .t i{display:block;height:100%;background:var(--accent2)}
+.prob b{min-width:50px;text-align:right;font-variant-numeric:tabular-nums}
+.d{font-size:12px;min-width:56px;font-variant-numeric:tabular-nums}.d.up{color:var(--ok)}.d.dn{color:var(--bad)}
+.tag{font-size:12px;padding:0 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.cat-增益{color:var(--ok)}.cat-减益{color:var(--bad)}.cat-机制{color:var(--info)}
+input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent)}
+.empty{padding:40px;text-align:center;color:var(--muted)}
+
+/* sheet (on demand) */
+.scrim{position:fixed;inset:0;background:#2a1d1255;display:none;z-index:20}
+.scrim.show{display:block}
+.sheet{position:fixed;top:0;right:0;bottom:0;width:min(440px,100vw);background:var(--panel);border-left:1px solid var(--line);box-shadow:-20px 0 60px #0003;z-index:21;display:none;grid-template-rows:auto 1fr auto}
+.sheet.show{display:grid}
+.sheet header{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.sheet header h2{margin:0;font-size:18px;flex:1}
+.sheet .body{overflow:auto;padding:16px;display:grid;gap:12px;align-content:start}
+.sheet footer{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px;align-items:center;color:var(--muted);font-size:13px}
+label.f{display:grid;gap:4px;font-size:12.5px;color:var(--muted)}
+label.f input,label.f select,label.f textarea{padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--text)}
+label.f textarea{min-height:90px;resize:vertical}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.note{background:var(--accent-soft);border-radius:8px;padding:6px 10px;font-size:12.5px;color:var(--accent)}
+
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#2a1d12;color:#fff;border-radius:12px;padding:10px 14px;display:none;gap:14px;align-items:center;z-index:40;box-shadow:0 10px 30px #0005}
+.toast.show{display:flex}
+.toast button{background:none;border:0;color:#ffb27a;font-weight:700}
+
+@media (max-width:760px){
+  .hide-m{display:none}
+  th,td{padding:6px 6px}
+  .prob{min-width:90px}.prob .t{display:none}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="top">
+    <h1>事件管理<small id="count"></small></h1>
+    <div style="display:flex;gap:8px">
+      <button class="btn" id="importBtn">导入 CSV</button>
+      <button class="btn primary" id="newBtn">＋ 新建事件</button>
+    </div>
+  </header>
+
+  <section class="pool" aria-label="候选池">
+    <div><b id="poolN">0</b><span class="l">个已实装事件在候选池</span></div>
+    <div><b id="poolW">0</b><span class="l">权重合计</span></div>
+    <span class="sp"></span>
+    <div id="vers" style="display:flex;gap:6px;flex-wrap:wrap" aria-label="版本可用性"></div>
+  </section>
+
+  <div class="bar">
+    <input class="search" id="q" placeholder="搜索名称、事件组、效果" aria-label="搜索事件">
+    <div class="seg" id="st" role="group" aria-label="状态"></div>
+    <select class="sel" id="gf" aria-label="事件组"></select>
+    <select class="sel" id="vf" aria-label="版本"></select>
+  </div>
+
+  <div class="band" id="draftBand" role="status"><b id="draftN"></b><span class="delta-list" id="draftInfo"></span><span class="sp"></span><button class="btn sm ghost" id="discard">放弃</button><button class="btn sm primary" id="saveAll">保存全部</button></div>
+  <div class="band sel" id="selBand"></div>
+
+  <div class="card"><table><thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody></table><div class="empty" id="empty" hidden>没有符合条件的事件</div></div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="sheet" id="sheet" aria-label="事件详情"></aside>
+<div class="toast" id="toast"><span id="toastMsg"></span><button id="undo">撤销</button></div>
+
+<script>
+const GROUPS=["赌徒","作弊","任务"],CATS=["增益","减益","机制"],VERS=["5.0","4.0","3.0","2026周年"];
+const STAT={implemented:"已实装",development:"开发中",removed:"已移除"};
+const nm=["乐于助人","梭哈艺术","心之钢","赢家通吃","掷骰狂人","短期投资","循环往复","先知","有福同享","同行链","在哪里跌倒","孤注一掷","沉默是金","重力反转","双倍奉还","镜像世界","时间回溯","幸运星","烈焰之路","寒冰屏障","影分身","能量风暴","失重","磁力牵引","瞬移","护盾","狂暴","隐身","急冻","连锁闪电","治愈之泉","负重前行","盲区","回声","反噬","共鸣","加速带","陷阱","补给","传送门"];
+let sd=5;const rnd=()=>(sd=(sd*9301+49297)%233280)/233280;
+let EV=nm.map((n,i)=>({id:"e"+i,name:n,grp:i<8?GROUPS[i<6?0:1]:i<11?"任务":"",cat:CATS[Math.floor(rnd()*3)],w:[1.2,1,.8,.6,.4,.2][Math.floor(rnd()*6)],ver:VERS[Math.floor(rnd()*4)],status:rnd()>.9?"development":rnd()>.88?"removed":"implemented",dur:15+Math.floor(rnd()*100),cd:rnd()>.5?Math.floor(rnd()*5):null,desc:"长按装填(R)：75% 概率使所有友方恢复 85% 最大生命值；25% 概率使所有玩家生命值降低至 1。",tags:["心之钢"].slice(0,rnd()>.5?1:0)}));
+const suspended=new Set();
+const S={q:"",st:"implemented",gf:"all",vf:"all",sort:{k:"ver",d:-1},draft:new Map(),sel:new Set(),sheet:null};
+const $=s=>document.querySelector(s),esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const cur=e=>({...e,...(S.draft.get(e.id)||{})});
+const BASE=2.5,TRIES=8;
+function probs(list){ // global pool, rejection sampling (same as the Portal)
+  const pool=list.filter(e=>e.status==="implemented"&&!suspended.has(e.ver));
+  const n=pool.length;if(!n)return new Map();
+  const a=w=>Math.min(1,w/BASE),s=pool.reduce((t,e)=>t+a(e.w),0)/n,f=1-s,g=f**TRIES;
+  return new Map(pool.map(e=>[e.id,s===0?g/n:(a(e.w)/n)*(1-g)/s+g/n]));
+}
+const pct=v=>v==null?"—":(v*100<10?(v*100).toFixed(2):(v*100).toFixed(1))+"%";
+function view(){return EV.map(cur)}
+function vals(){const base=probs(EV.map(e=>({...e}))),next=probs(view());return{base,next}}
+
+function visible(){
+  const q=S.q.trim();
+  let l=view().filter(e=>(S.st==="all"||e.status===S.st)&&(S.gf==="all"||(S.gf==="__none"?!e.grp:e.grp===S.gf))&&(S.vf==="all"||e.ver===S.vf)&&(!q||(e.name+e.grp+e.desc).includes(q)));
+  const {k,d}=S.sort,{next}=vals();
+  const key=e=>k==="p"?(next.get(e.id)??-1):k==="w"?e.w:k==="name"?e.name:k==="ver"?e.ver:(e[k]||"");
+  return l.sort((a,b)=>{const x=key(a),y=key(b);const c=typeof x==="number"?x-y:String(x).localeCompare(String(y),"zh-CN",{numeric:true});return c*d||a.name.localeCompare(b.name,"zh-CN")});
+}
+function opts(list,v,empty){return (empty?`<option value="">${empty}</option>`:"")+list.map(x=>`<option ${x===v?"selected":""}>${x}</option>`).join("")}
+
+function render(){
+  const {base,next}=vals(),list=visible();
+  $("#count").textContent=`${EV.length} 条`;
+  const pool=view().filter(e=>e.status==="implemented"&&!suspended.has(e.ver));
+  $("#poolN").textContent=pool.length;$("#poolW").textContent=Number(pool.reduce((t,e)=>t+e.w,0).toFixed(2));
+  $("#vers").innerHTML=VERS.map(v=>`<button class="ver ${suspended.has(v)?"off":""}" data-ver="${v}" title="${suspended.has(v)?"已挂起，点击恢复":"点击挂起"}"><i></i>${v}</button>`).join("");
+  const cnt=k=>EV.map(cur).filter(e=>k==="all"||e.status===k).length;
+  $("#st").innerHTML=[["implemented","已实装"],["development","开发中"],["removed","已移除"],["all","全部"]].map(([k,l])=>`<button data-st="${k}" aria-pressed="${S.st===k}">${l}<small>${cnt(k)}</small></button>`).join("");
+  const gs=[...new Set(EV.map(e=>cur(e).grp).filter(Boolean))].sort();
+  $("#gf").innerHTML=`<option value="all">全部事件组</option>${gs.map(g=>`<option ${S.gf===g?"selected":""} value="${g}">${g}</option>`).join("")}<option value="__none" ${S.gf==="__none"?"selected":""}>未分组</option>`;
+  $("#vf").innerHTML=`<option value="all">全部版本</option>${VERS.map(v=>`<option ${S.vf===v?"selected":""}>${v}</option>`).join("")}`;
+  const arrow=k=>S.sort.k===k?(S.sort.d>0?" ▲":" ▼"):"";
+  $("#thead").innerHTML=`<th style="width:34px"><input type="checkbox" id="all" aria-label="全选" ${list.length&&list.every(e=>S.sel.has(e.id))?"checked":""}></th><th class="s" data-sort="name">事件${arrow("name")}</th><th>事件组</th><th class="hide-m">类别</th><th class="s" data-sort="w" style="width:92px">权重${arrow("w")}</th><th class="s" data-sort="p">出现概率${arrow("p")}</th><th class="s hide-m" data-sort="ver">版本${arrow("ver")}</th><th>状态</th>`;
+  const max=Math.max(...[...next.values(),0]);
+  $("#tbody").innerHTML=list.map(e=>{
+    const ch=S.draft.get(e.id)||{},p=next.get(e.id),b=base.get(e.id);
+    const dl=(p!=null&&b!=null)?p-b:(p!=null?p:(b!=null?-b:null));
+    const delta=dl==null||Math.abs(dl)<1e-5?"":`<span class="d ${dl>0?"up":"dn"}">${dl>0?"▲":"▼"} ${(Math.abs(dl)*100).toFixed(2)}</span>`;
+    return `<tr class="${S.sel.has(e.id)?"sel":""} ${e.status!=="implemented"||suspended.has(e.ver)?"dim":""}" data-id="${e.id}">
+      <td><input type="checkbox" data-pick="${e.id}" ${S.sel.has(e.id)?"checked":""} aria-label="选择 ${esc(e.name)}"></td>
+      <td><button class="name" data-open="${e.id}">${esc(e.name)}</button>${"name" in ch?'<span class="tag" style="margin-left:6px;color:var(--accent)">已改</span>':""}</td>
+      <td><select class="cell ${"grp" in ch?"chg":""}" data-f="grp" aria-label="事件组">${opts(GROUPS.concat(e.grp&&!GROUPS.includes(e.grp)?[e.grp]:[]),e.grp,"—")}</select></td>
+      <td class="hide-m cat-${e.cat}">${e.cat}</td>
+      <td><input class="cell w ${"w" in ch?"chg":""}" data-f="w" type="number" step="0.05" min="0" value="${e.w}" aria-label="权重"></td>
+      <td><div class="prob"><span class="t"><i style="width:${p?Math.max(3,p/max*100):0}%"></i></span><b>${pct(p)}</b>${delta}</div></td>
+      <td class="hide-m"><select class="cell ${"ver" in ch?"chg":""}" data-f="ver" aria-label="版本">${opts(VERS,e.ver)}</select></td>
+      <td><select class="cell ${"status" in ch?"chg":""}" data-f="status" aria-label="状态">${Object.entries(STAT).map(([k,v])=>`<option value="${k}" ${k===e.status?"selected":""}>${v}</option>`).join("")}</select></td></tr>`}).join("");
+  $("#empty").hidden=list.length>0;
+  // draft band
+  const n=S.draft.size;
+  $("#draftBand").classList.toggle("show",n>0);
+  if(n){
+    $("#draftN").textContent=`${n} 项未保存的修改`;
+    const moved=[...next.entries()].map(([id,p])=>[id,p-(base.get(id)??0)]).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,2).filter(x=>Math.abs(x[1])>1e-4);
+    $("#draftInfo").textContent=moved.length?"概率变化最大："+moved.map(([id,d])=>`${EV.find(e=>e.id===id).name} ${d>0?"+":""}${(d*100).toFixed(2)}%`).join("，"):"";
+  }
+  // selection band
+  const sb=$("#selBand");sb.classList.toggle("show",S.sel.size>0);
+  if(S.sel.size)sb.innerHTML=`<b>已选 ${S.sel.size} 项</b><select class="sel" data-bulk="status"><option value="">设为状态…</option>${Object.entries(STAT).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select><select class="sel" data-bulk="ver"><option value="">移到版本…</option>${VERS.map(v=>`<option>${v}</option>`).join("")}</select><select class="sel" data-bulk="grp"><option value="">设事件组…</option>${GROUPS.map(v=>`<option>${v}</option>`).join("")}<option value="__clear">清除事件组</option></select><span class="seg"><button data-wop="set">权重＝</button><button data-wop="add">＋</button><button data-wop="mul">×</button></span><input class="sel" id="wval" type="number" step="0.05" placeholder="数值" style="width:84px"><button class="btn sm" id="wapply">应用权重</button><span class="sp"></span><button class="btn sm ghost" id="clearSel">取消选择</button>`;
+  renderSheet();
+}
+
+// ---- staging ----
+function stage(id,patch){
+  const e=EV.find(x=>x.id===id),d={...(S.draft.get(id)||{})};
+  for(const [k,v] of Object.entries(patch)){ if(v===e[k]||(k==="grp"&&!v&&!e.grp))delete d[k]; else d[k]=v; }
+  Object.keys(d).length?S.draft.set(id,d):S.draft.delete(id);
+}
+let undoSnap=null,toastTimer;
+function toast(msg,fn){$("#toastMsg").textContent=msg;undoSnap=fn||null;$("#undo").style.display=fn?"":"none";$("#toast").classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>$("#toast").classList.remove("show"),7000)}
+$("#undo").onclick=()=>{undoSnap&&undoSnap();$("#toast").classList.remove("show")};
+function saveAll(){
+  const before=EV.map(e=>({...e})),n=S.draft.size;
+  EV=EV.map(e=>({...e,...(S.draft.get(e.id)||{})}));S.draft.clear();render();
+  toast(`已保存 ${n} 项修改`,()=>{EV=before;render();toast("已撤销")});
+}
+
+// ---- events ----
+document.addEventListener("click",ev=>{
+  const t=ev.target;
+  const st=t.closest("[data-st]");if(st){S.st=st.dataset.st;render();return}
+  const sort=t.closest("[data-sort]");if(sort){const k=sort.dataset.sort;S.sort=S.sort.k===k?{k,d:-S.sort.d}:{k,d:k==="p"||k==="w"?-1:1};render();return}
+  const ver=t.closest("[data-ver]");if(ver){const v=ver.dataset.ver,was=suspended.has(v);was?suspended.delete(v):suspended.add(v);render();toast(`${v} ${was?"已恢复":"已挂起"}，只影响下一次构建`,()=>{was?suspended.add(v):suspended.delete(v);render()});return}
+  const open=t.closest("[data-open]");if(open){S.sheet=open.dataset.open;render();return}
+  if(t.id==="saveAll"){saveAll();return}
+  if(t.id==="discard"){S.draft.clear();render();return}
+  if(t.id==="clearSel"){S.sel.clear();render();return}
+  if(t.id==="newBtn"){const id="e"+Date.now();EV.unshift({id,name:"新事件",grp:"",cat:"增益",w:1,ver:VERS[0],status:"development",dur:30,cd:null,desc:"",tags:[]});S.sheet=id;S.st="all";render();return}
+  const wop=t.closest("[data-wop]");if(wop){S.wop=wop.dataset.wop;document.querySelectorAll("[data-wop]").forEach(b=>b.setAttribute("aria-pressed",b===wop));return}
+  if(t.id==="wapply"){const v=parseFloat($("#wval").value);if(Number.isNaN(v))return;const op=S.wop||"set";S.sel.forEach(id=>{const e=cur(EV.find(x=>x.id===id));stage(id,{w:Math.max(0,+(op==="set"?v:op==="add"?e.w+v:e.w*v).toFixed(3))})});render();return}
+  if(t.id==="scrim"||t.closest("[data-close]")){S.sheet=null;render();return}
+  const nav=t.closest("[data-nav]");if(nav){const l=visible(),i=l.findIndex(e=>e.id===S.sheet),n=l[i+(+nav.dataset.nav)];if(n){S.sheet=n.id;render()}return}
+});
+document.addEventListener("change",ev=>{
+  const t=ev.target,tr=t.closest("tr[data-id]");
+  if(t.id==="all"){visible().forEach(e=>t.checked?S.sel.add(e.id):S.sel.delete(e.id));render();return}
+  if(t.dataset.pick){t.checked?S.sel.add(t.dataset.pick):S.sel.delete(t.dataset.pick);render();return}
+  if(t.id==="gf"){S.gf=t.value;render();return}if(t.id==="vf"){S.vf=t.value;render();return}
+  if(t.dataset.bulk){if(!t.value)return;const k=t.dataset.bulk;S.sel.forEach(id=>stage(id,{[k]:t.value==="__clear"?"":t.value}));render();return}
+  if(tr&&t.dataset.f){const v=t.dataset.f==="w"?Math.max(0,parseFloat(t.value)||0):t.value;stage(tr.dataset.id,{[t.dataset.f]:v});render();return}
+  if(t.dataset.sf){stage(S.sheet,{[t.dataset.sf]:["w","dur","cd"].includes(t.dataset.sf)?(t.value===""?null:parseFloat(t.value)):t.value});render()}
+});
+$("#q").oninput=e=>{S.q=e.target.value;render()};
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&S.sheet){S.sheet=null;render()}if(S.sheet&&!/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)){if(e.key==="j")document.querySelector('[data-nav="1"]')?.click();if(e.key==="k")document.querySelector('[data-nav="-1"]')?.click()}});
+
+function renderSheet(){
+  const sh=$("#sheet"),sc=$("#scrim");
+  if(!S.sheet){sh.classList.remove("show");sc.classList.remove("show");return}
+  const e=cur(EV.find(x=>x.id===S.sheet)),ch=S.draft.get(e.id)||{},{base,next}=vals();
+  sh.classList.add("show");sc.classList.add("show");
+  if(sh.dataset.id===e.id&&sh.contains(document.activeElement)&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){ // keep typing focus: only refresh the readout
+    const r=sh.querySelector("#pr");if(r)r.innerHTML=probHtml(e,base,next);return}
+  sh.dataset.id=e.id;
+  sh.innerHTML=`<header><button class="btn sm ghost" data-nav="-1" aria-label="上一条">‹</button><button class="btn sm ghost" data-nav="1" aria-label="下一条">›</button><h2>${esc(e.name)}</h2><button class="btn sm ghost" data-close aria-label="关闭">✕</button></header>
+  <div class="body">
+    <div id="pr">${probHtml(e,base,next)}</div>
+    <label class="f">名称<input data-sf="name" value="${esc(e.name)}"></label>
+    <div class="g2"><label class="f">事件组<select data-sf="grp">${opts(GROUPS,e.grp,"无")}</select></label><label class="f">类别<select data-sf="cat">${opts(CATS,e.cat)}</select></label></div>
+    <div class="g2"><label class="f">版本<select data-sf="ver">${opts(VERS,e.ver)}</select></label><label class="f">状态<select data-sf="status">${Object.entries(STAT).map(([k,v])=>`<option value="${k}" ${k===e.status?"selected":""}>${v}</option>`).join("")}</select></label></div>
+    <div class="g2"><label class="f">权重<input data-sf="w" type="number" step="0.05" min="0" value="${e.w}"></label><label class="f">持续时间（秒）<input data-sf="dur" type="number" value="${e.dur??""}"></label></div>
+    <label class="f">内置冷却（秒）<input data-sf="cd" type="number" value="${e.cd??""}"></label>
+    <label class="f">内容说明<textarea data-sf="desc">${esc(e.desc)}</textarea></label>
+  </div>
+  <footer><span id="sfoot">${Object.keys(ch).length?"已改动，改动在页面顶部的草稿中，统一保存":"没有修改"}</span><span style="flex:1"></span><button class="btn sm" data-close>完成</button></footer>`;
+}
+function probHtml(e,base,next){const p=next.get(e.id),b=base.get(e.id);return `<div style="display:flex;align-items:baseline;gap:10px"><span style="font-size:30px;font-weight:700;color:var(--accent)">${pct(p)}</span>${p!=null&&b!=null&&Math.abs(p-b)>1e-5?`<span class="d ${p>b?"up":"dn"}">已保存 ${pct(b)}</span>`:""}</div><div class="note" style="margin-top:6px">${p!=null?`平均每 ${Math.round(1/p)} 次事件抽取出现 1 次`:"不在候选池（仅已实装且版本未挂起的事件参与抽取）"}</div>`}
+render();
+</script>
+</body>
+</html>

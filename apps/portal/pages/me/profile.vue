@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { portalErrorDetails } from "~/utils/portal-error";
 import type { CurrentPlayerMasteryResponse, PlayerVerifiedRun, PortalMap } from "~/composables/usePortalApi";
-import { buildMapProgressRows, type MapProgressChallenge } from "~/utils/map-progress";
 import { formatMasteryDuration } from "~/utils/mastery";
 import { buildRunDayGrid } from "~/utils/run-days";
 import type { OwnedTitle } from "~/types/title";
@@ -14,16 +13,8 @@ const { items: titles, refresh: refreshTitles } = usePlayerTitles();
 const { days: activityDays, loading: activityLoading, ready: activityReady, error: activityError, refresh: refreshActivity } = usePlayerActivity();
 const api = usePortalApi();
 
-const { data: catalog, error: catalogFetchError, refresh: refreshCatalog } = await useAsyncData("profile-map-catalog", async () => {
-  const [mapsResponse, challengesResponse] = await Promise.all([
-    usePublicCatalog<{ items: PortalMap[] }>("maps"),
-    usePublicCatalog<{ items: MapProgressChallenge[] }>("mapChallenges"),
-  ]);
-  return { maps: mapsResponse.items, challenges: challengesResponse.items };
-});
-const maps = computed(() => catalog.value?.maps ?? []);
-const challenges = computed(() => catalog.value?.challenges ?? []);
-const catalogError = computed(() => catalogFetchError.value ? portalErrorDetails(catalogFetchError.value, "无法读取地图，请稍后重试。").description : "");
+const { data: mapsResponse } = await useAsyncData("profile-maps", () => usePublicCatalog<{ items: PortalMap[] }>("maps"));
+const maps = computed(() => mapsResponse.value?.items ?? []);
 
 const loading = shallowRef(true);
 const playerError = shallowRef("");
@@ -36,10 +27,7 @@ const masteryError = shallowRef("");
 const masteryReady = shallowRef(false);
 const masteryLoading = shallowRef(false);
 const masteryRetrying = shallowRef(false);
-const catalogRetrying = shallowRef(false);
 
-const progressRows = computed(() => buildMapProgressRows({ maps: maps.value, challenges: challenges.value, titles: titles.value, profiles: [] }));
-const challengeStats = computed(() => progressRows.value.reduce((stats, row) => ({ earned: stats.earned + row.earnedChallenges.length, total: stats.total + row.challenges.length }), { earned: 0, total: 0 }));
 const equippedTitles = computed(() => titles.value.filter((title) => title.equipped));
 const mapNameById = computed(() => new Map(maps.value.map((map) => [map.mapId, map.mapName])));
 const currentProfiles = computed(() => profiles.value.filter((profile) => profile.gameplayRevisionLifecycle === "default"));
@@ -47,7 +35,6 @@ const totalXp = computed(() => currentProfiles.value.reduce((sum, profile) => su
 const yearRuns = computed(() => buildRunDayGrid(activityDays.value, Date.now()).totalRuns);
 const heroStats = computed(() => [
   { label: "称号", value: titlesReady.value ? String(titles.value.length) : "—", unit: titlesReady.value ? "个" : undefined },
-  { label: "地图成就", value: titlesReady.value && challengeStats.value.total ? String(challengeStats.value.earned) : "—", unit: titlesReady.value && challengeStats.value.total ? `/ ${challengeStats.value.total}` : undefined },
   { label: "精通 XP", value: masteryReady.value ? String(totalXp.value) : "—" },
   { label: "近一年通关", value: activityReady.value ? String(yearRuns.value) : "—", unit: activityReady.value ? "次" : undefined },
 ]);
@@ -143,15 +130,6 @@ async function retryMastery() {
   }
 }
 
-async function retryCatalog() {
-  catalogRetrying.value = true;
-  try {
-    await refreshCatalog();
-  } finally {
-    catalogRetrying.value = false;
-  }
-}
-
 onMounted(() => {
   void load();
 });
@@ -170,7 +148,7 @@ onMounted(() => {
       <div class="profile-grid">
         <section class="section-block" aria-labelledby="titles-title">
           <PageSectionHeader title="称号收藏" heading-id="titles-title">
-            <template #actions><UButton to="/achievements" label="查看全部成就" color="neutral" variant="outline" /></template>
+            <template #actions><UButton to="/me/achievements" label="查看全部成就" color="neutral" variant="outline" /></template>
           </PageSectionHeader>
           <UAlert v-if="titlesError" color="error" variant="subtle" title="无法读取称号" :description="titlesError" class="profile-alert">
             <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="retrying" @click="retryTitles" /></template>
@@ -201,7 +179,7 @@ onMounted(() => {
             <UEmpty v-else-if="!recentRuns.length" title="暂无通关记录" variant="naked" />
             <ol v-else class="recent-runs">
               <li v-for="run in recentRuns" :key="run.runId">
-                <NuxtLink :to="`/maps?mapId=${encodeURIComponent(run.mapId)}`" class="recent-run interactive-card pressable-soft" :aria-label="`查看${runMapName(run)}详情`">
+                <NuxtLink :to="`/me/achievements/maps/${encodeURIComponent(run.mapId)}`" class="recent-run interactive-card pressable-soft" :aria-label="`查看${runMapName(run)}详情`">
                   <div class="recent-run-copy">
                     <strong>{{ runMapName(run) }} · {{ run.difficulty }}</strong>
                     <span><time :datetime="new Date(run.acceptedAt).toISOString()">{{ formatDate(run.acceptedAt) }}</time> · {{ formatMasteryDuration(run.completionDurationSeconds) }}</span>
@@ -213,29 +191,6 @@ onMounted(() => {
           </section>
         </div>
       </div>
-
-      <section class="section-block" aria-labelledby="map-progress-title">
-        <PageSectionHeader title="地图进度" heading-id="map-progress-title">
-          <template #actions><UButton to="/maps" label="查看地图" color="neutral" variant="outline" /></template>
-        </PageSectionHeader>
-        <UAlert v-if="catalogError" color="error" variant="subtle" title="无法读取地图" :description="catalogError" class="profile-alert">
-          <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="catalogRetrying" @click="retryCatalog" /></template>
-        </UAlert>
-        <UAlert v-if="masteryError" color="error" variant="subtle" title="无法读取精通记录" :description="masteryError" class="profile-alert">
-          <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="masteryRetrying" @click="retryMastery" /></template>
-        </UAlert>
-        <div v-if="masteryPending" class="mastery-loading" role="status" aria-label="读取地图进度…"><USkeleton /><USkeleton /></div>
-        <PlayerMapProgressSection
-          v-else-if="!catalogError"
-          :maps="maps"
-          :challenges="challenges"
-          :titles="titles"
-          :profiles="profiles"
-          show-targets
-          :show-mastery-facts="!masteryError"
-          :title-progress-available="titlesReady"
-        />
-      </section>
 
       <PlayerTitleInspectDialog v-model:open="inspectOpen" :title="inspected" />
     </template>
