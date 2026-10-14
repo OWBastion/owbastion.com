@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlatformServices } from "@owbastion/domain";
 import worker from "./worker";
-import { OCR_PENDING_RECOVERY_AGE_MS, OCR_QUEUE_MAX_DELIVERIES, OCR_QUEUE_MAX_RETRIES } from "./ocr-queue-policy";
+import { OCR_QUEUE_MAX_DELIVERIES, OCR_QUEUE_MAX_RETRIES } from "./ocr-queue-policy";
 
 const createPlatformServices = vi.hoisted(() => vi.fn());
 
@@ -227,7 +227,7 @@ describe("OCR Queue consumer", () => {
     expect(dispatchPendingQqGroupPolicyEvents).not.toHaveBeenCalled();
     expect(reconcileStaleOcrJobs).toHaveBeenCalledOnce();
     const olderThan = reconcileStaleOcrJobs.mock.calls[0]![0].olderThan;
-    expect(olderThan).toBeGreaterThanOrEqual(before - OCR_PENDING_RECOVERY_AGE_MS);
-    expect(olderThan).toBeLessThanOrEqual(Date.now() - OCR_PENDING_RECOVERY_AGE_MS);
+    expect(olderThan).toBeGreaterThanOrEqual(before - 45 * 60_000);
+    expect(olderThan).toBeLessThanOrEqual(Date.now() - 45 * 60_000);
   });
 });
