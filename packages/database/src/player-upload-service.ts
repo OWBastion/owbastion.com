@@ -90,7 +90,8 @@ export const createPlayerUploadServices = (dependencies: PlayerUploadDependencie
       const beforeCompletion = await db.select({ status: submissions.status, updatedAt: submissions.updatedAt }).from(submissions).where(eq(submissions.id, session.submissionId)).get();
       if (!beforeCompletion) throw new Error("UPLOAD_SESSION_INVALID");
       const timestamp = Math.max(now(), beforeCompletion.updatedAt + 1);
-      const enqueueingMarker = `${playerUploadCompletionEnqueueingPrefix}${crypto.randomUUID()}`;
+      const jobId = crypto.randomUUID();
+      const enqueueingMarker = `${playerUploadCompletionEnqueueingPrefix}${jobId}`;
       const response = { submissionId: session.submissionId, status: "processing" as const };
       await database.batch([
         database.prepare("UPDATE upload_sessions SET status = 'completed' WHERE id = ? AND status = 'uploaded'").bind(session.id),
@@ -100,6 +101,7 @@ export const createPlayerUploadServices = (dependencies: PlayerUploadDependencie
             AND EXISTS (SELECT 1 FROM upload_sessions WHERE id = ? AND submission_id = ? AND status = 'completed')`)
           .bind(timestamp, session.submissionId, beforeCompletion.updatedAt, session.id, session.submissionId),
         database.prepare("DELETE FROM idempotency_keys WHERE id = ? AND response_json = ? AND changes() = 0").bind(idempotencyRecordId, enqueueingMarker),
+        database.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, created_at) SELECT ?, ?, 0, 'pending', ? WHERE EXISTS (SELECT 1 FROM idempotency_keys WHERE id = ? AND response_json = ?)").bind(jobId, session.submissionId, timestamp, idempotencyRecordId, enqueueingMarker),
       ]);
       const claimedIdempotency = await db.select().from(idempotencyKeys).where(eq(idempotencyKeys.id, idempotencyRecordId)).get();
       if (!claimedIdempotency) {
@@ -112,7 +114,7 @@ export const createPlayerUploadServices = (dependencies: PlayerUploadDependencie
       }
 
       try {
-        await ocrQueue.send({ version: 1, submissionId: session.submissionId, objectKey: session.objectKey, ...(requestId ? { requestId } : {}) });
+        await ocrQueue.send({ version: 2, jobId, submissionId: session.submissionId, objectKey: session.objectKey, ...(requestId ? { requestId } : {}) });
         logOcrEvent("job_enqueued", { submissionId: session.submissionId, attempt: 0, manual: false, requestId: requestId ?? null });
       } catch (error) {
         logOcrEvent("job_enqueue_failed", { submissionId: session.submissionId, attempt: 0, manual: false, requestId: requestId ?? null, ...errorDetails(error) });
@@ -123,6 +125,7 @@ export const createPlayerUploadServices = (dependencies: PlayerUploadDependencie
               WHERE id = ? AND status = 'ocr_pending' AND updated_at = ?
                 AND EXISTS (SELECT 1 FROM idempotency_keys WHERE id = ? AND response_json = ?)`)
               .bind(failedAt, session.submissionId, timestamp, idempotencyRecordId, enqueueingMarker),
+            database.prepare("UPDATE ocr_results SET status = 'error', error_code = 'OCR_QUEUE_SEND_FAILED' WHERE id = ? AND status = 'pending'").bind(jobId),
             database.prepare("DELETE FROM idempotency_keys WHERE id = ? AND response_json = ?").bind(idempotencyRecordId, enqueueingMarker),
           ]);
         } catch (recoveryError) {
