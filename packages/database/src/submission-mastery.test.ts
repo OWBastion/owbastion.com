@@ -493,6 +493,31 @@ describe("submission mastery outcomes", () => {
     expect(sqlite.prepare("SELECT transition, actor_id FROM mastery_run_lifecycle_events WHERE mastery_run_id = ? AND transition = 'invalidated'").get(first.run.runId)).toEqual({ transition: "invalidated", actor_id: "submission_review" });
   });
 
+  it("treats a Submission whose own Run was superseded as a duplicate of the active Run", async () => {
+    const { database, sqlite } = createTestDatabase("map.mastery");
+    seedMasteryPlayer(sqlite, "player.duplicate", "binding.duplicate", "Duplicate Player");
+    for (const id of ["submission.duplicate-first", "submission.duplicate-second"]) {
+      seedMasterySubmission(sqlite, id, "binding.duplicate", "Duplicate Player");
+      sqlite.prepare("UPDATE submissions SET status = 'ocr_review_required', target_map_id = ? WHERE id = ?").run("map.mastery", id);
+      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES (?, ?, 1, 'review_required', ?, ?)").run(`ocr.${id}`, id, JSON.stringify(masteryOcr()), now);
+    }
+    const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
+    const maintainer = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+    const corrections = [{ fieldKey: "difficulty", reviewedValue: "传奇" }];
+    // The first Submission was recorded automatically with other facts, then the second's approval superseded it.
+    await services.recordVerifiedRun({ ...automaticRunFacts, playerAccountId: "player.duplicate", sourceSubmissionId: "submission.duplicate-first" });
+    await services.reviewSubmission({ submissionId: "submission.duplicate-second", decision: "approved", fieldCorrections: corrections }, maintainer, "review.duplicate-second");
+
+    const preview = await services.previewSubmissionReview({ submissionId: "submission.duplicate-first", fieldCorrections: corrections }, maintainer);
+    expect(preview).toMatchObject({ approvable: true, verifiedRun: { status: "recorded", reason: null, supersededFields: [] } });
+    const approved = await services.reviewSubmission({ submissionId: "submission.duplicate-first", decision: "approved", fieldCorrections: corrections }, maintainer, "review.duplicate-first");
+    expect(approved.verifiedRunOutcome).toMatchObject({ status: "reused", awardedXp: 0 });
+    expect(sqlite.prepare("SELECT source_submission_id, status FROM mastery_runs ORDER BY created_at, rowid").all()).toEqual([
+      { source_submission_id: "submission.duplicate-first", status: "invalidated" },
+      { source_submission_id: "submission.duplicate-second", status: "active" },
+    ]);
+  });
+
   it("previews and applies a rewrite of the Submission's own Run when corrected evidence differs", async () => {
     const { database, sqlite } = createTestDatabase("map.mastery");
     seedMasteryPlayer(sqlite, "player.preview-stale", "binding.preview-stale", "Preview Stale");

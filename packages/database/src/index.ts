@@ -713,17 +713,23 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     if (!revision || revision.mapId !== candidate.mapId || (revision.legacyMapVariant ?? null) !== candidate.mapVariant) throw new Error("VERIFIED_RUN_GAMEPLAY_REVISION_NOT_FOUND");
 
     const bySource = await db.select().from(verifiedRuns).where(eq(verifiedRuns.sourceSubmissionId, candidate.sourceSubmissionId)).get();
-    const existing = bySource ?? await db.select().from(verifiedRuns).where(and(
+    const keyMatch = and(
       eq(verifiedRuns.playerAccountId, candidate.playerAccountId),
       eq(verifiedRuns.mapId, candidate.mapId),
       eq(verifiedRuns.gameVersion, candidate.gameVersion),
       eq(verifiedRuns.matchCode, candidate.matchCode),
-    )).get();
+    );
+    // A reviewed approval of a Submission whose own Run was invalidated (for example superseded by a
+    // duplicate screenshot's approval) is judged against the active Run that now holds the key.
+    const activeByKey = supersedeConflicting && bySource?.status === "invalidated" && bySource.invalidationReason !== submissionReopenedReason
+      ? await db.select().from(verifiedRuns).where(and(keyMatch, eq(verifiedRuns.status, "active"), ne(verifiedRuns.id, bySource.id))).get()
+      : undefined;
+    const existing = activeByKey ?? bySource ?? await db.select().from(verifiedRuns).where(keyMatch).get();
     const reopened = existing?.status === "invalidated" && existing.invalidationReason === submissionReopenedReason;
     // A reviewed approval of the Submission that already owns an active Run with differing facts
     // (e.g. recorded before the reviewer filled deaths and skips) rewrites that Run the same way.
-    const ownConflictFields = existing && bySource && supersedeConflicting && existing.status === "active" ? masteryConflictFields(asVerifiedRun(existing), candidate) : [];
-    if (existing && bySource && (reopened || ownConflictFields.length)) {
+    const ownConflictFields = existing && existing === bySource && supersedeConflicting && existing.status === "active" ? masteryConflictFields(asVerifiedRun(existing), candidate) : [];
+    if (existing && existing === bySource && (reopened || ownConflictFields.length)) {
       // The maintainer reopened this approved submission and has now re-approved it with
       // corrected evidence: the same run is restored and rewritten from that evidence.
       const rewriteStatements = ownConflictFields.length
