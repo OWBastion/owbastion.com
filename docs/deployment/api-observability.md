@@ -114,7 +114,7 @@ attempt 4 is the last configured OCR delivery. If recording that failure also
 fails, follow `queue_failure_record_failed` by `submissionId` and check the OCR
 dead-letter events `dead_letter_recovered` or `dead_letter_recovery_failed`.
 The five-minute scheduled repair also emits `stale_job_recovered` when a
-Submission has remained `ocr_pending` for 15 minutes, including after the
+Submission has remained `ocr_pending` for 45 minutes, including after the
 dead-letter consumer has exhausted its retries and its message was discarded.
 Compare the `requestId` with the `X-Request-ID` sent to OCRKit and inspect the
 OCRKit container's access/error logs for the same request window. An OCRKit
@@ -221,9 +221,9 @@ is the only way to clear it without waiting out `maxAge`.
    authenticated callback. Confirm OCRKit retries 503 responses.
 
 The 20-second HTTP timeout applies only to image intake, not recognition.
-OCRKit expires jobs that wait 10 minutes before inference starts; running
+OCRKit expires jobs that wait 30 minutes before inference starts; running
 inference is not forcibly interrupted. The platform's scheduled
-15-minute stale repair remains the recovery boundary for lost callbacks or
+45-minute stale repair remains the recovery boundary for lost callbacks or
 abandoned processing claims. Legacy version-1 Queue messages are logged as
 `legacy_job_skipped` and acknowledged; their old pending Submissions recover
 through stale repair and can then be retried manually. Do not replay a legacy

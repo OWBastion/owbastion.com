@@ -740,7 +740,7 @@ the existing `OCRKIT_API_TOKEN` Bearer credential. The platform owns matching
 and all business outcomes. A single conditional D1 claim serializes callbacks
 and manual review of the same pending round; transient failures release the
 claim and return 503 for delivery retry. Duplicate and stale callbacks return
-204 without repeating Grants or Verified Runs. The existing 15-minute stale
+204 without repeating Grants or Verified Runs. The existing 45-minute stale
 repair bounds abandoned OCR rounds; claiming a result refreshes the processing
 window. A process crash during result handling retains its claim until stale
 repair recovers it.

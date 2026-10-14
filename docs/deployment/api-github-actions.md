@@ -25,7 +25,7 @@ deployment job:
   screenshot recognition jobs; exhausted OCR jobs are recorded as failed so
   the Submission becomes actionable again;
 - a five-minute scheduled Worker recovery that moves OCR jobs left pending for
-  15 minutes into the actionable resubmission state;
+  45 minutes into the actionable resubmission state;
 - the real D1 `database_id` written to `wrangler.toml`.
 
 For an existing deployment, remove the legacy WAF rule that requires a static
