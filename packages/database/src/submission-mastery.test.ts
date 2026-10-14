@@ -59,6 +59,7 @@ describe("submission mastery outcomes", () => {
 
     await expect(services.completePlayerUpload({ uploadId: upload.uploadId }, sessionToken, "request.first")).rejects.toThrow("queue unavailable");
     expect(sqlite.prepare("SELECT status FROM submissions WHERE id = ?").get(upload.submissionId)).toEqual({ status: "upload_pending" });
+    expect(sqlite.prepare("SELECT status, error_code FROM ocr_results WHERE submission_id = ?").all(upload.submissionId)).toEqual([{ status: "error", error_code: "OCR_QUEUE_SEND_FAILED" }]);
 
     await expect(services.completePlayerUpload({ uploadId: upload.uploadId }, sessionToken, "request.retry")).resolves.toEqual({ submissionId: upload.submissionId, status: "processing" });
     expect(queued).toEqual([expect.objectContaining({ submissionId: upload.submissionId, requestId: "request.retry" })]);
@@ -153,9 +154,8 @@ describe("submission mastery outcomes", () => {
     }
 
     const storedObjects = new Map<string, ArrayBuffer>();
-    const queued: Array<{ version: number; submissionId: string; objectKey: string; requestId?: string }> = [];
+    const queued: Array<{ version: number; jobId: string; submissionId: string; objectKey: string; requestId?: string }> = [];
     const ocrRequests: Array<{ url: string; contentType: string; size: number; formFields: string[] }> = [];
-    const ocrResponses: Array<ReturnType<typeof masteryOcr>> = [];
     const evidenceBucket = {
       put: async (key: string, value: ArrayBuffer) => { storedObjects.set(key, value); },
       get: async (key: string) => {
@@ -185,9 +185,7 @@ describe("submission mastery outcomes", () => {
       const file = body.get("file");
       if (!(file instanceof Blob)) throw new Error("missing multipart image");
       ocrRequests.push({ url: String(url), contentType: file.type, size: file.size, formFields: [...body.keys()] });
-      const response = ocrResponses.shift();
-      if (!response) throw new Error("missing OCR response fixture");
-      return new Response(JSON.stringify(response), { status: 200, headers: { "content-type": "application/json" } });
+      return Response.json({ jobId: body.get("job_id"), status: "accepted" }, { status: 202 });
     }));
 
     const submit = async (input: { sessionToken: string; bytes: string; ocr: ReturnType<typeof masteryOcr>; requestId: string }) => {
@@ -197,8 +195,10 @@ describe("submission mastery outcomes", () => {
       await expect(services.completePlayerUpload({ uploadId: upload.uploadId }, input.sessionToken, input.requestId)).resolves.toEqual({ submissionId: upload.submissionId, status: "processing" });
       const job = queued.shift();
       if (!job) throw new Error("missing OCR queue job");
-      ocrResponses.push(input.ocr);
-      await deliverOcrFixture(services, sqlite, { ...job, attempt: 1 });
+      expect(job.version).toBe(2);
+      await services.processOcrJob({ ...job, attempt: 1 });
+      expect(ocrRequests).toHaveLength(storedObjects.size);
+      await services.completeOcrJob({ jobId: job.jobId, payload: { contractVersion: "1", result: { ...input.ocr, request_id: job.jobId } } });
       return { submissionId: upload.submissionId, objectKey: job.objectKey };
     };
 
