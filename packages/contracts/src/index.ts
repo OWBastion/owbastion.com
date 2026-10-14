@@ -1084,6 +1084,8 @@ export const adminSubmissionReviewPreviewResponseSchema = z.object({
   verifiedRun: z.object({
     status: z.enum(["recorded", "eligible", "ineligible"]),
     reason: z.string().nullable(),
+    // Facts that differ from the already-recorded Run this approval will invalidate and replace.
+    supersededFields: z.array(z.string()).max(16),
   }).strict(),
   approvable: z.boolean(),
   blockingCode: z.string().nullable(),

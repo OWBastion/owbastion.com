@@ -383,7 +383,11 @@ that the original remains authoritative, or invalidate it with an idempotent,
 audited actor/time/reason transition that updates the source outcome and map
 projection. The corrected Submission is never merged into the original; it
 continues through the existing reviewed OCR/submission path, where it can create
-the replacement run under normal verification rules. Exact same-fact replays
+the replacement run under normal verification rules. Approving
+a Submission in review is that maintainer decision: when the reviewed evidence
+differs from a Run recorded from another Submission, the approval invalidates
+that Run with an audited transition and records the replacement, and the review
+preview names the differing facts beforehand. Exact same-fact replays
 remain reuse outcomes and do not become high-priority conflict records.
 
 ## Achievement catalog management

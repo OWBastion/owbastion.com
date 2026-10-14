@@ -17,7 +17,7 @@ const reviewPreview = (body: PreviewBody = {}) => {
   const titles = [{ titleKey: "LEGEND", titleName: "传奇征服者", mapName: "帕拉伊苏", alreadyOwned: false }];
   if (confirmed.has("c.pioneer")) titles.push({ titleKey: "PIONEER", titleName: "开拓者", mapName: "帕拉伊苏", alreadyOwned: false });
   if (confirmed.has("c.hero")) titles.push({ titleKey: "HERO", titleName: "称号 HERO", mapName: null as unknown as string, alreadyOwned: false });
-  return { contractVersion: "1", submissionId: "submission-1", evidenceOutcome: "review", candidates, completions: [], titles, verifiedRun: { status: "ineligible", reason: "missing_match_code" }, approvable: true, blockingCode: null, knownModes: ["2026镜中回响"], matchCodeCandidates: ["1234-5678-9012", "4321-8765-2109"] };
+  return { contractVersion: "1", submissionId: "submission-1", evidenceOutcome: "review", candidates, completions: [], titles, verifiedRun: { status: "ineligible", reason: "missing_match_code", supersededFields: [] }, approvable: true, blockingCode: null, knownModes: ["2026镜中回响"], matchCodeCandidates: ["1234-5678-9012", "4321-8765-2109"] };
 };
 const settlePreview = async () => { await new Promise((resolve) => setTimeout(resolve, 350)); await flushPromises(); };
 
