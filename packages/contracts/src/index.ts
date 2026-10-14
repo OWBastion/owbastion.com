@@ -1089,6 +1089,10 @@ export const adminSubmissionReviewPreviewResponseSchema = z.object({
   blockingCode: z.string().nullable(),
   // The configured Standalone Modes, offered when correcting the mode.
   knownModes: z.array(z.string()).max(64),
+  // Match codes the platform already saw for this room — recorded Verified
+  // Runs and reliably read sibling Submissions on the corrected map/version —
+  // offered so the reviewer can associate one instead of retyping it.
+  matchCodeCandidates: z.array(z.string()).max(24),
 }).strict();
 export const adminSubmissionReviewResponseSchema = z.object({
   contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean(), grants: z.array(z.object({ grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean() })).min(1).optional(), verifiedRunOutcome: playerVerifiedRunSubmissionOutcomeSchema.optional(),

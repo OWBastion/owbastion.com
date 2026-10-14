@@ -24,7 +24,7 @@ const annotatableFields = [
   { key: "deaths", label: "死亡次数" },
   { key: "skips", label: "跳过次数" },
 ] as const;
-const typedFieldPlaceholder: Record<string, string> = { version: "例如 2026.0928.1", run_code: "输入截图中的对局码", duration_seconds: "整数秒", deaths: "整数", skips: "整数" };
+const typedFieldPlaceholder: Record<string, string> = { version: "例如 2026.0928.1", duration_seconds: "整数秒", deaths: "整数", skips: "整数" };
 const ocrPayload = computed(() => props.submission.ocr as OcrPayload | null);
 const modelVersion = computed(() => typeof ocrPayload.value?.model_version === "string" && ocrPayload.value.model_version ? ocrPayload.value.model_version : null);
 const checkedTitles = computed(() => Array.isArray(ocrPayload.value?.data?.achievement_titles) ? ocrPayload.value?.data?.achievement_titles.filter((value): value is string => typeof value === "string" && value.trim().length > 0) : []);
@@ -243,6 +243,7 @@ const confirmField = (key: string) => toggleFieldConfirmation(key, true);
         </div>
         <div class="check-editor__control">
           <USelectMenu v-if="openRow.key === 'achievement_titles'" v-model="selectedTitles" multiple :items="withCurrent(titleNames, selectedTitles)" :aria-label="`截图中的${openRow.label}完整值`" placeholder="选择截图中的全部成就（截图没有成就则留空并确认）" :disabled="disabled" @update:model-value="confirmField(openRow.key)" />
+          <UInputMenu v-else-if="openRow.key === 'run_code'" :model-value="correctionInputs[openRow.key] ?? ''" :items="preview?.matchCodeCandidates ?? []" create-item :aria-label="`截图中的${openRow.label}`" placeholder="选择已有对局码或输入截图中的对局码" :disabled="disabled" @update:model-value="correctionInputs[openRow.key] = String($event ?? ''); confirmField(openRow.key)" @create="correctionInputs[openRow.key] = String($event).trim(); confirmField(openRow.key)" />
           <UInput v-else-if="openRow.key in typedFieldPlaceholder" v-model="correctionInputs[openRow.key]" :inputmode="['duration_seconds', 'deaths', 'skips'].includes(openRow.key) ? 'numeric' : 'text'" :aria-label="`截图中的${openRow.label}`" :placeholder="typedFieldPlaceholder[openRow.key]" :disabled="disabled" @update:model-value="confirmField(openRow.key)" />
           <USelect v-else v-model="correctionInputs[openRow.key]" :items="fieldChoices(openRow.key)" :aria-label="`截图中的${openRow.label}完整值`" :placeholder="`选择截图中的${openRow.label}`" :disabled="disabled" @update:model-value="confirmField(openRow.key)" />
           <UButton v-if="!openRow.attested" type="button" icon="i-lucide-check" label="确认无误" size="sm" color="neutral" variant="outline" :aria-label="`核对${openRow.label}`" :disabled="disabled || (openRow.key !== 'achievement_titles' && !(correctionInputs[openRow.key] ?? '').trim())" @click="confirmField(openRow.key)" />

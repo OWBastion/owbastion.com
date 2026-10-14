@@ -400,6 +400,64 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     return { ...response, data, fields };
   };
 
+  // The match code is the room's shared identity: teammates' Submissions and
+  // recorded Verified Runs on the same map/version around the same time carry
+  // it, so a code the platform saw near this Submission's timestamp is offered
+  // for association instead of forcing a retype. Candidates are read-only
+  // suggestions; the reviewer still verifies the value against the screenshot.
+  const matchCodeCandidateWindowMs = 3 * 24 * 60 * 60 * 1000;
+  const listReviewMatchCodeCandidates = async (row: typeof submissions.$inferSelect, response: OcrResponse): Promise<string[]> => {
+    const data = response.data ?? {};
+    const evidenceMapName = typeof data.map_name === "string" ? data.map_name.trim() : "";
+    const matchingMaps = evidenceMapName ? (await loadActiveMaps()).filter((map) => normalizedOcrLabel(map.name) === normalizedOcrLabel(evidenceMapName)) : [];
+    const mapId = matchingMaps.length === 1 ? matchingMaps[0]!.id : row.targetMapId;
+    if (!mapId) return [];
+    const mapName = matchingMaps[0]?.name ?? (await db.select({ name: maps.name }).from(maps).where(eq(maps.id, mapId)).get())?.name ?? "";
+    const gameVersion = typeof data.version === "string" && isWellFormedGameVersion(data.version.trim()) ? data.version.trim() : null;
+    const windowStart = row.createdAt - matchCodeCandidateWindowMs;
+    const windowEnd = row.createdAt + matchCodeCandidateWindowMs;
+    const distanceByCode = new Map<string, number>();
+    const collect = (value: unknown, at: number | null | undefined) => {
+      if (typeof value !== "string" || at === null || at === undefined) return;
+      let code: string;
+      try { code = normalizeMatchCode(value); } catch { return; }
+      const distance = Math.abs(at - row.createdAt);
+      if (distance < (distanceByCode.get(code) ?? Infinity)) distanceByCode.set(code, distance);
+    };
+    const [runRows, siblingRows] = await Promise.all([
+      // A Run's play time lives on its source Submission; acceptance can lag days behind.
+      db.select({ code: verifiedRuns.matchCode, at: submissions.createdAt })
+        .from(verifiedRuns).innerJoin(submissions, eq(verifiedRuns.sourceSubmissionId, submissions.id))
+        .where(and(
+          eq(verifiedRuns.mapId, mapId),
+          ne(verifiedRuns.sourceSubmissionId, row.id),
+          gte(submissions.createdAt, windowStart),
+          lte(submissions.createdAt, windowEnd),
+          ...(gameVersion ? [eq(verifiedRuns.gameVersion, gameVersion)] : []),
+        ))
+        .limit(100)
+        .all(),
+      db.select({
+        code: sql<string | null>`json_extract(${ocrResults.responseJson}, '$.data.run_code')`,
+        mapName: sql<string | null>`json_extract(${ocrResults.responseJson}, '$.data.map_name')`,
+        version: sql<string | null>`json_extract(${ocrResults.responseJson}, '$.data.version')`,
+        status: sql<string | null>`json_extract(${ocrResults.responseJson}, '$.fields.run_code.status')`,
+        at: submissions.createdAt,
+      }).from(ocrResults).innerJoin(submissions, eq(ocrResults.submissionId, submissions.id))
+        .where(and(ne(submissions.id, row.id), ne(submissions.status, "rejected"), gte(submissions.createdAt, windowStart), lte(submissions.createdAt, windowEnd)))
+        .limit(200)
+        .all(),
+    ]);
+    for (const run of runRows) collect(run.code, run.at);
+    if (mapName) for (const sibling of siblingRows) {
+      if (sibling.status !== "ok") continue;
+      if (normalizedOcrLabel(sibling.mapName) !== normalizedOcrLabel(mapName)) continue;
+      if (gameVersion && sibling.version?.trim() !== gameVersion) continue;
+      collect(sibling.code, sibling.at);
+    }
+    return [...distanceByCode.entries()].sort((left, right) => left[1] - right[1]).slice(0, 12).map(([code]) => code);
+  };
+
   // The player-facing accuracy state is just the current mark bound to the
   // latest recognition result; a re-recognition produces a fresh unmarked
   // result id.
@@ -2563,7 +2621,11 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         ...chainGrants.map((award) => ({ titleKey: award.titleKey, titleName: titleLabels.get(award.titleKey) ?? award.titleKey, mapName: award.mapId ? mapNames.get(award.mapId) ?? null : null, alreadyOwned: false })),
       ];
 
-      const verifiedRunPlan = await planVerifiedRunSubmissionOutcome(row, evidence.correctedResponse, "submission_review", true);
+      const [verifiedRunPlan, matchCodeCandidates, knownModeRows] = await Promise.all([
+        planVerifiedRunSubmissionOutcome(row, evidence.correctedResponse, "submission_review", true),
+        listReviewMatchCodeCandidates(row, evidence.correctedResponse),
+        db.select({ mode: standaloneModes.mode }).from(standaloneModes).orderBy(standaloneModes.mode).all(),
+      ]);
       const verifiedRunAccepted = verifiedRunPlan.outcome.status === "created" || verifiedRunPlan.outcome.status === "reused";
       const verifiedRun = verifiedRunAccepted
         ? verifiedRunPlan.recorded
@@ -2589,7 +2651,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         verifiedRun,
         approvable: blockingCode === null,
         blockingCode,
-        knownModes: (await db.select({ mode: standaloneModes.mode }).from(standaloneModes).orderBy(standaloneModes.mode)).map((row) => row.mode),
+        knownModes: knownModeRows.map((row) => row.mode),
+        matchCodeCandidates,
       };
     },
 

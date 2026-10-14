@@ -17,7 +17,7 @@ const reviewPreview = (body: PreviewBody = {}) => {
   const titles = [{ titleKey: "LEGEND", titleName: "传奇征服者", mapName: "帕拉伊苏", alreadyOwned: false }];
   if (confirmed.has("c.pioneer")) titles.push({ titleKey: "PIONEER", titleName: "开拓者", mapName: "帕拉伊苏", alreadyOwned: false });
   if (confirmed.has("c.hero")) titles.push({ titleKey: "HERO", titleName: "称号 HERO", mapName: null as unknown as string, alreadyOwned: false });
-  return { contractVersion: "1", submissionId: "submission-1", evidenceOutcome: "review", candidates, completions: [], titles, verifiedRun: { status: "ineligible", reason: "missing_match_code" }, approvable: true, blockingCode: null, knownModes: ["2026镜中回响"] };
+  return { contractVersion: "1", submissionId: "submission-1", evidenceOutcome: "review", candidates, completions: [], titles, verifiedRun: { status: "ineligible", reason: "missing_match_code" }, approvable: true, blockingCode: null, knownModes: ["2026镜中回响"], matchCodeCandidates: ["1234-5678-9012", "4321-8765-2109"] };
 };
 const settlePreview = async () => { await new Promise((resolve) => setTimeout(resolve, 350)); await flushPromises(); };
 
@@ -326,6 +326,23 @@ describe("admin review detail page", () => {
       await chip(wrapper, "对局码").trigger("click");
       expect(editor(wrapper, "对局码").text()).toContain("未识别");
       expect(wrapper.get('button[aria-label="核对对局码"]').attributes("disabled")).toBeDefined();
+    });
+
+    it("offers the match codes the platform already saw and still accepts a typed one", async () => {
+      adminApi.mockClear();
+      const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
+      await flushPromises();
+      await wrapper.findAll("button").find((button) => button.text().includes("更多字段"))!.trigger("click");
+      await chip(wrapper, "对局码").trigger("click");
+      const input = editor(wrapper, "对局码").findComponent({ name: "UInputMenu" });
+      expect(input.exists()).toBe(true);
+      expect(input.props("items")).toEqual(["1234-5678-9012", "4321-8765-2109"]);
+      input.vm.$emit("update:modelValue", "4321-8765-2109");
+      await settlePreview();
+      expect(adminApi).toHaveBeenLastCalledWith("/v1/submissions/submission-1/review/preview", expect.objectContaining({ body: { contractVersion: "1", fieldCorrections: [{ fieldKey: "run_code", reviewedValue: "4321-8765-2109" }] } }));
+      input.vm.$emit("create", "9999-8888-7777");
+      await settlePreview();
+      expect(adminApi).toHaveBeenLastCalledWith("/v1/submissions/submission-1/review/preview", expect.objectContaining({ body: { contractVersion: "1", fieldCorrections: [{ fieldKey: "run_code", reviewedValue: "9999-8888-7777" }] } }));
     });
   });
 
