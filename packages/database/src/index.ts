@@ -719,31 +719,19 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       eq(verifiedRuns.gameVersion, candidate.gameVersion),
       eq(verifiedRuns.matchCode, candidate.matchCode),
     );
-    // A reviewed approval of a Submission whose own Run was invalidated (for example superseded by a
-    // duplicate screenshot's approval) is judged against the active Run that now holds the key.
-    const activeByKey = supersedeConflicting && bySource?.status === "invalidated" && bySource.invalidationReason !== submissionReopenedReason
-      ? await db.select().from(verifiedRuns).where(and(keyMatch, eq(verifiedRuns.status, "active"), ne(verifiedRuns.id, bySource.id))).get()
-      : undefined;
-    const existing = activeByKey ?? bySource ?? await db.select().from(verifiedRuns).where(keyMatch).get();
-    const reopened = existing?.status === "invalidated" && existing.invalidationReason === submissionReopenedReason;
-    // A reviewed approval of the Submission that already owns an active Run with differing facts
-    // (e.g. recorded before the reviewer filled deaths and skips) rewrites that Run the same way.
-    const ownConflictFields = existing && existing === bySource && supersedeConflicting && existing.status === "active" ? masteryConflictFields(asVerifiedRun(existing), candidate) : [];
-    if (existing && existing === bySource && (reopened || ownConflictFields.length)) {
-      // The maintainer reopened this approved submission and has now re-approved it with
-      // corrected evidence: the same run is restored and rewritten from that evidence.
-      const rewriteStatements = ownConflictFields.length
-        ? prepareVerifiedRunTransitionStatements({
-          row: existing,
-          actor: { actorType: "service", actorId: candidate.acceptanceSource },
-          nextStatus: "invalidated",
-          reason: `Rewritten by reviewed approval (${ownConflictFields.join(", ")})`,
-        })
-        : [];
+    const invalidateRun = (row: typeof verifiedRuns.$inferSelect, reason: string) => prepareVerifiedRunTransitionStatements({
+      row,
+      actor: { actorType: "service", actorId: candidate.acceptanceSource },
+      nextStatus: "invalidated",
+      reason,
+    });
+    // Rewrites the Submission's own Run in place from the candidate (restoring it as active); `before`
+    // runs first in the same batch, so it can free the match code or invalidate the Run being rewritten.
+    const rewriteOwnRun = (own: typeof verifiedRuns.$inferSelect, before: D1PreparedStatement[], superseded?: VerifiedRunRecordPlan["superseded"]): VerifiedRunRecordPlan => {
       const award = calculateVerifiedRunXpV2({ difficulty: candidate.difficulty, mapFactor: candidate.mapFactor, deaths: candidate.deaths, skips: candidate.skips });
       const restoredAt = now();
       const run: VerifiedRun = {
-        ...asVerifiedRun(existing),
+        ...asVerifiedRun(own),
         mapId: candidate.mapId,
         gameplayRevisionId: candidate.gameplayRevisionId,
         mapVariant: candidate.mapVariant,
@@ -766,9 +754,9 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       };
       return {
         result: { outcome: "created", run },
-        ...(ownConflictFields.length ? { superseded: { runId: existing.id, conflictFields: ownConflictFields } } : {}),
+        ...(superseded ? { superseded } : {}),
         statements: [
-          ...rewriteStatements,
+          ...before,
           database.prepare("UPDATE mastery_runs SET map_id = ?, gameplay_revision_id = ?, map_variant = ?, difficulty = ?, game_version = ?, run_code = ?, completion_duration_seconds = ?, deaths = ?, skips = ?, event_counters_json = ?, acceptance_source = ?, accepted_at = ?, status = 'active', invalidated_at = NULL, invalidated_by = NULL, invalidation_reason = NULL, xp_rule_version = ?, xp_input_snapshot_json = ?, awarded_xp = ? WHERE id = ? AND status = 'invalidated'")
             .bind(run.mapId, run.gameplayRevisionId, run.mapVariant, run.difficulty, run.gameVersion, run.matchCode, run.completionDurationSeconds, run.deaths, run.skips, JSON.stringify(run.eventCounters), run.acceptanceSource, run.acceptedAt, run.xpRuleVersion, JSON.stringify(run.xpInputSnapshot), run.awardedXp, run.runId),
           database.prepare("INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) SELECT ?, ?, 'restored', 'service', ?, NULL, ? WHERE changes() = 1").bind(crypto.randomUUID(), run.runId, candidate.acceptanceSource, restoredAt),
@@ -776,9 +764,46 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         row: null,
         candidate,
       };
-    }
+    };
+
+    // A reviewed approval is the maintainer's decision about whichever other Run holds this match code.
+    const holder = supersedeConflicting
+      ? await db.select().from(verifiedRuns).where(and(keyMatch, eq(verifiedRuns.status, "active"), ...(bySource ? [ne(verifiedRuns.id, bySource.id)] : []))).get()
+      : undefined;
     let superseded: VerifiedRunRecordPlan["superseded"];
     let supersedeStatements: D1PreparedStatement[] = [];
+    if (holder) {
+      const holderFields = masteryConflictFields(asVerifiedRun(holder), candidate);
+      const retireOwn = bySource?.status === "active" ? invalidateRun(bySource, `Superseded by active Run ${holder.id}`) : [];
+      if (!holderFields.length) {
+        // A duplicate of the active Run: reuse it, and retire the Submission's own stale Run so it earns nothing twice.
+        return {
+          result: { outcome: "reused", run: asVerifiedRun(holder) },
+          ...(bySource ? { superseded: { runId: bySource.id, conflictFields: [] } } : {}),
+          statements: retireOwn,
+          row: holder,
+          candidate,
+        };
+      }
+      const displaceHolder = invalidateRun(holder, `Superseded by reviewed Submission ${candidate.sourceSubmissionId} (${holderFields.join(", ")})`);
+      superseded = { runId: holder.id, conflictFields: holderFields };
+      if (bySource) return rewriteOwnRun(bySource, [...displaceHolder, ...retireOwn], superseded);
+      supersedeStatements = displaceHolder;
+    }
+    const existing = holder ? undefined : bySource ?? await db.select().from(verifiedRuns).where(keyMatch).get();
+    const reopened = existing?.status === "invalidated" && existing.invalidationReason === submissionReopenedReason;
+    // A reviewed approval of the Submission that already owns an active Run with differing facts
+    // (e.g. recorded before the reviewer filled deaths and skips) rewrites that Run the same way.
+    const ownConflictFields = existing && existing === bySource && supersedeConflicting && existing.status === "active" ? masteryConflictFields(asVerifiedRun(existing), candidate) : [];
+    if (existing && existing === bySource && (reopened || ownConflictFields.length)) {
+      // The maintainer reopened this approved submission and has now re-approved it with
+      // corrected evidence: the same run is restored and rewritten from that evidence.
+      return rewriteOwnRun(
+        existing,
+        ownConflictFields.length ? invalidateRun(existing, `Rewritten by reviewed approval (${ownConflictFields.join(", ")})`) : [],
+        ownConflictFields.length ? { runId: existing.id, conflictFields: ownConflictFields } : undefined,
+      );
+    }
     if (existing) {
       const run = asVerifiedRun(existing);
       const conflictFields = masteryConflictFields(run, candidate);
@@ -791,14 +816,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         };
       }
       superseded = { runId: existing.id, conflictFields };
-      if (existing.status === "active") {
-        supersedeStatements = prepareVerifiedRunTransitionStatements({
-          row: existing,
-          actor: { actorType: "service", actorId: candidate.acceptanceSource },
-          nextStatus: "invalidated",
-          reason: `Superseded by reviewed Submission ${candidate.sourceSubmissionId} (${conflictFields.join(", ")})`,
-        });
-      }
     }
 
     const award = calculateVerifiedRunXpV2({
