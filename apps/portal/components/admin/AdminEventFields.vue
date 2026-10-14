@@ -27,7 +27,7 @@ const tagsModel = computed({ get: () => props.values.effectTags, set: (value: st
       <UFormField label="持续时间（秒）"><UInput :model-value="values.durationSeconds ?? undefined" type="number" min="0" class="w-full" :disabled="disabled" @change="emit('patch', { durationSeconds: numberOrNull(($event.target as HTMLInputElement).value) })" /></UFormField>
     </div>
     <UFormField label="内置冷却（秒）"><UInput :model-value="values.cooldownSeconds ?? undefined" type="number" min="0" class="w-full" :disabled="disabled" @change="emit('patch', { cooldownSeconds: numberOrNull(($event.target as HTMLInputElement).value) })" /></UFormField>
-    <UFormField label="内容说明"><UTextarea :model-value="values.description" :rows="4" required class="w-full" :disabled="disabled" @change="emit('patch', { description: ($event.target as HTMLTextAreaElement).value })" /></UFormField>
+    <UFormField label="内容说明"><UTextarea :model-value="values.description" :rows="4" class="w-full" :disabled="disabled" @change="emit('patch', { description: ($event.target as HTMLTextAreaElement).value })" /></UFormField>
     <UFormField label="效果标签"><UInputMenu v-model="tagsModel" :items="tags" multiple create-item placeholder="输入或选择效果标签" aria-label="效果标签" class="w-full" :disabled="disabled" /></UFormField>
   </div>
 </template>
