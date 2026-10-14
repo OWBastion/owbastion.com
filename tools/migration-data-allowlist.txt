@@ -38,3 +38,4 @@
 0087_ocr_map_variant_annotations.sql
 0093_retire_legacy_submission_statuses.sql
 0094_achievement_progress_rule.sql
+0100_upload_session_submission_timing.sql

@@ -20,6 +20,32 @@ const automaticRunFacts = {
 } as const;
 
 describe("submission mastery outcomes", () => {
+  it("creates the submission only after the screenshot is stored", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
+    const sessionToken = "upload-before-submission-player";
+    sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, 'test', ?, ?, ?)")
+      .run("session.player.one", "attempt.player.one", "group.player.one", "member.player.one", await requestHash(sessionToken), now + 60_000, now);
+    let failPut = true;
+    const services = createPlatformServices(
+      database,
+      { put: async () => { if (failPut) throw new Error("network unavailable"); } } as unknown as R2Bucket,
+      "https://api.example.com",
+    );
+    const body = new TextEncoder().encode("screenshot").buffer as ArrayBuffer;
+    const upload = await services.createPlayerUploadSession({ contentType: "image/png", byteSize: body.byteLength, sha256: await uploadHash(body) }, sessionToken);
+
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM submissions").get()).toEqual({ count: 0 });
+    await expect(services.uploadEvidence({ uploadId: upload.uploadId, contentType: "image/png", body }, sessionToken)).rejects.toThrow("network unavailable");
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM submissions").get()).toEqual({ count: 0 });
+
+    failPut = false;
+    await services.uploadEvidence({ uploadId: upload.uploadId, contentType: "image/png", body }, sessionToken);
+    expect(sqlite.prepare("SELECT id, status FROM submissions").get()).toEqual({ id: upload.submissionId, status: "upload_pending" });
+    expect(sqlite.prepare("SELECT submission_id, upload_status FROM attachments").get()).toEqual({ submission_id: upload.submissionId, upload_status: "stored" });
+  });
+
   it("keeps the version, layout, and run-code gate platform-owned", () => {
     expect(assessVerifiedRunOcrEvidence(masteryOcr())).toEqual({ outcome: "ineligible", reason: "mastery_rollout_disabled" });
     expect(assessVerifiedRunOcrEvidence(masteryOcr(), localVerifiedRunEvidenceCompatibility)).toMatchObject({ outcome: "eligible", matchCode: "1234-5678-9012", gameVersion: "99.0101.1" });
@@ -86,14 +112,19 @@ describe("submission mastery outcomes", () => {
         await queueSendGate;
       }),
     } as unknown as Queue;
+    const uploadServices = createPlatformServices(
+      database,
+      { put: async () => undefined } as unknown as R2Bucket,
+      "https://api.example.com", undefined, undefined, queue,
+    );
+    const body = new TextEncoder().encode("concurrent-image").buffer as ArrayBuffer;
+    const upload = await uploadServices.createPlayerUploadSession({ contentType: "image/png", byteSize: body.byteLength, sha256: await uploadHash(body) }, sessionToken);
+    await uploadServices.uploadEvidence({ uploadId: upload.uploadId, contentType: "image/png", body }, sessionToken);
     const services = createPlatformServices(
       synchronizeConcurrentBatches(database, 2),
       { put: async () => undefined } as unknown as R2Bucket,
       "https://api.example.com", undefined, undefined, queue,
     );
-    const body = new TextEncoder().encode("concurrent-image").buffer as ArrayBuffer;
-    const upload = await services.createPlayerUploadSession({ contentType: "image/png", byteSize: body.byteLength, sha256: await uploadHash(body) }, sessionToken);
-    await services.uploadEvidence({ uploadId: upload.uploadId, contentType: "image/png", body }, sessionToken);
 
     const first = services.completePlayerUpload({ uploadId: upload.uploadId }, sessionToken, "request.concurrent.first");
     const second = services.completePlayerUpload({ uploadId: upload.uploadId }, sessionToken, "request.concurrent.second");
