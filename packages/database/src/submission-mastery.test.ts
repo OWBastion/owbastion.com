@@ -505,6 +505,72 @@ describe("submission mastery outcomes", () => {
     });
   });
 
+  it("offers the room's already-seen match codes and records the associated one", async () => {
+    const { database, sqlite } = createTestDatabase("map.mastery");
+    seedMap(sqlite, "map.other");
+    seedMasteryPlayer(sqlite, "player.room.a", "binding.room.a", "Roommate A");
+    seedMasteryPlayer(sqlite, "player.room.b", "binding.room.b", "Roommate B");
+    seedMasteryPlayer(sqlite, "player.review", "binding.review", "Review Player");
+    const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
+
+    // A teammate's Verified Run recorded the room's code an hour earlier.
+    sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.roommate', 'binding.room.a', 'approved', 'unknown', '成就挑战', 'Roommate A', 'portal', 'portal', 'message.roommate', ?, ?)").run(now - 3_600_000, now - 3_600_000);
+    await services.recordVerifiedRun({ playerAccountId: "player.room.a", sourceSubmissionId: "submission.roommate", mapId: "map.mastery", gameplayRevisionId: "revision:map.mastery:initial", mapVariant: null, difficulty: "困难", gameVersion: "99.0101.1", matchCode: "1234-5678-9012", completionDurationSeconds: 600, deaths: 1, skips: 0, eventCounters: {}, acceptanceSource: "submission_automatic" });
+    // Another teammate's pending Submission read a second room code reliably.
+    seedMasterySubmission(sqlite, "submission.mate-pending", "binding.room.b", "Roommate B");
+    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.mate-pending', 'submission.mate-pending', 1, 'ok', ?, ?)").run(JSON.stringify(masteryOcr({ matchCode: "4321-8765-2109" })), now);
+
+    const noiseSubmission = (id: string, createdAt: number, status: string, response: unknown) => {
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES (?, 'binding.room.b', ?, 'unknown', '成就挑战', 'Roommate B', 'portal', 'portal', ?, ?, ?)").run(id, status, `message.${id}`, createdAt, createdAt);
+      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES (?, ?, 1, 'ok', ?, ?)").run(`ocr.${id}`, id, JSON.stringify(response), createdAt);
+    };
+    const noiseOcr = (overrides: { matchCode: string; version?: string; mapName?: string; runCodeStatus?: string }) => {
+      const ocr = masteryOcr({ matchCode: overrides.matchCode, ...(overrides.version ? { version: overrides.version } : {}) });
+      if (overrides.mapName) ocr.data.map_name = overrides.mapName;
+      if (overrides.runCodeStatus) ocr.fields.run_code = { status: overrides.runCodeStatus, confidence: 0.4 };
+      return ocr;
+    };
+    noiseSubmission("submission.noise-version", now, "ocr_pending", noiseOcr({ matchCode: "1111-2222-3333", version: "98.0101.1" }));
+    noiseSubmission("submission.noise-map", now, "ocr_pending", noiseOcr({ matchCode: "2222-3333-4444", mapName: "地图 map.other" }));
+    noiseSubmission("submission.noise-weak", now, "ocr_pending", noiseOcr({ matchCode: "3333-4444-5555", runCodeStatus: "low_confidence" }));
+    noiseSubmission("submission.noise-old", now - 4 * 24 * 60 * 60 * 1000, "ocr_pending", noiseOcr({ matchCode: "4444-5555-6666" }));
+    noiseSubmission("submission.noise-rejected", now, "rejected", noiseOcr({ matchCode: "5555-6666-7777" }));
+    sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.other-run', 'binding.room.a', 'approved', 'unknown', '成就挑战', 'Roommate A', 'portal', 'portal', 'message.other-run', ?, ?)").run(now, now);
+    await services.recordVerifiedRun({ playerAccountId: "player.room.a", sourceSubmissionId: "submission.other-run", mapId: "map.other", gameplayRevisionId: "revision:map.other:initial", mapVariant: null, difficulty: "困难", gameVersion: "99.0101.1", matchCode: "6666-7777-8888", completionDurationSeconds: 600, deaths: 1, skips: 0, eventCounters: {}, acceptanceSource: "submission_automatic" });
+
+    // The Submission under review could not read the code at all.
+    seedMasterySubmission(sqlite, "submission.review", "binding.review", "Review Player");
+    sqlite.prepare("UPDATE submissions SET status = 'ocr_review_required' WHERE id = 'submission.review'").run();
+    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.review', 'submission.review', 1, 'review_required', ?, ?)").run(JSON.stringify(masteryOcr({ matchCode: null })), now);
+    const maintainer = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+
+    const preview = await services.previewSubmissionReview({ submissionId: "submission.review" }, maintainer);
+    expect(preview.verifiedRun).toMatchObject({ status: "ineligible", reason: "invalid_run_code" });
+    expect(preview.matchCodeCandidates).toHaveLength(2);
+    // The code seen nearest to this Submission's own timestamp sorts first.
+    expect(preview.matchCodeCandidates).toEqual(["4321-8765-2109", "1234-5678-9012"]);
+
+    // Picking a known code flows through the normal correction path into the Verified Run plan.
+    const corrected = await services.previewSubmissionReview({ submissionId: "submission.review", fieldCorrections: [{ fieldKey: "run_code", reviewedValue: "1234-5678-9012" }] }, maintainer);
+    expect(corrected.verifiedRun).toMatchObject({ status: "eligible", reason: null });
+    await services.reviewSubmission({ submissionId: "submission.review", decision: "approved", fieldCorrections: [{ fieldKey: "run_code", reviewedValue: "1234-5678-9012" }] }, maintainer, "review.match-code");
+    expect(sqlite.prepare("SELECT run_code, player_account_id FROM mastery_runs WHERE source_submission_id = 'submission.review'").get()).toEqual({ run_code: "1234-5678-9012", player_account_id: "player.review" });
+  });
+
+  it("returns no match-code candidates when the evidence map cannot be resolved", async () => {
+    const { database, sqlite } = createTestDatabase("map.mastery");
+    seedMasteryPlayer(sqlite, "player.review", "binding.review", "Review Player");
+    seedMasterySubmission(sqlite, "submission.review", "binding.review", "Review Player");
+    sqlite.prepare("UPDATE submissions SET status = 'ocr_review_required' WHERE id = 'submission.review'").run();
+    const ocr = masteryOcr({ matchCode: null });
+    ocr.data.map_name = "地图 map.unknown";
+    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.review', 'submission.review', 1, 'review_required', ?, ?)").run(JSON.stringify(ocr), now);
+    const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
+
+    const preview = await services.previewSubmissionReview({ submissionId: "submission.review" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" });
+    expect(preview.matchCodeCandidates).toEqual([]);
+  });
+
   it("matches map Challenges only on the exact Gameplay Revision identified by the evidence", async () => {
     const { database, sqlite } = createTestDatabase("map.mastery");
     seedTitle(sqlite, "CONQUEROR");
