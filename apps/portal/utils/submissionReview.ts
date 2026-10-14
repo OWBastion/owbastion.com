@@ -74,7 +74,7 @@ const verifiedRunReasonLabels: Record<string, string> = {
   unreliable_map_variant: "地图版本识别可信度不足",
   gameplay_revision_not_found: "找不到该地图对应的玩法版本",
   submission_revision_mismatch: "地图玩法版本与提交记录不一致",
-  mastery_run_invalidated: "该 Verified Run 已被作废",
+  mastery_run_invalidated: "该对局码的 Verified Run 已被作废（如需记录，请先在 Verified Run 管理页恢复）",
   same_player_run_code: "该玩家已有相同对局码的记录",
   completion_not_confirmed: "通关标记不是已完成",
   missing_map: "缺少地图",

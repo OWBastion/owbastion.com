@@ -388,8 +388,11 @@ a Submission in review is that maintainer decision: when the reviewed evidence
 differs from a Run recorded from another Submission, the approval invalidates
 that Run with an audited transition and records the replacement; when the
 Submission already owns the differing Run, that Run is invalidated and rewritten
-from the reviewed evidence. The review preview names the differing facts
-beforehand. Exact same-fact replays
+from the reviewed evidence. When another active Run already holds the match
+code, reviewed evidence equal to it is a duplicate (reused, no XP, and the
+Submission's own stale Run is invalidated), while differing evidence replaces it.
+A Run a maintainer invalidated keeps blocking until it is restored. The review
+preview names the differing facts beforehand. Exact same-fact replays
 remain reuse outcomes and do not become high-priority conflict records.
 
 ## Achievement catalog management

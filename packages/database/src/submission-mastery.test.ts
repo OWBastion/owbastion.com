@@ -493,6 +493,50 @@ describe("submission mastery outcomes", () => {
     expect(sqlite.prepare("SELECT transition, actor_id FROM mastery_run_lifecycle_events WHERE mastery_run_id = ? AND transition = 'invalidated'").get(first.run.runId)).toEqual({ transition: "invalidated", actor_id: "submission_review" });
   });
 
+  it("resolves every combination of the Submission's own Run and another Run holding the match code", async () => {
+    // Own Run states: at the evidence key (K) or a different code, equal or differing facts, active or invalidated.
+    // Another Submission's Run for the key: absent, active with equal or differing facts, or maintainer-invalidated.
+    const own = ["none", "act-K-eq", "act-K-diff", "act-other", "inv-reopened-K", "inv-super-K", "inv-super-other", "inv-admin-K"] as const;
+    const other = ["none", "act-eq", "act-diff", "inv-eq"] as const;
+    for (const o of own) for (const x of other) {
+      if (o.startsWith("act-K") && x.startsWith("act")) continue;
+      const { database, sqlite } = createTestDatabase("map.mastery");
+      seedMasteryPlayer(sqlite, "player.m", "binding.m", "M Player");
+      for (const id of ["s.own", "s.other"]) seedMasterySubmission(sqlite, id, "binding.m", "M Player");
+      sqlite.prepare("UPDATE submissions SET status = 'ocr_review_required', target_map_id = ? WHERE id = 's.own'").run("map.mastery");
+      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.own', 's.own', 1, 'review_required', ?, ?)").run(JSON.stringify(masteryOcr()), now);
+      const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
+      const maintainer = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+      if (x !== "none") {
+        const xr = await services.recordVerifiedRun({ ...automaticRunFacts, playerAccountId: "player.m", sourceSubmissionId: "s.other", ...(x === "act-diff" ? { difficulty: "传奇" } : {}) });
+        if (x === "inv-eq") sqlite.prepare("UPDATE mastery_runs SET status='invalidated', invalidation_reason='admin' WHERE id=?").run(xr.run.runId);
+      }
+      if (o !== "none") {
+        const ownRun = await services.recordVerifiedRun({ ...automaticRunFacts, playerAccountId: "player.m", sourceSubmissionId: "s.own", matchCode: "9999-8888-7777", ...(o === "act-K-diff" ? { difficulty: "传奇" } : {}) });
+        const invalid = o.startsWith("inv");
+        if (invalid) sqlite.prepare("UPDATE mastery_runs SET status='invalidated', invalidation_reason=? WHERE id=?").run(o.startsWith("inv-reopened") ? "submission_reopened" : o.startsWith("inv-super") ? "Superseded by reviewed Submission x (gameplay_revision)" : "admin", ownRun.run.runId);
+        if (o.endsWith("-K")) sqlite.prepare("UPDATE mastery_runs SET run_code='1234-5678-9012' WHERE id=?").run(ownRun.run.runId);
+      }
+      // A duplicate of an active Run is reused, a differing active Run is replaced, an invalidation by a
+      // maintainer stands, and everything else records the reviewed evidence.
+      const expected = x === "act-eq" ? "reused"
+        : x === "act-diff" ? "created"
+          : o.startsWith("inv-super") || o.startsWith("inv-admin") || (o === "none" && x === "inv-eq") ? "blocked"
+            : "created";
+      const preview = await services.previewSubmissionReview({ submissionId: "s.own" }, maintainer);
+      expect(preview.approvable, `${o}/${x}`).toBe(expected !== "blocked");
+      if (expected === "blocked") {
+        await expect(services.reviewSubmission({ submissionId: "s.own", decision: "approved" }, maintainer, "r.m"), `${o}/${x}`).rejects.toThrow("SUBMISSION_OUTCOME_NOT_CONFIGURED");
+      } else {
+        const approved = await services.reviewSubmission({ submissionId: "s.own", decision: "approved" }, maintainer, "r.m");
+        expect(approved.verifiedRunOutcome?.status, `${o}/${x}`).toBe(expected);
+      }
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM (SELECT 1 FROM mastery_runs WHERE status = 'active' GROUP BY player_account_id, map_id, game_version, run_code HAVING COUNT(*) > 1)").get(), `${o}/${x}`).toEqual({ count: 0 });
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs WHERE source_submission_id = 's.own'").get() as { count: number }, `${o}/${x}`).toEqual({ count: o === "none" && expected !== "created" ? 0 : 1 });
+      expect((sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs WHERE source_submission_id = 's.own' AND status = 'active'").get() as { count: number }).count, `${o}/${x}`).toBe(expected === "created" ? 1 : 0);
+    }
+  });
+
   it("treats a Submission whose own Run was superseded as a duplicate of the active Run", async () => {
     const { database, sqlite } = createTestDatabase("map.mastery");
     seedMasteryPlayer(sqlite, "player.duplicate", "binding.duplicate", "Duplicate Player");
