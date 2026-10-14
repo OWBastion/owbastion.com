@@ -691,9 +691,12 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     statements: D1PreparedStatement[];
     row: typeof verifiedRuns.$inferSelect | null;
     candidate: ReturnType<typeof prepareVerifiedRun>;
+    superseded?: { runId: string; conflictFields: VerifiedRunConflictField[] };
   };
 
-  const planVerifiedRunRecord = async (input: VerifiedRunInput, rejectConcurrentInsert = false, restampRevision = false): Promise<VerifiedRunRecordPlan> => {
+  // supersedeConflicting is a maintainer's reviewed approval: a recorded Run from another
+  // Submission whose facts differ is invalidated (audited) and this Submission records the Run.
+  const planVerifiedRunRecord = async (input: VerifiedRunInput, rejectConcurrentInsert = false, restampRevision = false, supersedeConflicting = false): Promise<VerifiedRunRecordPlan> => {
     const candidate = prepareVerifiedRun(input, now());
     const source = await db.select({ playerAccountId: submissions.playerAccountId, gameplayRevisionId: submissions.gameplayRevisionId }).from(submissions)
       .where(eq(submissions.id, candidate.sourceSubmissionId)).get();
@@ -754,15 +757,28 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         candidate,
       };
     }
+    let superseded: VerifiedRunRecordPlan["superseded"];
+    let supersedeStatements: D1PreparedStatement[] = [];
     if (existing) {
       const run = asVerifiedRun(existing);
       const conflictFields = masteryConflictFields(run, candidate);
-      return {
-        result: conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run },
-        statements: [],
-        row: existing,
-        candidate,
-      };
+      if (!(supersedeConflicting && conflictFields.length && existing.sourceSubmissionId !== candidate.sourceSubmissionId)) {
+        return {
+          result: conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run },
+          statements: [],
+          row: existing,
+          candidate,
+        };
+      }
+      superseded = { runId: existing.id, conflictFields };
+      if (existing.status === "active") {
+        supersedeStatements = prepareVerifiedRunTransitionStatements({
+          row: existing,
+          actor: { actorType: "service", actorId: candidate.acceptanceSource },
+          nextStatus: "invalidated",
+          reason: `Superseded by reviewed Submission ${candidate.sourceSubmissionId} (${conflictFields.join(", ")})`,
+        });
+      }
     }
 
     const award = calculateVerifiedRunXpV2({
@@ -798,7 +814,9 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     };
     return {
       result: { outcome: "created", run },
+      ...(superseded ? { superseded } : {}),
       statements: [
+        ...supersedeStatements,
         database.prepare(`${rejectConcurrentInsert ? "INSERT" : "INSERT OR IGNORE"} INTO mastery_runs (id, player_account_id, source_submission_id, map_id, gameplay_revision_id, map_variant, difficulty, game_version, run_code, completion_duration_seconds, deaths, skips, event_counters_json, acceptance_source, accepted_at, status, xp_rule_version, xp_input_snapshot_json, awarded_xp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)`).bind(runId, candidate.playerAccountId, candidate.sourceSubmissionId, candidate.mapId, candidate.gameplayRevisionId, candidate.mapVariant, candidate.difficulty, candidate.gameVersion, candidate.matchCode, candidate.completionDurationSeconds, candidate.deaths, candidate.skips, JSON.stringify(candidate.eventCounters), candidate.acceptanceSource, candidate.acceptedAt, award.snapshot.ruleVersion, JSON.stringify(award.snapshot), award.awardedXp, candidate.acceptedAt),
         database.prepare("INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) SELECT ?, ?, 'accepted', 'service', ?, NULL, ? WHERE EXISTS (SELECT 1 FROM mastery_runs WHERE id = ?)").bind(crypto.randomUUID(), runId, candidate.acceptanceSource, candidate.acceptedAt, runId),
       ],
@@ -812,6 +830,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     statements: D1PreparedStatement[];
     recorded: boolean;
     recordInput?: VerifiedRunInput;
+    superseded?: { runId: string; conflictFields: VerifiedRunConflictField[] };
   };
 
   const planVerifiedRunSubmissionOutcome = async (
@@ -821,7 +840,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     humanConfirmed = false,
     rejectConcurrentInsert = false,
   ): Promise<VerifiedRunSubmissionPlan> => {
-    const plan = (outcome: VerifiedRunSubmissionOutcome, statements: D1PreparedStatement[] = [], recorded = false, recordInput?: VerifiedRunInput): VerifiedRunSubmissionPlan => ({ outcome, statements, recorded, ...(recordInput ? { recordInput } : {}) });
+    const plan = (outcome: VerifiedRunSubmissionOutcome, statements: D1PreparedStatement[] = [], recorded = false, recordInput?: VerifiedRunInput, superseded?: VerifiedRunSubmissionPlan["superseded"]): VerifiedRunSubmissionPlan => ({ outcome, statements, recorded, ...(recordInput ? { recordInput } : {}), ...(superseded ? { superseded } : {}) });
     const existing = await loadVerifiedRunSubmissionOutcome(row.id);
     const evidence = assessVerifiedRunOcrEvidence(response, masteryEvidenceCompatibility, humanConfirmed);
     if (evidence.outcome === "ineligible") {
@@ -881,7 +900,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       eventCounters: {},
       acceptanceSource,
     };
-    const recorded = await planVerifiedRunRecord(recordInput, rejectConcurrentInsert, restamp);
+    const recorded = await planVerifiedRunRecord(recordInput, rejectConcurrentInsert, restamp, humanConfirmed && acceptanceSource === "submission_review");
     const statements = [
       ...(restamp ? [database.prepare("UPDATE submissions SET gameplay_revision_id = ? WHERE id = ?").bind(revision.id, row.id)]
         : !currentRevision?.gameplayRevisionId ? [database.prepare("UPDATE submissions SET gameplay_revision_id = ? WHERE id = ? AND gameplay_revision_id IS NULL").bind(revision.id, row.id)] : []),
@@ -919,7 +938,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       awardedXp: status === "created" ? recorded.result.run.awardedXp : 0,
       reason: status === "reused" ? "same_player_run_code" : null,
       conflictFields: [],
-    }, statements, recorded.statements.length === 0, recordInput);
+    }, statements, recorded.statements.length === 0, recordInput, recorded.superseded);
   };
 
   const resolveVerifiedRunSubmissionOutcome = async (
@@ -2632,6 +2651,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           ? { status: "recorded" as const, reason: null }
           : { status: "eligible" as const, reason: null }
         : { status: "ineligible" as const, reason: verifiedRunPlan.outcome.reason };
+      const supersededFields = verifiedRunPlan.superseded?.conflictFields ?? [];
       if (!blockingCode && !evidence.selections.length) {
         const retainedGrants = await loadRetainedSubmissionGrants(row.id);
         if (retainedGrants.length) {
@@ -2648,7 +2668,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         candidates,
         completions,
         titles,
-        verifiedRun,
+        verifiedRun: { ...verifiedRun, supersededFields },
         approvable: blockingCode === null,
         blockingCode,
         knownModes: knownModeRows.map((row) => row.mode),
@@ -2751,6 +2771,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           for (const { reward, alreadyOwned, canonicalChallengeId } of grantResults) if (!alreadyOwned) trailingStatements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'challenge.completion.submission', 'challenge_completion', (SELECT id FROM challenge_completions WHERE player_account_id = ? AND challenge_id = ? AND status = 'active' AND source_type = 'submission' AND source_id = ?), ?, ?) ").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, row.playerAccountId, canonicalChallengeId, row.id, JSON.stringify({ submissionId: row.id, challengeId: canonicalChallengeId, titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId }), timestamp));
           for (const { reward, grantId, alreadyOwned } of grantResults) if (!alreadyOwned) trailingStatements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'submission.grant', 'player_title_grant', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, grantId, JSON.stringify({ submissionId: row.id, titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, mapVariant: reward.snapshot?.mapVariant ?? submissionSnapshot?.mapVariant ?? null, ruleId: reward.snapshot?.ruleId ?? submissionSnapshot?.ruleId ?? null, ruleRevision: reward.snapshot?.ruleRevision ?? submissionSnapshot?.ruleRevision ?? null, alreadyOwned }), timestamp));
           await persistSubmissionReview({ row, input, auth, reviewId, timestamp, idempotencyKeyId, requestHash, response, reviewAudit, statements, trailingStatements });
+if (verifiedRunPlan?.superseded) await reconcileVerifiedRunProgressChallenges({ verifiedRunIds: [verifiedRunPlan.superseded.runId], actorId: auth.subject });
           return response;
         }
 
@@ -2778,6 +2799,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         ).bind(input.decision, input.reason ?? null, input.decision, timestamp, row.id, reviewId));
         const trailingStatements: D1PreparedStatement[] = [];
         await persistSubmissionReview({ row, input, auth, reviewId, timestamp, idempotencyKeyId, requestHash, response, reviewAudit, statements, trailingStatements });
+if (verifiedRunPlan?.superseded) await reconcileVerifiedRunProgressChallenges({ verifiedRunIds: [verifiedRunPlan.superseded.runId], actorId: auth.subject });
         return response;
       } finally {
         if (reviewClaim) await db.update(ocrResults).set({ callbackClaimed: 0 }).where(eq(ocrResults.id, reviewClaim));

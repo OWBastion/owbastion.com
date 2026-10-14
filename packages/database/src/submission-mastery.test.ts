@@ -386,7 +386,6 @@ describe("submission mastery outcomes", () => {
     const scenarios = [
       { submissionId: "submission.preview-ambiguous", mapName: "地图 map.mastery", extraMap: true, expectedReason: "ambiguous_map", expectedOutcome: "ineligible" },
       { submissionId: "submission.preview-mismatch", mapName: "地图 map.other", extraMap: false, expectedReason: "submission_map_mismatch", expectedOutcome: "ineligible" },
-      { submissionId: "submission.preview-conflict", mapName: "地图 map.mastery", extraMap: false, expectedReason: "conflicting_run_code_evidence", expectedOutcome: "conflict" },
       { submissionId: "submission.preview-clean", mapName: "地图 map.mastery", extraMap: false, expectedReason: null, expectedOutcome: "created" },
     ] as const;
 
@@ -399,7 +398,7 @@ describe("submission mastery outcomes", () => {
       seedMasteryPlayer(sqlite, "player.preview", "binding.preview", "Preview Player");
       seedMasterySubmission(sqlite, scenario.submissionId, "binding.preview", "Preview Player");
       sqlite.prepare("UPDATE submissions SET status = 'ocr_review_required', target_map_id = ? WHERE id = ?").run("map.mastery", scenario.submissionId);
-      const ocr = masteryOcr({ difficulty: scenario.expectedOutcome === "conflict" ? "传奇" : "困难" });
+      const ocr = masteryOcr();
       ocr.data.map_name = scenario.mapName;
       sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES (?, ?, 1, 'review_required', ?, ?)").run(`ocr.${scenario.submissionId}`, scenario.submissionId, JSON.stringify(ocr), now);
       sqlite.prepare("INSERT INTO submission_outcomes (id, submission_id, outcome_key, outcome_type, status, entity_id, awarded_xp, details_json, created_at, updated_at) VALUES (?, ?, 'verified_run', 'verified_run', 'ineligible', NULL, 0, '{}', ?, ?)").run(`outcome.${scenario.submissionId}`, scenario.submissionId, now, now);
@@ -410,10 +409,6 @@ describe("submission mastery outcomes", () => {
       sqlite.prepare("UPDATE submissions SET grant_id = ? WHERE id = ?").run(retainedGrantId, scenario.submissionId);
 
       const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
-      if (scenario.expectedOutcome === "conflict") {
-        seedMasterySubmission(sqlite, `submission.existing-${scenario.submissionId}`, "binding.preview", "Preview Player");
-        await services.recordVerifiedRun({ playerAccountId: "player.preview", sourceSubmissionId: `submission.existing-${scenario.submissionId}`, mapId: "map.mastery", gameplayRevisionId: "revision:map.mastery:initial", mapVariant: null, difficulty: "困难", gameVersion: "99.0101.1", matchCode: "1234-5678-9012", completionDurationSeconds: 600, deaths: 1, skips: 0, eventCounters: {}, acceptanceSource: "submission_automatic" });
-      }
       const maintainer = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
       const preview = await services.previewSubmissionReview({ submissionId: scenario.submissionId }, maintainer);
       expect(preview, scenario.submissionId).toMatchObject({
@@ -475,6 +470,27 @@ describe("submission mastery outcomes", () => {
     expect(sqlite.prepare("SELECT status, entity_id FROM submission_outcomes WHERE submission_id = 'submission.review-race' AND outcome_key = 'verified_run'").get()).toEqual({ status: "created", entity_id: concurrentRunId });
     expect(sqlite.prepare("SELECT status FROM submissions WHERE id = 'submission.review-race'").get()).toEqual({ status: "approved" });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs WHERE source_submission_id = 'submission.review-race'").get()).toEqual({ count: 1 });
+  });
+
+  it("replaces a recorded Run from another Submission when a maintainer approves differing evidence", async () => {
+    const { database, sqlite } = createTestDatabase("map.mastery");
+    seedMasteryPlayer(sqlite, "player.supersede", "binding.supersede", "Supersede Player");
+    seedMasterySubmission(sqlite, "submission.supersede-first", "binding.supersede", "Supersede Player");
+    seedMasterySubmission(sqlite, "submission.supersede-second", "binding.supersede", "Supersede Player");
+    sqlite.prepare("UPDATE submissions SET status = 'ocr_review_required', target_map_id = ? WHERE id = 'submission.supersede-second'").run("map.mastery");
+    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.supersede-second', 'submission.supersede-second', 1, 'review_required', ?, ?)").run(JSON.stringify(masteryOcr()), now);
+    const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
+    const first = await services.recordVerifiedRun({ ...automaticRunFacts, playerAccountId: "player.supersede", sourceSubmissionId: "submission.supersede-first" });
+    const maintainer = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+    const corrections = [{ fieldKey: "difficulty", reviewedValue: "传奇" }];
+
+    const preview = await services.previewSubmissionReview({ submissionId: "submission.supersede-second", fieldCorrections: corrections }, maintainer);
+    expect(preview.verifiedRun).toEqual({ status: "eligible", reason: null, supersededFields: ["difficulty"] });
+
+    await services.reviewSubmission({ submissionId: "submission.supersede-second", decision: "approved", fieldCorrections: corrections }, maintainer, "review.supersede");
+    expect(sqlite.prepare("SELECT status FROM mastery_runs WHERE id = ?").get(first.run.runId)).toEqual({ status: "invalidated" });
+    expect(sqlite.prepare("SELECT difficulty, status FROM mastery_runs WHERE source_submission_id = 'submission.supersede-second'").get()).toEqual({ difficulty: "传奇", status: "active" });
+    expect(sqlite.prepare("SELECT transition, actor_id FROM mastery_run_lifecycle_events WHERE mastery_run_id = ? AND transition = 'invalidated'").get(first.run.runId)).toEqual({ transition: "invalidated", actor_id: "submission_review" });
   });
 
   it("does not show a stale recorded Run when corrected preview evidence conflicts", async () => {

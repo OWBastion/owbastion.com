@@ -46,10 +46,17 @@ const blockingMessages: Record<string, string> = {
 export const knownReviewBlockingMessage = (code: string | null | undefined) => code ? blockingMessages[code] ?? null : null;
 export const reviewBlockingMessage = (code: string | null | undefined) => code ? knownReviewBlockingMessage(code) ?? `暂时无法通过（${code}）。` : "";
 
+const supersededFieldLabels: Record<string, string> = {
+  match_code: "通关码", map: "地图", gameplay_revision: "玩法修订", map_variant: "地图版本", difficulty: "难度",
+  game_version: "游戏版本", completion_duration: "通关用时", deaths: "死亡次数", skips: "跳过次数", event_counters: "事件计数",
+};
+
 export const verifiedRunPreviewLabel = (verifiedRun: AdminSubmissionReviewPreview["verifiedRun"]) => verifiedRun.status === "recorded"
   ? "已记录 Verified Run"
   : verifiedRun.status === "eligible"
-    ? "将按识别结果记录 Verified Run"
+    ? verifiedRun.supersededFields.length
+      ? `将按识别结果记录 Verified Run，并作废已有的同对局码记录（不一致：${verifiedRun.supersededFields.map((field) => supersededFieldLabels[field] ?? field).join("、")}）`
+      : "将按识别结果记录 Verified Run"
     : null;
 
 const verifiedRunReasonLabels: Record<string, string> = {
