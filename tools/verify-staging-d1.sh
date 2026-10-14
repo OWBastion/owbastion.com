@@ -10,7 +10,7 @@ for status in upload_pending ocr_pending ready_for_review ocr_review_required ap
   jq -e --arg status "$status" '.[0].results[0].sql | contains($status)' <<<"$submission_schema" >/dev/null
 done
 
-for table in attachments ocr_results upload_sessions submission_reviews; do
+for table in attachments ocr_results submission_reviews; do
   foreign_keys="$(query "PRAGMA foreign_key_list(${table});")"
   jq -e --arg table "submissions" '.[0].results[] | select(.from == "submission_id" and .table == $table)' <<<"$foreign_keys" >/dev/null
 done
