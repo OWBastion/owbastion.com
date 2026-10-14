@@ -386,8 +386,10 @@ continues through the existing reviewed OCR/submission path, where it can create
 the replacement run under normal verification rules. Approving
 a Submission in review is that maintainer decision: when the reviewed evidence
 differs from a Run recorded from another Submission, the approval invalidates
-that Run with an audited transition and records the replacement, and the review
-preview names the differing facts beforehand. Exact same-fact replays
+that Run with an audited transition and records the replacement; when the
+Submission already owns the differing Run, that Run is invalidated and rewritten
+from the reviewed evidence. The review preview names the differing facts
+beforehand. Exact same-fact replays
 remain reuse outcomes and do not become high-priority conflict records.
 
 ## Achievement catalog management

@@ -493,7 +493,7 @@ describe("submission mastery outcomes", () => {
     expect(sqlite.prepare("SELECT transition, actor_id FROM mastery_run_lifecycle_events WHERE mastery_run_id = ? AND transition = 'invalidated'").get(first.run.runId)).toEqual({ transition: "invalidated", actor_id: "submission_review" });
   });
 
-  it("does not show a stale recorded Run when corrected preview evidence conflicts", async () => {
+  it("previews and applies a rewrite of the Submission's own Run when corrected evidence differs", async () => {
     const { database, sqlite } = createTestDatabase("map.mastery");
     seedMasteryPlayer(sqlite, "player.preview-stale", "binding.preview-stale", "Preview Stale");
     seedMasterySubmission(sqlite, "submission.preview-stale", "binding.preview-stale", "Preview Stale");
@@ -515,10 +515,14 @@ describe("submission mastery outcomes", () => {
     }, maintainer);
 
     expect(preview).toMatchObject({
-      approvable: false,
-      blockingCode: "SUBMISSION_OUTCOME_NOT_CONFIGURED",
-      verifiedRun: { status: "ineligible", reason: "conflicting_run_code_evidence" },
+      approvable: true,
+      blockingCode: null,
+      verifiedRun: { status: "eligible", reason: null, supersededFields: ["difficulty"] },
     });
+
+    await services.reviewSubmission({ submissionId: "submission.preview-stale", decision: "approved", fieldCorrections: [{ fieldKey: "difficulty", reviewedValue: "传奇" }] }, maintainer, "review.preview-stale");
+    expect(sqlite.prepare("SELECT id, difficulty, status, acceptance_source FROM mastery_runs WHERE source_submission_id = 'submission.preview-stale'").all()).toEqual([{ id: run.run.runId, difficulty: "传奇", status: "active", acceptance_source: "submission_review" }]);
+    expect(sqlite.prepare("SELECT transition FROM mastery_run_lifecycle_events WHERE mastery_run_id = ? ORDER BY created_at, rowid").all(run.run.runId)).toEqual([{ transition: "accepted" }, { transition: "invalidated" }, { transition: "restored" }]);
   });
 
   it("offers the room's already-seen match codes and records the associated one", async () => {

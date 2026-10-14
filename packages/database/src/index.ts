@@ -719,9 +719,21 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       eq(verifiedRuns.gameVersion, candidate.gameVersion),
       eq(verifiedRuns.matchCode, candidate.matchCode),
     )).get();
-    if (existing && bySource && existing.status === "invalidated" && existing.invalidationReason === submissionReopenedReason) {
+    const reopened = existing?.status === "invalidated" && existing.invalidationReason === submissionReopenedReason;
+    // A reviewed approval of the Submission that already owns an active Run with differing facts
+    // (e.g. recorded before the reviewer filled deaths and skips) rewrites that Run the same way.
+    const ownConflictFields = existing && bySource && supersedeConflicting && existing.status === "active" ? masteryConflictFields(asVerifiedRun(existing), candidate) : [];
+    if (existing && bySource && (reopened || ownConflictFields.length)) {
       // The maintainer reopened this approved submission and has now re-approved it with
       // corrected evidence: the same run is restored and rewritten from that evidence.
+      const rewriteStatements = ownConflictFields.length
+        ? prepareVerifiedRunTransitionStatements({
+          row: existing,
+          actor: { actorType: "service", actorId: candidate.acceptanceSource },
+          nextStatus: "invalidated",
+          reason: `Rewritten by reviewed approval (${ownConflictFields.join(", ")})`,
+        })
+        : [];
       const award = calculateVerifiedRunXpV2({ difficulty: candidate.difficulty, mapFactor: candidate.mapFactor, deaths: candidate.deaths, skips: candidate.skips });
       const restoredAt = now();
       const run: VerifiedRun = {
@@ -748,7 +760,9 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       };
       return {
         result: { outcome: "created", run },
+        ...(ownConflictFields.length ? { superseded: { runId: existing.id, conflictFields: ownConflictFields } } : {}),
         statements: [
+          ...rewriteStatements,
           database.prepare("UPDATE mastery_runs SET map_id = ?, gameplay_revision_id = ?, map_variant = ?, difficulty = ?, game_version = ?, run_code = ?, completion_duration_seconds = ?, deaths = ?, skips = ?, event_counters_json = ?, acceptance_source = ?, accepted_at = ?, status = 'active', invalidated_at = NULL, invalidated_by = NULL, invalidation_reason = NULL, xp_rule_version = ?, xp_input_snapshot_json = ?, awarded_xp = ? WHERE id = ? AND status = 'invalidated'")
             .bind(run.mapId, run.gameplayRevisionId, run.mapVariant, run.difficulty, run.gameVersion, run.matchCode, run.completionDurationSeconds, run.deaths, run.skips, JSON.stringify(run.eventCounters), run.acceptanceSource, run.acceptedAt, run.xpRuleVersion, JSON.stringify(run.xpInputSnapshot), run.awardedXp, run.runId),
           database.prepare("INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) SELECT ?, ?, 'restored', 'service', ?, NULL, ? WHERE changes() = 1").bind(crypto.randomUUID(), run.runId, candidate.acceptanceSource, restoredAt),
