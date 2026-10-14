@@ -12,7 +12,7 @@ export type MutationStatus = 404 | 409 | 422 | 503;
 export type RouteErrorMap = Partial<Record<string, { status: ErrorStatus; message: string; responseCode?: string }>>;
 
 export type AdminMutationOptions<T> = {
-  schema?: { safeParse(value: unknown): { success: true; data: T } | { success: false } };
+  schema?: { safeParse(value: unknown): { success: true; data: T } | { success: false; error?: { issues: Array<{ path: PropertyKey[]; message: string }> } } };
   status?: 200 | 201;
   noContent?: boolean;
   before?: () => Response | undefined;

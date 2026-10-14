@@ -376,7 +376,13 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const body = options.schema ? await parseBody(c.req.raw) : undefined;
     const parsed = options.schema?.safeParse(options.prepare ? options.prepare(body) : body);
-    if (parsed && !parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", options.invalidMessage ?? "The request does not match contract v1");
+    if (parsed && !parsed.success) {
+      const issues = parsed.error?.issues ?? [];
+      const issueSummary = issues.slice(0, 5).map((issue) => `${issue.path.map(String).join(".") || "request"}: ${issue.message}`).join("; ");
+      const remaining = issues.length - 5;
+      const message = `${options.invalidMessage ?? "The request does not match contract v1"}${issueSummary ? `: ${issueSummary}${remaining > 0 ? `; ${remaining} more issue(s)` : ""}` : ""}`;
+      return errorResponse(c, 422, "INVALID_REQUEST", message);
+    }
     try {
       const result = await options.action(parsed?.success ? parsed.data : undefined as T, access.auth!, idempotencyKey);
       return options.noContent ? c.body(null, 204) : c.json(result, options.status ?? 200);

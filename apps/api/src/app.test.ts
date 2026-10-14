@@ -581,6 +581,21 @@ describe("API", () => {
     const maintainerApp = createTestApp({}, authenticateAsMaintainer);
     expect((await maintainerApp.request("http://localhost/v1/admin/events/imports", request, env)).status).toBe(422);
   });
+  it("reports the invalid event field without echoing submitted values", async () => {
+    const createEvent = vi.fn();
+    const maintainerApp = createTestApp({ createAdminRandomEvent: createEvent }, authenticateAsMaintainer);
+    const response = await maintainerApp.request("http://localhost/v1/admin/events", {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "create-event" },
+      body: JSON.stringify({ contractVersion: "1", name: "", category: "机制", description: "", durationSeconds: null, cooldownSeconds: null, weight: null, gameVersion: "5.0", effectTags: [], releaseStatus: "development", challengeLinks: [] }),
+    }, env);
+    const body = await response.json() as { error: { message: string } };
+    expect(response.status).toBe(422);
+    expect(body.error.message).toContain("name");
+    expect(body.error.message).toContain("Too small");
+    expect(body.error.message).not.toContain("机制");
+    expect(createEvent).not.toHaveBeenCalled();
+  });
   it("requires a maintainer, an idempotency key, and a valid body for batch event updates", async () => {
     const send = (application: typeof app, headers: Record<string, string>, body: unknown) => application.request("http://localhost/v1/admin/events/batch", { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body) }, env);
     const valid = { contractVersion: "1", updates: [{ eventId: "event.a", weight: 0.5 }] };
