@@ -42,7 +42,6 @@ export const createPlayerUploadServices = (dependencies: PlayerUploadDependencie
       const uploadId = crypto.randomUUID();
       const timestamp = now();
       const objectKey = userEvidenceObjectKey(submissionId, input.sha256, evidenceExtensions[input.contentType]);
-      await db.insert(submissions).values({ id: submissionId, playerAccountId: account.id, bindingId: null, status: "upload_pending", challengeType: "unknown", challengeId: null, targetMapId: null, gameplayRevisionId: null, mapName: "成就挑战", difficulty: null, playerName: account.playerName, sourceProvider: "portal", sourceConversationId: "portal", sourceMessageId: uploadId, createdAt: timestamp, updatedAt: timestamp });
       await db.insert(uploadSessions).values({ id: uploadId, submissionId, playerAccountId: account.id, contentType: input.contentType, byteSize: input.byteSize, sha256: input.sha256, objectKey, status: "pending", expiresAt: timestamp + uploadTtlMs, createdAt: timestamp });
       return { contractVersion: "1" as const, submissionId, uploadId, uploadUrl: `${uploadOrigin}/v1/uploads/${uploadId}`, expiresAt: timestamp + uploadTtlMs, maxBytes: maxUploadBytes };
     },
@@ -60,8 +59,21 @@ export const createPlayerUploadServices = (dependencies: PlayerUploadDependencie
       const sha256 = await digestHex(input.body);
       if (sha256 !== session.sha256) throw new Error("UPLOAD_HASH_MISMATCH");
       await evidenceBucket.put(session.objectKey, input.body, { httpMetadata: { contentType: input.contentType } });
-      await db.update(uploadSessions).set({ status: "uploaded" }).where(eq(uploadSessions.id, session.id));
-      await db.insert(attachments).values({ id: crypto.randomUUID(), submissionId: session.submissionId, provider: "portal", externalAttachmentId: session.id, contentType: input.contentType, byteSize: input.body.byteLength, sha256, objectKey: session.objectKey, uploadStatus: "stored", createdAt: now() });
+      const uploadedAt = now();
+      await database.batch([
+        database.prepare("UPDATE upload_sessions SET status = 'uploaded' WHERE id = ? AND status = 'pending' AND expires_at > ?").bind(session.id, uploadedAt),
+        database.prepare(`INSERT OR IGNORE INTO submissions (id, player_account_id, binding_id, status, challenge_type, challenge_id, target_map_id, gameplay_revision_id, map_name, difficulty, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at)
+          SELECT ?, ?, NULL, 'upload_pending', 'unknown', NULL, NULL, NULL, '成就挑战', NULL, ?, 'portal', 'portal', ?, ?, ?
+          WHERE EXISTS (SELECT 1 FROM upload_sessions WHERE id = ? AND status = 'uploaded')`)
+          .bind(session.submissionId, account.id, account.playerName, session.id, uploadedAt, uploadedAt, session.id),
+        database.prepare(`INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, byte_size, sha256, object_key, upload_status, created_at)
+          SELECT ?, ?, 'portal', ?, ?, ?, ?, ?, 'stored', ?
+          WHERE EXISTS (SELECT 1 FROM upload_sessions WHERE id = ? AND status = 'uploaded')
+            AND NOT EXISTS (SELECT 1 FROM attachments WHERE provider = 'portal' AND external_attachment_id = ?)`)
+          .bind(crypto.randomUUID(), session.submissionId, session.id, input.contentType, input.body.byteLength, sha256, session.objectKey, uploadedAt, session.id, session.id),
+      ]);
+      const updatedSession = await db.select({ status: uploadSessions.status }).from(uploadSessions).where(eq(uploadSessions.id, session.id)).get();
+      if (updatedSession?.status !== "uploaded") throw new Error("UPLOAD_SESSION_INVALID");
     },
 
     async completePlayerUpload(input, sessionToken, requestId) {
