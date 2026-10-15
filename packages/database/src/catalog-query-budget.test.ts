@@ -36,7 +36,6 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       icon_object_key TEXT,
       category TEXT NOT NULL,
       condition TEXT NOT NULL,
-      availability TEXT NOT NULL,
       lifecycle TEXT NOT NULL DEFAULT 'active',
       public_visibility INTEGER NOT NULL DEFAULT 1,
       scope TEXT NOT NULL,
@@ -120,7 +119,7 @@ const seedCatalog = (sqlite: DatabaseSync, { maps, achievements }: { maps: numbe
     const titleKey = `TITLE_${i}`;
     const challengeId = `title.challenge.${i}`;
     sqlite.prepare(
-      "INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES (?, ?, 'award', '测试系列', '条件', 'active', 'map', 'fixed', 'null', '2026.07.15')",
+      "INSERT INTO title_catalog (key, label, icon, category, condition, scope, display_kind, color_json, game_version) VALUES (?, ?, 'award', '测试系列', '条件', 'map', 'fixed', 'null', '2026.07.15')",
     ).run(titleKey, `称号 ${i}`);
     sqlite.prepare(
       "INSERT INTO title_challenges (id, title_key, category_override, condition, evidence_rule, submission_mode, game_version, status, introduced_version, retired_version, starts_at, ends_at, scope, created_at, updated_at) VALUES (?, ?, NULL, '条件', '截图', 'manual', '2026.07.15', 'active', '2026.07.15', NULL, NULL, NULL, 'map', ?, ?)",
@@ -140,7 +139,7 @@ const seedCatalog = (sqlite: DatabaseSync, { maps, achievements }: { maps: numbe
 
   // One global title for getAgentTitle direct path.
   sqlite.prepare(
-    "INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('GLOBAL_ONE', '全局称号', 'award', '测试系列', '条件', 'active', 'global', 'fixed', 'null', '2026.07.15')",
+    "INSERT INTO title_catalog (key, label, icon, category, condition, scope, display_kind, color_json, game_version) VALUES ('GLOBAL_ONE', '全局称号', 'award', '测试系列', '条件', 'global', 'fixed', 'null', '2026.07.15')",
   ).run();
   sqlite.prepare(
     "INSERT INTO title_challenges (id, title_key, category_override, condition, evidence_rule, submission_mode, game_version, status, introduced_version, retired_version, starts_at, ends_at, scope, created_at, updated_at) VALUES ('title.global.one', 'GLOBAL_ONE', NULL, '条件', '截图', 'manual', '2026.07.15', 'active', '2026.07.15', NULL, NULL, NULL, 'global', ?, ?)",
@@ -148,7 +147,7 @@ const seedCatalog = (sqlite: DatabaseSync, { maps, achievements }: { maps: numbe
 
   // Map-scoped reward title on map.0
   sqlite.prepare(
-    "INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('PIONEER_0', '开拓者0', 'trophy', '社区贡献系列', '地图', 'active', 'map', 'map_pioneer', 'null', '2026.07.15')",
+    "INSERT INTO title_catalog (key, label, icon, category, condition, scope, display_kind, color_json, game_version) VALUES ('PIONEER_0', '开拓者0', 'trophy', '社区贡献系列', '地图', 'map', 'map_pioneer', 'null', '2026.07.15')",
   ).run();
   sqlite.prepare(
     "INSERT INTO map_title_rewards (map_id, slot, title_key, pioneer_prefixes_json) VALUES ('map.0', 'pioneer', 'PIONEER_0', '[\"前缀\"]')",
@@ -241,9 +240,9 @@ describe("catalog query budgets", () => {
   it("projects unreleased global titles to Agents without exposing them to players", async () => {
     const { services, sqlite } = runWithSize(2, 2);
     const timestamp = Date.now();
-    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('FUTURE_TITLE', '未来称号', 'award', '未来系列', '完成挑战', 'active', 'global', 'fixed', 'null', NULL)").run();
-    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, availability, lifecycle, scope, display_kind, color_json, game_version) VALUES ('RETIRED_TITLE', '历史称号', 'award', '历史系列', '历史条件', 'retired', 'retired', 'global', 'fixed', 'null', NULL)").run();
-    sqlite.prepare("INSERT INTO title_challenges (id, title_key, category_override, condition, evidence_rule, submission_mode, game_version, status, introduced_version, retired_version, starts_at, ends_at, scope, created_at, updated_at) VALUES ('title.future', 'FUTURE_TITLE', NULL, '完成挑战', '截图', 'manual', NULL, 'scheduled', NULL, NULL, NULL, NULL, 'global', ?, ?)").run(timestamp, timestamp);
+    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, scope, display_kind, color_json, game_version) VALUES ('FUTURE_TITLE', '未来称号', 'award', '未来系列', '完成挑战', 'global', 'fixed', 'null', NULL)").run();
+    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, lifecycle, scope, display_kind, color_json, game_version) VALUES ('RETIRED_TITLE', '历史称号', 'award', '历史系列', '历史条件', 'retired', 'global', 'fixed', 'null', NULL)").run();
+    sqlite.prepare("INSERT INTO title_challenges (id, title_key, category_override, condition, evidence_rule, submission_mode, game_version, status, introduced_version, retired_version, starts_at, ends_at, scope, created_at, updated_at) VALUES ('title.future', 'FUTURE_TITLE', NULL, '完成挑战', '截图', 'manual', NULL, 'active', NULL, NULL, ?, NULL, 'global', ?, ?)").run(timestamp + 60_000, timestamp, timestamp);
 
     const buildProjection = await services.listAgentTitles({ page: 1, pageSize: 20 });
     expect(buildProjection.items).toEqual(expect.arrayContaining([
@@ -332,8 +331,8 @@ describe("catalog query budgets", () => {
   it("projects equipped retired grants while excluding revoked and map grants", async () => {
     const { services, sqlite } = runWithSize(2, 2);
     const timestamp = Date.now();
-    sqlite.prepare("UPDATE title_catalog SET availability = 'retired', lifecycle = 'retired' WHERE key = 'GLOBAL_ONE'").run();
-    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, availability, lifecycle, scope, display_kind, color_json, game_version) VALUES ('GLOBAL_RETIRED', '历史通用称号', 'award', '测试系列', '条件', 'retired', 'retired', 'global', 'fixed', 'null', '2026.07.15')").run();
+    sqlite.prepare("UPDATE title_catalog SET lifecycle = 'retired' WHERE key = 'GLOBAL_ONE'").run();
+    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, lifecycle, scope, display_kind, color_json, game_version) VALUES ('GLOBAL_RETIRED', '历史通用称号', 'award', '测试系列', '条件', 'retired', 'global', 'fixed', 'null', '2026.07.15')").run();
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.2', '1002', 'Revoked Holder', 'revoked holder', 0, 'active', ?, ?)").run(timestamp, timestamp);
     sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.retired', 'player.1', 'GLOBAL_RETIRED', NULL, NULL, 'active', 'historical', 'source.retired', 'admin', ?), ('grant.revoked', 'player.2', 'GLOBAL_ONE', NULL, NULL, 'revoked', 'historical', 'source.revoked', 'admin', ?), ('grant.map', 'player.1', 'PIONEER_0', 'map.0', 'pioneer', 'active', 'submission', 'source.map', 'admin', ?)").run(timestamp, timestamp, timestamp);
 

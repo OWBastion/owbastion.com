@@ -33,10 +33,10 @@ const seedProjection = (sqlite: ReturnType<typeof createD1>["sqlite"], spatial: 
   seedTitle(sqlite, "REWORK");
   seedTitle(sqlite, "GLOBAL");
   sqlite.prepare("UPDATE title_catalog SET scope = 'global' WHERE key = 'GLOBAL'").run();
-  sqlite.prepare("INSERT INTO achievement_challenges (id, map_id, type, name, game_version, status, introduced_version, retired_version, created_at, updated_at) VALUES ('challenge.direct', ?, 'difficulty_completion', 'Direct', ?, 'sunsetting', ?, ?, 1, 1)").run(mapId, definitionVersion, introducedVersion, retiredVersion);
-  sqlite.prepare("INSERT INTO map_title_rules (id, title_key, kind, condition, evidence_rule, display_kind, status, introduced_version, retired_version, created_at, updated_at) VALUES ('rule.conqueror', 'CONQUEROR', 'conqueror', 'condition', 'evidence', 'map_name_suffix', 'sunsetting', ?, ?, 1, 1)").run(definitionVersion, retiredVersion);
+  sqlite.prepare("INSERT INTO achievement_challenges (id, map_id, type, name, game_version, status, introduced_version, retired_version, created_at, updated_at) VALUES ('challenge.direct', ?, 'difficulty_completion', 'Direct', ?, 'active', ?, ?, 1, 1)").run(mapId, definitionVersion, introducedVersion, retiredVersion);
+  sqlite.prepare("INSERT INTO map_title_rules (id, title_key, kind, condition, evidence_rule, display_kind, status, introduced_version, retired_version, created_at, updated_at) VALUES ('rule.conqueror', 'CONQUEROR', 'conqueror', 'condition', 'evidence', 'map_name_suffix', 'active', ?, ?, 1, 1)").run(definitionVersion, retiredVersion);
   for (const [id, key, scope] of [["title.rework", "REWORK", "map"], ["title.global", "GLOBAL", "global"]]) {
-    sqlite.prepare("INSERT INTO title_challenges (id, title_key, condition, evidence_rule, submission_mode, game_version, status, introduced_version, retired_version, scope, created_at, updated_at) VALUES (?, ?, 'condition', 'evidence', 'manual', ?, 'sunsetting', ?, ?, ?, 1, 1)").run(id, key, definitionVersion, introducedVersion, retiredVersion, scope);
+    sqlite.prepare("INSERT INTO title_challenges (id, title_key, condition, evidence_rule, submission_mode, game_version, status, introduced_version, retired_version, scope, created_at, updated_at) VALUES (?, ?, 'condition', 'evidence', 'manual', ?, 'active', ?, ?, ?, 1, 1)").run(id, key, definitionVersion, introducedVersion, retiredVersion, scope);
   }
   sqlite.prepare("INSERT INTO achievement_challenge_maps (challenge_id, map_id) VALUES ('title.rework', ?)").run(mapId);
   for (const [challengeFamily, challengeId] of [["map_challenge", "challenge.direct"], ["map_title_rule", "rule.conqueror"], ["title_challenge", "title.rework"]] as const) {

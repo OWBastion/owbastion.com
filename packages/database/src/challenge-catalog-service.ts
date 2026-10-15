@@ -20,6 +20,17 @@ import {
 } from "./schema";
 import type { PlatformCache } from "./platform-cache";
 
+// Catalog row shared by public and admin readers. Public callers only ever
+// produce playable projections ("active" | "sunsetting" with a resolved
+// gameVersion); admin callers pass includeInactive/forAdmin and see the stored
+// lifecycle plus the definition window instead.
+type MapChallengeCatalogRow = Omit<Extract<Challenge, { family: "map" }>, "status" | "gameVersion"> & {
+  status: "draft" | "active" | "archived" | "sunsetting";
+  gameVersion: string | null;
+  startsAt?: number | null;
+  endsAt?: number | null;
+};
+
 type Dependencies = {
   db: ReturnType<typeof drizzle>;
   now: () => number;
@@ -31,6 +42,7 @@ type Dependencies = {
     endsAt: number | null,
     timestamp: number,
     gameVersion?: string | null,
+    retiredVersion?: string | null,
   ) => string | null;
 };
 
@@ -100,7 +112,7 @@ export const createChallengeCatalogServices = ({ db, now, platformCache, pioneer
     title: typeof titleCatalog.$inferSelect,
     timestamp: number,
   ) => {
-    const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, timestamp, challenge.gameVersion);
+    const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, timestamp, challenge.gameVersion, challenge.retiredVersion);
     const gameVersion = challenge.gameVersion?.trim();
     if (!status || !gameVersion || !title.gameVersion?.trim()) return null;
     const progressRule = parseChallengeProgressRule(challenge.progressRule);
@@ -152,7 +164,7 @@ export const createChallengeCatalogServices = ({ db, now, platformCache, pioneer
     submissionMode: (assignment.submissionMode ?? challenge.submissionMode) as "manual" | "automatic",
     difficulty: challenge.difficulty ?? undefined,
     gameVersion: revision.gameVersion,
-    status: challenge.status as "active" | "sunsetting",
+    status: challenge.retiredVersion ? "sunsetting" : "active",
     retiredVersion: challenge.retiredVersion ?? undefined,
   });
 
@@ -168,7 +180,7 @@ export const createChallengeCatalogServices = ({ db, now, platformCache, pioneer
     .innerJoin(gameplayRevisionChallengeAssignments, enabledMapChallengeAssignment())
     .innerJoin(gameplayRevisions, eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, gameplayRevisions.id))
     .where(and(
-      inArray(achievementChallenges.status, ["active", "sunsetting"]),
+      eq(achievementChallenges.status, "active"),
       eq(maps.status, "active"),
       eq(gameplayRevisions.mapId, achievementChallenges.mapId),
       inArray(gameplayRevisions.lifecycle, ["default", "selectable"]),
@@ -185,7 +197,7 @@ export const createChallengeCatalogServices = ({ db, now, platformCache, pioneer
   const fetchAllPublicChallenges = async (eligibilityAt = now(), includeHiddenTitles = false): Promise<Challenge[]> => {
     const [mapRows, titleRows, mapIdsByChallenge] = await Promise.all([
       platformCache.cached("catalog", "pub-challenge-map-rows", () => mapChallengeQuery()),
-      platformCache.cached("catalog", `pub-challenge-title-rows:${includeHiddenTitles ? "all" : "visible"}`, () => db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(and(inArray(titleChallenges.status, ["scheduled", "active", "sunsetting"]), eq(titleCatalog.lifecycle, "active"), includeHiddenTitles ? undefined : eq(titleCatalog.publicVisibility, 1)))),
+      platformCache.cached("catalog", `pub-challenge-title-rows:${includeHiddenTitles ? "all" : "visible"}`, () => db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(and(eq(titleChallenges.status, "active"), eq(titleCatalog.lifecycle, "active"), includeHiddenTitles ? undefined : eq(titleCatalog.publicVisibility, 1)))),
       loadChallengeMapIds(),
     ]);
     const timestamp = eligibilityAt;
@@ -199,10 +211,15 @@ export const createChallengeCatalogServices = ({ db, now, platformCache, pioneer
     return items;
   };
 
+  // Public projections only carry playable rows; stored lifecycle values are
+  // visible to admin readers through the includeInactive/forAdmin modes.
+  const isPlayableMapRow = (row: MapChallengeCatalogRow): row is Extract<Challenge, { family: "map" }> =>
+    (row.status === "active" || row.status === "sunsetting") && row.gameVersion !== null;
+
   const fetchAllAutoMatchChallenges = async (eligibilityAt = now()): Promise<Challenge[]> => [
     ...(await fetchAllPublicChallenges(eligibilityAt, true)).filter((challenge) => challenge.family !== "achievement" || !challenge.progressRule),
-    ...await loadMapTitleRuleChallenges(false, eligibilityAt, true),
-    ...await loadMapScopedTitleChallenges(eligibilityAt, true),
+    ...(await loadMapTitleRuleChallenges(false, eligibilityAt, true)).filter(isPlayableMapRow),
+    ...(await loadMapScopedTitleChallenges(eligibilityAt, true)).filter(isPlayableMapRow),
   ];
 
   const fetchPlayerAutoMatchChallenges = async (playerAccountId: string, eligibilityAt: number): Promise<Challenge[]> => {
@@ -242,10 +259,10 @@ export const createChallengeCatalogServices = ({ db, now, platformCache, pioneer
           .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
           .innerJoin(gameplayRevisionChallengeAssignments, enabledMapChallengeAssignment())
           .innerJoin(gameplayRevisions, eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, gameplayRevisions.id))
-          .where(and(inArray(achievementChallenges.id, mapChallengeIds), inArray(achievementChallenges.status, ["active", "sunsetting"]), eq(maps.status, "active"), eq(gameplayRevisions.mapId, achievementChallenges.mapId), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])))
+          .where(and(inArray(achievementChallenges.id, mapChallengeIds), eq(achievementChallenges.status, "active"), eq(maps.status, "active"), eq(gameplayRevisions.mapId, achievementChallenges.mapId), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])))
         : Promise.resolve([] as Array<{ challenge: typeof achievementChallenges.$inferSelect; map: typeof maps.$inferSelect; assignment: typeof gameplayRevisionChallengeAssignments.$inferSelect; revision: typeof gameplayRevisions.$inferSelect }>),
       titleChallengeIds.length
-        ? db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(and(inArray(titleChallenges.id, titleChallengeIds), inArray(titleChallenges.status, ["scheduled", "active", "sunsetting"]), eq(titleCatalog.lifecycle, "active"), eq(titleCatalog.publicVisibility, 1)))
+        ? db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(and(inArray(titleChallenges.id, titleChallengeIds), eq(titleChallenges.status, "active"), eq(titleCatalog.lifecycle, "active"), eq(titleCatalog.publicVisibility, 1)))
         : Promise.resolve([] as Array<{ challenge: typeof titleChallenges.$inferSelect; title: typeof titleCatalog.$inferSelect }>),
       loadChallengeMapIds(titleChallengeIds),
     ]);
@@ -258,11 +275,11 @@ export const createChallengeCatalogServices = ({ db, now, platformCache, pioneer
     }
     return items;
   };
-  const loadMapTitleRuleChallenges = async (includeInactive = false, eligibilityAt = now(), includeHiddenTitles = false, versionSource: "revision" | "definition" = "revision"): Promise<Challenge[]> => {
+  const loadMapTitleRuleChallenges = async (includeInactive = false, eligibilityAt = now(), includeHiddenTitles = false, versionSource: "revision" | "definition" = "revision"): Promise<MapChallengeCatalogRow[]> => {
     const { rows, revisionRows, assignments, compat, exceptions } = await platformCache.cached("catalog", `rule-challenge-inputs:${includeInactive ? "all" : "open"}:${includeHiddenTitles ? "all" : "visible"}`, async () => {
       const [rows, revisionRows, assignments, compat, exceptions] = await Promise.all([
         db.select({ rule: mapTitleRules, title: titleCatalog }).from(mapTitleRules).innerJoin(titleCatalog, eq(mapTitleRules.titleKey, titleCatalog.key))
-          .where(and(includeInactive ? undefined : inArray(mapTitleRules.status, ["active", "sunsetting"]), eq(titleCatalog.lifecycle, "active"), includeHiddenTitles ? undefined : eq(titleCatalog.publicVisibility, 1))),
+          .where(and(includeInactive ? undefined : eq(mapTitleRules.status, "active"), includeInactive ? undefined : eq(titleCatalog.lifecycle, "active"), includeInactive || includeHiddenTitles ? undefined : eq(titleCatalog.publicVisibility, 1))),
         db.select({ map: maps, revision: gameplayRevisions }).from(gameplayRevisions)
           .innerJoin(maps, eq(gameplayRevisions.mapId, maps.id))
           .where(and(eq(maps.status, "active"), inArray(gameplayRevisions.lifecycle, ["default", "selectable"]))),
@@ -276,7 +293,7 @@ export const createChallengeCatalogServices = ({ db, now, platformCache, pioneer
     const compatByRuleMap = new globalThis.Map(compat.map((item) => [`${item.ruleId}:${item.mapId}`, item.legacyChallengeId]));
     const exceptionByRuleMap = new globalThis.Map(exceptions.map((item) => [`${item.ruleId}:${item.mapId}`, item]));
     const timestamp = eligibilityAt;
-    const items: Challenge[] = [];
+    const items: MapChallengeCatalogRow[] = [];
     for (const { rule, title } of rows) {
       if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && rule.defaultScope !== "explicit") continue;
       for (const { map, revision } of revisionRows) {
@@ -296,15 +313,17 @@ export const createChallengeCatalogServices = ({ db, now, platformCache, pioneer
           submissionMode: (activeException?.submissionMode ?? assignment.submissionMode ?? rule.submissionMode) as "manual" | "automatic",
           mapTitleRule: { ruleId: rule.id, kind: rule.kind, displayKind: rule.displayKind as "fixed" | "map_pioneer" | "map_name_suffix", slot: slot as "pioneer" | "conqueror" | "dominator" | null, dynamic: true },
           gameVersion: versionSource === "definition" ? rule.introducedVersion : revision.gameVersion,
-          status: rule.status as "active" | "sunsetting",
+          // Admin listings surface the stored lifecycle; public callers get the
+          // availability word derived from the announced retirement version.
+          status: includeInactive ? rule.status as "draft" | "active" | "archived" : rule.retiredVersion ? "sunsetting" : "active",
           retiredVersion: rule.retiredVersion ?? undefined,
         });
       }
     }
     return items;
   };
-  const loadMapScopedTitleChallenges = async (eligibilityAt = now(), includeHiddenTitles = false, versionSource: "revision" | "definition" = "revision"): Promise<Challenge[]> => {
-    const { rows, compatIds } = await platformCache.cached("catalog", `map-scoped-title-rows:${includeHiddenTitles ? "all" : "visible"}`, async () => ({ rows: await db.select({ challenge: titleChallenges, title: titleCatalog, assignment: gameplayRevisionChallengeAssignments, revision: gameplayRevisions, map: maps })
+  const loadMapScopedTitleChallenges = async (eligibilityAt = now(), includeHiddenTitles = false, versionSource: "revision" | "definition" = "revision", forAdmin = false): Promise<MapChallengeCatalogRow[]> => {
+    const { rows, compatIds } = await platformCache.cached("catalog", `map-scoped-title-rows:${includeHiddenTitles ? "all" : "visible"}:${forAdmin ? "admin" : "public"}`, async () => ({ rows: await db.select({ challenge: titleChallenges, title: titleCatalog, assignment: gameplayRevisionChallengeAssignments, revision: gameplayRevisions, map: maps })
       .from(gameplayRevisionChallengeAssignments)
       .innerJoin(titleChallenges, eq(gameplayRevisionChallengeAssignments.challengeId, titleChallenges.id))
       .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
@@ -313,11 +332,11 @@ export const createChallengeCatalogServices = ({ db, now, platformCache, pioneer
       .where(and(
         eq(gameplayRevisionChallengeAssignments.challengeFamily, "title_challenge"),
         eq(gameplayRevisionChallengeAssignments.enabled, 1),
-        inArray(titleChallenges.status, ["scheduled", "active", "sunsetting"]),
+        forAdmin ? undefined : eq(titleChallenges.status, "active"),
         eq(titleChallenges.scope, "map"),
         isNull(titleChallenges.progressRule),
-        eq(titleCatalog.lifecycle, "active"),
-        includeHiddenTitles ? undefined : eq(titleCatalog.publicVisibility, 1),
+        forAdmin ? undefined : eq(titleCatalog.lifecycle, "active"),
+        forAdmin || includeHiddenTitles ? undefined : eq(titleCatalog.publicVisibility, 1),
         eq(maps.status, "active"),
         eq(gameplayRevisions.mapId, gameplayRevisionChallengeAssignments.mapId),
         inArray(gameplayRevisions.lifecycle, ["default", "selectable"]),
@@ -325,10 +344,14 @@ export const createChallengeCatalogServices = ({ db, now, platformCache, pioneer
     const compat = new Set(compatIds);
     return rows.flatMap(({ challenge, title, assignment, revision, map }) => {
       if (compat.has(challenge.id)) return [];
-      const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, eligibilityAt, challenge.gameVersion);
-      if (!status || (status !== "active" && status !== "sunsetting")) return [];
+      // Admin listings surface the stored lifecycle; public callers get the
+      // derived availability word and only see currently open challenges.
+      const status = forAdmin
+        ? challenge.status
+        : publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, eligibilityAt, challenge.gameVersion, challenge.retiredVersion);
+      if (!status || (!forAdmin && status !== "active" && status !== "sunsetting")) return [];
       const gameVersion = challenge.gameVersion?.trim();
-      if (!gameVersion || !title.gameVersion?.trim()) return [];
+      if (!forAdmin && (!gameVersion || !title.gameVersion?.trim())) return [];
       const mapVariant = (challenge.mapVariant as "classic" | null) ?? null;
       return [{
         challengeId: challenge.id,
@@ -343,9 +366,10 @@ export const createChallengeCatalogServices = ({ db, now, platformCache, pioneer
         condition: assignment.condition ?? challenge.condition,
         evidenceRule: assignment.evidenceRule ?? challenge.evidenceRule,
         submissionMode: (assignment.submissionMode ?? challenge.submissionMode) as "manual" | "automatic",
-        gameVersion: versionSource === "definition" ? gameVersion : revision.gameVersion,
-        status: status as "active" | "sunsetting",
+        gameVersion: versionSource === "definition" ? gameVersion ?? null : revision.gameVersion,
+        status: status as MapChallengeCatalogRow["status"],
         retiredVersion: challenge.retiredVersion ?? undefined,
+        ...(forAdmin ? { startsAt: challenge.startsAt, endsAt: challenge.endsAt } : {}),
         ...(mapVariant ? { mapVariant } : {}),
       }];
     });

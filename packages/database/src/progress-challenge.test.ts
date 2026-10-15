@@ -350,9 +350,9 @@ describe("verified-run progress challenges", () => {
     seedProgressReadRule(sqlite, { id: "later", startsAt: start + 1, endsAt: end, rule: { type: "required_maps_completed", mapIds: ["map.alpha"] } });
     seedProgressReadRule(sqlite, { id: "mirror", startsAt: start, endsAt: end, rule: { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"], mode: "2026 镜中回响", difficultyAtLeast: "专家" } });
     seedProgressReadRule(sqlite, { id: "private", visibility: 0 });
-    seedProgressReadRule(sqlite, { id: "retired-challenge", status: "retired" });
+    seedProgressReadRule(sqlite, { id: "retired-challenge", status: "archived" });
     seedProgressReadRule(sqlite, { id: "retired-title", lifecycle: "retired" });
-    seedProgressReadRule(sqlite, { id: "future", status: "scheduled", startsAt: end, rule: { type: "required_maps_completed", mapIds: ["map.alpha"] } });
+    seedProgressReadRule(sqlite, { id: "future", startsAt: end, rule: { type: "required_maps_completed", mapIds: ["map.alpha"] } });
     seedProgressReadRun(sqlite, { id: "at-start", createdAt: start });
     seedProgressReadRun(sqlite, { id: "before-start", createdAt: start - 1, difficulty: "专家" });
     seedProgressReadRun(sqlite, { id: "at-end", createdAt: end, map: "map.beta", difficulty: "专家" });
@@ -526,7 +526,7 @@ describe("verified-run progress challenges", () => {
 
   it("applies the event window to the source submission creation time", async () => {
     const { sqlite, services } = setup();
-    await services.createAdminAchievement(achievementInput({ status: "scheduled", gameVersion: "26.0810.1", startsAt: 1_000, endsAt: 2_000 }), admin, "create.1");
+    await services.createAdminAchievement(achievementInput({ status: "active", gameVersion: "26.0810.1", startsAt: 1_000, endsAt: 2_000 }), admin, "create.1");
     // Runs recorded against submissions outside [startsAt, endsAt) do not count.
     insertSubmission(sqlite, "submission-early", "account-1", 500);
     insertSubmission(sqlite, "submission-alpha", "account-1", 1_500);
@@ -676,7 +676,7 @@ describe("verified-run progress challenges", () => {
     const { sqlite, services } = setup();
     const startsAt = Date.now() - 60_000;
     const endsAt = Date.now() + 3_600_000;
-    await services.createAdminAchievement(achievementInput({ status: "scheduled", startsAt, endsAt, progressRule: { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"], difficultyAtLeast: "困难" } }), admin, "create.1");
+    await services.createAdminAchievement(achievementInput({ status: "active", startsAt, endsAt, progressRule: { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"], difficultyAtLeast: "困难" } }), admin, "create.1");
     insertSubmission(sqlite, "submission-1", "account-1", startsAt + 1);
     await services.recordVerifiedRun(runInput({ sourceSubmissionId: "submission-1", acceptedAt: startsAt + 1 }));
     const tokenHash = await hashRequest("session-token");

@@ -9,9 +9,10 @@ import {
   type CatalogTitle,
   type MapAchievement,
   type TitleAchievement,
-  DEFAULT_EVIDENCE_RULE,
   achievementStatusLabel,
   achievementStatusTone,
+  catalogTitleDisplayStatus,
+  challengeDisplayStatus,
   isCatalog,
   isChallengeTitle,
   isDeveloperOnly,
@@ -54,15 +55,13 @@ export function useAdminAchievementWorkspace() {
     set: (open: boolean) => { if (!open) closeEditing(); },
   });
   const achievementStatusText = (item: AdminAchievement) =>
-    isChallengeTitle(item)
-      ? achievementStatusLabel(item.status)
-      : isCatalog(item)
-        ? isDeveloperOnly(item) && item.lifecycle === "active" ? "开发保留" : item.lifecycle === "draft" ? "草稿" : item.lifecycle === "retired" ? "已退休" : "已启用"
-        : item.status === "active" ? "已开放" : "已下线";
+    isCatalog(item)
+      ? isDeveloperOnly(item) && item.lifecycle === "active" ? "开发保留" : achievementStatusLabel(catalogTitleDisplayStatus(item))
+      : achievementStatusLabel(challengeDisplayStatus(item));
   const achievementItemStatusTone = (item: AdminAchievement) =>
     isCatalog(item)
-      ? isDeveloperOnly(item) && item.lifecycle === "active" ? "warning" : item.lifecycle === "active" ? "success" : item.lifecycle === "draft" ? "info" : "default"
-      : achievementStatusTone(item.status);
+      ? isDeveloperOnly(item) && item.lifecycle === "active" ? "warning" : achievementStatusTone(catalogTitleDisplayStatus(item))
+      : achievementStatusTone(challengeDisplayStatus(item));
   const endingCatalog = computed(() => endTarget.value !== null && isCatalog(endTarget.value));
   const adminData = useAdminAsyncData("achievements", async () => {
       const [response, mapResponse, modeResponse] = await Promise.all([
@@ -111,10 +110,10 @@ export function useAdminAchievementWorkspace() {
       status,
       ...(item.scope ? { scope: item.scope, mapIds: item.scope === "map" ? item.mapIds ?? [] : [] } : {}),
       ...(item.progressRule !== undefined ? { progressRule: item.progressRule ? { type: "required_maps_completed", ...(item.progressRule.mapIds?.length ? { mapIds: item.progressRule.mapIds } : {}), ...(item.progressRule.difficultyAtLeast ? { difficultyAtLeast: item.progressRule.difficultyAtLeast } : {}), ...(item.progressRule.mode?.trim() ? { mode: item.progressRule.mode.trim() } : {}) } : null } : {}),
-      ...(item.gameVersion?.trim() ? { gameVersion: item.gameVersion.trim() } : status === "scheduled" ? { gameVersion: null } : {}),
+      ...(item.gameVersion?.trim() ? { gameVersion: item.gameVersion.trim() } : status === "draft" ? { gameVersion: null } : {}),
       ...(item.scope === "map" ? { mapVariant: item.mapVariant } : {}),
-      ...(status === "sunsetting" && (retiredVersion ?? item.retiredVersion)?.trim() ? { retiredVersion: (retiredVersion ?? item.retiredVersion)!.trim() } : {}),
-      ...(status !== "retired" ? {
+      ...(status === "active" ? { retiredVersion: (retiredVersion ?? item.retiredVersion)?.trim() || null } : {}),
+      ...(status !== "archived" ? {
         ...(item.startsAt && item.startsAt > 0 ? { startsAt: item.startsAt } : {}),
         ...(item.endsAt && item.endsAt > 0 ? { endsAt: item.endsAt } : {}),
       } : {}),
@@ -150,11 +149,11 @@ export function useAdminAchievementWorkspace() {
 
   function updatePayload(item: AdminAchievement, status: AchievementStatus, retiredVersion?: string) {
     if (isChallengeTitle(item)) return titleUpdate(item, status, retiredVersion);
-    if (isMap(item)) return { family: "map", name: item.name, difficulty: item.difficulty ?? null, condition: item.condition, evidenceRule: item.evidenceRule, submissionMode: item.submissionMode, status, ...(status === "sunsetting" ? { retiredVersion: retiredVersion ?? item.retiredVersion ?? "" } : {}) };
+    if (isMap(item)) return { family: "map", name: item.name, difficulty: item.difficulty ?? null, condition: item.condition, evidenceRule: item.evidenceRule, submissionMode: item.submissionMode, status, ...(status === "active" ? { retiredVersion: (retiredVersion ?? item.retiredVersion)?.trim() || null } : {}) };
     throw new Error("CATALOG_TITLE_UPDATE_REQUIRES_CATALOG_ENDPOINT");
   }
 
-  async function saveCatalogTitle(item: CatalogTitle, lifecycle: CatalogTitle["lifecycle"], includeChallengeFields = false) {
+  async function saveCatalogTitle(item: CatalogTitle, lifecycle: CatalogTitle["lifecycle"]) {
     savingId.value = itemIdentity(item);
     errorMessage.value = "";
     try {
@@ -163,7 +162,6 @@ export function useAdminAchievementWorkspace() {
         headers: { "Idempotency-Key": createRequestId() },
         body: {
           contractVersion: "1",
-          status: lifecycle === "retired" ? "retired" : "active",
           lifecycle,
           publicVisibility: item.publicVisibility,
           label: item.titleName,
@@ -172,32 +170,12 @@ export function useAdminAchievementWorkspace() {
           scope: item.scope,
           displayKind: item.displayKind,
           color: item.color ?? null,
-          ...(includeChallengeFields ? {
-            condition: item.condition,
-            evidenceRule: item.evidenceRule?.trim() || DEFAULT_EVIDENCE_RULE,
-            submissionMode: item.submissionMode ?? "manual",
-            categoryOverride: item.categoryOverride?.trim() || null,
-            iconUrl: item.iconUrl?.trim() || null,
-            ...(lifecycle === "retired" && item.retiredVersion?.trim() ? { retiredVersion: item.retiredVersion.trim() } : {}),
-          } : {}),
         },
       });
       toast.add({ title: lifecycle === "active" ? "称号已启用" : lifecycle === "draft" ? "称号已设为草稿" : "称号已退休", color: "success" });
       const updated = items.value.find((candidate): candidate is CatalogTitle => candidate.challengeId === item.challengeId && candidate.family === "title_catalog");
       if (updated) {
-        updated.status = lifecycle;
         updated.lifecycle = lifecycle;
-        updated.availability = lifecycle === "retired" ? "retired" : "active";
-        if (includeChallengeFields) {
-          if (item.condition !== undefined) updated.condition = item.condition;
-          if (item.evidenceRule !== undefined) updated.evidenceRule = item.evidenceRule;
-          if (item.submissionMode !== undefined) updated.submissionMode = item.submissionMode;
-          if (item.categoryOverride !== undefined) updated.categoryOverride = item.categoryOverride;
-          if (item.iconUrl !== undefined) updated.iconUrl = item.iconUrl;
-          if (item.retiredVersion !== undefined) updated.retiredVersion = item.retiredVersion;
-          if (item.startsAt !== undefined) updated.startsAt = item.startsAt;
-          if (item.endsAt !== undefined) updated.endsAt = item.endsAt;
-        }
         flashRow(updated.challengeId);
       }
       await load();
@@ -259,15 +237,17 @@ export function useAdminAchievementWorkspace() {
     if (editingItem.value && isCatalog(editingItem.value)) editingItem.value.publicVisibility = publicVisibility;
   }
 
+  // Sunsetting is an announcement on a live challenge: the stored lifecycle
+  // stays active and retiredVersion carries the announced end version.
   async function planSunsetting(item: AdminAchievement) {
     const version = retirementVersions[itemIdentity(item)]?.trim();
     if (!version) return;
-    if (await save(item, updatePayload(item, "sunsetting", version), item.status === "active" ? "挑战已计划下线" : "计划下线版本已保存")) planningId.value = null;
+    if (await save(item, updatePayload(item, "active", version), isCatalog(item) ? "计划下线版本已保存" : item.retiredVersion ? "计划下线版本已保存" : "挑战已计划下线")) planningId.value = null;
   }
 
   async function reopen(item: AdminAchievement) {
-    if (item.family === "title_catalog") return saveCatalogTitle(item, "active", false);
-    await save(item, updatePayload(item, "active"), "挑战已重新开放");
+    if (item.family === "title_catalog") return saveCatalogTitle(item, "active");
+    await save(item, updatePayload(item, "active", ""), "挑战已重新开放");
   }
 
   function openEnd(item: AdminAchievement, trigger: EventTarget | null) {
@@ -320,11 +300,11 @@ export function useAdminAchievementWorkspace() {
     const item = endTarget.value;
     if (!item) return;
     if (item.family === "title_catalog") {
-      await saveCatalogTitle(item, "retired", false);
+      await saveCatalogTitle(item, "retired");
       closeEnd();
       return;
     }
-    if (await save(item, updatePayload(item, "retired"), "挑战已下线")) closeEnd();
+    if (await save(item, updatePayload(item, "archived"), "挑战已下线")) closeEnd();
   }
 
   return {

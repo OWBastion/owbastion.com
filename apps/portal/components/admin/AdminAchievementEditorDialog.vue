@@ -36,8 +36,7 @@ const statusItems = computed(() => {
   const item = props.item;
   if (!item) return [];
   if (isCatalog(item)) return [];
-  if (isMap(item)) return [{ label: "已开放", value: "active" }, { label: "即将结束", value: "sunsetting" }, { label: "已下线", value: "retired" }];
-  return [{ label: "未开放", value: "scheduled" }, { label: "已开放", value: "active" }, { label: "即将结束", value: "sunsetting" }, { label: "已下线", value: "retired" }];
+  return [{ label: "草稿", value: "draft" }, { label: "已开放", value: "active" }, { label: "已下线", value: "archived" }];
 });
 
 const catalogColorValue = (color: CatalogTitle["color"]) => color?.kind === "palette" ? color.name : "none";
@@ -56,10 +55,10 @@ function asCatalog(item: AdminAchievement): CatalogTitle | null {
 }
 
 function setEvidenceRule(value: string) {
-  if (props.item && (isTitle(props.item) || isMap(props.item))) props.item.evidenceRule = value;
+  if (props.item && (isChallengeTitle(props.item) || isMap(props.item))) props.item.evidenceRule = value;
 }
 function setSubmissionMode(value: "manual" | "automatic") {
-  if (props.item && (isTitle(props.item) || isMap(props.item))) props.item.submissionMode = value;
+  if (props.item && (isChallengeTitle(props.item) || isMap(props.item))) props.item.submissionMode = value;
 }
 function setScope(value: "global" | "map") {
   if (props.item && isChallengeTitle(props.item)) props.item.scope = value;
@@ -122,19 +121,19 @@ function setPublicVisibility(value: boolean | "indeterminate") {
   if (typeof value === "boolean") emit("update-public-visibility", value);
 }
 function setIconUrl(value: string) {
-  if (props.item && isTitle(props.item)) props.item.iconUrl = value || null;
+  if (props.item && isChallengeTitle(props.item)) props.item.iconUrl = value || null;
 }
 function setCategoryOverride(value: string) {
-  if (props.item && isTitle(props.item)) props.item.categoryOverride = value || null;
+  if (props.item && isChallengeTitle(props.item)) props.item.categoryOverride = value || null;
 }
 function setRetiredVersion(value: string) {
-  if (props.item && (isTitle(props.item) || isMap(props.item))) props.item.retiredVersion = value || null;
+  if (props.item && (isChallengeTitle(props.item) || isMap(props.item))) props.item.retiredVersion = value || null;
 }
 function setGameVersion(value: string) {
   if (props.item && isChallengeTitle(props.item)) props.item.gameVersion = value || null;
 }
 function setScheduleTime(field: "startsAt" | "endsAt", value: number | null) {
-  if (props.item && isTitle(props.item)) props.item[field] = value;
+  if (props.item && isChallengeTitle(props.item)) props.item[field] = value;
 }
 function onIconFile(value: File | null | undefined) {
   emit("update:iconFile", value ?? null);
@@ -190,7 +189,7 @@ function onIconFile(value: File | null | undefined) {
         </template>
 
         <UFormField v-if="!asCatalog(item)" class="editor-field" label="状态">
-          <USelect class="editor-control" v-model="item.status" :disabled="saving" :items="statusItems" :ui="{ base: 'w-full' }" />
+          <USelect class="editor-control" v-model="(item as TitleAchievement | MapAchievement).status" :disabled="saving" :items="statusItems" :ui="{ base: 'w-full' }" />
         </UFormField>
 
         <template v-if="asChallenge(item)">
@@ -222,19 +221,19 @@ function onIconFile(value: File | null | undefined) {
           </UFormField>
         </template>
 
-        <template v-if="asTitle(item) && !asCatalog(item) && item.status !== 'retired'">
+        <template v-if="asChallenge(item) && asChallenge(item)!.status !== 'archived'">
           <UFormField class="editor-field" label="开始时间">
-            <AdminDateTimePicker class="editor-control" :model-value="asTitle(item)!.startsAt" :disabled="saving" placeholder="选择开始时间" @update:model-value="setScheduleTime('startsAt', $event)" />
+            <AdminDateTimePicker class="editor-control" :model-value="asChallenge(item)!.startsAt" :disabled="saving" placeholder="选择开始时间" @update:model-value="setScheduleTime('startsAt', $event)" />
           </UFormField>
           <UFormField class="editor-field" label="结束时间">
-            <AdminDateTimePicker class="editor-control" :model-value="asTitle(item)!.endsAt" :disabled="saving" placeholder="选择结束时间" @update:model-value="setScheduleTime('endsAt', $event)" />
+            <AdminDateTimePicker class="editor-control" :model-value="asChallenge(item)!.endsAt" :disabled="saving" placeholder="选择结束时间" @update:model-value="setScheduleTime('endsAt', $event)" />
           </UFormField>
         </template>
 
-        <details v-if="!asCatalog(item)" class="editor-field editor-field--wide more-settings" :open="item.status === 'sunsetting'">
+        <details v-if="!asCatalog(item)" class="editor-field editor-field--wide more-settings" :open="Boolean((item as TitleAchievement | MapAchievement).retiredVersion)">
           <summary>更多设置</summary>
           <div class="more-settings-body">
-        <UFormField v-if="!asCatalog(item)" class="editor-field" label="计划下线版本">
+        <UFormField v-if="(item as TitleAchievement | MapAchievement).status === 'active'" class="editor-field" label="计划下线版本" hint="已开放挑战宣布下线版本后展示为即将结束。">
           <UInput class="editor-control" :model-value="(item as TitleAchievement | MapAchievement).retiredVersion ?? ''" placeholder="例如 26.0713.1" :disabled="saving" @update:model-value="setRetiredVersion" />
         </UFormField>
 
@@ -242,7 +241,7 @@ function onIconFile(value: File | null | undefined) {
           <UInput class="editor-control" :model-value="asChallenge(item)!.gameVersion ?? ''" placeholder="留空使用最新版本，格式 YY.MMDD.序号" :disabled="saving" @update:model-value="setGameVersion" />
         </UFormField>
 
-        <template v-if="asTitle(item) && !asCatalog(item)">
+        <template v-if="asChallenge(item)">
           <UFormField class="editor-field editor-field--wide" label="自定义图标" hint="留空使用默认图标。">
             <div class="icon-upload">
               <div v-if="asTitle(item)!.iconUrl" class="admin-achievement-icon-preview">
@@ -259,8 +258,8 @@ function onIconFile(value: File | null | undefined) {
               </details>
             </div>
           </UFormField>
-          <UFormField class="editor-field" label="展示分类" :hint="`留空则使用 Bastion 系列“${asTitle(item)!.category}”`">
-            <UInput class="editor-control" :model-value="asTitle(item)!.categoryOverride ?? ''" :disabled="saving" :placeholder="asTitle(item)!.category" maxlength="128" @update:model-value="setCategoryOverride" />
+          <UFormField class="editor-field" label="展示分类" :hint="`留空则使用 Bastion 系列“${asChallenge(item)!.category}”`">
+            <UInput class="editor-control" :model-value="asChallenge(item)!.categoryOverride ?? ''" :disabled="saving" :placeholder="asChallenge(item)!.category" maxlength="128" @update:model-value="setCategoryOverride" />
           </UFormField>
         </template>
           </div>

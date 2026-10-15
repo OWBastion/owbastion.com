@@ -473,7 +473,7 @@ describe("Admin map revision editor", () => {
     seedTitle(sqlite, "CONQUEROR");
     seedRule(sqlite, "rule.conqueror.catalog", "CONQUEROR", "conqueror", { slot: "conqueror" });
     seedTitle(sqlite, "RETIRED");
-    seedRule(sqlite, "rule.retired.catalog", "RETIRED", "retired", { status: "inactive" });
+    seedRule(sqlite, "rule.retired.catalog", "RETIRED", "retired", { status: "archived" });
     const services = createPlatformServices(database);
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
 
@@ -670,7 +670,7 @@ describe("Admin map revision editor", () => {
     const { database, sqlite } = createTestDatabase("map.promotion-atomic");
     seedAgentSpatialConfig(sqlite, "revision:map.promotion-atomic:initial");
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.promotion-atomic', 'atomic', 'Atomic', 'atomic', ?, ?)").run(now, now);
-    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('GLOBAL_ATOMIC_TITLE', 'Atomic title', 'award', 'Test', 'Test', 'active', 'global', 'fixed', 'null', '2026.08.13')").run();
+    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, scope, display_kind, color_json, game_version) VALUES ('GLOBAL_ATOMIC_TITLE', 'Atomic title', 'award', 'Test', 'Test', 'global', 'fixed', 'null', '2026.08.13')").run();
     const services = createPlatformServices(database);
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
     const editor = await services.getAdminMapEditor({ mapId: "map.promotion-atomic" }, auth);
@@ -707,7 +707,7 @@ describe("Admin map revision editor", () => {
     const { database, sqlite } = createTestDatabase("map.equipped-reset");
     seedAgentSpatialConfig(sqlite, "revision:map.equipped-reset:initial");
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.rebound', 'rebound', 'Rebound', 'rebound', ?, ?), ('player.cleared', 'cleared', 'Cleared', 'cleared', ?, ?)").run(now, now, now, now);
-    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('GLOBAL_RESET_TITLE', 'Reset title', 'award', 'Test', 'Test', 'active', 'global', 'fixed', 'null', '2026.08.13')").run();
+    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, scope, display_kind, color_json, game_version) VALUES ('GLOBAL_RESET_TITLE', 'Reset title', 'award', 'Test', 'Test', 'global', 'fixed', 'null', '2026.08.13')").run();
     const services = createPlatformServices(database);
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
     const revision = await services.createAdminMapRevision({
@@ -770,7 +770,7 @@ describe("manual title grant batches", () => {
     const playerTwo = "22222222-2222-4222-8222-222222222222";
     seedMap(sqlite, "map.batch");
     seedTitle(sqlite, "CONQUEROR");
-    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('GLOBAL', '全局称号', 'award', '测试', '条件', 'active', 'global', 'fixed', 'null', '2026.07.15')").run();
+    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, scope, display_kind, color_json, game_version) VALUES ('GLOBAL', '全局称号', 'award', '测试', '条件', 'global', 'fixed', 'null', '2026.07.15')").run();
     seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
     const reworkRevisionId = seedSelectableGameplayRevision(sqlite, "map.batch");
     seedRevisionAssignment(sqlite, { gameplayRevisionId: reworkRevisionId, mapId: "map.batch", challengeFamily: "map_title_rule", challengeId: "rule.conqueror" });
@@ -806,14 +806,14 @@ describe("manual title grant batches", () => {
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants").get()).toEqual({ count: 4 });
     await expect(services.createAdminManualTitleGrantBatch({ contractVersion: "1", playerAccountIds: [playerOne, playerTwo], targets: Array.from({ length: 251 }, (_, index) => ({ titleKey: `MISSING_${index}` })) }, auth, "manual-batch-too-large")).rejects.toThrow("MANUAL_TITLE_GRANT_BATCH_TOO_LARGE");
 
-    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('BLOCKED', '已撤销称号', 'award', '测试', '条件', 'active', 'global', 'fixed', 'null', '2026.07.15')").run();
+    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, scope, display_kind, color_json, game_version) VALUES ('BLOCKED', '已撤销称号', 'award', '测试', '条件', 'global', 'fixed', 'null', '2026.07.15')").run();
     sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, status, source_type, source_id, granted_by, granted_at, revoked_by, revoked_at, revoke_reason, revocation_type) VALUES ('grant.revoked', ?, 'BLOCKED', 'revoked', 'manual', 'manual:old', 'admin', ?, 'admin', ?, 'revoke', 'administrator')").run(playerOne, now, now);
     await expect(services.createAdminManualTitleGrant({ contractVersion: "1", playerAccountId: playerOne, titleKey: "BLOCKED" }, auth, "manual-after-revoke")).rejects.toThrow("TITLE_GRANT_ADMINISTRATIVELY_REVOKED");
     await services.restoreAdminTitleGrant({ grantId: "grant.revoked", reason: "申诉通过" }, auth, "restore-admin-revoke");
     expect(sqlite.prepare("SELECT status, revocation_type, revoked_by FROM player_title_grants WHERE id = 'grant.revoked'").get()).toEqual({ status: "active", revocation_type: null, revoked_by: null });
     expect(sqlite.prepare("SELECT operation FROM audit_events WHERE operation = 'admin.title.restore' AND entity_id = 'grant.revoked'").get()).toEqual({ operation: "admin.title.restore" });
     await expect(services.restoreAdminTitleGrant({ grantId: "grant.revoked" }, auth, "restore-active")).rejects.toThrow("TITLE_GRANT_NOT_ADMINISTRATIVELY_REVOKED");
-    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('EVIDENCE_REVOKED', '证据撤销称号', 'award', '测试', '条件', 'active', 'global', 'fixed', 'null', '2026.07.15')").run();
+    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, scope, display_kind, color_json, game_version) VALUES ('EVIDENCE_REVOKED', '证据撤销称号', 'award', '测试', '条件', 'global', 'fixed', 'null', '2026.07.15')").run();
     sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, status, source_type, source_id, granted_by, granted_at, revoked_by, revoked_at, revoke_reason, revocation_type) VALUES ('grant.evidence-revoked', ?, 'EVIDENCE_REVOKED', 'revoked', 'automatic', 'submission.evidence', 'system:ocr', ?, 'admin', ?, '证据无效', 'evidence')").run(playerOne, now, now);
     await expect(services.revokeAdminTitleGrant({ grantId: "grant.evidence-revoked" }, auth, "revoke-evidence-grant")).rejects.toThrow("TITLE_GRANT_NOT_ACTIVE");
     expect(sqlite.prepare("SELECT status, revocation_type FROM player_title_grants WHERE id = 'grant.evidence-revoked'").get()).toEqual({ status: "revoked", revocation_type: "evidence" });

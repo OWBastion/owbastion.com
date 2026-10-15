@@ -50,7 +50,7 @@ export const createChallengeSnapshotServices = ({ db, now, pioneerExceptionIsSub
     exception: typeof mapTitleRuleExceptions.$inferSelect | undefined,
     eligibilityAt: number,
   ): MapTitleRuleSnapshot | null => {
-    if (!assignment || assignment.enabled === 0 || rule.status === "inactive") return null;
+    if (!assignment || assignment.enabled === 0 || rule.status !== "active") return null;
     const pioneer = rule.kind.trim().toLocaleLowerCase() === "pioneer";
     if (pioneer && (rule.defaultScope !== "explicit" || !pioneerExceptionIsSubmittable(exception?.enabled ?? 0, exception?.startsAt ?? null, exception?.endsAt ?? null, eligibilityAt))) return null;
     const activeException = exception?.enabled === 1 ? exception : null;

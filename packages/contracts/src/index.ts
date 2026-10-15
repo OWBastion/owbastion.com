@@ -13,9 +13,13 @@ const externalId = z.string().trim().min(1).max(256);
 const playerId = z.string().regex(/^\d{1,10}$/);
 const retirementVersion = z.string().regex(/^\d{2}\.\d{4}\.[1-9]\d*$/);
 const storedRetirementVersion = z.string().trim().min(1).max(64);
-const challengeStatus = z.enum(["active", "sunsetting", "retired"]);
+// One stored lifecycle for every Challenge entity; availability states such as
+// scheduled/sunsetting are derived from lifecycle + window + announced version.
+const challengeLifecycleStatus = z.enum(["draft", "active", "archived"]);
+const titleLifecycleStatus = z.enum(["draft", "active", "retired"]);
+// Derived obtainability on admin catalog rows; never a stored state.
+const titleAvailabilityStatus = z.enum(["scheduled", "active", "sunsetting", "ended"]);
 const playableChallengeStatus = z.enum(["active", "sunsetting"]);
-const titleChallengeStatus = z.enum(["scheduled", "active", "sunsetting", "retired"]);
 const scheduleTimestamp = z.number().int().positive();
 const achievementIcon = z.string().trim().regex(/^[a-z0-9-]+$/).max(64);
 const optionalRetirementVersion = z.preprocess((value) => value === null ? undefined : value, retirementVersion.optional());
@@ -742,14 +746,18 @@ const adminMapChallengeSchema = mapChallengeSchema.extend({
   condition: z.string().trim().min(1).max(1024).optional(),
   evidenceRule: z.string().trim().min(1).max(2048).optional(),
   submissionMode: z.enum(["manual", "automatic"]).optional(),
-  status: challengeStatus,
+  gameVersion: gameVersionValue,
+  status: challengeLifecycleStatus,
   introducedVersion: z.string().trim().min(1).max(64),
   retiredVersion: storedRetirementVersion.nullable(),
+  // Present for map-scoped title challenges so admins can see the stored window.
+  startsAt: scheduleTimestamp.nullable().optional(),
+  endsAt: scheduleTimestamp.nullable().optional(),
 });
 const adminAchievementChallengeSchema = achievementChallengeSchema.extend({
   gameVersion: gameVersionValue,
   categoryOverride: z.string().trim().min(1).max(128).nullable(),
-  status: titleChallengeStatus,
+  status: challengeLifecycleStatus,
   introducedVersion: z.string().trim().min(1).max(64).nullable(),
   retiredVersion: storedRetirementVersion.nullable(),
   startsAt: scheduleTimestamp.nullable().optional(),
@@ -764,13 +772,12 @@ const adminCatalogTitleSchema = z.object({
   titleKey: externalId,
   titleName: z.string().trim().min(1).max(256),
   ...titleDisplayFields,
-  lifecycle: z.enum(["draft", "active", "retired"]),
+  lifecycle: titleLifecycleStatus,
   publicVisibility: z.boolean(),
-  availability: z.enum(["active", "retired"]),
+  availability: titleAvailabilityStatus,
   scope: z.enum(["global", "map"]),
   displayKind: z.enum(["fixed", "map_pioneer", "map_name_suffix"]),
   color: titleColorSchema.nullable().optional(),
-  status: z.enum(["draft", "active", "retired"]),
   gameVersion: z.string().trim().min(1).max(64).nullable(),
   hasChallenge: z.boolean(),
 });
@@ -818,7 +825,7 @@ export const adminMapEditorResponseSchema = z.object({
   audit: z.array(adminMapEditorAuditSchema).max(100),
 }).strict();
 
-const mapTitleRuleStatus = z.enum(["active", "sunsetting", "retired"]);
+const mapTitleRuleStatus = challengeLifecycleStatus;
 const mapTitleRuleSlot = z.enum(["pioneer", "conqueror", "dominator"]);
 const mapTitleRuleShape = {
   titleKey: externalId,
@@ -835,8 +842,7 @@ const mapTitleRuleShape = {
   retiredVersion: optionalRetirementVersion,
 };
 const mapTitleRuleInputSchema = z.object(mapTitleRuleShape).superRefine((value, ctx) => {
-  if (value.status === "sunsetting" && value.retiredVersion === undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "Sunsetting rules require a retired version" });
-  if (value.status !== "sunsetting" && value.retiredVersion !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "Only sunsetting rules may have a retired version" });
+  if (value.status !== "active" && value.retiredVersion !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "Only active rules may announce a retired version" });
   if (value.kind.trim().toLocaleLowerCase() === "pioneer" && value.defaultScope !== "explicit") ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["defaultScope"], message: "Pioneer rules require explicit map exceptions" });
 });
 export const adminMapTitleRuleSchema = z.object(mapTitleRuleShape).extend({
@@ -878,10 +884,10 @@ const adminMapChallengeUpdateSchema = z.object({
   condition: z.string().trim().min(1).max(1024).optional(),
   evidenceRule: z.string().trim().min(1).max(2048).optional(),
   submissionMode: z.enum(["manual", "automatic"]).optional(),
-  status: challengeStatus,
+  status: challengeLifecycleStatus,
   retiredVersion: optionalRetirementVersion,
 }).superRefine((value, ctx) => {
-  if (value.status === "active" && value.retiredVersion !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "An active challenge cannot have a retired version" });
+  if (value.status !== "active" && value.retiredVersion !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "Only active challenges may announce a retired version" });
 });
 const adminAchievementChallengeUpdateSchema = z.object({
   contractVersion,
@@ -892,7 +898,7 @@ const adminAchievementChallengeUpdateSchema = z.object({
   categoryOverride: z.string().trim().min(1).max(128).nullable(),
   iconUrl: z.string().trim().url().max(2048).nullable().optional(),
   gameVersion: optionalGameVersion,
-  status: titleChallengeStatus,
+  status: challengeLifecycleStatus,
   retiredVersion: optionalRetirementVersion,
   startsAt: optionalScheduleTimestamp,
   endsAt: optionalScheduleTimestamp,
@@ -901,10 +907,10 @@ const adminAchievementChallengeUpdateSchema = z.object({
   mapVariant: z.literal("classic").optional(),
   progressRule: achievementProgressRuleSchema.nullable().optional(),
 }).superRefine((value, ctx) => {
-  if (value.status === "active" && value.retiredVersion !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "An active challenge cannot have a retired version" });
-  if (value.status !== "scheduled" && value.gameVersion === null) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["gameVersion"], message: "Only scheduled future challenges may clear a game version" });
+  if (value.status !== "active" && value.retiredVersion !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "Only active challenges may announce a retired version" });
+  if (value.status !== "draft" && value.gameVersion === null) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["gameVersion"], message: "Only draft challenges may clear a game version" });
   if (value.startsAt !== undefined && value.endsAt !== undefined && value.endsAt <= value.startsAt) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endsAt"], message: "The end time must be after the start time" });
-  if (value.status === "retired" && (value.startsAt !== undefined || value.endsAt !== undefined)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["startsAt"], message: "Retired challenges cannot have a time window" });
+  if (value.status === "archived" && (value.startsAt !== undefined || value.endsAt !== undefined)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["startsAt"], message: "Archived challenges cannot have a time window" });
   if (value.scope === "global" && value.mapIds?.length) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["mapIds"], message: "Global challenges cannot target maps" });
   if (value.progressRule && value.submissionMode !== "manual") ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["submissionMode"], message: "Progress challenges are not screenshot-evaluated" });
   if (value.progressRule && value.scope === "map") ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["scope"], message: "Progress challenges cannot target maps through scope" });
@@ -924,7 +930,7 @@ export const adminAchievementCreateRequestSchema = z.object({
   scope: z.enum(["global", "map"]),
   mapIds: z.array(externalId).max(256).default([]),
   mapVariant: z.literal("classic").optional(),
-  status: titleChallengeStatus,
+  status: challengeLifecycleStatus,
   gameVersion: optionalGameVersion,
   categoryOverride: z.string().trim().min(1).max(128).nullable().default(null),
   iconUrl: z.string().trim().url().max(2048).nullable().default(null),
@@ -937,14 +943,15 @@ export const adminAchievementCreateRequestSchema = z.object({
   if (value.progressRule && value.submissionMode !== "manual") ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["submissionMode"], message: "Progress challenges are not screenshot-evaluated" });
   if (value.progressRule && value.scope === "map") ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["scope"], message: "Progress challenges cannot target maps through scope" });
   if (value.startsAt !== undefined && value.endsAt !== undefined && value.endsAt <= value.startsAt) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endsAt"], message: "The end time must be after the start time" });
-  if (value.status === "sunsetting" && value.retiredVersion === undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "Sunsetting challenges require a retired version" });
-  if (value.status === "retired" && (value.startsAt !== undefined || value.endsAt !== undefined)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["startsAt"], message: "Retired challenges cannot have a time window" });
-  if (value.status !== "sunsetting" && value.retiredVersion !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "Only sunsetting challenges may have a retired version" });
+  if (value.status === "archived" && (value.startsAt !== undefined || value.endsAt !== undefined)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["startsAt"], message: "Archived challenges cannot have a time window" });
+  if (value.status !== "active" && value.retiredVersion !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "Only active challenges may announce a retired version" });
 });
+// Catalog updates touch Title definition fields only. Challenge lifecycle,
+// schedule, and rule fields belong to the challenge endpoints; a catalog row
+// never dual-writes Challenge state.
 export const adminCatalogTitleUpdateRequestSchema = z.object({
   contractVersion,
-  status: titleChallengeStatus.optional(),
-  lifecycle: z.enum(["draft", "active", "retired"]).optional(),
+  lifecycle: titleLifecycleStatus.optional(),
   publicVisibility: z.boolean().optional(),
   label: z.string().trim().min(1).max(256).optional(),
   icon: achievementIcon.optional(),
@@ -952,17 +959,6 @@ export const adminCatalogTitleUpdateRequestSchema = z.object({
   scope: z.enum(["global", "map"]).optional(),
   displayKind: z.enum(["fixed", "map_pioneer", "map_name_suffix"]).optional(),
   color: titleColorSchema.nullable().optional(),
-  condition: z.string().trim().min(1).max(1024).optional(),
-  evidenceRule: z.string().trim().min(1).max(2048).optional(),
-  submissionMode: z.enum(["manual", "automatic"]).optional(),
-  categoryOverride: z.string().trim().min(1).max(128).nullable().optional(),
-  iconUrl: z.string().trim().url().max(2048).nullable().optional(),
-  retiredVersion: optionalRetirementVersion,
-  startsAt: optionalScheduleTimestamp,
-  endsAt: optionalScheduleTimestamp,
-}).superRefine((value, ctx) => {
-  if (value.startsAt !== undefined && value.endsAt !== undefined && value.endsAt <= value.startsAt) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endsAt"], message: "The end time must be after the start time" });
-  if (value.status === "retired" && (value.startsAt !== undefined || value.endsAt !== undefined)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["startsAt"], message: "Retired challenges cannot have a time window" });
 });
 
 export const playerUploadSessionRequestSchema = z.object({

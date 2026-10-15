@@ -375,16 +375,21 @@ describe("v1 platform contracts", () => {
   });
 
   it("validates achievement update fields without requiring optional lifecycle metadata", () => {
-    const input = { contractVersion: "1", family: "achievement", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "retired" };
+    const input = { contractVersion: "1", family: "achievement", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "archived" };
     expect(adminChallengeUpdateRequestSchema.safeParse(input).success).toBe(true);
     expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, iconUrl: "https://cdn.example.com/icon.webp" }).success).toBe(true);
     expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, iconUrl: "not-a-url" }).success).toBe(false);
-    expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, retiredVersion: "26.0713.1" }).success).toBe(true);
-    expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, status: "sunsetting" }).success).toBe(true);
-    expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, status: "sunsetting", retiredVersion: "26.0713.2" }).success).toBe(true);
-    expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, retiredVersion: "2026.07.16" }).success).toBe(false);
+    // A retired version is an announcement on a live challenge, not a state.
+    expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, retiredVersion: "26.0713.1" }).success).toBe(false);
+    expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, status: "active" }).success).toBe(true);
+    expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, status: "active", retiredVersion: "26.0713.2" }).success).toBe(true);
+    expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, status: "active", retiredVersion: "2026.07.16" }).success).toBe(false);
+    expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, status: "sunsetting" }).success).toBe(false);
     expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, gameVersion: null }).success).toBe(false);
-    expect(adminChallengeUpdateRequestSchema.safeParse({ contractVersion: "1", family: "map", status: "retired" }).success).toBe(true);
+    expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, status: "draft", gameVersion: null }).success).toBe(true);
+    expect(adminChallengeUpdateRequestSchema.safeParse({ contractVersion: "1", family: "map", status: "archived" }).success).toBe(true);
+    expect(adminChallengeUpdateRequestSchema.safeParse({ contractVersion: "1", family: "map", status: "active", retiredVersion: "26.0713.1" }).success).toBe(true);
+    expect(adminChallengeUpdateRequestSchema.safeParse({ contractVersion: "1", family: "map", status: "draft", retiredVersion: "26.0713.1" }).success).toBe(false);
   });
 
   it("keeps Pioneer rules limited to explicit map exceptions", () => {
@@ -399,36 +404,42 @@ describe("v1 platform contracts", () => {
     expect(adminChallengeUpdateRequestSchema.safeParse({ contractVersion: "1", family: "map", status: "active", retiredVersion: null }).success).toBe(true);
   });
 
-  it("accepts scheduled title challenges without a time window", () => {
-    const input = { contractVersion: "1", family: "achievement", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "scheduled", startsAt: 2_000, endsAt: 3_000 };
+  it("accepts active challenges with a schedule window", () => {
+    const input = { contractVersion: "1", family: "achievement", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "active", startsAt: 2_000, endsAt: 3_000 };
     expect(adminChallengeUpdateRequestSchema.safeParse(input).success).toBe(true);
     expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, endsAt: 1_000 }).success).toBe(false);
     expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, startsAt: undefined, endsAt: undefined }).success).toBe(true);
     expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, startsAt: undefined }).success).toBe(true);
-    expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, startsAt: undefined, endsAt: undefined, gameVersion: null }).success).toBe(true);
+    expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, status: "draft", startsAt: undefined, endsAt: undefined, gameVersion: null }).success).toBe(true);
+    expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, status: "archived" }).success).toBe(false);
   });
 
-  it("allows a future achievement to omit release metadata", () => {
-    const input = { contractVersion: "1", titleKey: "FUTURE_TITLE", titleName: "未来称号", icon: "trophy", category: "未来系列", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", scope: "global", mapIds: [], status: "scheduled" };
+  it("allows a draft achievement to omit release metadata", () => {
+    const input = { contractVersion: "1", titleKey: "FUTURE_TITLE", titleName: "未来称号", icon: "trophy", category: "未来系列", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", scope: "global", mapIds: [], status: "draft" };
     expect(adminAchievementCreateRequestSchema.safeParse(input).success).toBe(true);
-    // The service records the current version when a non-scheduled challenge omits it.
+    // The service records the current version when a non-draft challenge omits it.
     expect(adminAchievementCreateRequestSchema.safeParse({ ...input, status: "active" }).success).toBe(true);
-    expect(adminAchievementCreateRequestSchema.safeParse({ ...input, status: "sunsetting", retiredVersion: "26.0901.1" }).success).toBe(true);
-    expect(adminAchievementCreateRequestSchema.safeParse({ ...input, status: "retired" }).success).toBe(true);
-    expect(adminChallengeSchema.safeParse({ challengeId: "title.FUTURE_TITLE", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "FUTURE_TITLE", titleName: "未来称号", icon: "trophy", category: "未来系列", condition: "完成挑战", evidenceRule: "完整截图", gameVersion: null, status: "scheduled", introducedVersion: null, submissionMode: "manual", categoryOverride: null, retiredVersion: null, startsAt: null, endsAt: null }).success).toBe(true);
+    expect(adminAchievementCreateRequestSchema.safeParse({ ...input, status: "active", retiredVersion: "26.0901.1" }).success).toBe(true);
+    expect(adminAchievementCreateRequestSchema.safeParse({ ...input, status: "archived" }).success).toBe(true);
+    expect(adminAchievementCreateRequestSchema.safeParse({ ...input, retiredVersion: "26.0901.1" }).success).toBe(false);
+    expect(adminChallengeSchema.safeParse({ challengeId: "title.FUTURE_TITLE", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "FUTURE_TITLE", titleName: "未来称号", icon: "trophy", category: "未来系列", condition: "完成挑战", evidenceRule: "完整截图", gameVersion: null, status: "draft", introducedVersion: null, submissionMode: "manual", categoryOverride: null, retiredVersion: null, startsAt: null, endsAt: null }).success).toBe(true);
   });
 
-  it("validates complete catalog-title challenge edits", () => {
-    const input = { contractVersion: "1", status: "scheduled", label: "内部称号", icon: "wrench", category: "开发保留", scope: "global", displayKind: "fixed", color: { kind: "palette", name: "blue" }, condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, startsAt: 2_000, endsAt: 3_000 };
+  it("keeps catalog-title updates to title definition fields", () => {
+    const input = { contractVersion: "1", lifecycle: "retired", label: "内部称号", icon: "wrench", category: "开发保留", scope: "global", displayKind: "fixed", color: { kind: "palette", name: "blue" } };
     expect(adminCatalogTitleUpdateRequestSchema.safeParse(input).success).toBe(true);
-    expect(adminCatalogTitleUpdateRequestSchema.safeParse({ ...input, endsAt: 1_000 }).success).toBe(false);
-    const windowed = { contractVersion: "1", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, startsAt: 2_000, endsAt: 3_000 };
-    expect(adminCatalogTitleUpdateRequestSchema.safeParse({ ...windowed, status: "active" }).success).toBe(true);
-    expect(adminCatalogTitleUpdateRequestSchema.safeParse({ ...windowed, status: "retired" }).success).toBe(false);
+    // Challenge lifecycle and schedule fields are not part of the catalog
+    // contract; legacy dual-write keys are stripped rather than stored.
+    const stripped = adminCatalogTitleUpdateRequestSchema.parse({ ...input, status: "active", condition: "完成挑战", startsAt: 2_000, endsAt: 3_000 });
+    expect("status" in stripped).toBe(false);
+    expect("startsAt" in stripped).toBe(false);
+    expect(stripped.lifecycle).toBe("retired");
+    expect(adminCatalogTitleUpdateRequestSchema.safeParse({ ...input, lifecycle: "sunsetting" }).success).toBe(false);
+    expect(adminCatalogTitleUpdateRequestSchema.safeParse({ ...input, lifecycle: "archived" }).success).toBe(false);
   });
 
   it("keeps historical retirement version records readable", () => {
-    expect(adminChallengeSchema.safeParse({ challengeId: "map.test", family: "map", gameplayRevisionId: "revision:map.test:initial", type: "map_completion", kind: "difficulty_completion", name: "测试挑战", mapId: "map.test", mapName: "测试地图", gameVersion: "2026.07.15", status: "retired", introducedVersion: "2026.07.15", retiredVersion: "2026.07.16" }).success).toBe(true);
+    expect(adminChallengeSchema.safeParse({ challengeId: "map.test", family: "map", gameplayRevisionId: "revision:map.test:initial", type: "map_completion", kind: "difficulty_completion", name: "测试挑战", mapId: "map.test", mapName: "测试地图", gameVersion: "2026.07.15", status: "archived", introducedVersion: "2026.07.15", retiredVersion: "2026.07.16" }).success).toBe(true);
     expect(adminChallengeSchema.safeParse({ challengeId: "title.CLASSIC", family: "map", gameplayRevisionId: "revision:map.circuit_royal:v0", type: "map_completion", kind: "map_title_achievement", titleKey: "CLASSIC", name: "老兵", mapId: "map.circuit_royal", mapName: "皇家赛道", gameVersion: "2026.07.29", status: "active", introducedVersion: "2026.07.29", retiredVersion: null }).success).toBe(true);
   });
 

@@ -2,9 +2,10 @@
 import type { TableColumn } from "@nuxt/ui";
 import type { SortingState } from "@tanstack/vue-table";
 import {
-  type AchievementStatus,
+  type DerivedStatus,
   type AdminAchievement,
   type TitleAchievement,
+  challengeDisplayStatus,
   isChallengeTitle,
   isTitle,
   itemIdentity,
@@ -23,7 +24,7 @@ type TableCell<Item> = {
 const workspace = useAdminAchievementWorkspace();
 const { items, loading, errorMessage, editingId, planningId, retirementVersions, updatedCatalogIds, achievementStatusText, achievementItemStatusTone, isSaving, openCreate, openEnd, reopen, toggleEditing, planSunsetting } = workspace;
 
-const titleStatus = ref<"all" | AchievementStatus>("all");
+const titleStatus = ref<"all" | DerivedStatus>("all");
 const defaultTitleSorting: SortingState = [
   { id: "category", desc: false },
   { id: "titleName", desc: false },
@@ -38,13 +39,14 @@ const itemCategory = (item: AdminAchievement) => isTitle(item) ? item.category :
 const itemTitleName = (item: AdminAchievement) => isTitle(item) ? item.titleName : item.name;
 const itemScope = (item: AdminAchievement) => isTitle(item) && item.family === "title_catalog" ? item.scope : "";
 const titleStatusFilters = computed({
-  get: () => titleStatus.value === "all" ? [] : [{ id: "status", value: titleStatus.value }],
+  get: () => titleStatus.value === "all" ? [] : [{ id: "displayStatus", value: titleStatus.value }],
   set: (filters: Array<{ id: string; value: unknown }>) => {
-    const value = filters.find((filter) => filter.id === "status")?.value;
-    titleStatus.value = value === "scheduled" || value === "active" || value === "sunsetting" || value === "retired" ? value : "all";
+    const value = filters.find((filter) => filter.id === "displayStatus")?.value;
+    titleStatus.value = value === "draft" || value === "scheduled" || value === "active" || value === "sunsetting" || value === "ended" ? value : "all";
   },
 });
-const titleChallengeItems = computed(() => items.value.filter(isChallengeTitle));
+type TitleChallengeRow = TitleAchievement & { displayStatus: DerivedStatus };
+const titleChallengeItems = computed<TitleChallengeRow[]>(() => items.value.filter(isChallengeTitle).map((item) => ({ ...item, displayStatus: challengeDisplayStatus(item) })));
 function isGroupContinuation<Item>(cell: TableCell<Item>, groupValue: (item: Item) => string) {
   const rows = cell.getContext().table.getRowModel().rows;
   const rowIndex = rows.findIndex((row) => row.id === cell.row.id);
@@ -68,7 +70,7 @@ function getGroupRowSpan<Item>(cell: TableCell<Item>, groupValue: (item: Item) =
 function getGroupCellClass<Item>(cell: TableCell<Item>, groupValue: (item: Item) => string) {
   return isGroupContinuation(cell, groupValue) ? "achievement-group-cell achievement-group-cell--continued" : "achievement-group-cell";
 }
-const titleColumns: TableColumn<TitleAchievement>[] = [
+const titleColumns: TableColumn<TitleChallengeRow>[] = [
   {
     accessorKey: "category",
     header: "系列",
@@ -83,7 +85,7 @@ const titleColumns: TableColumn<TitleAchievement>[] = [
   },
   { accessorKey: "titleName", header: "称号", meta: { class: { th: "achievement-col-title", td: "achievement-col-title" } } },
   { accessorKey: "condition", header: "完成条件", meta: { class: { th: "achievement-col-condition", td: "achievement-col-condition" } } },
-  { accessorKey: "status", header: "状态", meta: { class: { th: "achievement-col-status", td: "achievement-col-status" } } },
+  { accessorKey: "displayStatus", header: "状态", meta: { class: { th: "achievement-col-status", td: "achievement-col-status" } } },
   { id: "actions", header: "操作", enableHiding: false, meta: { class: { th: "achievement-col-actions", td: "achievement-col-actions" } } },
 ];
 </script>
@@ -97,10 +99,10 @@ const titleColumns: TableColumn<TitleAchievement>[] = [
       <h2 id="title-achievements-title" class="sr-only">称号挑战</h2>
       <AdminDataTable v-model:column-filters="titleStatusFilters" v-model:sorting="titleSorting" :data="titleChallengeItems" :columns="titleColumns" :loading="loading" :sorting-options="titleSortingOptions" :default-sorting="defaultTitleSorting" empty="暂无记录。" row-key="challengeId" table-key="achievement-titles" table-min-width="860px" class="admin-table achievement-table achievement-table--titles">
         <template #filters>
-          <USelect v-model="titleStatus" size="md" aria-label="筛选挑战状态" :items="[{ label: '全部状态', value: 'all' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" />
+          <USelect v-model="titleStatus" size="md" aria-label="筛选挑战状态" :items="[{ label: '全部状态', value: 'all' }, { label: '草稿', value: 'draft' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'ended' }]" />
         </template>
         <template #mobile-secondary>
-          <USelect v-model="titleStatus" size="md" aria-label="筛选挑战状态" :items="[{ label: '全部状态', value: 'all' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" />
+          <USelect v-model="titleStatus" size="md" aria-label="筛选挑战状态" :items="[{ label: '全部状态', value: 'all' }, { label: '草稿', value: 'draft' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'ended' }]" />
         </template>
         <template #category-cell="{ row }"><span class="table-meta">{{ itemCategory(row.original) }}</span></template>
         <template #titleName-cell="{ row }">
@@ -114,7 +116,7 @@ const titleColumns: TableColumn<TitleAchievement>[] = [
         <template #actions-cell="{ row }">
           <div class="table-actions">
             <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-pencil" :label="editingId === itemIdentity(row.original) ? '收起' : '编辑'" :aria-label="editingId === itemIdentity(row.original) ? '收起编辑' : '编辑规则'" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)" />
-            <UPopover v-if="row.original.status !== 'retired'" :open="planningId === row.original.challengeId" @update:open="(open) => { planningId = open ? row.original.challengeId : null; }">
+            <UPopover v-if="row.original.status === 'active'" :open="planningId === row.original.challengeId" @update:open="(open) => { planningId = open ? row.original.challengeId : null; }">
               <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-calendar-clock" label="计划" aria-label="计划下线" :disabled="isSaving(row.original)" />
               <template #content>
                 <UCard class="plan-popover-card">
@@ -127,7 +129,7 @@ const titleColumns: TableColumn<TitleAchievement>[] = [
                 </UCard>
               </template>
             </UPopover>
-            <UButton v-if="row.original.status !== 'retired'" size="sm" color="error" variant="soft" icon="i-lucide-square-stop" label="结束" aria-label="结束挑战" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)" />
+            <UButton v-if="row.original.status !== 'archived'" size="sm" color="error" variant="soft" icon="i-lucide-square-stop" label="结束" aria-label="结束挑战" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)" />
             <UButton v-else size="sm" color="neutral" variant="outline" icon="i-lucide-rotate-ccw" label="重开" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)" />
           </div>
         </template>

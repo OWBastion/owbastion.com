@@ -9,8 +9,8 @@ import LegacyIndexPage from "./index.vue";
 import AdminDateTimePicker from "../../../components/admin/AdminDateTimePicker.vue";
 
 const title = { challengeId: "title-1", family: "achievement", type: "title_achievement", titleKey: "FLAWLESS", titleName: "守望先锋", icon: "trophy", iconUrl: null, category: "战绩", categoryOverride: null, condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", status: "active", gameVersion: "3.1.0", introducedVersion: "3.1.0", retiredVersion: null };
-const secondTitle = { ...title, challengeId: "title-2", titleName: "游戏先锋", status: "scheduled" };
-const catalogTitle = { challengeId: "title.INTERNAL", family: "title_catalog", type: "title_catalog", titleKey: "INTERNAL", titleName: "内部称号", icon: "wrench", iconUrl: null, category: "开发保留", condition: "开发/管理用途。", lifecycle: "active", publicVisibility: true, availability: "active", scope: "global", displayKind: "fixed", status: "active", gameVersion: "3.1.0", hasChallenge: false };
+const secondTitle = { ...title, challengeId: "title-2", titleName: "游戏先锋", startsAt: 4_000_000_000_000, endsAt: 4_000_000_000_100 };
+const catalogTitle = { challengeId: "title.INTERNAL", family: "title_catalog", type: "title_catalog", titleKey: "INTERNAL", titleName: "内部称号", icon: "wrench", iconUrl: null, category: "开发保留", condition: "开发/管理用途。", lifecycle: "active", publicVisibility: true, availability: "active", scope: "global", displayKind: "fixed", gameVersion: "3.1.0", hasChallenge: false };
 const linkedCatalogTitle = { ...catalogTitle, challengeId: "title.FLAWLESS", titleKey: "FLAWLESS", titleName: "守望先锋", category: "战绩", condition: "完成挑战", hasChallenge: true };
 const map = { challengeId: "map-1", family: "map", gameplayRevisionId: "revision:map.kings-row:initial", type: "map_completion", name: "国王大道挑战", mapId: "map.kings-row", mapName: "国王大道", difficulty: "困难", condition: "完成国王大道挑战。", evidenceRule: "完整截图", submissionMode: "manual", status: "active", gameVersion: "3.0.0", introducedVersion: "3.0.0", retiredVersion: null };
 const secondMap = { ...map, challengeId: "map-2", name: "国王大道专家挑战" };
@@ -26,7 +26,6 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record
   if (path === "/v1/maps/map.kings-row/map-title-inheritance") return Promise.resolve({ items: [mapInheritance] });
   if (path === "/v1/maps/map.route-66/map-title-inheritance") return Promise.resolve({ items: [] });
   if (path === "/v1/maps/map.kings-row/map-title-rules/rule.conqueror/exception" && options?.method === "PUT") return Promise.resolve();
-  if (path === "/v1/achievements?status=sunsetting") return Promise.resolve({ items: [{ ...title, status: "sunsetting", retiredVersion: "26.0713.1" }] });
   if (path === "/v1/achievements/title-1" && options?.method === "PUT") return Promise.resolve({ ...title, ...options.body });
   if (path === "/v1/achievements/title-2" && options?.method === "PUT") return Promise.resolve({ ...secondTitle, ...options.body });
   if (path === "/v1/achievements/map-1" && options?.method === "PUT") return Promise.resolve({ ...map, ...options.body });
@@ -165,20 +164,22 @@ describe("achievement admin page", () => {
     await wrapper.get('form#achievement-editor [role="checkbox"][aria-label="公开显示"]').trigger("click");
     await wrapper.get("form").trigger("submit");
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/titles/INTERNAL", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ contractVersion: "1", status: "active", lifecycle: "draft", publicVisibility: false, label: "内部称号", icon: "wrench", category: "开发保留", scope: "global", displayKind: "fixed", color: null }) }));
+    expect(adminApi).toHaveBeenCalledWith("/v1/titles/INTERNAL", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ contractVersion: "1", lifecycle: "draft", publicVisibility: false, label: "内部称号", icon: "wrench", category: "开发保留", scope: "global", displayKind: "fixed", color: null }) }));
+    const catalogBody = adminApi.mock.calls.find(([path]) => path === "/v1/titles/INTERNAL")?.[1]?.body;
+    expect(catalogBody && "status" in catalogBody).toBe(false);
   });
 
   it("keeps the complete editor visible while scheduling an achievement", async () => {
     const wrapper = await mountPage();
     await wrapper.get('button[aria-label="编辑规则"]').trigger("click");
     const form = wrapper.get("form#achievement-editor");
-    await form.findAll("select")[1]!.setValue("scheduled");
+    await form.findAll("select")[1]!.setValue("active");
     const pickers = wrapper.findAllComponents(AdminDateTimePicker);
     await pickers[0]!.vm.$emit("update:modelValue", new Date("2030-01-01T00:00:00").getTime());
     await pickers[1]!.vm.$emit("update:modelValue", new Date("2030-01-02T00:00:00").getTime());
     await form.trigger("submit");
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/achievements/title-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ status: "scheduled", condition: "完成挑战", evidenceRule: "完整截图", startsAt: expect.any(Number), endsAt: expect.any(Number) }) }));
+    expect(adminApi).toHaveBeenCalledWith("/v1/achievements/title-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ status: "active", condition: "完成挑战", evidenceRule: "完整截图", startsAt: expect.any(Number), endsAt: expect.any(Number) }) }));
   });
 
   it("saves expanded title rules and clears the category override", async () => {
@@ -227,7 +228,7 @@ describe("achievement admin page", () => {
     await form.find('input[placeholder="例如 26.0713.1"]').setValue("26.0713.1");
     await form.trigger("submit");
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/achievements/title-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ status: "sunsetting", retiredVersion: "26.0713.1" }) }));
+    expect(adminApi).toHaveBeenCalledWith("/v1/achievements/title-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ status: "active", retiredVersion: "26.0713.1" }) }));
   });
 
   it("routes a genuine map challenge to the unified editor", async () => {
@@ -301,7 +302,7 @@ describe("achievement admin page", () => {
     expect(document.body.textContent).not.toContain("结束后不再接受新的截图提交。");
     await (document.body.querySelector('[role="dialog"] form') as HTMLFormElement).dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/titles/INTERNAL", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ contractVersion: "1", status: "retired", lifecycle: "retired", publicVisibility: true, label: "内部称号", icon: "wrench", category: "开发保留" }) }));
+    expect(adminApi).toHaveBeenCalledWith("/v1/titles/INTERNAL", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ contractVersion: "1", lifecycle: "retired", publicVisibility: true, label: "内部称号", icon: "wrench", category: "开发保留" }) }));
     expect(adminApi.mock.calls.filter(([path]) => path === "/v1/achievements").length).toBeGreaterThan(1);
     expect(wrapper.text()).toContain("已退休");
   });

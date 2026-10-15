@@ -39,3 +39,4 @@
 0093_retire_legacy_submission_statuses.sql
 0094_achievement_progress_rule.sql
 0100_upload_session_submission_timing.sql
+0101_challenge_lifecycle_convergence.sql
