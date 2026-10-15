@@ -97,11 +97,17 @@ describe("admin seasons page", () => {
     expect(adminApi).toHaveBeenCalledWith(`/v1/seasons/${items[1]!.seasonId}/end`, expect.objectContaining({ method: "POST" }));
   });
 
-  it("keeps an ended Season read-only apart from its visibility", async () => {
+  it("lets an ended Season be edited and keeps it archived", async () => {
     const wrapper = await mountPage();
-    await button(wrapper, "查看 第一赛季").trigger("click");
+    await button(wrapper, "编辑 第一赛季").trigger("click");
     await flushPromises();
-    expect(wrapper.findAll('input[type="date"]').every((input) => input.attributes("disabled") !== undefined)).toBe(true);
+    const [start, end] = wrapper.findAll('input[type="date"]');
+    expect(start!.attributes("disabled")).toBeUndefined();
+    expect(end!.attributes("disabled")).toBeUndefined();
     expect(wrapper.text()).not.toContain("提前结束");
+    await end!.setValue(new Date(now - 70 * DAY).toISOString().slice(0, 10));
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+    expect(adminApi).toHaveBeenCalledWith(`/v1/seasons/${items[2]!.seasonId}`, expect.objectContaining({ method: "PUT", body: expect.objectContaining({ status: "archived" }) }));
   });
 });

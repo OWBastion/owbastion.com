@@ -85,6 +85,8 @@ describe("leaderboard page", () => {
     const segButtons = wrapper.get(".seg").findAll("button");
     expect(segButtons.map((button) => button.text())).toEqual(["地图精通", "成就"]);
     expect(segButtons[0]!.attributes("aria-pressed")).toBe("true");
+    expect(wrapper.findAll(".seg")).toHaveLength(1);
+    expect(wrapper.find(".season").exists()).toBe(false);
     expect(wrapper.get(".chips").findAll("button").map((button) => button.text())).toEqual(["全部地图", "萨摩亚", "国王大道"]);
     expect(wrapper.text()).toContain("所有地图、所有版本获得的精通 XP 总和");
 

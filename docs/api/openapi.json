@@ -2935,7 +2935,7 @@
    },
    "post": {
     "operationId": "createAdminSeason",
-    "description": "Creates a Season as a draft or an active (published) Season. Windows include both ends and may never overlap another Season; the end must follow the start, and an active Season must end in the future. Audited and idempotent.",
+    "description": "Creates a Season in any status. Windows include both ends and may never overlap another Season, and the end must follow the start. Audited and idempotent.",
     "parameters": [
      {
       "$ref": "#/components/parameters/idempotencyKey"
@@ -2963,7 +2963,7 @@
   "/v1/admin/seasons/{seasonId}": {
    "put": {
     "operationId": "updateAdminSeason",
-    "description": "Replaces a Season's name, window, status, and visibility. A started Season keeps its start and cannot return to draft; a scheduled Season can still return to draft; an ended Season accepts only a visibility change (its other fields, including status, must be resent unchanged). Audited and idempotent.",
+    "description": "Replaces a Season's name, window, status, and visibility. A running Season keeps its start and cannot return to draft; every other Season, including an ended one, can be edited freely subject to the window rules (the end must follow the start and windows never overlap). Extending an early-ended Season's end into the future and setting it active reopens it. Audited and idempotent.",
     "parameters": [
      {
       "name": "seasonId",

@@ -57,10 +57,10 @@ export const createSeasonServices = ({ database, db, now, replayOrConflict }: Se
   };
 
   const validateWrite = async (input: AdminSeasonWriteRequest, timestamp: number, existing?: SeasonRow) => {
-    if (input.endsAt <= input.startsAt || (input.status === "active" && input.endsAt < timestamp)) throw new Error("SEASON_RANGE_INVALID");
+    if (input.endsAt <= input.startsAt) throw new Error("SEASON_RANGE_INVALID");
     const others = (await db.select().from(seasons)).filter((season) => season.id !== existing?.id);
     if (others.some((season) => seasonsOverlap(season, input))) throw new Error("SEASON_OVERLAP");
-    if (existing && existing.status !== "draft" && existing.startsAt <= timestamp && (input.startsAt !== existing.startsAt || input.status === "draft")) throw new Error("SEASON_STARTED");
+    if (existing && seasonPhase({ ...existing, status: existing.status as SeasonStatus }, timestamp) === "running" && (input.startsAt !== existing.startsAt || input.status === "draft")) throw new Error("SEASON_STARTED");
   };
 
   const recordStatements = async (operation: string, input: unknown, response: unknown, auth: AuthContext, idempotencyKey: string, seasonId: string, payload: unknown, timestamp: number) => [
@@ -82,7 +82,6 @@ export const createSeasonServices = ({ database, db, now, replayOrConflict }: Se
       const replay = await replayOrConflict<{ seasonId: string }>(auth.subject, operation, idempotencyKey, input);
       if (replay) return loadAdminSeason(replay.seasonId);
       const timestamp = now();
-      if (input.status === "archived") throw new Error("SEASON_RANGE_INVALID");
       await validateWrite(input, timestamp);
       const seasonId = crypto.randomUUID();
       await database.batch([
@@ -98,12 +97,7 @@ export const createSeasonServices = ({ database, db, now, replayOrConflict }: Se
       if (replay) return loadAdminSeason(replay.seasonId);
       const existing = await loadExisting(input.seasonId);
       const timestamp = now();
-      if (seasonPhase({ ...existing, status: existing.status as SeasonStatus }, timestamp) === "ended") {
-        if (input.name !== existing.name || input.startsAt !== existing.startsAt || input.endsAt !== existing.endsAt || input.status !== existing.status) throw new Error("SEASON_ENDED");
-      } else {
-        if (input.status === "archived") throw new Error("SEASON_RANGE_INVALID");
-        await validateWrite(input, timestamp, existing);
-      }
+      await validateWrite(input, timestamp, existing);
       await database.batch([
         database.prepare("UPDATE seasons SET name = ?, starts_at = ?, ends_at = ?, status = ?, public = ?, updated_at = ? WHERE id = ?").bind(input.name, input.startsAt, input.endsAt, input.status, input.public ? 1 : 0, timestamp, existing.id),
         ...await recordStatements(operation, input, { seasonId: existing.id }, auth, idempotencyKey, existing.id, { before: snapshot(existing), after: { name: input.name, startsAt: input.startsAt, endsAt: input.endsAt, status: input.status, public: input.public } }, timestamp),

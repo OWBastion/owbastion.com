@@ -5,10 +5,9 @@ export const registerAdminSeasonRoutes = (app: ApiApp, dependencies: AdminRouteD
   const { services, requireMaintainer, errorGroup, adminMutation } = dependencies;
   const errors = {
     ...errorGroup(404, "The season does not exist", "SEASON_NOT_FOUND"),
-    ...errorGroup(422, "The season must end after it starts, and an active season must end in the future", "SEASON_RANGE_INVALID"),
+    ...errorGroup(422, "The season must end after it starts", "SEASON_RANGE_INVALID"),
     ...errorGroup(409, "Season windows cannot overlap", "SEASON_OVERLAP"),
-    ...errorGroup(409, "A started season cannot change its start or return to draft", "SEASON_STARTED"),
-    ...errorGroup(409, "An ended season cannot be edited", "SEASON_ENDED"),
+    ...errorGroup(409, "A running season cannot change its start or return to draft", "SEASON_STARTED"),
     ...errorGroup(409, "Only a running season can end early", "SEASON_NOT_RUNNING"),
   };
 

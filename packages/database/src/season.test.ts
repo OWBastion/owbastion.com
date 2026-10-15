@@ -38,18 +38,18 @@ describe("season administration", () => {
     expect(adminSeasonSchema.parse(running)).toMatchObject({ status: "active", public: true });
   });
 
-  it("rejects overlapping windows, inverted ranges, and past-ending active Seasons", async () => {
+  it("rejects overlapping windows and inverted ranges, while allowing a backfilled past Season", async () => {
     const { services, now } = fixture();
     const first = await services.createAdminSeason(write(now + DAY, now + 10 * DAY), auth, "k1");
     await expect(services.createAdminSeason(write(now + 10 * DAY, now + 20 * DAY), auth, "k2")).rejects.toThrow("SEASON_OVERLAP");
     await expect(services.createAdminSeason(write(now - 5 * DAY, now + 2 * DAY), auth, "k3")).rejects.toThrow("SEASON_OVERLAP");
     await expect(services.createAdminSeason(write(now + 20 * DAY, now + 20 * DAY), auth, "k4")).rejects.toThrow("SEASON_RANGE_INVALID");
-    await expect(services.createAdminSeason(write(now - 20 * DAY, now - 10 * DAY, "active"), auth, "k5")).rejects.toThrow("SEASON_RANGE_INVALID");
+    await expect(services.createAdminSeason(write(now - 20 * DAY, now - 10 * DAY, "active"), auth, "k5")).resolves.toMatchObject({ phase: "ended" });
     await expect(services.updateAdminSeason({ ...write(now + 2 * DAY, now + 5 * DAY), seasonId: first.seasonId }, auth, "k6")).resolves.toMatchObject({ startsAt: now + 2 * DAY });
     await expect(services.updateAdminSeason({ ...write(now, now + DAY), seasonId: crypto.randomUUID() }, auth, "k7")).rejects.toThrow("SEASON_NOT_FOUND");
   });
 
-  it("locks the start of a started Season and refuses edits once it has ended", async () => {
+  it("locks the start of a running Season but leaves an ended Season fully editable", async () => {
     const { services, sqlite, now } = fixture();
     const season = await services.createAdminSeason(write(now - DAY, now + 10 * DAY, "active"), auth, "k1");
     const same = { seasonId: season.seasonId, ...write(season.startsAt, now + 20 * DAY, "active", true, "改名") };
@@ -57,11 +57,11 @@ describe("season administration", () => {
     await expect(services.updateAdminSeason({ ...same, status: "draft" }, auth, "k3")).rejects.toThrow("SEASON_STARTED");
     await expect(services.updateAdminSeason(same, auth, "k4")).resolves.toMatchObject({ name: "改名", public: true, endsAt: now + 20 * DAY });
     sqlite.prepare("UPDATE seasons SET ends_at = ? WHERE id = ?").run(now - 1, season.seasonId);
-    await expect(services.updateAdminSeason(same, auth, "k5")).rejects.toThrow("SEASON_ENDED");
-    const ended = { seasonId: season.seasonId, ...write(season.startsAt, now - 1, "active", true, "改名") };
-    await expect(services.updateAdminSeason({ ...ended, name: "再改名" }, auth, "k6")).rejects.toThrow("SEASON_ENDED");
-    await expect(services.updateAdminSeason({ ...ended, public: false }, auth, "k7")).resolves.toMatchObject({ phase: "ended", public: false });
-    await expect(services.createAdminSeason(write(now + DAY, now + 2 * DAY, "archived"), auth, "k8")).rejects.toThrow("SEASON_RANGE_INVALID");
+    const ended = { seasonId: season.seasonId, ...write(season.startsAt - DAY, now - 1, "active", true, "改名") };
+    await expect(services.updateAdminSeason(ended, auth, "k5")).resolves.toMatchObject({ phase: "ended", name: "改名", startsAt: season.startsAt - DAY });
+    await expect(services.updateAdminSeason({ ...ended, name: "再改名", public: false }, auth, "k6")).resolves.toMatchObject({ phase: "ended", name: "再改名", public: false });
+    await expect(services.updateAdminSeason({ ...ended, endsAt: now + DAY }, auth, "k7")).resolves.toMatchObject({ phase: "running" });
+    await expect(services.updateAdminSeason({ ...ended, endsAt: now + DAY, status: "archived" }, auth, "k8")).resolves.toMatchObject({ phase: "ended" });
   });
 
   it("returns a scheduled Season to draft and publishes a draft", async () => {

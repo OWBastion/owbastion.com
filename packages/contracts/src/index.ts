@@ -1694,8 +1694,6 @@ export const adminSeasonWriteRequestSchema = z.object({
   name: z.string().trim().min(1).max(64),
   startsAt: z.number().int().nonnegative(),
   endsAt: z.number().int().nonnegative(),
-  // "archived" is accepted only to resend an ended Season unchanged, so its
-  // visibility can still be switched.
   status: seasonStatusSchema,
   public: z.boolean(),
 }).strict();

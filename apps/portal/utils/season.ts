@@ -67,9 +67,8 @@ export const seasonWriteIssue = (draft: { name: string; startsAt: number; endsAt
 
 export const seasonErrorMessages: Record<string, string> = {
   SEASON_NOT_FOUND: "这个赛季已不存在，请刷新后重试。",
-  SEASON_RANGE_INVALID: "结束日期要晚于开始日期，已发布的赛季还需要在未来结束。",
+  SEASON_RANGE_INVALID: "结束日期要晚于开始日期。",
   SEASON_OVERLAP: "赛季时间不能和其他赛季重叠。",
-  SEASON_STARTED: "已经开始的赛季不能修改开始日期，也不能退回草稿。",
-  SEASON_ENDED: "已结束的赛季不能再修改。",
+  SEASON_STARTED: "进行中的赛季不能修改开始日期，也不能退回草稿。",
   SEASON_NOT_RUNNING: "只有进行中的赛季可以提前结束。",
 };

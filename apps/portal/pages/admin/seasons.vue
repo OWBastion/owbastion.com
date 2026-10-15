@@ -62,8 +62,7 @@ const counts = computed(() => {
 const visibleFilters = computed(() => filterOptions.filter((option) => option.key === "all" || counts.value[option.key]));
 const rows = computed(() => seasons.value.filter((season) => filter.value === "all" || season.phase === filter.value));
 
-const readOnly = computed(() => editing.value?.phase === "ended");
-const startLocked = computed(() => Boolean(editing.value && editing.value.status !== "draft" && editing.value.startsAt <= serverNow.value));
+const startLocked = computed(() => editing.value?.phase === "running");
 // An untouched date keeps the stored instant: an early-ended Season closes mid-day, not at end of day.
 const draftWindow = computed(() => ({
   name: form.name,
@@ -110,8 +109,10 @@ async function undoTo(seasonId: string, payload: SeasonPayload) {
 async function save(mode: "draft" | "publish" | "keep") {
   if (formIssue.value) return;
   const previous = editing.value;
-  const status = mode === "publish" ? "active" : mode === "keep" && previous ? previous.status : "draft";
-  const payload: SeasonPayload = { name: form.name.trim(), startsAt: draftWindow.value.startsAt, endsAt: draftWindow.value.endsAt, status, public: form.public };
+  const { startsAt, endsAt } = draftWindow.value;
+  // Extending an early-ended Season past now reopens it.
+  const status = mode === "publish" ? "active" : mode === "keep" && previous ? (previous.status === "archived" && endsAt > serverNow.value ? "active" : previous.status) : "draft";
+  const payload: SeasonPayload = { name: form.name.trim(), startsAt, endsAt, status, public: form.public };
   saving.value = true;
   errorMessage.value = "";
   try {
@@ -235,20 +236,20 @@ const rangeText = (season: AdminSeason) => `${formatSeasonDate(season.startsAt)}
           @update:model-value="toggleVisibility(season)"
         />
         <span class="season-row__players num">{{ season.phase === "draft" || season.phase === "scheduled" ? "—" : `${season.playerCount} 名玩家` }}</span>
-        <UButton :label="season.phase === 'ended' ? '查看' : '编辑'" color="neutral" variant="outline" size="sm" :aria-label="`${season.phase === 'ended' ? '查看' : '编辑'} ${season.name}`" @click="openEditor(season)" />
+        <UButton label="编辑" color="neutral" variant="outline" size="sm" :aria-label="`编辑 ${season.name}`" @click="openEditor(season)" />
       </li>
     </ul>
 
     <AdminResponsiveDialog v-model:open="editorOpen" :title="editing ? editing.name : '新建赛季'" size="sm" :dismissible="!saving">
       <template #body>
         <form id="season-form" class="grid gap-4" @submit.prevent="save(editing?.status === 'draft' || !editing ? 'draft' : 'keep')">
-          <UFormField label="名称" required><UInput v-model="form.name" :disabled="saving || readOnly" /></UFormField>
+          <UFormField label="名称" required><UInput v-model="form.name" :disabled="saving" /></UFormField>
           <div class="grid gap-3 sm:grid-cols-2">
-            <UFormField label="开始日期" required><UInput v-model="form.startDate" type="date" :disabled="saving || readOnly || startLocked" /></UFormField>
-            <UFormField label="结束日期" required><UInput v-model="form.endDate" type="date" :disabled="saving || readOnly" /></UFormField>
+            <UFormField label="开始日期" required><UInput v-model="form.startDate" type="date" :disabled="saving || startLocked" /></UFormField>
+            <UFormField label="结束日期" required><UInput v-model="form.endDate" type="date" :disabled="saving" /></UFormField>
           </div>
           <p v-if="formIssue" class="text-sm text-error" role="alert">{{ formIssue }}</p>
-          <p v-else class="text-sm text-muted num">共 {{ seasonWeeks(draftWindow) }} 周，按北京时间从开始日 0 点到结束日 24 点。{{ startLocked && !readOnly ? "已经开始的赛季不能改开始日期。" : "" }}到结束时间后自动结束。</p>
+          <p v-else class="text-sm text-muted num">共 {{ seasonWeeks(draftWindow) }} 周，按北京时间从开始日 0 点到结束日 24 点。{{ startLocked ? "进行中的赛季不能改开始日期。" : "" }}到结束时间后自动结束。</p>
           <UFormField label="玩家可见" :hint="!editing || editing.status === 'draft' ? '草稿始终对玩家隐藏，发布后按这里的设置显示。' : '关闭后排行榜里不再出现这个赛季，数据不受影响。'">
             <USwitch v-model="form.public" :disabled="saving" aria-label="玩家可见" />
           </UFormField>
@@ -256,11 +257,7 @@ const rangeText = (season: AdminSeason) => `${formatSeasonDate(season.startsAt)}
         </form>
       </template>
       <template #footer>
-        <template v-if="editing && readOnly">
-          <UButton type="submit" form="season-form" label="保存可见性" :loading="saving" :disabled="form.public === editing.public" />
-          <UButton label="关闭" color="neutral" variant="outline" :disabled="saving" @click="editorOpen = false" />
-        </template>
-        <template v-else-if="!editing || editing.status === 'draft'">
+        <template v-if="!editing || editing.status === 'draft'">
           <UButton :label="publishLabel" :loading="saving" :disabled="Boolean(formIssue)" @click="save('publish')" />
           <UButton type="submit" form="season-form" label="保存草稿" color="neutral" variant="outline" :disabled="saving || Boolean(formIssue)" />
           <UButton label="取消" color="neutral" variant="ghost" :disabled="saving" @click="editorOpen = false" />

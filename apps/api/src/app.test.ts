@@ -972,7 +972,7 @@ describe("API", () => {
     expect((await send(maintainerApp, "/v1/admin/seasons", "POST", { "idempotency-key": "k" }, JSON.stringify({ contractVersion: "1", name: "", startsAt: 1, endsAt: 2, status: "archived", public: false }))).status).toBe(422);
     expect((await send(maintainerApp, "/v1/admin/seasons", "POST", { "idempotency-key": "k" }, body)).status).toBe(201);
     expect(create).toHaveBeenCalledWith(expect.objectContaining({ name: "第一赛季", status: "draft" }), expect.anything(), "k");
-    for (const [code, status] of [["SEASON_NOT_FOUND", 404], ["SEASON_RANGE_INVALID", 422], ["SEASON_OVERLAP", 409], ["SEASON_STARTED", 409], ["SEASON_ENDED", 409]] as const) {
+    for (const [code, status] of [["SEASON_NOT_FOUND", 404], ["SEASON_RANGE_INVALID", 422], ["SEASON_OVERLAP", 409], ["SEASON_STARTED", 409]] as const) {
       failures.set("update", code);
       expect((await send(maintainerApp, `/v1/admin/seasons/${seasonId}`, "PUT", { "idempotency-key": "k" }, body)).status).toBe(status);
     }
