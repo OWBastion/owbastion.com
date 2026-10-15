@@ -116,6 +116,9 @@ const defaultServices: Partial<PlatformServices> = {
     recentSubmissions: [{ submissionId: "00000000-0000-0000-0000-000000000003", status: "processing", mapName: "Test Map", createdAt: 2, updatedAt: 3 }],
   } : null,
   updateCurrentPlayerProfileVisibility: async (input) => input.sessionToken === "session-token" ? { contractVersion: "1" as const, publicProfile: input.publicProfile } : (() => { throw new Error("UNAUTHENTICATED"); })(),
+  getPublicLeaderboard: async ({ board, mapId }) => mapId === "missing-map" ? null : { contractVersion: "1" as const, board, ...(mapId ? { mapId } : {}), ruleVersion: "leaderboard.v1", items: [{ rank: 1, score: 500, reachedAt: 100, player: { playerKey: "key-alpha", displayName: "Alpha", equippedTitle: null } }], page: 1, pageSize: 20, total: 1, hasMore: false },
+  getPublicLeaderboardPlayer: async ({ playerKey }) => playerKey === "key-alpha" ? { contractVersion: "1" as const, publicProfile: true, player: { displayName: "Alpha", equippedTitle: null }, boards: { mastery: { rank: 1, score: 500 }, achievement: null }, perMapXp: [], titles: { map: [], general: [] } } : null,
+  getCurrentPlayerLeaderboardRank: async ({ sessionToken, board, mapId }) => sessionToken !== "session-token" ? null : (() => { if (mapId === "missing-map") throw new Error("MAP_NOT_FOUND"); return { contractVersion: "1" as const, board, ...(mapId ? { mapId } : {}), ruleVersion: "leaderboard.v1", rank: 2, score: 300, reachedAt: 90, gapToNextRank: 200 }; })(),
   createPasskeyLoginOptions: async () => ({ contractVersion: "1", challengeId: "00000000-0000-4000-8000-000000000011", options: { challenge: "challenge" } }),
   exchangeBindingClaimSession: async () => ({ contractVersion: "1" as const, status: "authenticated" as const, sessionToken: "claim-session-token" }),
 };
@@ -897,6 +900,31 @@ describe("API", () => {
     expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(await response.json()).toEqual({ contractVersion: "1", publicProfile: false });
     expect((await app.request("http://localhost/v1/me/profile/visibility", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=other-token", "idempotency-key": "vis-other" }, body: JSON.stringify({ contractVersion: "1", publicProfile: false }) }, env)).status).toBe(401);
+  });
+
+  it("serves paginated public leaderboard boards with privacy headers", async () => {
+    const response = await app.request("http://localhost/v1/public/leaderboard?board=mastery", {}, env);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(await response.json()).toMatchObject({ contractVersion: "1", board: "mastery", ruleVersion: "leaderboard.v1", total: 1 });
+    expect((await app.request("http://localhost/v1/public/leaderboard?board=mastery&mapId=map.a", {}, env)).status).toBe(200);
+    expect((await app.request("http://localhost/v1/public/leaderboard?board=achievement&mapId=map.a", {}, env)).status).toBe(422);
+    expect((await app.request("http://localhost/v1/public/leaderboard?board=other", {}, env)).status).toBe(422);
+    expect((await app.request("http://localhost/v1/public/leaderboard?board=mastery&mapId=missing-map", {}, env)).status).toBe(404);
+    const summary = await app.request("http://localhost/v1/public/leaderboard/players/key-alpha", {}, env);
+    expect(summary.status).toBe(200);
+    expect(await summary.json()).toMatchObject({ contractVersion: "1", publicProfile: true, boards: { mastery: { rank: 1, score: 500 } } });
+    expect((await app.request("http://localhost/v1/public/leaderboard/players/key-unknown", {}, env)).status).toBe(404);
+  });
+
+  it("returns the signed-in player's own leaderboard rank", async () => {
+    expect((await app.request("http://localhost/v1/me/leaderboard?board=mastery", {}, env)).status).toBe(401);
+    const response = await app.request("http://localhost/v1/me/leaderboard?board=mastery", { headers: { cookie: "owb_session=session-token" } }, env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ contractVersion: "1", board: "mastery", rank: 2, score: 300, gapToNextRank: 200 });
+    expect((await app.request("http://localhost/v1/me/leaderboard?board=bad", { headers: { cookie: "owb_session=session-token" } }, env)).status).toBe(422);
+    expect((await app.request("http://localhost/v1/me/leaderboard?board=achievement&mapId=map.a", { headers: { cookie: "owb_session=session-token" } }, env)).status).toBe(422);
+    expect((await app.request("http://localhost/v1/me/leaderboard?board=mastery&mapId=missing-map", { headers: { cookie: "owb_session=session-token" } }, env)).status).toBe(404);
   });
 
   it("returns only the signed-in player's active mastery projections", async () => {

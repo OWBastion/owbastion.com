@@ -17,6 +17,7 @@ import { createChallengeCompletionServices, type ChallengeCompletionAward } from
 import { hashRequest, resolvePortalSession } from "./portal-session";
 import { createPlatformCache, instrumentDatabase } from "./platform-cache";
 import { createReviewServices } from "./review-service";
+import { createLeaderboardServices } from "./leaderboard-service";
 import { createAdminPlayerServices } from "./admin-player-service";
 import { createQqGroupServices } from "./qq-group-service";
 import { createAgentServices } from "./agent-service";
@@ -3179,6 +3180,7 @@ if (verifiedRunPlan?.superseded) await reconcileVerifiedRunProgressChallenges({ 
     ...createReviewServices(database, db, {
       ...databaseServiceDependencies,
     }),
+    ...createLeaderboardServices(db),
   };
 };
 
