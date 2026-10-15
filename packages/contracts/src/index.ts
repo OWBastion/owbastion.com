@@ -1595,6 +1595,8 @@ export const leaderboardResponseSchema = z.object({
   contractVersion,
   board: leaderboardBoardSchema,
   mapId: externalId.optional(),
+  // The Season whose window scopes the Mastery board, present iff requested.
+  seasonId: z.string().uuid().optional(),
   // The scoped map's current Gameplay Revision game version, present iff
   // `mapId` scopes the board.
   mapGameVersion: externalId.optional(),
@@ -1655,11 +1657,58 @@ export const currentPlayerLeaderboardRankSchema = z.object({
   contractVersion,
   board: leaderboardBoardSchema,
   mapId: externalId.optional(),
+  seasonId: z.string().uuid().optional(),
   ruleVersion: z.string().trim().min(1).max(64),
   rank: z.number().int().positive().nullable(),
   score: z.number().int().nonnegative(),
   reachedAt: z.number().int().positive().nullable(),
   gapToNextRank: z.number().int().nonnegative().nullable(),
+}).strict();
+
+// Seasons (#401): a named, time-boxed ranking window over the same Verified
+// Runs. Only the schedule, lifecycle status, and visibility are stored; the
+// phase is derived from time. The window includes both `startsAt` and
+// `endsAt` (epoch milliseconds).
+export const seasonStatusSchema = z.enum(["draft", "active", "archived"]);
+export const seasonPhaseSchema = z.enum(["draft", "scheduled", "running", "ended"]);
+export const adminSeasonSchema = z.object({
+  seasonId: z.string().uuid(),
+  name: z.string().trim().min(1).max(64),
+  startsAt: z.number().int().nonnegative(),
+  endsAt: z.number().int().nonnegative(),
+  status: seasonStatusSchema,
+  public: z.boolean(),
+  phase: seasonPhaseSchema,
+  // Players with at least one counted Run in the window so far; 0 before it starts.
+  playerCount: z.number().int().nonnegative(),
+  createdAt: z.number().int(),
+  updatedAt: z.number().int(),
+}).strict();
+export const adminSeasonListResponseSchema = z.object({
+  contractVersion,
+  now: z.number().int().nonnegative(),
+  items: z.array(adminSeasonSchema).max(200),
+}).strict();
+export const adminSeasonWriteRequestSchema = z.object({
+  contractVersion,
+  name: z.string().trim().min(1).max(64),
+  startsAt: z.number().int().nonnegative(),
+  endsAt: z.number().int().nonnegative(),
+  // "archived" is accepted only to resend an ended Season unchanged, so its
+  // visibility can still be switched.
+  status: seasonStatusSchema,
+  public: z.boolean(),
+}).strict();
+export const publicSeasonSchema = z.object({
+  seasonId: z.string().uuid(),
+  name: z.string().trim().min(1).max(64),
+  startsAt: z.number().int().nonnegative(),
+  endsAt: z.number().int().nonnegative(),
+  phase: z.enum(["running", "ended"]),
+}).strict();
+export const publicSeasonListResponseSchema = z.object({
+  contractVersion,
+  items: z.array(publicSeasonSchema).max(200),
 }).strict();
 
 export const playerVerifiedRunSchema = z.object({
@@ -1801,6 +1850,13 @@ export type LeaderboardPlayerMapXp = z.infer<typeof leaderboardPlayerMapXpSchema
 export type LeaderboardPlayerMapTitle = z.infer<typeof leaderboardPlayerMapTitleSchema>;
 export type LeaderboardPlayerSummary = z.infer<typeof leaderboardPlayerSummarySchema>;
 export type CurrentPlayerLeaderboardRank = z.infer<typeof currentPlayerLeaderboardRankSchema>;
+export type SeasonStatus = z.infer<typeof seasonStatusSchema>;
+export type SeasonPhase = z.infer<typeof seasonPhaseSchema>;
+export type AdminSeason = z.infer<typeof adminSeasonSchema>;
+export type AdminSeasonListResponse = z.infer<typeof adminSeasonListResponseSchema>;
+export type AdminSeasonWriteRequest = z.infer<typeof adminSeasonWriteRequestSchema>;
+export type PublicSeason = z.infer<typeof publicSeasonSchema>;
+export type PublicSeasonListResponse = z.infer<typeof publicSeasonListResponseSchema>;
 export type AchievementProgressRule = z.infer<typeof achievementProgressRuleSchema>;
 export type PlayerChallengeProgress = z.infer<typeof playerChallengeProgressSchema>;
 export type PlayerChallengeProgressListResponse = z.infer<typeof playerChallengeProgressListResponseSchema>;

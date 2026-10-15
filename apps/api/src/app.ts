@@ -29,6 +29,7 @@ import { withPublicCache } from "./public-cache";
 import { maintainerRoute, parseBody, routeErrorResponse, type AdminMutation, type AdminMutationOptions, type ApiContext, type RouteErrorMap } from "./routes/route-contract";
 import { registerAgentRoutes } from "./routes/agents";
 import { registerAdminVerifiedRunRoutes } from "./routes/admin-verified-runs";
+import { registerAdminSeasonRoutes } from "./routes/admin-seasons";
 import { registerAdminReviewWorkflowRoutes } from "./routes/admin-review-workflow";
 import { registerAdminCatalogRoutes } from "./routes/admin-catalog";
 import { registerAdminPlayerManagementRoutes } from "./routes/admin-player-management";
@@ -406,6 +407,7 @@ export const createApp = (dependencies: AppDependencies) => {
     adminMutation,
   };
   registerAdminVerifiedRunRoutes(app, adminRouteDependencies);
+  registerAdminSeasonRoutes(app, adminRouteDependencies);
 
 
   type PortalPlayerAccess =

@@ -5,9 +5,11 @@ import type {
   LeaderboardEntry,
   LeaderboardResponse,
   Map,
+  PublicSeasonListResponse,
 } from "@owbastion/contracts";
 import { verifiedRunXpRuleV1 } from "@owbastion/domain";
 import { portalErrorDetails } from "~/utils/portal-error";
+import { daysLeft, formatSeasonDate, seasonWeeks } from "~/utils/season";
 
 useSeoMeta({
   title: "排行榜 · 躲避堡垒 3",
@@ -22,20 +24,30 @@ const { player, refresh } = useCurrentPlayer();
 
 const board = ref<LeaderboardBoard>(route.query.board === "achievement" ? "achievement" : "mastery");
 const mapId = ref<string | undefined>(typeof route.query.mapId === "string" ? route.query.mapId : undefined);
+const seasonId = ref<string | undefined>(typeof route.query.seasonId === "string" ? route.query.seasonId : undefined);
 const page = ref(1);
 const fetchedAt = ref<number | null>(null);
 
 const { data: catalog } = await useAsyncData("leaderboard-map-catalog", () => usePublicCatalog<{ items: Map[] }>("maps"));
 const maps = computed(() => catalog.value?.items ?? []);
 
+// Seasons are an optional scope: a failed read just hides the season controls.
+const { data: seasonCatalog } = await useAsyncData("leaderboard-seasons", () => api<PublicSeasonListResponse>("/v1/public/seasons").catch(() => ({ contractVersion: "1" as const, items: [] })), { getCachedData: () => undefined });
+const seasonList = computed(() => seasonCatalog.value?.items ?? []);
+if (seasonId.value && !seasonList.value.some((season) => season.seasonId === seasonId.value)) seasonId.value = undefined;
+const activeSeasonId = computed(() => board.value === "mastery" ? seasonId.value : undefined);
+const selectedSeason = computed(() => seasonList.value.find((season) => season.seasonId === activeSeasonId.value));
+const seasonItems = computed(() => seasonList.value.map((season) => ({ label: season.name, value: season.seasonId })));
+
 // Reactive key: board/map/page changes are distinct fetches. Rankings change
 // underneath navigation, so payload reuse is off — each key fetches live.
-const boardKey = computed(() => `leaderboard-board:${board.value}:${board.value === "mastery" ? (mapId.value ?? "all") : "—"}:${page.value}`);
+const boardKey = computed(() => `leaderboard-board:${board.value}:${board.value === "mastery" ? (mapId.value ?? "all") : "—"}:${activeSeasonId.value ?? "all-time"}:${page.value}`);
 const { data: boardData, pending: loading, error: boardError, refresh: refreshBoard } = await useAsyncData(
   boardKey,
   async () => {
     const params = new URLSearchParams({ board: board.value, page: String(page.value), pageSize: String(PAGE_SIZE) });
     if (board.value === "mastery" && mapId.value) params.set("mapId", mapId.value);
+    if (activeSeasonId.value) params.set("seasonId", activeSeasonId.value);
     const response = await api<LeaderboardResponse>(`/v1/public/leaderboard?${params}`);
     fetchedAt.value = Date.now();
     return response;
@@ -48,11 +60,21 @@ const error = computed(() => boardError.value ? portalErrorDetails(boardError.va
 
 const setBoard = (next: LeaderboardBoard) => { if (board.value !== next) { board.value = next; page.value = 1; } };
 const setMap = (next: string | undefined) => { if (mapId.value !== next) { mapId.value = next; page.value = 1; } };
+const setSeasonScope = (season: string | undefined) => { if (seasonId.value !== season) { seasonId.value = season; page.value = 1; } };
 const selectedMap = computed(() => maps.value.find((map) => map.mapId === mapId.value));
 
 const boardTitle = computed(() => {
   if (board.value === "achievement") return "成就排行榜";
-  return mapId.value && selectedMap.value ? `${selectedMap.value.mapName} 精通排行榜` : "地图精通排行榜";
+  const prefix = selectedSeason.value ? `${selectedSeason.value.name} · ` : "";
+  return `${prefix}${mapId.value && selectedMap.value ? `${selectedMap.value.mapName} 精通排行榜` : "地图精通排行榜"}`;
+});
+const seasonRunning = computed(() => selectedSeason.value?.phase === "running");
+const seasonProgress = computed(() => {
+  const season = selectedSeason.value;
+  if (!season) return null;
+  const weeks = seasonWeeks(season);
+  const done = season.phase === "running" ? Math.min(weeks, Math.floor((Date.now() - season.startsAt) / (7 * 86_400_000))) : weeks;
+  return { weeks, done, meta: `${formatSeasonDate(season.startsAt)} – ${formatSeasonDate(season.endsAt)} · ${season.phase === "running" ? `还剩 ${daysLeft(season.endsAt, Date.now())} 天` : "排名已定"}` };
 });
 const boardMeta = computed(() => {
   const total = boardData.value?.total ?? 0;
@@ -75,6 +97,7 @@ async function loadMine() {
   try {
     const params = new URLSearchParams({ board: board.value });
     if (board.value === "mastery" && mapId.value) params.set("mapId", mapId.value);
+    if (activeSeasonId.value) params.set("seasonId", activeSeasonId.value);
     mine.value = await api<CurrentPlayerLeaderboardRank>(`/v1/me/leaderboard?${params}`);
   } catch {
     mine.value = null;
@@ -87,7 +110,7 @@ onMounted(async () => {
   catch { player.value = null; }
   await loadMine();
 });
-watch([board, mapId], () => { if (import.meta.client) void loadMine(); });
+watch([board, mapId, activeSeasonId], () => { if (import.meta.client) void loadMine(); });
 
 const mineGap = computed(() => {
   const standing = mine.value;
@@ -178,6 +201,13 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
           <button type="button" :aria-pressed="board === 'mastery'" @click="setBoard('mastery')">地图精通</button>
           <button type="button" :aria-pressed="board === 'achievement'" @click="setBoard('achievement')">成就</button>
         </div>
+        <div v-if="board === 'mastery' && seasonList.length" class="seg" role="group" aria-label="时间范围">
+          <button type="button" :aria-pressed="!seasonId" @click="setSeasonScope(undefined)">全部时间</button>
+          <button type="button" :aria-pressed="Boolean(seasonId)" @click="setSeasonScope(seasonList[0]!.seasonId)">赛季</button>
+        </div>
+        <select v-if="board === 'mastery' && seasonId" class="sel" aria-label="选择赛季" :value="seasonId" @change="setSeasonScope(($event.target as HTMLSelectElement).value)">
+          <option v-for="season in seasonItems" :key="season.value" :value="season.value">{{ season.label }}</option>
+        </select>
       </div>
       <div v-if="board === 'mastery'" class="ctl-row">
         <div class="chips" role="group" aria-label="地图">
@@ -195,6 +225,14 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
       </div>
     </div>
 
+    <section v-if="selectedSeason && seasonProgress" class="season surface-card" aria-label="当前赛季">
+      <span class="season-name">{{ selectedSeason.name }}<span class="season-badge" :class="{ running: seasonRunning }">{{ seasonRunning ? "进行中" : "已结束" }}</span></span>
+      <div class="segbar" :style="{ '--n': seasonProgress.weeks }" role="img" :aria-label="`已进行 ${seasonProgress.done} / ${seasonProgress.weeks} 周`">
+        <i v-for="week in seasonProgress.weeks" :key="week" :class="{ on: week <= seasonProgress.done }" />
+      </div>
+      <span class="note num">{{ seasonProgress.meta }}</span>
+    </section>
+
     <div class="leaderboard-grid">
       <section ref="boardSection" :aria-busy="loading || undefined">
         <div class="section-head">
@@ -210,7 +248,7 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
           </template>
           <template v-else-if="!mine?.rank">
             <span class="mine-rank">—</span>
-            <span class="mine-text">{{ board === "mastery" ? "你还没有上榜，上传一张通关截图就能出现在这里" : "你还没有上榜，解锁第一个成就就能出现在这里" }}</span>
+            <span class="mine-text">{{ board === "achievement" ? "你还没有上榜，解锁第一个成就就能出现在这里" : selectedSeason && !seasonRunning ? "你在这个赛季没有上榜" : "你还没有上榜，上传一张通关截图就能出现在这里" }}</span>
           </template>
           <template v-else>
             <span class="mine-rank num">#{{ mine.rank }}</span>
@@ -259,7 +297,7 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
                 </tr>
               </thead>
               <tbody>
-                <tr v-if="!items.length"><td colspan="5" class="empty">这里还没有人上榜</td></tr>
+                <tr v-if="!items.length"><td colspan="5" class="empty">{{ selectedSeason ? "这个赛季还没有人上榜" : "这里还没有人上榜" }}</td></tr>
                 <tr
                   v-for="entry in items"
                   :key="entry.rank"
@@ -313,6 +351,15 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
       </section>
 
       <aside class="side">
+        <div v-if="selectedSeason" class="card surface-card">
+          <h3>赛季怎么算</h3>
+          <p>{{ selectedSeason.name }}只统计 {{ formatSeasonDate(selectedSeason.startsAt) }} – {{ formatSeasonDate(selectedSeason.endsAt) }} 期间获得的精通 XP。</p>
+          <ul>
+            <li>你的精通 XP 不会清零，切到「全部时间」可以看到</li>
+            <li>成就永久持有，不分赛季</li>
+            <li>赛季结束后，排名保留为最终结果</li>
+          </ul>
+        </div>
         <div v-if="board === 'mastery'" class="card surface-card">
           <h3>精通 XP 怎么算</h3>
           <p>每张审核通过的通关截图按难度获得精通 XP：</p>
@@ -366,6 +413,18 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
 @media (max-width: 63.99rem) { .leaderboard-grid { grid-template-columns: 1fr; } }
 .section-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-3); flex-wrap: wrap; }
 .section-title { margin: 0; font-size: var(--type-card-title-size); font-weight: 600; letter-spacing: -0.01em; }
+
+.sel { min-height: var(--control-md); padding: 0 var(--space-8) 0 var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-control); background: var(--surface); color: var(--text); font-size: var(--type-body-sm-size); appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%; background-size: 5px 5px; background-repeat: no-repeat; }
+
+/* season */
+.season { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--space-2) var(--space-4); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-5); }
+.season-name { display: flex; align-items: center; gap: var(--space-2); font-size: var(--type-label-size); font-weight: 600; white-space: nowrap; }
+.season-badge { padding: 0 var(--space-2); border-radius: var(--radius-pill); background: var(--disabled-surface); color: var(--disabled-text); font-size: var(--type-caption-size); font-weight: 600; line-height: 1.6; }
+.season-badge.running { background: var(--info-surface); color: var(--info); }
+.segbar { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 0.1875rem; }
+.segbar i { height: 0.375rem; border-radius: var(--radius-pill); background: var(--line); }
+.segbar i.on { background: var(--accent); }
+@media (max-width: 47.99rem) { .season { grid-template-columns: 1fr; } .season .segbar { grid-row: 3; } }
 
 /* your position */
 .mine { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-3) var(--space-3) var(--space-5); margin-bottom: var(--space-5); }

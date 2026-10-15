@@ -19,6 +19,9 @@ const fixture = () => {
     CREATE TABLE title_catalog (key TEXT PRIMARY KEY, label TEXT NOT NULL, icon TEXT NOT NULL, icon_url TEXT, icon_object_key TEXT, category TEXT NOT NULL, condition TEXT NOT NULL, lifecycle TEXT NOT NULL DEFAULT 'active', public_visibility INTEGER NOT NULL DEFAULT 1, scope TEXT NOT NULL, display_kind TEXT NOT NULL, color_json TEXT, game_version TEXT NOT NULL);
     CREATE TABLE map_title_rewards (map_id TEXT NOT NULL REFERENCES maps(id), slot TEXT NOT NULL, title_key TEXT NOT NULL, pioneer_prefixes_json TEXT NOT NULL DEFAULT '[]', PRIMARY KEY (map_id, slot));
     CREATE TABLE player_title_grants (id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, title_key TEXT NOT NULL, map_id TEXT, gameplay_revision_id TEXT, slot TEXT, status TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT NOT NULL, granted_by TEXT NOT NULL, granted_at INTEGER NOT NULL, revoked_by TEXT, revoked_at INTEGER, revoke_reason TEXT, completion_id TEXT, revocation_type TEXT);
+    CREATE TABLE seasons (id TEXT PRIMARY KEY, name TEXT NOT NULL, starts_at INTEGER NOT NULL, ends_at INTEGER NOT NULL, status TEXT NOT NULL, public INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE idempotency_keys (id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, operation TEXT NOT NULL, request_hash TEXT NOT NULL, response_json TEXT NOT NULL, created_at INTEGER NOT NULL);
+    CREATE TABLE audit_events (id TEXT PRIMARY KEY, correlation_id TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, operation TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, payload_json TEXT NOT NULL, created_at INTEGER NOT NULL);
     CREATE TABLE player_equipped_titles (grant_id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, equipped_at INTEGER NOT NULL);
   `);
   const { sqlite } = harness;
@@ -35,7 +38,9 @@ const fixture = () => {
     sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, scope, display_kind, game_version, public_visibility) VALUES (?, ?, 'award', ?, '条件', ?, 'fixed', 'v1', ?)").run(key, key, category, scope, publicVisibility);
   const addGrant = (id: string, playerAccountId: string, titleKey: string, grantedAt: number, status = "active", mapId: string | null = null) =>
     sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, status, source_type, source_id, granted_by, granted_at) VALUES (?, ?, ?, ?, ?, 'manual', ?, 'admin', ?)").run(id, playerAccountId, titleKey, mapId, status, `src.${id}`, grantedAt);
-  return { ...harness, services: createPlatformServices(harness.database), now, addPlayer, addMap, addRevision, addRun, addTitle, addGrant };
+  const addSeason = (id: string, startsAt: number, endsAt: number, status = "active", isPublic = 1) =>
+    sqlite.prepare("INSERT INTO seasons (id, name, starts_at, ends_at, status, public, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(id, `赛季 ${id}`, startsAt, endsAt, status, isPublic, now, now);
+  return { ...harness, services: createPlatformServices(harness.database), now, addSeason, addPlayer, addMap, addRevision, addRun, addTitle, addGrant };
 };
 
 describe("public leaderboard projections", () => {
@@ -214,10 +219,65 @@ describe("public leaderboard projections", () => {
   });
 });
 
+describe("seasonal mastery boards", () => {
+  const seasonId = "11111111-1111-4111-8111-111111111111";
+  const rows = (board: Awaited<ReturnType<ReturnType<typeof fixture>["services"]["getPublicLeaderboard"]>>) => board!.items.map((item) => [item.player?.displayName, item.rank, item.score]);
+
+  it("ranks only Runs inside the Season window from the same derivation", async () => {
+    const { services, addSeason, addPlayer, addMap, addRevision, addRun, sqlite } = fixture();
+    addPlayer("p1", "Alpha"); addPlayer("p2", "Beta");
+    addMap("map.a", "Map A"); addRevision("rev.a1", "map.a", "default"); addRevision("rev.a0", "map.a", "archived");
+    addSeason(seasonId, 1000, 2000);
+    addRun("r1", "p1", "map.a", "rev.a1", 100, 999);
+    addRun("r2", "p1", "map.a", "rev.a1", 200, 1000);
+    addRun("r3", "p2", "map.a", "rev.a1", 250, 2000);
+    addRun("r4", "p2", "map.a", "rev.a1", 900, 2001);
+    addRun("r5", "p2", "map.a", "rev.a0", 50, 1500);
+    const season = leaderboardResponseSchema.parse(await services.getPublicLeaderboard({ board: "mastery", seasonId, page: 1, pageSize: 20 }));
+    expect(season.seasonId).toBe(seasonId);
+    expect(rows(season)).toEqual([["Beta", 1, 300], ["Alpha", 2, 200]]);
+    expect(rows(await services.getPublicLeaderboard({ board: "mastery", page: 1, pageSize: 20 }))).toEqual([["Beta", 1, 1200], ["Alpha", 2, 300]]);
+    expect(rows(await services.getPublicLeaderboard({ board: "mastery", mapId: "map.a", seasonId, page: 1, pageSize: 20 }))).toEqual([["Beta", 1, 250], ["Alpha", 2, 200]]);
+
+    sqlite.prepare("UPDATE mastery_runs SET status = 'invalidated' WHERE id = 'r3'").run();
+    expect(rows(await services.getPublicLeaderboard({ board: "mastery", seasonId, page: 1, pageSize: 20 }))).toEqual([["Alpha", 1, 200], ["Beta", 2, 50]]);
+
+    const own = currentPlayerLeaderboardRankSchema.parse(await services.getCurrentPlayerLeaderboardRank({ sessionToken: "token.p2", board: "mastery", seasonId }));
+    expect(own).toMatchObject({ seasonId, rank: 2, score: 50, gapToNextRank: 150 });
+  });
+
+  it("keeps anonymous headline standings on the all-time board", async () => {
+    const { services, addSeason, addPlayer, addMap, addRevision, addRun } = fixture();
+    addPlayer("p1", "Alpha", 0); addPlayer("p2", "Beta");
+    addMap("map.a", "Map A"); addRevision("rev.a1", "map.a", "default");
+    addSeason(seasonId, 1000, 2000);
+    addRun("r1", "p1", "map.a", "rev.a1", 100, 1500);
+    addRun("r2", "p1", "map.a", "rev.a1", 900, 500);
+    addRun("r3", "p2", "map.a", "rev.a1", 400, 1500);
+    const board = await services.getPublicLeaderboard({ board: "mastery", seasonId, page: 1, pageSize: 20 });
+    const anonymous = board!.items.find((item) => item.player === null)!;
+    expect(anonymous).toMatchObject({ rank: 2, score: 100, boards: { mastery: { rank: 1, score: 1000 } } });
+  });
+
+  it("does not expose draft, hidden, scheduled, or unknown Seasons", async () => {
+    const { services, addSeason, now } = fixture();
+    addSeason("draft", 1000, 2000, "draft");
+    addSeason("hidden", 3000, 4000, "active", 0);
+    addSeason("later", now + 10_000, now + 20_000);
+    for (const id of ["draft", "hidden", "later", "missing"]) {
+      await expect(services.getPublicLeaderboard({ board: "mastery", seasonId: id, page: 1, pageSize: 20 })).rejects.toThrow("SEASON_NOT_FOUND");
+    }
+    await expect(services.getCurrentPlayerLeaderboardRank({ sessionToken: "token.none", board: "mastery", seasonId: "hidden" })).resolves.toBeNull();
+    expect((await services.listPublicSeasons()).items).toEqual([]);
+  });
+});
+
 describe("leaderboard query budget", () => {
   it("keeps board page and own-rank statement counts constant as rows grow", async () => {
-    const { services, sqlite, preparedStatementCount, resetPreparedStatementCount, addPlayer, addMap, addRevision, addRun } = fixture();
+    const { services, sqlite, preparedStatementCount, resetPreparedStatementCount, addSeason, addPlayer, addMap, addRevision, addRun } = fixture();
     addMap("map.a", "Map A"); addRevision("rev.a1", "map.a", "default");
+    const seasonId = "11111111-1111-4111-8111-111111111111";
+    addSeason(seasonId, 0, 1000);
     for (let index = 0; index < 4; index += 1) {
       addPlayer(`p${index}`, `P${index}`);
       addRun(`r${index}`, `p${index}`, "map.a", "rev.a1", 100 + index, 100 + index);
@@ -228,6 +288,9 @@ describe("leaderboard query budget", () => {
     resetPreparedStatementCount();
     await services.getCurrentPlayerLeaderboardRank({ sessionToken: "token.p1", board: "mastery" });
     const smallRank = preparedStatementCount();
+    resetPreparedStatementCount();
+    await services.getPublicLeaderboard({ board: "mastery", seasonId, page: 1, pageSize: 20 });
+    const smallSeason = preparedStatementCount();
     for (let index = 4; index < 44; index += 1) {
       sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, public_profile, created_at, updated_at) VALUES (?, ?, ?, ?, 0, 'active', 1, 1, 1)").run(`x${index}`, `x${index}`, `X${index}`, `x${index}`);
       sqlite.prepare("INSERT INTO mastery_runs (id, player_account_id, source_submission_id, map_id, gameplay_revision_id, accepted_at, status, awarded_xp) VALUES (?, ?, ?, 'map.a', 'rev.a1', 100, 'active', 50)").run(`xr${index}`, `x${index}`, `xsub.${index}`);
@@ -238,5 +301,8 @@ describe("leaderboard query budget", () => {
     resetPreparedStatementCount();
     await services.getCurrentPlayerLeaderboardRank({ sessionToken: "token.p1", board: "mastery" });
     expect(preparedStatementCount()).toBe(smallRank);
+    resetPreparedStatementCount();
+    await services.getPublicLeaderboard({ board: "mastery", seasonId, page: 1, pageSize: 20 });
+    expect(preparedStatementCount()).toBe(smallSeason);
   });
 });

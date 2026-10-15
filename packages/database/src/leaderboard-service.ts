@@ -1,9 +1,9 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, ne, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { PlatformServices } from "@owbastion/domain";
 import { leaderboardPlayerKey, leaderboardRuleVersion, projectLeaderboardEntry, rankLeaderboardRows, verifiedRunDifficulties, type VerifiedRunDifficulty } from "@owbastion/domain";
 import type { LeaderboardBoard, LeaderboardBoardStanding, LeaderboardEntry, LeaderboardEntryTitle, LeaderboardPlayerMapTitle } from "@owbastion/contracts";
-import { gameplayRevisions, mapTitleRewards, maps, playerAccounts, playerEquippedTitles, playerTitleGrants, titleCatalog, verifiedRuns } from "./schema";
+import { gameplayRevisions, mapTitleRewards, maps, playerAccounts, playerEquippedTitles, playerTitleGrants, seasons, titleCatalog, verifiedRuns } from "./schema";
 import { resolvePortalSession } from "./portal-session";
 
 type LeaderboardServices = Pick<PlatformServices,
@@ -36,8 +36,18 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
   const defaultRevision = (mapId: string) => db.select({ id: gameplayRevisions.id, gameVersion: gameplayRevisions.gameVersion }).from(gameplayRevisions)
     .where(and(eq(gameplayRevisions.mapId, mapId), eq(gameplayRevisions.lifecycle, "default"))).get();
 
-  const masteryRows = async (mapId?: string, revisionId?: string): Promise<BoardRow[]> => {
+  // A Season is visible to players only once published, public, and started;
+  // its window filters the same Verified Runs as the all-time board.
+  const visibleSeasonWindow = async (seasonId: string) => {
+    const season = await db.select({ startsAt: seasons.startsAt, endsAt: seasons.endsAt }).from(seasons)
+      .where(and(eq(seasons.id, seasonId), ne(seasons.status, "draft"), eq(seasons.public, 1), lte(seasons.startsAt, Date.now()))).get();
+    if (!season) throw new Error("SEASON_NOT_FOUND");
+    return season;
+  };
+
+  const masteryRows = async (mapId?: string, revisionId?: string, window?: { startsAt: number; endsAt: number }): Promise<BoardRow[]> => {
     const conditions = [eq(verifiedRuns.status, "active")];
+    if (window) conditions.push(gte(verifiedRuns.acceptedAt, window.startsAt), lte(verifiedRuns.acceptedAt, window.endsAt));
     if (mapId) conditions.push(eq(verifiedRuns.mapId, mapId), eq(verifiedRuns.gameplayRevisionId, revisionId!));
     const rows = await db.select({
       playerAccountId: verifiedRuns.playerAccountId,
@@ -59,8 +69,8 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
       .where(achievementGrantFilter)
       .groupBy(playerTitleGrants.playerAccountId);
 
-  const boardRows = (board: LeaderboardBoard, mapId?: string, revisionId?: string) =>
-    board === "mastery" ? masteryRows(mapId, revisionId) : achievementRows();
+  const boardRows = (board: LeaderboardBoard, mapId?: string, revisionId?: string, window?: { startsAt: number; endsAt: number }) =>
+    board === "mastery" ? masteryRows(mapId, revisionId, window) : achievementRows();
 
   // SQLite argmax: bare Title columns accompany max(granted_at), so each
   // Player's latest counted unlock surfaces its own Title row.
@@ -112,14 +122,15 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
     return equipped;
   };
 
-  const headlineBoardsForAnonymous = async (pageBoard: { board: LeaderboardBoard; mapId?: string; rows: Array<BoardRow & { rank: number }>; masteryAll?: Array<BoardRow & { rank: number }> | null }) => {
-    const mastery = pageBoard.masteryAll ?? (pageBoard.board === "mastery" && !pageBoard.mapId ? pageBoard.rows : rankLeaderboardRows(await masteryRows()));
+  const headlineBoardsForAnonymous = async (pageBoard: { board: LeaderboardBoard; mapId?: string; rows: Array<BoardRow & { rank: number }>; seasonal?: boolean; masteryAll?: Array<BoardRow & { rank: number }> | null }) => {
+    const mastery = pageBoard.masteryAll ?? (pageBoard.board === "mastery" && !pageBoard.mapId && !pageBoard.seasonal ? pageBoard.rows : rankLeaderboardRows(await masteryRows()));
     const achievement = pageBoard.board === "achievement" ? pageBoard.rows : rankLeaderboardRows(await achievementRows());
     return { mastery: headlineStandings(mastery), achievement: headlineStandings(achievement) };
   };
 
   return {
     async getPublicLeaderboard(input) {
+      const window = input.seasonId ? await visibleSeasonWindow(input.seasonId) : undefined;
       let revision: Awaited<ReturnType<typeof defaultRevision>>;
       if (input.mapId) {
         if (input.board !== "mastery") return null;
@@ -127,7 +138,7 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
         if (!map) return null;
         revision = await defaultRevision(input.mapId);
       }
-      const ranked = input.mapId && !revision ? [] : rankLeaderboardRows(await boardRows(input.board, input.mapId, revision?.id));
+      const ranked = input.mapId && !revision ? [] : rankLeaderboardRows(await boardRows(input.board, input.mapId, revision?.id, window));
       // Achievement rows display each Player's all-maps Mastery XP, and the
       // same board feeds anonymous entries' inline headline standings.
       const masteryAll = input.board === "achievement" ? rankLeaderboardRows(await masteryRows()) : null;
@@ -148,7 +159,7 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
       ]);
       const anonymous = slice.filter((row) => accountById.get(row.playerAccountId)?.publicProfile !== 1);
       const boards = anonymous.length > 0
-        ? await headlineBoardsForAnonymous({ board: input.board, mapId: input.mapId, rows: ranked, masteryAll })
+        ? await headlineBoardsForAnonymous({ board: input.board, mapId: input.mapId, rows: ranked, seasonal: Boolean(window), masteryAll })
         : null;
       const items: LeaderboardEntry[] = await Promise.all(slice.map(async (row) => {
         const account = accountById.get(row.playerAccountId);
@@ -176,6 +187,7 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
         contractVersion: "1" as const,
         board: input.board,
         ...(input.mapId ? { mapId: input.mapId } : {}),
+        ...(input.seasonId ? { seasonId: input.seasonId } : {}),
         ...(input.mapId && revision ? { mapGameVersion: revision.gameVersion } : {}),
         ruleVersion: leaderboardRuleVersion,
         items,
@@ -262,13 +274,14 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
     async getCurrentPlayerLeaderboardRank(input) {
       const current = await resolvePortalSession(db, input.sessionToken);
       if (!current) return null;
+      const window = input.seasonId ? await visibleSeasonWindow(input.seasonId) : undefined;
       if (input.mapId) {
         if (input.board !== "mastery") throw new Error("MAP_NOT_FOUND");
         const map = await db.select({ id: maps.id }).from(maps).where(eq(maps.id, input.mapId)).get();
         if (!map) throw new Error("MAP_NOT_FOUND");
       }
       const revision = input.mapId ? await defaultRevision(input.mapId) : undefined;
-      const ranked = input.mapId && !revision ? [] : rankLeaderboardRows(await boardRows(input.board, input.mapId, revision?.id));
+      const ranked = input.mapId && !revision ? [] : rankLeaderboardRows(await boardRows(input.board, input.mapId, revision?.id, window));
       const index = ranked.findIndex((row) => row.playerAccountId === current.player.id);
       const self = index >= 0 ? ranked[index] : undefined;
       const above = index > 0 ? ranked[index - 1] : undefined;
@@ -276,6 +289,7 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
         contractVersion: "1" as const,
         board: input.board,
         ...(input.mapId ? { mapId: input.mapId } : {}),
+        ...(input.seasonId ? { seasonId: input.seasonId } : {}),
         ruleVersion: leaderboardRuleVersion,
         rank: self?.rank ?? null,
         score: self?.score ?? 0,

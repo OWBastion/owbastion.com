@@ -927,6 +927,60 @@ describe("API", () => {
     expect((await app.request("http://localhost/v1/me/leaderboard?board=mastery&mapId=missing-map", { headers: { cookie: "owb_session=session-token" } }, env)).status).toBe(404);
   });
 
+  it("scopes the mastery board and own rank to a visible Season", async () => {
+    const seasonId = "11111111-1111-4111-8111-111111111111";
+    const getBoard = vi.fn(async ({ board, seasonId: id }: { board: "mastery" | "achievement"; seasonId?: string }) => {
+      if (id === "00000000-0000-4000-8000-000000000000") throw new Error("SEASON_NOT_FOUND");
+      return { contractVersion: "1" as const, board, ...(id ? { seasonId: id } : {}), ruleVersion: "leaderboard.v1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false };
+    });
+    const seasonApp = createTestApp({ getPublicLeaderboard: getBoard });
+    const ok = await seasonApp.request(`http://localhost/v1/public/leaderboard?board=mastery&seasonId=${seasonId}`, {}, env);
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toMatchObject({ seasonId });
+    expect(getBoard).toHaveBeenCalledWith(expect.objectContaining({ board: "mastery", seasonId }));
+    expect((await seasonApp.request(`http://localhost/v1/public/leaderboard?board=achievement&seasonId=${seasonId}`, {}, env)).status).toBe(422);
+    expect((await seasonApp.request("http://localhost/v1/public/leaderboard?board=mastery&seasonId=not-a-uuid", {}, env)).status).toBe(422);
+    expect((await seasonApp.request("http://localhost/v1/public/leaderboard?board=mastery&seasonId=00000000-0000-4000-8000-000000000000", {}, env)).status).toBe(404);
+    const own = await app.request(`http://localhost/v1/me/leaderboard?board=mastery&seasonId=${seasonId}`, { headers: { cookie: "owb_session=session-token" } }, env);
+    expect(own.status).toBe(200);
+    expect((await app.request(`http://localhost/v1/me/leaderboard?board=achievement&seasonId=${seasonId}`, { headers: { cookie: "owb_session=session-token" } }, env)).status).toBe(422);
+  });
+
+  it("lists public Seasons without authentication", async () => {
+    const seasonApp = createTestApp({ listPublicSeasons: async () => ({ contractVersion: "1" as const, items: [{ seasonId: "11111111-1111-4111-8111-111111111111", name: "第一赛季", startsAt: 1, endsAt: 2, phase: "running" as const }] }) });
+    const response = await seasonApp.request("http://localhost/v1/public/seasons", {}, env);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(await response.json()).toMatchObject({ items: [{ name: "第一赛季", phase: "running" }] });
+  });
+
+  it("requires a maintainer and an idempotency key for Season writes and maps domain errors", async () => {
+    const seasonId = "11111111-1111-4111-8111-111111111111";
+    const body = JSON.stringify({ contractVersion: "1", name: "第一赛季", startsAt: 1, endsAt: 2, status: "draft", public: false });
+    const send = (application: typeof app, path: string, method: string, headers: Record<string, string> = {}, payload?: string) =>
+      application.request(`http://localhost${path}`, { method, headers: { "content-type": "application/json", ...headers }, body: payload }, env);
+    const season = { seasonId, name: "第一赛季", startsAt: 1, endsAt: 2, status: "draft" as const, public: false, phase: "draft" as const, playerCount: 0, createdAt: 1, updatedAt: 1 };
+    const failures = new Map<string, string>();
+    const create = vi.fn(async () => season);
+    const update = vi.fn(async () => { throw new Error(failures.get("update")!); });
+    const end = vi.fn(async () => { throw new Error(failures.get("end")!); });
+    const maintainerApp = createTestApp({ listAdminSeasons: async () => ({ contractVersion: "1" as const, now: 5, items: [season] }), createAdminSeason: create, updateAdminSeason: update, endAdminSeason: end }, authenticateAsMaintainer);
+    expect((await send(app, "/v1/admin/seasons", "GET")).status).toBe(403);
+    expect((await send(app, "/v1/admin/seasons", "POST", { "idempotency-key": "k" }, body)).status).toBe(403);
+    expect((await send(maintainerApp, "/v1/admin/seasons", "GET")).status).toBe(200);
+    expect((await send(maintainerApp, "/v1/admin/seasons", "POST", {}, body)).status).toBe(422);
+    expect((await send(maintainerApp, "/v1/admin/seasons", "POST", { "idempotency-key": "k" }, JSON.stringify({ contractVersion: "1", name: "", startsAt: 1, endsAt: 2, status: "archived", public: false }))).status).toBe(422);
+    expect((await send(maintainerApp, "/v1/admin/seasons", "POST", { "idempotency-key": "k" }, body)).status).toBe(201);
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ name: "第一赛季", status: "draft" }), expect.anything(), "k");
+    for (const [code, status] of [["SEASON_NOT_FOUND", 404], ["SEASON_RANGE_INVALID", 422], ["SEASON_OVERLAP", 409], ["SEASON_STARTED", 409], ["SEASON_ENDED", 409]] as const) {
+      failures.set("update", code);
+      expect((await send(maintainerApp, `/v1/admin/seasons/${seasonId}`, "PUT", { "idempotency-key": "k" }, body)).status).toBe(status);
+    }
+    failures.set("end", "SEASON_NOT_RUNNING");
+    expect((await send(maintainerApp, `/v1/admin/seasons/${seasonId}/end`, "POST", { "idempotency-key": "k" })).status).toBe(409);
+    expect(end).toHaveBeenCalledWith({ seasonId }, expect.anything(), "k");
+  });
+
   it("returns only the signed-in player's active mastery projections", async () => {
     const calls: Array<{ sessionToken: string; mapId?: string; gameplayRevisionId?: string; page: number; pageSize: number }> = [];
     const masteryApp = createTestApp({
