@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>赛季管理 · 原型</title>
+<style>
+/* Tokens mirror apps/portal/assets/css/main.css (light default, html.dark override). */
+:root{
+  color-scheme:light;
+  --page:oklch(96% 0.012 90);--surface:oklch(99% 0.006 90);--surface-raised:oklch(94% 0.014 82);
+  --text:oklch(22% 0.025 55);--muted:oklch(46% 0.022 55);--quiet:oklch(52% 0.018 55);
+  --line:oklch(24% 0.025 55 / 14%);--line-strong:oklch(24% 0.025 55 / 25%);
+  --accent:oklch(55% 0.16 48);--accent-surface:oklch(91% 0.045 70);--on-accent:oklch(99% 0.006 90);
+  --info:oklch(48% 0.14 235);--info-surface:oklch(92% 0.035 235);
+  --success:oklch(48% 0.14 145);--success-surface:oklch(91% 0.04 145);
+  --danger:oklch(57% 0.17 25);--warning:oklch(55% 0.15 75);
+  --disabled-text:var(--quiet);--disabled-surface:var(--surface-raised);
+  --header-surface:oklch(99% 0.006 90 / 86%);--shadow:oklch(20% 0.02 55 / 28%);
+  --font-ui:-apple-system,BlinkMacSystemFont,"SF Pro Display","PingFang SC","Noto Sans CJK SC","Segoe UI",sans-serif;
+  --space-1:.25rem;--space-2:.5rem;--space-3:.75rem;--space-4:1rem;--space-5:1.25rem;--space-6:1.5rem;--space-8:2rem;--space-12:3rem;
+  --control-sm:2rem;--control-md:2.5rem;--control-lg:2.75rem;
+  --radius-control:.625rem;--radius-card:1rem;--radius-sheet:1.25rem;--radius-pill:999px;
+  --press-scale:.97;--press-duration:100ms;
+  --elevation-1:0 8px 24px -18px var(--shadow);--elevation-2:0 12px 34px -28px var(--shadow);
+  --elevation-3:0 24px 80px color-mix(in oklch,var(--shadow) 80%,transparent);
+  --type-title-size:clamp(2rem,4vw,3.2rem);--type-headline-size:clamp(1.375rem,3vw,2.1rem);
+  --type-card-title-size:1.125rem;--type-body-size:1rem;--type-body-sm-size:.875rem;
+  --type-label-size:.9375rem;--type-label-sm-size:.8125rem;--type-caption-size:.75rem;
+}
+html.dark{
+  color-scheme:dark;
+  --page:oklch(16% 0.012 48);--surface:oklch(20% 0.014 48);--surface-raised:oklch(24% 0.018 48);
+  --text:oklch(93% 0.01 100);--muted:oklch(69% 0.016 48);--quiet:oklch(62% 0.014 48);
+  --line:oklch(92% 0.01 100 / 13%);--line-strong:oklch(92% 0.01 100 / 21%);
+  --accent:oklch(74% 0.14 55);--accent-surface:oklch(30% 0.07 50);--on-accent:oklch(19% 0.026 50);
+  --info:oklch(76% 0.12 230);--info-surface:oklch(28% 0.06 230);
+  --success:oklch(76% 0.13 145);--success-surface:oklch(28% 0.06 145);
+  --danger:oklch(68% 0.16 25);--warning:oklch(82% 0.12 85);
+  --header-surface:oklch(18% 0.013 48 / 82%);--shadow:oklch(0% 0 0 / 80%);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{background:var(--page)}
+body{margin:0;background:var(--page);color:var(--text);font-family:var(--font-ui);font-size:var(--type-body-size);line-height:1.6}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+.num{font-variant-numeric:tabular-nums}
+.pressable{transition:transform var(--press-duration) ease}
+.pressable:active{transform:scale(var(--press-scale))}
+.surface-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.app-header-wrap{position:sticky;top:0;z-index:10;padding:var(--space-3) var(--space-4) var(--space-2)}
+.app-header{max-width:72rem;margin:0 auto;display:flex;align-items:center;gap:var(--space-4);padding:var(--space-2) var(--space-2) var(--space-2) var(--space-4);border:1px solid var(--line);border-radius:var(--radius-card);background:var(--header-surface);backdrop-filter:blur(20px) saturate(1.12);box-shadow:var(--elevation-1)}
+.brand{display:inline-flex;align-items:center;gap:var(--space-2);font-size:var(--type-body-sm-size);font-weight:600;white-space:nowrap}
+.brand-mark{display:grid;width:1.75rem;height:1.75rem;place-items:center;border-radius:50%;color:var(--on-accent);background:var(--accent);font-weight:700}
+.main-nav{display:flex;gap:var(--space-1);flex:1;min-width:0}
+.main-nav a{display:inline-flex;align-items:center;min-height:var(--control-lg);padding:0 var(--space-3);border-radius:var(--radius-control);color:var(--muted);font-size:var(--type-body-sm-size);font-weight:500;text-decoration:none;white-space:nowrap}
+.main-nav a[aria-current=page]{color:var(--text);font-weight:600;background:var(--surface-raised)}
+.icon-btn{display:grid;place-items:center;width:var(--control-lg);height:var(--control-lg);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--surface)}
+.icon-btn svg{width:1.1rem;height:1.1rem}
+@media (max-width:47.99rem){.main-nav{display:none}.app-header{justify-content:space-between}}
+
+.page{max-width:72rem;margin:0 auto;padding:var(--space-6) var(--space-4) var(--space-12)}
+.title-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);margin-bottom:var(--space-4)}
+.title-row h1{margin:0;font-size:var(--type-headline-size);font-weight:700;letter-spacing:-.02em;line-height:1.15}
+.title-row h1 small{margin-left:var(--space-2);color:var(--quiet);font-size:var(--type-label-sm-size);font-weight:500;letter-spacing:0}
+.btn{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--control-md);padding:0 var(--space-4);border:1px solid var(--line-strong);border-radius:var(--radius-control);background:var(--surface);font-size:var(--type-body-sm-size);font-weight:600;white-space:nowrap}
+.btn.primary{border-color:var(--accent);background:var(--accent);color:var(--on-accent)}
+.btn.danger{border-color:color-mix(in oklch,var(--danger) 45%,var(--line-strong));color:var(--danger)}
+.btn.sm{min-height:var(--control-sm);padding:0 var(--space-3);font-size:var(--type-label-sm-size)}
+.btn[disabled]{background:var(--disabled-surface);color:var(--disabled-text);border-color:var(--line);cursor:not-allowed}
+.btn svg{width:1rem;height:1rem}
+
+/* pool strip: what the season schedule currently produces */
+.strip{display:grid;gap:var(--space-4);padding:var(--space-4) var(--space-5);margin-bottom:var(--space-4)}
+.facts{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-8)}
+.fact{display:grid;gap:0}
+.fact b{font-size:var(--type-label-size);font-weight:600}
+.fact span{color:var(--muted);font-size:var(--type-label-sm-size)}
+.alert{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;padding:var(--space-2) var(--space-3);border:1px solid color-mix(in oklch,var(--warning) 40%,var(--line));border-radius:var(--radius-control);background:color-mix(in oklch,var(--warning) 10%,var(--surface));font-size:var(--type-body-sm-size)}
+.alert svg{width:1rem;height:1rem;color:var(--warning);flex:none}
+.alert span{flex:1;min-width:12rem}
+.timeline{position:relative;height:2.75rem}
+.timeline .track{position:absolute;left:0;right:0;top:.5rem;height:1.25rem;border-radius:var(--radius-control);background:var(--surface-raised)}
+.timeline .blk{position:absolute;top:.5rem;height:1.25rem;border:1px solid var(--line-strong);border-radius:calc(var(--radius-control) - 4px);font-size:var(--type-caption-size);font-weight:600;line-height:1.15rem;padding:0 var(--space-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.blk.archived{background:var(--surface);color:var(--muted)}
+.blk.active{border-color:var(--accent);background:var(--accent-surface);color:var(--text)}
+.blk.draft{border-style:dashed;background:transparent;color:var(--muted)}
+.timeline .today{position:absolute;top:0;bottom:.75rem;width:2px;border-radius:1px;background:var(--danger)}
+.timeline .mo{position:absolute;bottom:0;color:var(--quiet);font-size:var(--type-caption-size);transform:translateX(-50%);white-space:nowrap}
+
+/* toolbar + table */
+.toolbar{display:flex;gap:var(--space-2);flex-wrap:wrap;margin-bottom:var(--space-3)}
+.chip{display:inline-flex;align-items:center;gap:var(--space-1);min-height:var(--control-sm);padding:0 var(--space-3);border:1px solid var(--line-strong);border-radius:var(--radius-pill);background:var(--surface);color:var(--muted);font-size:var(--type-label-sm-size);font-weight:500}
+.chip small{color:var(--quiet);font-size:var(--type-caption-size)}
+.chip[aria-pressed=true]{border-color:var(--accent);background:var(--accent-surface);color:var(--text);font-weight:600}
+.list{overflow:hidden}
+table{width:100%;border-collapse:collapse}
+th{padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--line);color:var(--quiet);font-size:var(--type-caption-size);font-weight:500;text-align:left;white-space:nowrap}
+td{padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--line);font-size:var(--type-body-sm-size);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td .nm{font-size:var(--type-label-size);font-weight:600;background:none;border:0;padding:0;text-align:left;cursor:pointer}
+td .nm:hover{color:var(--accent)}
+td .sub{display:block;color:var(--quiet);font-size:var(--type-caption-size)}
+.badge{display:inline-flex;align-items:center;padding:0 var(--space-2);border-radius:var(--radius-pill);font-size:var(--type-caption-size);font-weight:600;line-height:1.6;white-space:nowrap}
+.badge.running{background:var(--success-surface);color:var(--success)}
+.badge.scheduled{background:var(--info-surface);color:var(--info)}
+.badge.draft{background:var(--surface-raised);color:var(--muted);border:1px dashed var(--line-strong)}
+.badge.archived{background:var(--disabled-surface);color:var(--disabled-text)}
+.r{text-align:right}
+.switch{position:relative;width:2.5rem;height:1.5rem;flex:none;border:0;border-radius:var(--radius-pill);background:var(--line-strong);padding:0}
+.switch::after{content:"";position:absolute;top:.1875rem;left:.1875rem;width:1.125rem;height:1.125rem;border-radius:50%;background:var(--surface);box-shadow:var(--elevation-1);transition:transform .15s}
+.switch[aria-checked=true]{background:var(--accent)}
+.switch[aria-checked=true]::after{transform:translateX(1rem)}
+.vis{display:inline-flex;align-items:center;gap:var(--space-2);color:var(--muted);font-size:var(--type-label-sm-size)}
+.records{display:none}
+@media (max-width:47.99rem){
+  table{display:none}
+  .records{display:grid}
+  .rec{display:grid;grid-template-columns:1fr auto;gap:var(--space-1) var(--space-3);padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--line)}
+  .rec:last-child{border-bottom:0}
+  .rec .meta{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:var(--space-2);color:var(--muted);font-size:var(--type-label-sm-size)}
+}
+
+/* sheet */
+.scrim{position:fixed;inset:0;z-index:20;background:color-mix(in oklch,var(--shadow) 60%,transparent);opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;top:0;right:0;z-index:21;display:flex;flex-direction:column;width:min(30rem,100%);height:100%;border-left:1px solid var(--line);border-radius:var(--radius-sheet) 0 0 var(--radius-sheet);background:var(--surface);box-shadow:var(--elevation-3);transform:translateX(100%);transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.sheet.on{transform:none}
+.sheet header{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-5) var(--space-6) var(--space-3)}
+.sheet header h2{margin:0;font-size:var(--type-card-title-size);font-weight:600;display:flex;gap:var(--space-2);align-items:center}
+.sheet .body{flex:1;overflow-y:auto;padding:0 var(--space-6) var(--space-6);display:grid;gap:var(--space-4);align-content:start}
+.sheet footer{display:flex;gap:var(--space-2);justify-content:flex-end;flex-wrap:wrap;padding:var(--space-4) var(--space-6);border-top:1px solid var(--line)}
+.sheet footer .spacer{flex:1}
+.field{display:grid;gap:var(--space-1)}
+.field label{color:var(--muted);font-size:var(--type-label-sm-size);font-weight:500}
+.field input{min-height:var(--control-md);padding:0 var(--space-3);border:1px solid var(--line-strong);border-radius:var(--radius-control);background:var(--surface);font-size:var(--type-body-sm-size)}
+.field input[disabled]{background:var(--disabled-surface);color:var(--disabled-text)}
+.field .hint{color:var(--quiet);font-size:var(--type-caption-size)}
+.field .err{color:var(--danger);font-size:var(--type-caption-size);font-weight:500}
+.field input[aria-invalid=true]{border-color:var(--danger)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3)}
+@media (max-width:30rem){.two{grid-template-columns:1fr}}
+.row-between{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3)}
+.section{display:grid;gap:var(--space-2);padding-top:var(--space-4);border-top:1px solid var(--line)}
+.section h3{margin:0;font-size:var(--type-label-size);font-weight:600}
+.section p{margin:0;color:var(--muted);font-size:var(--type-body-sm-size)}
+.preview{display:grid;gap:1px;overflow:hidden;border:1px solid var(--line);border-radius:var(--radius-control);background:var(--line)}
+.preview div{display:flex;justify-content:space-between;gap:var(--space-3);padding:var(--space-2) var(--space-3);background:var(--surface);font-size:var(--type-body-sm-size)}
+.preview div span:first-child{color:var(--quiet);min-width:1.5rem}
+.preview div b{flex:1;font-weight:500}
+.notice{padding:var(--space-3) var(--space-4);border-radius:var(--radius-control);background:var(--surface-raised);color:var(--muted);font-size:var(--type-body-sm-size)}
+
+.toast{position:fixed;left:50%;bottom:var(--space-6);z-index:30;display:flex;align-items:center;gap:var(--space-4);padding:var(--space-3) var(--space-3) var(--space-3) var(--space-4);border:1px solid var(--line);border-radius:var(--radius-card);background:var(--surface);box-shadow:var(--elevation-3);font-size:var(--type-body-sm-size);transform:translate(-50%,1rem);opacity:0;pointer-events:none;transition:.2s;max-width:calc(100% - 2rem)}
+.toast.on{transform:translate(-50%,0);opacity:1;pointer-events:auto}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header class="app-header-wrap">
+  <div class="app-header">
+    <span class="brand"><span class="brand-mark" aria-hidden="true">O</span><span>管理后台</span></span>
+    <nav class="main-nav" aria-label="管理导航">
+      <a href="#">总览</a><a href="#">内容</a><a href="#">审核</a><a href="#">玩家</a><a href="#" aria-current="page">赛季</a>
+    </nav>
+    <button class="icon-btn pressable" id="theme" aria-label="切换深色模式"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg></button>
+  </div>
+</header>
+
+<main class="page">
+  <div class="title-row">
+    <h1>赛季<small class="num" id="count"></small></h1>
+    <button class="btn primary pressable" id="newBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>新建赛季</button>
+  </div>
+
+  <section class="strip surface-card" id="strip"></section>
+
+  <div class="toolbar" id="filters"></div>
+  <section class="list surface-card">
+    <table>
+      <thead><tr><th>赛季</th><th>状态</th><th>玩家可见</th><th class="r">上榜玩家</th><th class="r"></th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="records" id="records"></div>
+  </section>
+</main>
+
+<div class="scrim" id="scrim"></div>
+<aside class="sheet" id="sheet" aria-hidden="true" role="dialog" aria-labelledby="sheetTitle"></aside>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const NOW = Date.parse("2026-10-15T20:00:00+08:00");
+const DAY = 864e5;
+const BASE_XP = [100,150,225,325,450,600];
+
+// Stored Season fields are only: name, start, end, status (draft | active | archived), public.
+// "Scheduled" and "running" are derived from an active season's time window, not stored.
+let seasons = [
+  {id:"s1",name:"第一赛季",start:Date.parse("2026-06-01T00:00:00+08:00"),end:Date.parse("2026-08-31T23:59:59+08:00"),status:"archived",public:true},
+  {id:"s2",name:"第二赛季",start:Date.parse("2026-09-01T00:00:00+08:00"),end:Date.parse("2026-11-30T23:59:59+08:00"),status:"active",public:true},
+  {id:"s3",name:"第三赛季",start:Date.parse("2026-12-15T00:00:00+08:00"),end:Date.parse("2027-02-28T23:59:59+08:00"),status:"draft",public:false},
+];
+
+/* Seeded run fixtures, only to show that a season board is computed from existing clears. */
+let seed = 7;
+const rnd = () => { seed|=0; seed=seed+0x6D2B79F5|0; let t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; };
+const N1=["夜","霜","烈","雾","星","铁","赤","风","苍","白"], N2=["隼","狐","刃","枭","狼","鲸","鸦","鹿"], N3=["","Pro","一号","打工人","不睡觉","233"];
+const clears = [];
+const players = Array.from({length:90},(_,i)=>({id:i,name:N1[Math.floor(rnd()*10)]+N2[Math.floor(rnd()*8)]+N3[Math.floor(rnd()*6)],act:Math.pow(rnd(),1.8)*2.4+.05,skill:rnd()}));
+for(const p of players){
+  const joined = NOW-Math.floor(20+rnd()*230)*DAY, n = Math.round(p.act*(8+rnd()*60));
+  for(let k=0;k<n;k++){ const d=Math.min(5,Math.floor(p.skill*6+rnd()*.9)); clears.push({pid:p.id,at:joined+rnd()*(NOW-joined),xp:Math.round(BASE_XP[d]*(1+(rnd()<.4?.1:0)))}); }
+}
+function board(start,end){
+  const by = {};
+  for(const c of clears) if(c.at>=start && c.at<=end && c.at<=NOW) by[c.pid]=(by[c.pid]||0)+c.xp;
+  return Object.entries(by).map(([pid,xp])=>({p:players[pid],xp})).sort((a,b)=>b.xp-a.xp);
+}
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+const fmtDate = t => { const d=new Date(t); return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`; };
+const fmtShort = t => { const d=new Date(t); return `${d.getMonth()+1}月${d.getDate()}日`; };
+const toInput = t => { const d=new Date(t+8*3600e3); return d.toISOString().slice(0,10); };
+const fromInput = (v,endOfDay) => Date.parse(`${v}T${endOfDay?"23:59:59":"00:00:00"}+08:00`);
+const weeks = s => Math.round((s.end-s.start)/(7*DAY));
+function phase(s){
+  if(s.status==="draft") return {k:"draft",label:"草稿"};
+  if(s.status==="archived" || s.end<NOW) return {k:"archived",label:"已结束"};
+  if(s.start>NOW) return {k:"scheduled",label:"已排期"};
+  return {k:"running",label:"进行中"};
+}
+const ICON = {
+  warn:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/></svg>',
+  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+};
+
+/* ---------- strip ---------- */
+function renderStrip(){
+  const running = seasons.find(s=>phase(s).k==="running");
+  const upcoming = seasons.filter(s=>s.start>NOW && s.status!=="archived").sort((a,b)=>a.start-b.start)[0];
+  const facts = [];
+  if(running){
+    const n = board(running.start,running.end).length;
+    facts.push(`<div class="fact"><b>${running.name} · 还剩 ${Math.ceil((running.end-NOW)/DAY)} 天</b><span>进行中，${fmtShort(running.end)} 结束</span></div>`);
+    facts.push(`<div class="fact"><b class="num">${n} 名玩家</b><span>本赛季已上榜</span></div>`);
+  } else facts.push(`<div class="fact"><b>没有进行中的赛季</b><span>排行榜只显示全部时间</span></div>`);
+  facts.push(upcoming
+    ? `<div class="fact"><b>${upcoming.name} · ${fmtShort(upcoming.start)} 开始</b><span>${phase(upcoming).label}${upcoming.public?"，玩家可见":"，玩家不可见"}</span></div>`
+    : `<div class="fact"><b>没有下一个赛季</b><span>—</span></div>`);
+
+  // Operational nudges: a gap after the running season, or the next one not published yet.
+  const alerts = [];
+  if(running && !upcoming) alerts.push(`${running.name}结束后还没有安排下一个赛季`);
+  else if(running && upcoming){
+    const gap = Math.round((upcoming.start-running.end)/DAY);
+    if(gap>1) alerts.push(`${running.name}结束到${upcoming.name}开始之间空了 ${gap} 天，期间排行榜只有全部时间`);
+    if(upcoming.status==="draft" && upcoming.start-NOW < 60*DAY) alerts.push(`${upcoming.name}还是草稿，${Math.ceil((upcoming.start-NOW)/DAY)} 天后就到开始时间`);
+  }
+
+  // Timeline from the earliest start to the latest end, with today marked.
+  const lo = Math.min(...seasons.map(s=>s.start)) - 7*DAY, hi = Math.max(...seasons.map(s=>s.end), NOW) + 7*DAY;
+  const pct = t => ((t-lo)/(hi-lo)*100).toFixed(2)+"%";
+  const months = []; const d = new Date(lo); d.setDate(1); d.setMonth(d.getMonth()+1);
+  while(d.getTime()<hi){ months.push(d.getTime()); d.setMonth(d.getMonth()+1); }
+  $("strip").innerHTML = `<div class="facts">${facts.join("")}</div>
+    ${alerts.map(a=>`<div class="alert">${ICON.warn}<span>${a}</span><button class="btn sm pressable" data-new>新建赛季</button></div>`).join("")}
+    <div class="timeline" aria-hidden="true"><div class="track"></div>
+      ${seasons.map(s=>`<span class="blk ${s.status==="draft"?"draft":phase(s).k==="archived"?"archived":"active"}" data-id="${s.id}" style="left:${pct(s.start)};width:calc(${pct(s.end)} - ${pct(s.start)})">${s.name}</span>`).join("")}
+      <span class="today" style="left:${pct(NOW)}" title="今天"></span>
+      ${months.map(m=>`<span class="mo" style="left:${pct(m)}">${new Date(m).getMonth()+1}月</span>`).join("")}
+    </div>`;
+}
+
+/* ---------- list ---------- */
+let filter = "all";
+function renderList(){
+  const counts = {all:seasons.length};
+  for(const s of seasons){ const k=phase(s).k; counts[k]=(counts[k]||0)+1; }
+  $("count").textContent = `${seasons.length} 个`;
+  $("filters").innerHTML = [["all","全部"],["running","进行中"],["scheduled","已排期"],["draft","草稿"],["archived","已结束"]]
+    .filter(([k])=>k==="all"||counts[k]).map(([k,l])=>`<button class="chip pressable" data-f="${k}" aria-pressed="${filter===k}">${l}<small class="num">${counts[k]}</small></button>`).join("");
+  const list = seasons.filter(s=>filter==="all"||phase(s).k===filter).sort((a,b)=>b.start-a.start);
+  const players = s => s.start>NOW ? "—" : board(s.start,s.end).length;
+  const sw = s => `<button class="switch" role="switch" aria-checked="${s.public}" aria-label="${s.name}对玩家可见" data-vis="${s.id}"></button>`;
+  $("tbody").innerHTML = list.map(s=>{ const ph=phase(s); return `<tr>
+    <td><button class="nm" data-open="${s.id}">${s.name}</button><span class="sub num">${fmtDate(s.start)} – ${fmtShort(s.end)} · ${weeks(s)} 周</span></td>
+    <td><span class="badge ${ph.k}">${ph.label}</span></td>
+    <td><span class="vis">${sw(s)}${s.public?"可见":"隐藏"}</span></td>
+    <td class="r num">${players(s)}</td>
+    <td class="r"><button class="btn sm pressable" data-open="${s.id}">${ph.k==="archived"?"查看":"编辑"}</button></td></tr>`; }).join("");
+  $("records").innerHTML = list.map(s=>{ const ph=phase(s); return `<div class="rec">
+    <button class="nm" data-open="${s.id}" style="font-weight:600;background:none;border:0;padding:0;text-align:left">${s.name}</button><span class="badge ${ph.k}">${ph.label}</span>
+    <div class="meta"><span class="num">${fmtShort(s.start)} – ${fmtShort(s.end)} · ${players(s)==="—"?"未开始":players(s)+" 名玩家"}</span><span class="vis">${sw(s)}</span></div></div>`; }).join("");
+}
+
+function render(){ renderStrip(); renderList(); }
+
+/* ---------- sheet ---------- */
+let editing = null, confirmEnd = false;
+function overlapWith(start,end,selfId){ return seasons.find(s=>s.id!==selfId && start<=s.end && end>=s.start); }
+
+function openSheet(id){
+  const src = id ? seasons.find(s=>s.id===id) : null;
+  const last = [...seasons].sort((a,b)=>b.end-a.end)[0];
+  const defStart = last.end+DAY, defEnd = defStart+13*7*DAY-1000;
+  editing = src ? {...src} : {id:null,name:`第${["一","二","三","四","五","六","七","八","九","十"][seasons.length]||seasons.length+1}赛季`,start:fromInput(toInput(defStart)),end:fromInput(toInput(defEnd),true),status:"draft",public:false};
+  confirmEnd = false;
+  renderSheet();
+  $("sheet").classList.add("on"); $("sheet").setAttribute("aria-hidden","false"); $("scrim").classList.add("on");
+  $("sheet").querySelector("input:not([disabled])")?.focus();
+}
+function closeSheet(){ $("sheet").classList.remove("on"); $("sheet").setAttribute("aria-hidden","true"); $("scrim").classList.remove("on"); editing=null; }
+
+function renderSheet(){
+  const e = editing, isNew = !e.id, ph = phase(e);
+  const started = e.status!=="draft" && e.start<=NOW;
+  const readOnly = ph.k==="archived";
+  const clash = overlapWith(e.start,e.end,e.id);
+  const bad = e.end<=e.start ? "结束日期要晚于开始日期" : clash ? `和${clash.name}（${fmtShort(clash.start)} – ${fmtShort(clash.end)}）时间重叠` : "";
+  const nameBad = !e.name.trim() ? "需要一个名称" : "";
+  const top = board(e.start,Math.min(e.end,NOW)).slice(0,5);
+
+  let actions = "";
+  if(readOnly) actions = `<button class="btn pressable" data-close>关闭</button>`;
+  else if(e.status==="draft") actions = `<button class="btn pressable" data-close>取消</button><button class="btn pressable" data-save="draft" ${bad||nameBad?"disabled":""}>保存草稿</button><button class="btn primary pressable" data-save="publish" ${bad||nameBad?"disabled":""}>${e.start>NOW?"发布并排期":"发布并开始"}</button>`;
+  else actions = `${started?`<button class="btn danger pressable" data-end>${confirmEnd?"再点一次确认提前结束":"提前结束"}</button><span class="spacer"></span>`:""}<button class="btn pressable" data-close>取消</button><button class="btn primary pressable" data-save="keep" ${bad||nameBad?"disabled":""}>保存</button>`;
+
+  $("sheet").innerHTML = `<header><h2 id="sheetTitle">${isNew?"新建赛季":e.name}${isNew?"":`<span class="badge ${ph.k}">${ph.label}</span>`}</h2><button class="icon-btn pressable" data-close aria-label="关闭">${ICON.x}</button></header>
+    <div class="body">
+      <div class="field"><label for="f-name">名称</label><input id="f-name" value="${e.name}" ${readOnly?"disabled":""} aria-invalid="${!!nameBad}">${nameBad?`<span class="err">${nameBad}</span>`:""}</div>
+      <div class="two">
+        <div class="field"><label for="f-start">开始日期</label><input id="f-start" type="date" value="${toInput(e.start)}" ${started||readOnly?"disabled":""} aria-invalid="${!!bad}"></div>
+        <div class="field"><label for="f-end">结束日期</label><input id="f-end" type="date" value="${toInput(e.end)}" ${readOnly?"disabled":""} aria-invalid="${!!bad}"></div>
+      </div>
+      ${bad?`<span class="err" style="color:var(--danger);font-size:var(--type-caption-size);font-weight:500">${bad}</span>`:`<span class="hint num" style="color:var(--quiet);font-size:var(--type-caption-size)">共 ${weeks(e)} 周，按北京时间从开始日 0 点到结束日 24 点。${started&&!readOnly?"已经开始的赛季不能改开始日期。":""}到结束时间后自动结束。</span>`}
+      <div class="row-between"><div><div style="font-size:var(--type-label-size);font-weight:600">玩家可见</div><div style="color:var(--muted);font-size:var(--type-body-sm-size)">${e.status==="draft"?"草稿始终对玩家隐藏，发布后按这里的设置显示":"关闭后排行榜里不再出现这个赛季，数据不受影响"}</div></div>
+        <button class="switch" role="switch" id="f-pub" aria-checked="${e.public}" aria-label="玩家可见" ${e.status==="draft"?"":""}></button></div>
+      <div class="section">
+        <h3>榜单预览 · 前 5 名</h3>
+        <p>${e.start>NOW?"还没开始，暂时没有成绩。":"按这个时间范围从已有的通关记录实时计算，赛季榜单不单独存一份。"}</p>
+        ${top.length?`<div class="preview">${top.map((r,i)=>`<div><span class="num">${i+1}</span><b>${r.p.name}</b><span class="num">${r.xp.toLocaleString()} XP</span></div>`).join("")}</div>`:""}
+      </div>
+      <div class="notice">赛季只统计地图精通 XP。成就解锁后永久持有，不受赛季影响；玩家的总精通 XP 也不会因为赛季清零。</div>
+    </div>
+    <footer>${actions}</footer>`;
+
+  const sh = $("sheet");
+  sh.querySelector("#f-name").oninput = ev=>{ e.name = ev.target.value; refreshKeepFocus("f-name"); };
+  const fs = sh.querySelector("#f-start"), fe = sh.querySelector("#f-end");
+  fs.onchange = ev=>{ if(ev.target.value){ e.start = fromInput(ev.target.value); renderSheet(); } };
+  fe.onchange = ev=>{ if(ev.target.value){ e.end = fromInput(ev.target.value,true); renderSheet(); } };
+  sh.querySelector("#f-pub").onclick = ()=>{ if(!readOnly){ e.public=!e.public; renderSheet(); } };
+}
+function refreshKeepFocus(id){ const el=document.getElementById(id), pos=el.selectionStart; renderSheet(); const n=document.getElementById(id); n.focus(); n.setSelectionRange(pos,pos); }
+
+function snapshot(){ return seasons.map(s=>({...s})); }
+function toast(msg,undoTo){
+  const t = $("toast");
+  t.innerHTML = `<span>${msg}</span>${undoTo?'<button class="btn sm pressable" id="undo">撤销</button>':""}`;
+  t.classList.add("on");
+  if(undoTo) $("undo").onclick = ()=>{ seasons = undoTo; render(); t.classList.remove("on"); };
+  clearTimeout(toast.h); toast.h = setTimeout(()=>t.classList.remove("on"),5000);
+}
+
+$("sheet").addEventListener("click",ev=>{
+  const b = ev.target.closest("button"); if(!b) return;
+  if(b.hasAttribute("data-close")) return closeSheet();
+  if(b.hasAttribute("data-end")){
+    if(!confirmEnd){ confirmEnd = true; return renderSheet(); }
+    const s = seasons.find(x=>x.id===editing.id);
+    s.end = NOW; s.status = "archived";
+    closeSheet(); render();
+    toast(`${s.name}已提前结束，排名定格在现在`); // ending finalizes public results, so it confirms instead of offering undo
+    return;
+  }
+  const mode = b.dataset.save; if(!mode) return;
+  const before = snapshot(), e = {...editing};
+  if(mode==="publish") e.status = "active";
+  if(!e.id){ e.id = "s"+Date.now(); seasons.push(e); } else seasons = seasons.map(s=>s.id===e.id?e:s);
+  closeSheet(); render();
+  toast(mode==="publish" ? `${e.name}已发布，${e.start>NOW?fmtShort(e.start)+" 自动开始":"现在开始"}${e.public?"":"（目前对玩家隐藏）"}` : `${e.name}已保存`, before);
+});
+
+document.addEventListener("click",ev=>{
+  const o = ev.target.closest("[data-open]"); if(o) return openSheet(o.dataset.open);
+  const blk = ev.target.closest(".blk[data-id]"); if(blk) return openSheet(blk.dataset.id);
+  if(ev.target.closest("[data-new]")) return openSheet(null);
+  const f = ev.target.closest("[data-f]"); if(f){ filter = f.dataset.f; return renderList(); }
+  const v = ev.target.closest("[data-vis]");
+  if(v){ const before = snapshot(), s = seasons.find(x=>x.id===v.dataset.vis); s.public = !s.public; render(); toast(`${s.name}已${s.public?"对玩家显示":"对玩家隐藏"}`, before); }
+});
+$("newBtn").onclick = ()=>openSheet(null);
+$("scrim").onclick = closeSheet;
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeSheet(); });
+$("theme").onclick = ()=>document.documentElement.classList.toggle("dark");
+render();
+</script>
+</body>
+</html>
