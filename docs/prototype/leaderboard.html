@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>排行榜 · 原型</title>
+<style>
+/* Tokens mirror apps/portal/assets/css/main.css (light default, html.dark override). */
+:root{
+  color-scheme:light;
+  --page:oklch(96% 0.012 90);--surface:oklch(99% 0.006 90);--surface-raised:oklch(94% 0.014 82);
+  --text:oklch(22% 0.025 55);--muted:oklch(46% 0.022 55);--quiet:oklch(52% 0.018 55);
+  --line:oklch(24% 0.025 55 / 14%);--line-strong:oklch(24% 0.025 55 / 25%);
+  --accent:oklch(55% 0.16 48);--accent-surface:oklch(91% 0.045 70);--on-accent:oklch(99% 0.006 90);
+  --info:oklch(48% 0.14 235);--info-surface:oklch(92% 0.035 235);
+  --disabled-text:var(--quiet);--disabled-surface:var(--surface-raised);
+  --header-surface:oklch(99% 0.006 90 / 86%);--shadow:oklch(20% 0.02 55 / 28%);
+  --font-ui:-apple-system,BlinkMacSystemFont,"SF Pro Display","PingFang SC","Noto Sans CJK SC","Segoe UI",sans-serif;
+  --space-1:.25rem;--space-2:.5rem;--space-3:.75rem;--space-4:1rem;--space-5:1.25rem;--space-6:1.5rem;--space-8:2rem;--space-12:3rem;
+  --control-sm:2rem;--control-md:2.5rem;--control-lg:2.75rem;
+  --radius-control:.625rem;--radius-card:1rem;--radius-sheet:1.25rem;--radius-pill:999px;
+  --press-scale:.97;--press-duration:100ms;
+  --elevation-1:0 8px 24px -18px var(--shadow);--elevation-2:0 12px 34px -28px var(--shadow);
+  --elevation-3:0 24px 80px color-mix(in oklch,var(--shadow) 80%,transparent);
+  --type-title-size:clamp(2rem,4vw,3.2rem);--type-headline-size:clamp(1.375rem,3vw,2.1rem);
+  --type-card-title-size:1.125rem;--type-body-size:1rem;--type-body-sm-size:.875rem;
+  --type-label-size:.9375rem;--type-label-sm-size:.8125rem;--type-caption-size:.75rem;
+}
+html.dark{
+  color-scheme:dark;
+  --page:oklch(16% 0.012 48);--surface:oklch(20% 0.014 48);--surface-raised:oklch(24% 0.018 48);
+  --text:oklch(93% 0.01 100);--muted:oklch(69% 0.016 48);--quiet:oklch(62% 0.014 48);
+  --line:oklch(92% 0.01 100 / 13%);--line-strong:oklch(92% 0.01 100 / 21%);
+  --accent:oklch(74% 0.14 55);--accent-surface:oklch(30% 0.07 50);--on-accent:oklch(19% 0.026 50);
+  --info:oklch(76% 0.12 230);--info-surface:oklch(28% 0.06 230);
+  --header-surface:oklch(18% 0.013 48 / 82%);--shadow:oklch(0% 0 0 / 80%);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{background:var(--page)}
+body{margin:0;background:var(--page);color:var(--text);font-family:var(--font-ui);font-size:var(--type-body-size);line-height:1.6}
+button,select{font:inherit;color:inherit}
+button{cursor:pointer}
+.num{font-variant-numeric:tabular-nums}
+.pressable{transition:transform var(--press-duration) ease}
+.pressable:active{transform:scale(var(--press-scale))}
+.surface-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card)}
+
+/* app header (glass, floating) */
+.app-header-wrap{position:sticky;top:0;z-index:10;padding:var(--space-3) var(--space-4) var(--space-2)}
+.app-header{max-width:72rem;margin:0 auto;display:flex;align-items:center;gap:var(--space-4);padding:var(--space-2) var(--space-2) var(--space-2) var(--space-4);border:1px solid var(--line);border-radius:var(--radius-card);background:var(--header-surface);backdrop-filter:blur(20px) saturate(1.12);box-shadow:var(--elevation-1)}
+.brand{display:inline-flex;align-items:center;gap:var(--space-2);font-size:var(--type-body-sm-size);font-weight:600;white-space:nowrap}
+.brand-mark{display:grid;width:1.75rem;height:1.75rem;place-items:center;border-radius:50%;color:var(--on-accent);background:var(--accent);font-weight:700}
+.main-nav{display:flex;gap:var(--space-1);flex:1;min-width:0}
+.main-nav a{display:inline-flex;align-items:center;min-height:var(--control-lg);padding:0 var(--space-3);border-radius:var(--radius-control);color:var(--muted);font-size:var(--type-body-sm-size);font-weight:500;text-decoration:none;white-space:nowrap}
+.main-nav a[aria-current=page]{color:var(--text);font-weight:600;background:var(--surface-raised)}
+.icon-btn{display:grid;place-items:center;width:var(--control-lg);height:var(--control-lg);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--surface)}
+.icon-btn svg{width:1.1rem;height:1.1rem}
+@media (max-width:47.99rem){.main-nav{display:none}.app-header{justify-content:space-between}}
+
+.page{max-width:72rem;margin:0 auto;padding:var(--space-6) var(--space-4) var(--space-12)}
+.head h1{margin:0;font-size:var(--type-title-size);font-weight:700;letter-spacing:-.03em;line-height:1}
+.head p{margin:var(--space-3) 0 var(--space-6);color:var(--muted);max-width:40rem}
+
+/* controls */
+.controls{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-3);margin-bottom:var(--space-5)}
+.ctl-row{display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap}
+.seg{display:inline-flex;gap:2px;padding:3px;border:1px solid var(--line);border-radius:var(--radius-control);background:var(--surface-raised)}
+.seg button{min-height:var(--control-md);padding:0 var(--space-4);border:0;border-radius:calc(var(--radius-control) - 3px);background:none;color:var(--muted);font-size:var(--type-body-sm-size);font-weight:500;white-space:nowrap}
+.seg button[aria-pressed=true]{background:var(--surface);color:var(--text);font-weight:600;box-shadow:var(--elevation-1)}
+.sel{min-height:var(--control-md);padding:0 var(--space-8) 0 var(--space-3);border:1px solid var(--line-strong);border-radius:var(--radius-control);background:var(--surface);font-size:var(--type-body-sm-size);appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 15px) 52%,calc(100% - 10px) 52%;background-size:5px 5px;background-repeat:no-repeat}
+.chips{display:flex;gap:var(--space-2);overflow-x:auto;scrollbar-width:none;max-width:100%}
+.chips::-webkit-scrollbar{display:none}
+.chip{min-height:var(--control-sm);padding:0 var(--space-3);border:1px solid var(--line-strong);border-radius:var(--radius-pill);background:var(--surface);color:var(--muted);font-size:var(--type-label-sm-size);font-weight:500;white-space:nowrap}
+.chip[aria-pressed=true]{border-color:var(--accent);background:var(--accent-surface);color:var(--text);font-weight:600}
+.note{color:var(--quiet);font-size:var(--type-caption-size)}
+
+/* season */
+.season{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:var(--space-2) var(--space-4);padding:var(--space-4) var(--space-5);margin-bottom:var(--space-5)}
+.season .nm{display:flex;white-space:nowrap;align-items:center;gap:var(--space-2);font-size:var(--type-label-size);font-weight:600}
+.badge{display:inline-flex;align-items:center;padding:0 var(--space-2);border-radius:var(--radius-pill);font-size:var(--type-caption-size);font-weight:600;line-height:1.6}
+.badge.info{background:var(--info-surface);color:var(--info)}
+.badge.off{background:var(--disabled-surface);color:var(--disabled-text)}
+.segbar{display:grid;grid-template-columns:repeat(var(--n),1fr);gap:3px}
+.segbar i{height:.375rem;border-radius:var(--radius-pill);background:var(--line)}
+.segbar i.on{background:var(--accent)}
+.season .meta{color:var(--muted);font-size:var(--type-label-sm-size);white-space:nowrap}
+@media (max-width:47.99rem){.season{grid-template-columns:1fr}.season .segbar{grid-row:3}}
+
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 18.5rem;gap:var(--space-6);align-items:start}
+@media (max-width:60rem){.grid{grid-template-columns:1fr}}
+
+.sh{display:flex;justify-content:space-between;align-items:baseline;gap:var(--space-3);margin-bottom:var(--space-3);flex-wrap:wrap}
+.sh h2{margin:0;font-size:var(--type-card-title-size);font-weight:600;letter-spacing:-.01em}
+
+/* your position */
+.mine{display:flex;align-items:center;gap:var(--space-4);padding:var(--space-3) var(--space-3) var(--space-3) var(--space-5);margin-bottom:var(--space-5)}
+.mine .r{font-size:var(--type-headline-size);font-weight:700;letter-spacing:-.02em;line-height:1.1;color:var(--accent);min-width:3.5rem}
+.mine .t{flex:1;min-width:0;color:var(--muted);font-size:var(--type-body-sm-size)}
+.mine .t b{color:var(--text);font-weight:600}
+.btn{min-height:var(--control-md);padding:0 var(--space-4);border:1px solid var(--line-strong);border-radius:var(--radius-control);background:var(--surface);font-size:var(--type-body-sm-size);font-weight:600;white-space:nowrap}
+
+/* podium: accent intensity ladder 7% / 14% / 24%; only #1 gets the radial gradient and glow */
+.podium{display:grid;grid-template-columns:1fr 1.2fr 1fr;align-items:end;gap:var(--space-3);margin-bottom:var(--space-5)}
+.pod{position:relative;display:grid;justify-items:center;gap:var(--space-1);padding:var(--space-5) var(--space-4);border:1px solid var(--line-strong);border-radius:var(--radius-card);text-align:center;color:var(--text)}
+.pod .rk{display:inline-flex;align-items:center;gap:var(--space-1);color:var(--accent);font-size:var(--type-label-sm-size);font-weight:600}
+.pod .rk svg{width:1rem;height:1rem}
+.pod .av{display:grid;place-items:center;width:3.5rem;height:3.5rem;margin:var(--space-2) 0;border:2px solid color-mix(in oklch,var(--accent) 45%,var(--line-strong));border-radius:50%;background:var(--surface);color:var(--accent);font-size:1.4rem;font-weight:700}
+.pod .nm{max-width:100%;font-size:var(--type-card-title-size);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pod .ttl{min-height:1.4rem;max-width:100%}
+.pod .v{margin-top:var(--space-2);font-size:var(--type-headline-size);font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.pod .v small{margin-left:var(--space-1);color:var(--quiet);font-size:var(--type-caption-size);font-weight:500;letter-spacing:0}
+.pod.p3{order:3;border-color:color-mix(in oklch,var(--accent) 32%,var(--line-strong));background:color-mix(in oklch,var(--accent) 7%,var(--surface))}
+.pod.p2{order:1;border-color:color-mix(in oklch,var(--accent) 58%,var(--line-strong));background:color-mix(in oklch,var(--accent) 14%,var(--surface))}
+.pod.p1{order:2;padding:var(--space-6) var(--space-5);border-color:var(--accent);
+  background:radial-gradient(120% 90% at 50% 0%,color-mix(in oklch,var(--accent) 24%,transparent),transparent 62%),var(--surface);
+  box-shadow:var(--elevation-2),0 0 2.5rem -0.5rem color-mix(in oklch,var(--accent) 34%,transparent);
+  transition:transform .15s ease-out}
+/* #1 only: a foil card. Fine diagonal foil and a big "1" catch a light that sweeps back and forth
+   across the top of the card on its own. Reduced motion keeps the light still at the top-left. */
+@property --mx{syntax:"<percentage>";inherits:true;initial-value:22%}
+@property --my{syntax:"<percentage>";inherits:true;initial-value:8%}
+.pod.p1{isolation:isolate;overflow:hidden;animation:foil 5s ease-in-out infinite alternate}
+@keyframes foil{from{--mx:14%;--my:6%}to{--mx:86%;--my:30%}}
+@media (prefers-reduced-motion:reduce){.pod.p1{animation:none}}
+.pod.p1>*{position:relative;z-index:2}
+.pod.p1::before,.pod.p1::after{content:"";position:absolute;inset:0;z-index:1;border-radius:inherit;pointer-events:none;transition:opacity .2s ease-out}
+.pod.p1::before{
+  background:
+    repeating-linear-gradient(115deg,transparent 0 3px,color-mix(in oklch,white 45%,transparent) 3px 4px,transparent 4px 7px),
+    linear-gradient(115deg,oklch(84% .12 90),var(--accent) 30%,oklch(80% .12 65) 50%,oklch(86% .1 75) 70%,var(--accent));
+  background-size:100% 100%,300% 300%;background-position:0 0,calc(var(--mx) * 1.2) calc(var(--my) * 1.2);
+  -webkit-mask:radial-gradient(48% 58% at var(--mx) var(--my),#000,transparent 100%);mask:radial-gradient(48% 58% at var(--mx) var(--my),#000,transparent 100%);
+  opacity:.7}
+.pod.p1::after{background:radial-gradient(38% 46% at var(--mx) var(--my),color-mix(in oklch,white 38%,transparent),transparent 70%);mix-blend-mode:soft-light;opacity:1}
+html.dark .pod.p1::after{mix-blend-mode:screen;opacity:.5}
+.pod.p1 .big{position:absolute;z-index:0;left:-.08em;top:-.12em;font-size:13rem;font-weight:800;line-height:1;letter-spacing:-.06em;color:transparent;
+  -webkit-text-stroke:2px color-mix(in oklch,var(--accent) 30%,transparent);
+  background:radial-gradient(60% 50% at var(--mx) var(--my),color-mix(in oklch,var(--accent) 40%,transparent),transparent 75%);background-size:100% 100%;
+  -webkit-background-clip:text;background-clip:text;pointer-events:none;user-select:none}
+.pod.p1 .av{width:5rem;height:5rem;border-color:var(--accent);background:var(--accent-surface);font-size:2rem;box-shadow:0 0 1.5rem color-mix(in oklch,var(--accent) 30%,transparent)}
+.pod.p1 .nm{font-size:var(--type-headline-size);font-weight:700;letter-spacing:-.02em;line-height:1.15}
+.pod.p1 .v{font-size:var(--type-title-size);color:var(--accent);letter-spacing:-.03em;line-height:1}
+.pod.p1 .rk{font-size:var(--type-label-size)}
+.pod.p1 .rk svg{width:1.25rem;height:1.25rem}
+.pod.anon .av{border-color:var(--line-strong);background:var(--surface-raised);color:var(--quiet);box-shadow:none}
+.tbadge{display:inline-block;max-width:100%;padding:0 var(--space-2);border:1px solid color-mix(in oklch,var(--accent) 32%,var(--line-strong));border-radius:var(--radius-pill);background:color-mix(in oklch,var(--accent) 7%,var(--surface));color:var(--text);font-size:var(--type-caption-size);font-weight:600;line-height:1.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+@media (max-width:40rem){
+  .podium{grid-template-columns:1fr;gap:var(--space-2)}
+  .pod.p1{order:1}.pod.p2{order:2}.pod.p3{order:3}
+  .pod:not(.p1){grid-template-columns:4.5rem auto 1fr auto;justify-items:start;align-items:center;gap:0 var(--space-3);padding:var(--space-3) var(--space-4);text-align:left}
+  .pod:not(.p1) .av{width:2.75rem;height:2.75rem;margin:0;font-size:1.1rem}
+  .pod:not(.p1) .ttl{display:none}
+  .pod:not(.p1) .nm{width:100%}
+  .pod:not(.p1) .v{margin:0;font-size:var(--type-card-title-size)}
+}
+
+/* table */
+.board{overflow:hidden}
+table{width:100%;border-collapse:collapse}
+th{padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--line);color:var(--quiet);font-size:var(--type-caption-size);font-weight:500;text-align:right;white-space:nowrap}
+th:nth-child(-n+2){text-align:left}
+td{padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;font-size:var(--type-body-sm-size)}
+td:nth-child(-n+2){text-align:left}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:color-mix(in oklch,var(--surface-raised) 60%,var(--surface))}
+tr.me td{background:var(--accent-surface)!important}
+.rank{width:3.5rem;font-weight:600;color:var(--muted)}
+.rmark{display:inline-grid;place-items:center;width:1.75rem;height:1.75rem;border:1px solid var(--line-strong);border-radius:var(--radius-control);color:var(--accent);font-size:var(--type-label-sm-size);font-weight:700}
+.rmark.m1{border-color:var(--accent);background:color-mix(in oklch,var(--accent) 24%,var(--surface))}
+.rmark.m2{border-color:color-mix(in oklch,var(--accent) 58%,var(--line-strong));background:color-mix(in oklch,var(--accent) 14%,var(--surface))}
+.rmark.m3{border-color:color-mix(in oklch,var(--accent) 32%,var(--line-strong));background:color-mix(in oklch,var(--accent) 7%,var(--surface))}
+.pl{display:flex;align-items:center;gap:var(--space-3);min-width:0}
+.mini{display:grid;place-items:center;flex:none;width:2rem;height:2rem;border:1px solid var(--line-strong);border-radius:50%;background:var(--surface-raised);color:var(--muted);font-size:var(--type-label-sm-size);font-weight:600}
+.pn .n{display:flex;align-items:center;gap:var(--space-2);font-size:var(--type-label-size);font-weight:600}
+.pn .t{color:var(--quiet);font-size:var(--type-caption-size)}
+.you{padding:0 var(--space-2);border-radius:var(--radius-pill);background:var(--accent);color:var(--on-accent);font-size:var(--type-caption-size);font-weight:600;line-height:1.6}
+.prim{font-size:var(--type-label-size);font-weight:600;color:var(--text)}
+.sec{color:var(--muted)}
+.empty{padding:var(--space-12) var(--space-4)!important;text-align:center!important;color:var(--muted);white-space:normal!important}
+.pager{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-4);color:var(--quiet);font-size:var(--type-caption-size)}
+.pager .pg{display:flex;gap:var(--space-1)}
+.pager button{min-width:var(--control-md);height:var(--control-md);padding:0 var(--space-2);border:1px solid var(--line);border-radius:var(--radius-control);background:var(--surface);font-size:var(--type-label-sm-size)}
+.pager button[disabled]{color:var(--disabled-text);cursor:default}
+.pager button[aria-current=true]{border-color:var(--accent);color:var(--accent);font-weight:600}
+@media (max-width:47.99rem){.c-hide{display:none}td,th{padding:var(--space-3)}}
+
+/* side */
+.side{display:grid;gap:var(--space-3);position:sticky;top:5.5rem}
+@media (max-width:60rem){.side{position:static}}
+.card{padding:var(--space-4) var(--space-5)}
+.card h3{margin:0 0 var(--space-2);font-size:var(--type-label-size);font-weight:600}
+.card p,.card li{margin:0;color:var(--muted);font-size:var(--type-body-sm-size)}
+.card ul{display:grid;gap:var(--space-1);margin:var(--space-3) 0 0;padding-left:var(--space-5)}
+.xpt{width:100%;border-collapse:collapse;margin-top:var(--space-2)}
+.xpt td{padding:var(--space-1) 0;border:0;font-size:var(--type-body-sm-size)}
+.xpt td:first-child{color:var(--muted)}
+.xpt td:last-child{text-align:right}
+
+/* drawer */
+.scrim{position:fixed;inset:0;z-index:20;background:color-mix(in oklch,var(--shadow) 60%,transparent);opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;z-index:21;width:min(26rem,100%);height:100%;overflow-y:auto;padding:var(--space-6);border-left:1px solid var(--line);border-radius:var(--radius-sheet) 0 0 var(--radius-sheet);background:var(--surface);box-shadow:var(--elevation-3);transform:translateX(100%);transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.drawer.on{transform:none}
+.drawer .x{position:absolute;top:var(--space-4);right:var(--space-4)}
+.ph{display:flex;align-items:center;gap:var(--space-4);margin-bottom:var(--space-5);padding-right:var(--space-12)}
+.ph .av{display:grid;flex:none;place-items:center;width:3.5rem;height:3.5rem;border:2px solid var(--accent);border-radius:50%;background:var(--accent-surface);color:var(--accent);font-size:1.4rem;font-weight:700}
+.ph.anon .av{border-color:var(--line-strong);background:var(--surface-raised);color:var(--quiet)}
+.ph h2{margin:0 0 var(--space-1);font-size:var(--type-card-title-size);font-weight:600}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:1px;overflow:hidden;border:1px solid var(--line);border-radius:var(--radius-card);background:var(--line)}
+.stats div{display:grid;gap:var(--space-1);padding:var(--space-3) var(--space-4);background:var(--surface)}
+.stats b{font-size:var(--type-headline-size);font-weight:700;line-height:1.1}
+.stats span{color:var(--muted);font-size:var(--type-label-sm-size)}
+.drawer h4{margin:var(--space-6) 0 var(--space-2);color:var(--muted);font-size:var(--type-label-sm-size);font-weight:500}
+.mrow{display:flex;justify-content:space-between;gap:var(--space-3);padding:var(--space-2) 0;border-bottom:1px solid var(--line);font-size:var(--type-body-sm-size)}
+.tlist{display:flex;flex-wrap:wrap;gap:var(--space-2)}
+.notice{padding:var(--space-3) var(--space-4);border-radius:var(--radius-control);background:var(--surface-raised);color:var(--muted);font-size:var(--type-body-sm-size)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header class="app-header-wrap">
+  <div class="app-header">
+    <span class="brand"><span class="brand-mark" aria-hidden="true">O</span><span>躲避堡垒 3</span></span>
+    <nav class="main-nav" aria-label="主导航">
+      <a href="#">随机事件</a><a href="#">地图</a><a href="#">成就</a><a href="#" aria-current="page">排行榜</a><a href="#">版本更新</a><a href="#">开发日志</a>
+    </nav>
+    <button class="icon-btn pressable" id="theme" aria-label="切换深色模式"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg></button>
+  </div>
+</header>
+
+<div class="page">
+  <header class="head">
+    <h1>排行榜</h1>
+    <p>上传通关截图、审核通过后获得精通 XP，满足条件还会解锁成就。精通 XP 和成就会一直保留，不会清零。</p>
+  </header>
+
+  <div class="controls">
+    <div class="ctl-row">
+      <div class="seg" id="boards" role="group" aria-label="排行榜">
+        <button data-v="xp" aria-pressed="true">地图精通</button>
+        <button data-v="titles" aria-pressed="false">成就</button>
+      </div>
+      <div class="seg" id="scopeSeg" role="group" aria-label="时间范围">
+        <button data-v="all" aria-pressed="true">全部时间</button>
+        <button data-v="season" aria-pressed="false">赛季</button>
+      </div>
+      <select class="sel" id="seasonSel" hidden aria-label="选择赛季"></select>
+    </div>
+    <div class="ctl-row" id="mapRow">
+      <div class="chips" id="maps"></div>
+      <span class="note" id="mapNote"></span>
+    </div>
+  </div>
+
+  <section class="season surface-card" id="seasonBar" hidden></section>
+
+  <div class="grid">
+    <main>
+      <div class="sh"><h2 id="boardTitle"></h2><span class="note num" id="boardMeta"></span></div>
+      <section class="mine surface-card" id="mine" aria-label="你的排名"></section>
+      <div class="podium" id="lead"></div>
+      <section class="board surface-card">
+        <table>
+          <thead><tr id="thead"></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+        <div class="pager" id="pager"></div>
+      </section>
+    </main>
+    <aside class="side" id="side"></aside>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true"></aside>
+
+<script>
+/* ---------- fixtures ---------- */
+const NOW = Date.parse("2026-10-15T20:00:00+08:00");
+const DAY = 864e5;
+const DIFFS = ["简单","一般","困难","专家","传奇","地狱"];
+// XP rule v2 (packages/domain/src/mastery.ts): base by difficulty × (1 + bonus); no deaths +5%, no skips +5%, capped at 10%. Map factor is 1.0 today.
+const BASE_XP = [100,150,225,325,450,600];
+const xpOf = (d,deaths,skips) => Math.round(BASE_XP[d]*(1+Math.min(0.1,(deaths===0?0.05:0)+(skips===0?0.05:0))));
+const MAPS = [
+  {id:"blizzworld",name:"暴雪世界",rev:"R3",since:"2026-08-20"},
+  {id:"colosseo",name:"斗兽场",rev:"R2",since:"2026-06-10"},
+  {id:"ayutthaya",name:"阿育陀耶",rev:"R1",since:"2026-02-01"},
+  {id:"grimvolcano",name:"监测站：格里姆火山",rev:"R2",since:"2026-09-12"},
+  {id:"junkertown",name:"渣客镇",rev:"R1",since:"2026-03-15"},
+  {id:"kingsrow",name:"国王大道",rev:"R1",since:"2026-07-01"},
+];
+// Admin-run seasons: only public ones (active / archived) appear here; drafts stay hidden.
+const SEASONS = [
+  {id:"s2",name:"第二赛季",start:Date.parse("2026-09-01T00:00:00+08:00"),end:Date.parse("2026-11-30T23:59:59+08:00"),status:"active"},
+  {id:"s1",name:"第一赛季",start:Date.parse("2026-06-01T00:00:00+08:00"),end:Date.parse("2026-08-31T23:59:59+08:00"),status:"archived"},
+];
+const TITLES = ["开拓者 · 暴雪世界","征服者 · 暴雪世界","主宰 · 暴雪世界","开拓者 · 斗兽场","征服者 · 斗兽场","主宰 · 斗兽场",
+  "开拓者 · 阿育陀耶","征服者 · 阿育陀耶","开拓者 · 格里姆火山","征服者 · 格里姆火山","主宰 · 格里姆火山","开拓者 · 渣客镇",
+  "征服者 · 渣客镇","开拓者 · 国王大道","征服者 · 国王大道","赌徒：梭哈","赌徒：心之钢","作弊：先知","任务：有福同享","任务：同行链","地狱行者","熔火之心",
+  "赌徒：全押","作弊：透视眼","任务：零失误","任务：守望之誓","速通者","无伤大雅"];
+// Achievement board counts only general titles: map titles belong to map mastery, developer titles never rank.
+const DEV_TITLES = ["开发者"];
+const isMapTitle = t => t.includes(" · ");
+const counts = t => !isMapTitle(t.name) && !DEV_TITLES.includes(t.name);
+
+let seed = 20261015;
+const rnd = () => { seed|=0; seed=seed+0x6D2B79F5|0; let t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; };
+const pick = a => a[Math.floor(rnd()*a.length)];
+const N1 = ["夜","霜","烈","雾","星","铁","赤","风","苍","白","黑","灰","青","焰","雷","影"];
+const N2 = ["隼","狐","刃","枭","狼","鲸","鸦","鹿","猫","熊","龙","蝎","鹰","豹"];
+const N3 = ["","","","不睡觉","今天也要通关","の守望","Pro","一号","打工人","在线","_","233","大王","又来了"];
+
+const players = [];
+for(let i=0;i<86;i++){
+  const skill = i===0 ? 0.62 : Math.min(1,Math.pow(rnd(),0.8));
+  const activity = i===0 ? 1.1 : Math.pow(rnd(),1.8)*2.4+0.05;
+  players.push({id:"p"+(1000+i), name:i===0?"霜狐":pick(N1)+pick(N2)+pick(N3), me:i===0,
+    pub:i===0||rnd()>0.12||activity>1.5, skill, activity,
+    joined:NOW-(i===0?200:Math.floor(20+rnd()*230))*DAY, clears:[], titles:[]});
+}
+const mapName = id => MAPS.find(m=>m.id===id).name;
+for(const p of players){
+  const favs = MAPS.filter(()=>rnd()<0.35+p.skill*0.5); if(!favs.length) favs.push(pick(MAPS));
+  const n = Math.round(p.activity*(8+rnd()*60));
+  for(let k=0;k<n;k++){
+    const m = pick(favs), at = p.joined+rnd()*(NOW-p.joined);
+    const top = Math.min(5,Math.floor(p.skill*6+rnd()*0.9));
+    const d = Math.max(0,top-Math.floor(Math.pow(rnd(),2)*3));
+    const deaths = Math.max(0,Math.round((d*3+rnd()*10)*(1.2-p.skill)));
+    const skips = rnd()<0.6?0:1+Math.floor(rnd()*3);
+    p.clears.push({map:m.id,current:at>=Date.parse(m.since),diff:d,at,xp:xpOf(d,deaths,skips)});
+  }
+  p.clears.sort((a,b)=>a.at-b.at);
+  // Map achievements only for maps the player has actually cleared.
+  const pool = TITLES.filter(t=>!t.includes(" · ")||p.clears.some(c=>mapName(c.map).includes(t.split(" · ")[1]))).sort(()=>rnd()-.5);
+  const nt = Math.min(pool.length, Math.round(p.skill*p.activity*7 + rnd()*3));
+  p.titles = pool.slice(0,nt).map(t=>({name:t,at:p.joined+rnd()*(NOW-p.joined)}));
+  if(p.id==="p1003") p.titles.push({name:"开发者",at:p.joined});
+  p.titles.sort((a,b)=>b.at-a.at);
+  p.equipped = p.titles[0]?.name || "";
+}
+const pById = Object.fromEntries(players.map(p=>[p.id,p]));
+const mById = Object.fromEntries(MAPS.map(m=>[m.id,m]));
+
+/* ---------- ranking ---------- */
+// A season is only a time window over the same clears and achievements; nothing is reset or copied.
+const st = {scope:"all",season:"s2",board:"xp",map:null,page:1};
+// Achievements are held permanently, so only the mastery board has a season scope.
+const season = () => st.scope==="season" && st.board==="xp" ? SEASONS.find(x=>x.id===st.season) : null;
+const inWin = t => { const s=season(); return !s || (t>=s.start && t<=s.end); };
+// Ties: whoever reached the score first ranks higher.
+function xpBoard(mapId){
+  const rows=[];
+  for(const p of players){
+    const cs = p.clears.filter(c=>inWin(c.at) && (!mapId || (c.map===mapId&&c.current)));
+    if(!cs.length) continue;
+    rows.push({pid:p.id,v:cs.reduce((s,c)=>s+c.xp,0),n:cs.length,top:Math.max(...cs.map(c=>c.diff)),reached:cs[cs.length-1].at});
+  }
+  return rows.sort((a,b)=>b.v-a.v||a.reached-b.reached);
+}
+function titleBoard(){
+  const rows=[];
+  for(const p of players){
+    const ts = p.titles.filter(t=>counts(t)&&inWin(t.at));
+    if(!ts.length) continue;
+    rows.push({pid:p.id,v:ts.length,latest:ts[0],reached:ts[0].at,xp:p.clears.filter(c=>inWin(c.at)).reduce((s,c)=>s+c.xp,0)});
+  }
+  return rows.sort((a,b)=>b.v-a.v||a.reached-b.reached);
+}
+
+/* ---------- render ---------- */
+const PAGE = 20;
+const $ = id => document.getElementById(id);
+let rows = [];
+const fmtDate = t => { const d=new Date(t); return `${d.getMonth()+1}月${d.getDate()}日`; };
+const name = p => p.pub ? p.name : "匿名玩家";
+const initial = p => p.pub ? p.name[0] : "?";
+const unit = () => st.board==="xp" ? "XP" : "个成就";
+const val = v => st.board==="xp" ? v.toLocaleString() : v;
+// Lucide icons (the Portal's icon set).
+const ICON = {
+  crown:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></svg>',
+  medal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.21 15 2.66 7.14a2 2 0 0 1 .13-2.2L4.4 2.8A2 2 0 0 1 6 2h12a2 2 0 0 1 1.6.8l1.6 2.14a2 2 0 0 1 .14 2.2L16.79 15"/><path d="M11 12 5.12 2.2"/><path d="m13 12 5.88-9.8"/><path d="M8 7h8"/><circle cx="12" cy="17" r="5"/><path d="M12 18v-2h-.5"/></svg>',
+};
+
+function renderSeason(){
+  const s = season();
+  $("seasonBar").hidden = !s;
+  if(!s) return;
+  const active = s.status==="active";
+  const weeks = Math.ceil((s.end-s.start)/(7*DAY));
+  const done = active ? Math.floor((NOW-s.start)/(7*DAY)) : weeks;
+  $("seasonBar").innerHTML = `<span class="nm">${s.name}<span class="badge ${active?"info":"off"}">${active?"进行中":"已结束"}</span></span>
+    <div class="segbar" style="--n:${weeks}" role="img" aria-label="已进行 ${done} / ${weeks} 周">${Array.from({length:weeks},(_,i)=>`<i class="${i<done?"on":""}"></i>`).join("")}</div>
+    <span class="meta num">${fmtDate(s.start)} – ${fmtDate(s.end)} · ${active?`还剩 ${Math.ceil((s.end-NOW)/DAY)} 天`:"排名已定"}</span>`;
+}
+
+function renderMine(){
+  const s = season(), final = s && s.status!=="active";
+  const i = rows.findIndex(r=>pById[r.pid].me);
+  if(i<0){
+    const none = st.board==="xp" ? (final?"这个赛季没有上榜":"还没有上榜，上传一张通关截图就能出现在这里") : (final?"这个赛季没有解锁成就":"还没有上榜，解锁第一个成就就能出现在这里");
+    $("mine").innerHTML = `<span class="r">—</span><span class="t">你${none}</span>`;
+    return;
+  }
+  const r = rows[i], ahead = rows[i-1], isXp = st.board==="xp";
+  const v = isXp ? `<b class="num">${r.v.toLocaleString()}</b> 精通 XP` : `<b class="num">${r.v}</b> 个成就`;
+  let gap = "";
+  if(final) gap = " · 最终排名";
+  else if(!ahead) gap = " · 你是第一名";
+  else { const g = ahead.v-r.v; gap = g===0 ? " · 与上一名同分" : ` · 距上一名差 <b class="num">${isXp?g.toLocaleString()+" XP":g+" 个"}</b>`; }
+  $("mine").innerHTML = `<span class="r num">#${i+1}</span><span class="t">你的排名 · ${v}${gap}</span><button class="btn pressable" id="jump">查看</button>`;
+  $("jump").onclick = jumpToMe;
+}
+
+function renderPodium(){
+  $("lead").innerHTML = rows.slice(0,3).map((r,i)=>{
+    const p = pById[r.pid];
+    return `<button class="pod p${i+1} ${p.pub?"":"anon"}" data-pid="${r.pid}">${i===0?'<span class="big num" aria-hidden="true">1</span>':""}
+      <span class="rk">${i===0?ICON.crown:ICON.medal}第 ${i+1} 名</span>
+      <span class="av">${initial(p)}</span>
+      <span class="nm">${name(p)}</span>
+      <span class="ttl">${p.pub&&p.equipped?`<span class="tbadge">${p.equipped}</span>`:""}</span>
+      <span class="v num">${val(r.v)}<small>${unit()}</small></span></button>`;
+  }).join("");
+  bindTilt($("lead").querySelector(".p1"));
+}
+
+// Pointer-follow tilt on the #1 card only: precise hover pointers, off under reduced motion.
+const canTilt = matchMedia("(hover: hover) and (pointer: fine)").matches && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+function bindTilt(el){
+  if(!el || !canTilt) return;
+  el.addEventListener("pointermove",e=>{
+    const b = el.getBoundingClientRect(), x = (e.clientX-b.left)/b.width-.5, y = (e.clientY-b.top)/b.height-.5;
+    el.style.transform = `perspective(60rem) rotateX(${(-y*5).toFixed(2)}deg) rotateY(${(x*6).toFixed(2)}deg)`;
+  });
+  el.addEventListener("pointerleave",()=>{ el.style.transform = ""; });
+}
+
+function render(){
+  const s = season();
+  for(const b of $("boards").children) b.setAttribute("aria-pressed",b.dataset.v===st.board);
+  for(const b of $("scopeSeg").children) b.setAttribute("aria-pressed",b.dataset.v===st.scope);
+  $("scopeSeg").hidden = st.board!=="xp";
+  $("seasonSel").hidden = !s;
+  $("seasonSel").value = st.season;
+  renderSeason();
+
+  $("mapRow").hidden = st.board!=="xp";
+  $("maps").innerHTML = `<button class="chip pressable" data-v="" aria-pressed="${!st.map}">全部地图</button>`+MAPS.map(m=>`<button class="chip pressable" data-v="${m.id}" aria-pressed="${m.id===st.map}">${m.name}</button>`).join("");
+  $("mapNote").textContent = s
+    ? (st.map ? `${s.name}期间在当前版本 ${mById[st.map].rev} 获得的精通 XP` : `${s.name}期间获得的精通 XP`)
+    : (st.map ? `当前版本 ${mById[st.map].rev}，地图更新后重新累计` : "所有地图、所有版本获得的精通 XP 总和");
+
+  rows = st.board==="xp" ? xpBoard(st.map) : titleBoard();
+  $("boardTitle").textContent = (s?s.name+" · ":"") + (st.board==="xp" ? (st.map?`${mById[st.map].name} 精通排行榜`:"地图精通排行榜") : "成就排行榜");
+  $("boardMeta").textContent = `${rows.length} 名玩家 · ${s&&s.status!=="active"?"最终结果":`更新于 ${fmtDate(NOW)} 20:00`}`;
+  renderMine();
+  renderPodium();
+
+  const cols = st.board==="xp"
+    ? [["精通 XP",r=>`<span class="prim">${r.v.toLocaleString()}</span>`],["通关次数",r=>r.n,"c-hide"],["最高难度",r=>DIFFS[r.top],"c-hide"]]
+    : [["成就",r=>`<span class="prim">${r.v}</span>`],["最近解锁",r=>`<span class="sec">${pById[r.pid].pub?r.latest.name+" · ":""}${fmtDate(r.latest.at)}</span>`,"c-hide"],["精通 XP",r=>r.xp.toLocaleString(),"c-hide"]];
+  $("thead").innerHTML = `<th>名次</th><th>玩家</th>`+cols.map(c=>`<th class="${c[2]||""}">${c[0]}</th>`).join("");
+
+  const pages = Math.max(1,Math.ceil(rows.length/PAGE));
+  st.page = Math.min(st.page,pages);
+  const slice = rows.slice((st.page-1)*PAGE,st.page*PAGE);
+  $("tbody").innerHTML = rows.length ? slice.map((r,i)=>{
+    const rk=(st.page-1)*PAGE+i+1, p=pById[r.pid];
+    return `<tr data-pid="${r.pid}" class="${p.me?"me":""}"><td class="rank num">${rk<=3?`<span class="rmark m${rk}">${rk}</span>`:rk}</td>
+      <td><div class="pl"><span class="mini">${initial(p)}</span><div class="pn"><div class="n">${name(p)}${p.me?'<span class="you">你</span>':""}</div>${p.pub&&p.equipped?`<div class="t">${p.equipped}</div>`:""}</div></div></td>
+      ${cols.map(c=>`<td class="num ${c[2]||""}">${c[1](r)}</td>`).join("")}</tr>`;
+  }).join("") : `<tr><td colspan="${cols.length+2}" class="empty">${s&&st.map&&s.end<Date.parse(mById[st.map].since)?`这张地图在${s.name}结束后才更新到 ${mById[st.map].rev}，当前版本没有这个赛季的成绩`:(s?"这个赛季":"这里")+"还没有人上榜"}</td></tr>`;
+
+  $("pager").hidden = !rows.length;
+  const pg=[]; for(let i=1;i<=pages;i++) if(i===1||i===pages||Math.abs(i-st.page)<=1) pg.push(i); else if(pg[pg.length-1]!=="…") pg.push("…");
+  $("pager").innerHTML = `<span class="num">第 ${(st.page-1)*PAGE+1}–${Math.min(rows.length,st.page*PAGE)} 名，共 ${rows.length} 名</span><div class="pg">
+    <button data-p="${st.page-1}" ${st.page===1?"disabled":""} aria-label="上一页">‹</button>
+    ${pg.map(x=>x==="…"?`<button disabled>…</button>`:`<button data-p="${x}" aria-current="${x===st.page}">${x}</button>`).join("")}
+    <button data-p="${st.page+1}" ${st.page===pages?"disabled":""} aria-label="下一页">›</button></div>`;
+
+  const seasonCard = s ? `<div class="card surface-card"><h3>赛季怎么算</h3><p>${s.name}只统计 ${fmtDate(s.start)} – ${fmtDate(s.end)} 期间获得的精通 XP。</p>
+      <ul><li>你的精通 XP 不会清零，切到「全部时间」可以看到</li><li>成就永久持有，不分赛季</li><li>新赛季开始时，所有人从 0 开始排名</li><li>赛季结束后，排名保留为最终结果</li></ul></div>` : "";
+  $("side").innerHTML = seasonCard + (st.board==="xp" ? `
+    <div class="card surface-card"><h3>精通 XP 怎么算</h3><p>每张审核通过的通关截图按难度获得精通 XP：</p>
+      <table class="xpt num">${DIFFS.map((d,i)=>`<tr><td>${d}</td><td>${BASE_XP[i]} XP</td></tr>`).join("")}</table>
+      <ul><li>无死亡 +5%，无跳过 +5%，最多 +10%</li><li>同一局重复上传只算一次</li><li>解锁成就不额外加 XP</li><li>没有每日奖励，不用天天上线</li><li>XP 相同时，先达到的玩家排在前面</li></ul></div>` : `
+    <div class="card surface-card"><h3>成就排行怎么算</h3><p>按你解锁的通用成就数量排名。地图称号算在地图精通里，开发者称号不参与任何排名。</p>
+      <ul><li>成就解锁后永久持有，不按赛季统计</li><li>数量相同时，先解锁最后一个成就的玩家排在前面</li><li>成就排行和地图精通排行互不影响</li></ul></div>`);
+}
+
+function jumpToMe(){
+  const i = rows.findIndex(r=>pById[r.pid].me);
+  if(i<0) return;
+  st.page = Math.floor(i/PAGE)+1; render();
+  document.querySelector("tr.me").scrollIntoView({block:"center",behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});
+}
+
+function openPlayer(pid){
+  const p = pById[pid];
+  const saved = st.scope; st.scope = "all";
+  const xr = xpBoard(null), tr = titleBoard();
+  st.scope = saved;
+  const xi = xr.findIndex(r=>r.pid===pid), ti = tr.findIndex(r=>r.pid===pid);
+  let html = `<button class="icon-btn x pressable" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    <div class="ph ${p.pub?"":"anon"}"><span class="av">${initial(p)}</span><div><h2>${name(p)}</h2>${p.pub&&p.equipped?`<span class="tbadge">${p.equipped}</span>`:""}</div></div>
+    <div class="stats num"><div><b>${xi<0?"—":"#"+(xi+1)}</b><span>地图精通排名 · ${xi<0?0:xr[xi].v.toLocaleString()} XP</span></div>
+    <div><b>${ti<0?"—":"#"+(ti+1)}</b><span>成就排名 · ${p.titles.filter(counts).length} 个</span></div></div>`;
+  if(!p.pub){
+    html += `<h4>公开主页</h4><div class="notice">这位玩家关闭了公开主页。名次照常保留，但不显示昵称、成就和地图明细。</div>`;
+  } else {
+    const mapTs = p.titles.filter(t=>isMapTitle(t.name)), gen = p.titles.filter(t=>!isMapTitle(t.name));
+    const per = MAPS.map(m=>{ const cs=p.clears.filter(c=>c.map===m.id&&c.current); return cs.length?`<div class="mrow"><span>${m.name} <span class="sec">${m.rev}</span></span><span class="num">${cs.reduce((s,c)=>s+c.xp,0).toLocaleString()} XP · ${cs.length} 次</span></div>`:""; }).join("");
+    html += `<h4>各地图精通 XP（当前版本）</h4>${per||'<div class="notice">还没有通关记录</div>'}
+      <h4>地图称号</h4>${mapTs.length?`<div class="tlist">${mapTs.map(t=>`<span class="tbadge">${t.name}</span>`).join("")}</div>`:'<div class="notice">还没有地图称号</div>'}
+      <h4>成就 · ${gen.filter(counts).length}</h4>${gen.length?`<div class="tlist">${gen.map(t=>`<span class="tbadge">${t.name}</span>`).join("")}</div>`:'<div class="notice">还没有解锁成就</div>'}`;
+  }
+  const d = $("drawer");
+  d.innerHTML = html;
+  d.classList.add("on"); d.setAttribute("aria-hidden","false"); $("scrim").classList.add("on");
+  d.querySelector(".x").onclick = closePlayer; d.querySelector(".x").focus();
+}
+function closePlayer(){ $("drawer").classList.remove("on"); $("drawer").setAttribute("aria-hidden","true"); $("scrim").classList.remove("on"); }
+
+$("theme").onclick = ()=>document.documentElement.classList.toggle("dark");
+$("boards").onclick = e=>{const v=e.target.dataset.v; if(v){st.board=v;st.page=1;render();}};
+$("scopeSeg").onclick = e=>{const v=e.target.dataset.v; if(v){st.scope=v;st.page=1;render();}};
+$("seasonSel").onchange = e=>{st.season=e.target.value;st.page=1;render();};
+$("maps").onclick = e=>{const b=e.target.closest("button"); if(b){st.map=b.dataset.v||null;st.page=1;render();}};
+$("pager").onclick = e=>{const p=+e.target.dataset.p; if(p){st.page=p;render();}};
+$("tbody").onclick = e=>{const tr=e.target.closest("tr[data-pid]"); if(tr) openPlayer(tr.dataset.pid);};
+$("lead").onclick = e=>{const b=e.target.closest("[data-pid]"); if(b) openPlayer(b.dataset.pid);};
+$("scrim").onclick = closePlayer;
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closePlayer();});
+$("seasonSel").innerHTML = SEASONS.map(x=>`<option value="${x.id}">${x.name}${x.status==="active"?" · 进行中":" · 已结束"}</option>`).join("");
+render();
+</script>
+</body>
+</html>
