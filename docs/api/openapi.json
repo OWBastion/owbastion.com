@@ -499,7 +499,7 @@
   "/v1/public/leaderboard/players/{playerKey}": {
    "get": {
     "operationId": "getPublicLeaderboardPlayer",
-    "description": "Public per-Player summary for the leaderboard drawer, resolved by the opaque playerKey carried on leaderboard entries: rank on each board, per-map current-revision XP, and owned public Titles. A Player whose public-profile visibility is off returns publicProfile=false with every detail field null; an unknown key returns 404.",
+    "description": "Public per-Player summary for the leaderboard drawer, resolved by the opaque playerKey carried on leaderboard entries: rank on each board, per-map current-revision XP, the count of open maps with a current default Gameplay Revision (mapCount), and owned public Titles. Map titles carry their reward slot (pioneer, conqueror, dominator) or null for titles without a named slot, such as the classic-version title. A Player whose public-profile visibility is off returns publicProfile=false with every detail field null; an unknown key returns 404.",
     "parameters": [
      {
       "$ref": "#/components/parameters/leaderboardPlayerKey"

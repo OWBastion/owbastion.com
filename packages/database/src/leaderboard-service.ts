@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/d1";
 import type { PlatformServices } from "@owbastion/domain";
 import { leaderboardPlayerKey, leaderboardRuleVersion, projectLeaderboardEntry, rankLeaderboardRows, verifiedRunDifficulties, type VerifiedRunDifficulty } from "@owbastion/domain";
 import type { LeaderboardBoard, LeaderboardBoardStanding, LeaderboardEntry, LeaderboardEntryTitle, LeaderboardPlayerMapTitle } from "@owbastion/contracts";
-import { gameplayRevisions, maps, playerAccounts, playerEquippedTitles, playerTitleGrants, titleCatalog, verifiedRuns } from "./schema";
+import { gameplayRevisions, mapTitleRewards, maps, playerAccounts, playerEquippedTitles, playerTitleGrants, titleCatalog, verifiedRuns } from "./schema";
 import { resolvePortalSession } from "./portal-session";
 
 type LeaderboardServices = Pick<PlatformServices,
@@ -198,9 +198,9 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
       }
       if (!account) return null;
       if (account.publicProfile !== 1) {
-        return { contractVersion: "1" as const, publicProfile: false, player: null, boards: null, perMapXp: null, titles: null };
+        return { contractVersion: "1" as const, publicProfile: false, player: null, boards: null, perMapXp: null, mapCount: null, titles: null };
       }
-      const [mastery, achievement, perMapRows, mapTitleRows, generalTitleRows, equipped] = await Promise.all([
+      const [mastery, achievement, perMapRows, mapTitleRows, generalTitleRows, equipped, mapCountRow] = await Promise.all([
         masteryRows().then(rankLeaderboardRows),
         achievementRows().then(rankLeaderboardRows),
         db.select({
@@ -214,10 +214,11 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
           .innerJoin(maps, eq(maps.id, verifiedRuns.mapId))
           .where(and(eq(verifiedRuns.playerAccountId, account.id), eq(verifiedRuns.status, "active")))
           .groupBy(verifiedRuns.mapId, maps.name),
-        db.select({ key: titleCatalog.key, label: titleCatalog.label, icon: titleCatalog.icon, iconUrl: titleCatalog.iconUrl, mapId: playerTitleGrants.mapId, mapName: maps.name })
+        db.select({ key: titleCatalog.key, label: titleCatalog.label, icon: titleCatalog.icon, iconUrl: titleCatalog.iconUrl, mapId: playerTitleGrants.mapId, mapName: maps.name, slot: mapTitleRewards.slot })
           .from(playerTitleGrants)
           .innerJoin(titleCatalog, eq(titleCatalog.key, playerTitleGrants.titleKey))
           .innerJoin(maps, eq(maps.id, playerTitleGrants.mapId))
+          .leftJoin(mapTitleRewards, and(eq(mapTitleRewards.mapId, playerTitleGrants.mapId), eq(mapTitleRewards.titleKey, playerTitleGrants.titleKey)))
           .where(and(
             eq(playerTitleGrants.playerAccountId, account.id),
             eq(playerTitleGrants.status, "active"),
@@ -233,12 +234,15 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
             achievementGrantFilter,
           )),
         loadEquippedTitles([account.id]),
+        db.select({ count: sql<number>`count(*)` }).from(maps)
+          .innerJoin(gameplayRevisions, and(eq(gameplayRevisions.mapId, maps.id), eq(gameplayRevisions.lifecycle, "default")))
+          .where(eq(maps.status, "active")).get(),
       ]);
       const standingOf = (rows: Array<BoardRow & { rank: number }>) => {
         const row = rows.find((entry) => entry.playerAccountId === account!.id);
         return row ? { rank: row.rank, score: row.score } : null;
       };
-      const mapTitles: LeaderboardPlayerMapTitle[] = mapTitleRows.map((row) => ({ ...titleView(row), mapId: row.mapId!, mapName: row.mapName }));
+      const mapTitles: LeaderboardPlayerMapTitle[] = mapTitleRows.map((row) => ({ ...titleView(row), mapId: row.mapId!, mapName: row.mapName, slot: row.slot as LeaderboardPlayerMapTitle["slot"] }));
       return {
         contractVersion: "1" as const,
         publicProfile: true,
@@ -247,6 +251,7 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
         perMapXp: perMapRows
           .sort((a, b) => b.xp - a.xp || a.mapId.localeCompare(b.mapId))
           .map((row) => ({ mapId: row.mapId, mapName: row.mapName, gameVersion: row.gameVersion, xp: row.xp, runCount: row.runCount })),
+        mapCount: mapCountRow?.count ?? 0,
         titles: {
           map: mapTitles.sort((a, b) => a.mapName.localeCompare(b.mapName) || a.titleKey.localeCompare(b.titleKey)),
           general: generalTitleRows.map(titleView).sort((a, b) => a.titleKey.localeCompare(b.titleKey)),
