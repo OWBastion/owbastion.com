@@ -1577,6 +1577,15 @@ export const leaderboardEntrySchema = z.object({
     mastery: leaderboardBoardStandingSchema.nullable(),
     achievement: leaderboardBoardStandingSchema.nullable(),
   }).strict().optional(),
+  // Mastery rows carry the counted run volume and the highest completed
+  // difficulty on this board's scope.
+  runCount: z.number().int().nonnegative().optional(),
+  topDifficulty: verifiedRunDifficultySchema.optional(),
+  // Achievement rows carry the Player's all-maps Mastery XP; the latest
+  // counted Title appears only while the Player is public — its unlock time
+  // is already `reachedAt`.
+  masteryXp: z.number().int().nonnegative().optional(),
+  latestTitle: leaderboardEntryTitleSchema.nullable().optional(),
 }).strict();
 
 // Paginated board page (#399). `mapId` scopes the Mastery board to one map's
@@ -1586,6 +1595,9 @@ export const leaderboardResponseSchema = z.object({
   contractVersion,
   board: leaderboardBoardSchema,
   mapId: externalId.optional(),
+  // The scoped map's current Gameplay Revision game version, present iff
+  // `mapId` scopes the board.
+  mapGameVersion: externalId.optional(),
   ruleVersion: z.string().trim().min(1).max(64),
   items: z.array(leaderboardEntrySchema).max(50),
   page: z.number().int().positive(),
@@ -1597,6 +1609,9 @@ export const leaderboardResponseSchema = z.object({
 export const leaderboardPlayerMapXpSchema = z.object({
   mapId: externalId,
   mapName: z.string().trim().min(1).max(256),
+  // The current default Gameplay Revision's game version — the "current
+  // revision" label shown by the drawer.
+  gameVersion: externalId,
   xp: z.number().int().nonnegative(),
   runCount: z.number().int().nonnegative(),
 }).strict();

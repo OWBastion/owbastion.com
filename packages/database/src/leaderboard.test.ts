@@ -28,8 +28,8 @@ const fixture = () => {
   };
   const addMap = (id: string, name: string) => sqlite.prepare("INSERT INTO maps VALUES (?, ?, 'v1', 'active', 'v1', NULL, ?, ?)").run(id, name, now, now);
   const addRevision = (id: string, mapId: string, lifecycle: string) => sqlite.prepare("INSERT INTO gameplay_revisions VALUES (?, ?, ?, NULL, NULL, NULL, NULL, 'v1', NULL, ?, ?)").run(id, mapId, lifecycle, now, now);
-  const addRun = (id: string, playerAccountId: string, mapId: string, revisionId: string, awardedXp: number, acceptedAt: number, status = "active") =>
-    sqlite.prepare("INSERT INTO mastery_runs (id, player_account_id, source_submission_id, map_id, gameplay_revision_id, accepted_at, status, awarded_xp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(id, playerAccountId, `sub.${id}`, mapId, revisionId, acceptedAt, status, awardedXp);
+  const addRun = (id: string, playerAccountId: string, mapId: string, revisionId: string, awardedXp: number, acceptedAt: number, status = "active", difficulty = "困难") =>
+    sqlite.prepare("INSERT INTO mastery_runs (id, player_account_id, source_submission_id, map_id, gameplay_revision_id, difficulty, accepted_at, status, awarded_xp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(id, playerAccountId, `sub.${id}`, mapId, revisionId, difficulty, acceptedAt, status, awardedXp);
   const addTitle = (key: string, scope = "global", category = "成就", publicVisibility = 1) =>
     sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, scope, display_kind, game_version, public_visibility) VALUES (?, ?, 'award', ?, '条件', ?, 'fixed', 'v1', ?)").run(key, key, category, scope, publicVisibility);
   const addGrant = (id: string, playerAccountId: string, titleKey: string, grantedAt: number, status = "active", mapId: string | null = null) =>
@@ -45,16 +45,16 @@ describe("public leaderboard projections", () => {
     addRevision("rev.a1", "map.a", "default"); addRevision("rev.a0", "map.a", "archived"); addRevision("rev.b1", "map.b", "default");
     addRun("r1", "p1", "map.a", "rev.a1", 300, 100);
     addRun("r2", "p1", "map.a", "rev.a0", 200, 50);
-    addRun("r3", "p1", "map.b", "rev.b1", 100, 150);
+    addRun("r3", "p1", "map.b", "rev.b1", 100, 150, "active", "专家");
     addRun("r4", "p2", "map.a", "rev.a1", 600, 90);
     addRun("r5", "p3", "map.b", "rev.b1", 600, 80);
     const board = leaderboardResponseSchema.parse(await services.getPublicLeaderboard({ board: "mastery", page: 1, pageSize: 20 }));
     expect(board.ruleVersion).toBe("leaderboard.v1");
     expect(board.total).toBe(3);
-    expect(board.items.map((item) => [item.player?.displayName, item.rank, item.score, item.reachedAt])).toEqual([
-      ["Gamma", 1, 600, 80],
-      ["Beta", 2, 600, 90],
-      ["Alpha", 3, 600, 150],
+    expect(board.items.map((item) => [item.player?.displayName, item.rank, item.score, item.reachedAt, item.runCount, item.topDifficulty])).toEqual([
+      ["Gamma", 1, 600, 80, 1, "困难"],
+      ["Beta", 2, 600, 90, 1, "困难"],
+      ["Alpha", 3, 600, 150, 3, "专家"],
     ]);
     for (const item of board.items) {
       expect(item.player?.playerKey).toMatch(/^[0-9a-f]{24}$/);
@@ -71,14 +71,14 @@ describe("public leaderboard projections", () => {
     addRun("r2", "p1", "map.a", "rev.a0", 900, 90);
     addRun("r3", "p2", "map.b", "rev.b1", 500, 80);
     const board = await services.getPublicLeaderboard({ board: "mastery", mapId: "map.a", page: 1, pageSize: 20 });
-    expect(board).toMatchObject({ mapId: "map.a", total: 1 });
-    expect(board?.items[0]).toMatchObject({ rank: 1, score: 300, player: { displayName: "Alpha" } });
+    expect(board).toMatchObject({ mapId: "map.a", mapGameVersion: "v1", total: 1 });
+    expect(board?.items[0]).toMatchObject({ rank: 1, score: 300, runCount: 1, topDifficulty: "困难", player: { displayName: "Alpha" } });
     expect(await services.getPublicLeaderboard({ board: "mastery", mapId: "map.missing", page: 1, pageSize: 20 })).toBeNull();
     expect(await services.getPublicLeaderboard({ board: "achievement", mapId: "map.a", page: 1, pageSize: 20 })).toBeNull();
   });
 
   it("counts owned global Titles while excluding map, developer, hidden, and revoked Titles", async () => {
-    const { services, addPlayer, addTitle, addGrant, now } = fixture();
+    const { services, addPlayer, addTitle, addGrant, addMap, addRevision, addRun, now } = fixture();
     addPlayer("p1", "Alpha"); addPlayer("p2", "Beta");
     addTitle("T1"); addTitle("T2"); addTitle("T3");
     addTitle("MAP_T", "map");
@@ -91,12 +91,15 @@ describe("public leaderboard projections", () => {
     addGrant("g5", "p1", "DEV_T", now);
     addGrant("g6", "p1", "HIDDEN_T", now);
     addGrant("g7", "p2", "T1", now - 5);
+    addMap("map.a", "Map A"); addRevision("rev.a1", "map.a", "default");
+    addRun("r1", "p1", "map.a", "rev.a1", 450, now - 40, "active", "传奇");
     const board = await services.getPublicLeaderboard({ board: "achievement", page: 1, pageSize: 20 });
     expect(board?.items.map((item) => [item.player?.displayName, item.rank, item.score])).toEqual([
       ["Alpha", 1, 2],
       ["Beta", 2, 1],
     ]);
-    expect(board?.items[0]?.reachedAt).toBe(now - 20);
+    expect(board?.items[0]).toMatchObject({ reachedAt: now - 20, masteryXp: 450, latestTitle: { titleKey: "T2" } });
+    expect(board?.items[1]).toMatchObject({ masteryXp: 0, latestTitle: { titleKey: "T1" } });
   });
 
   it("withholds the identity block and inlines headline standings for non-public Players", async () => {
@@ -110,6 +113,10 @@ describe("public leaderboard projections", () => {
     const anonymous = board?.items.find((item) => item.player === null);
     expect(anonymous).toMatchObject({ rank: 1, score: 500, boards: { mastery: { rank: 1, score: 500 }, achievement: { rank: 1, score: 1 } } });
     expect(board?.items.find((item) => item.player !== null)?.boards).toBeUndefined();
+    const achievementBoard = await services.getPublicLeaderboard({ board: "achievement", page: 1, pageSize: 20 });
+    const anonymousTitleRow = achievementBoard?.items.find((item) => item.player === null);
+    expect(anonymousTitleRow).toMatchObject({ rank: 1, score: 1, masteryXp: 500, boards: { mastery: { rank: 1, score: 500 } } });
+    expect(anonymousTitleRow?.latestTitle).toBeUndefined();
   });
 
   it("drops invalidated Runs and revoked Grants from every board and restores them", async () => {
@@ -146,8 +153,8 @@ describe("public leaderboard projections", () => {
     expect(summary.player).toMatchObject({ displayName: "Alpha", equippedTitle: { titleKey: "T1" } });
     expect(summary.boards).toEqual({ mastery: { rank: 1, score: 1400 }, achievement: { rank: 1, score: 1 } });
     expect(summary.perMapXp).toEqual([
-      { mapId: "map.a", mapName: "Map A", xp: 300, runCount: 1 },
-      { mapId: "map.b", mapName: "Map B", xp: 200, runCount: 1 },
+      { mapId: "map.a", mapName: "Map A", gameVersion: "v1", xp: 300, runCount: 1 },
+      { mapId: "map.b", mapName: "Map B", gameVersion: "v1", xp: 200, runCount: 1 },
     ]);
     expect(summary.titles).toEqual({
       map: [{ titleKey: "MAP_T", label: "MAP_T", icon: "award", mapId: "map.a", mapName: "Map A" }],
