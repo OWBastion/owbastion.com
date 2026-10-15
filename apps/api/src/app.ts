@@ -35,6 +35,7 @@ import { registerAdminPlayerManagementRoutes } from "./routes/admin-player-manag
 import { registerBindingInviteRoutes } from "./routes/binding-invites";
 import { registerPortalAuthenticationRoutes } from "./routes/portal-authentication";
 import { registerPublicCatalogRoutes } from "./routes/public-catalog";
+import { registerLeaderboardRoutes } from "./routes/leaderboard";
 import { registerReviewRoutes } from "./routes/reviews";
 import { hasOnlyUniqueQueryNames, parsePagination } from "./query-params";
 
@@ -610,6 +611,14 @@ export const createApp = (dependencies: AppDependencies) => {
     requirePortalPlayer,
     logServiceOperation,
     cachedCatalogResponse,
+  });
+
+  registerLeaderboardRoutes(app, {
+    services: dependencies.services,
+    allowPortal,
+    errorResponse,
+    requirePortalPlayer,
+    logServiceOperation,
   });
 
   app.get("/v1/public/achievement-icons/:titleKey/:version", async (c) => {

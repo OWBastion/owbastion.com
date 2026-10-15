@@ -24,6 +24,10 @@ import type {
   AdminPlayerIdentityRequest,
   CurrentPlayerResponse,
   PlayerProfileVisibilityResponse,
+  LeaderboardBoard,
+  LeaderboardPlayerSummary,
+  LeaderboardResponse,
+  CurrentPlayerLeaderboardRank,
   CurrentPlayerTitlesResponse,
   CurrentPlayerMasteryResponse,
   PlayerActivityResponse,
@@ -314,6 +318,9 @@ export type PlatformServices = {
   getPortalSessionIdentity(input: { sessionToken: string }): Promise<{ player: { playerId: string; isAdmin: boolean } } | null>;
   getCurrentPlayer(input: { sessionToken: string }): Promise<CurrentPlayerResponse | null>;
   updateCurrentPlayerProfileVisibility(input: { sessionToken: string; publicProfile: boolean }, idempotencyKey: string): Promise<PlayerProfileVisibilityResponse>;
+  getPublicLeaderboard(input: { board: LeaderboardBoard; mapId?: string; page: number; pageSize: number }): Promise<LeaderboardResponse | null>;
+  getPublicLeaderboardPlayer(input: { playerKey: string }): Promise<LeaderboardPlayerSummary | null>;
+  getCurrentPlayerLeaderboardRank(input: { sessionToken: string; board: LeaderboardBoard; mapId?: string }): Promise<CurrentPlayerLeaderboardRank | null>;
   createQqLoginAttempt(input: QqLoginAttemptRequest): Promise<QqLoginAttemptResponse>;
   getQqLoginStatus(input: { attemptId: string; attemptToken: string }): Promise<QqLoginStatusResponse>;
   verifyQqLogin(input: QqLoginVerifyRequest, auth: AuthContext, idempotencyKey: string): Promise<QqBindingClaimVerifyResponse>;

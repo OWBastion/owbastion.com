@@ -1,0 +1,216 @@
+import { createHash } from "node:crypto";
+import { describe, expect, it } from "vitest";
+import { leaderboardPlayerKey } from "@owbastion/domain";
+import { leaderboardResponseSchema, leaderboardPlayerSummarySchema, currentPlayerLeaderboardRankSchema } from "@owbastion/contracts";
+import { createD1 } from "./ocr-test-harness";
+import { createPlatformServices } from "./index";
+
+const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+
+const fixture = () => {
+  const harness = createD1();
+  harness.sqlite.exec(`
+    CREATE TABLE player_accounts (id TEXT PRIMARY KEY, player_id TEXT NOT NULL, player_name TEXT NOT NULL, normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, public_profile INTEGER NOT NULL DEFAULT 1, banned_at INTEGER, banned_by TEXT, ban_reason TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE portal_sessions (id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, token_hash TEXT NOT NULL, expires_at INTEGER NOT NULL);
+    CREATE TABLE maps (id TEXT PRIMARY KEY, name TEXT NOT NULL, game_version TEXT NOT NULL, status TEXT NOT NULL, introduced_version TEXT NOT NULL, retired_version TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE gameplay_revisions (id TEXT PRIMARY KEY, map_id TEXT NOT NULL REFERENCES maps(id), lifecycle TEXT NOT NULL, legacy_map_variant TEXT, mode TEXT, copied_from_revision_id TEXT, reset_reason TEXT, game_version TEXT NOT NULL, spatial_config_json TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE submissions (id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, status TEXT NOT NULL);
+    CREATE TABLE mastery_runs (id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, source_submission_id TEXT NOT NULL, map_id TEXT NOT NULL, gameplay_revision_id TEXT NOT NULL, map_variant TEXT, difficulty TEXT, game_version TEXT, run_code TEXT, completion_duration_seconds INTEGER, deaths INTEGER, skips INTEGER, event_counters_json TEXT, acceptance_source TEXT, accepted_at INTEGER NOT NULL, status TEXT NOT NULL, invalidated_at INTEGER, invalidated_by TEXT, invalidation_reason TEXT, xp_rule_version TEXT, xp_input_snapshot_json TEXT, awarded_xp INTEGER NOT NULL, created_at INTEGER);
+    CREATE TABLE title_catalog (key TEXT PRIMARY KEY, label TEXT NOT NULL, icon TEXT NOT NULL, icon_url TEXT, icon_object_key TEXT, category TEXT NOT NULL, condition TEXT NOT NULL, lifecycle TEXT NOT NULL DEFAULT 'active', public_visibility INTEGER NOT NULL DEFAULT 1, scope TEXT NOT NULL, display_kind TEXT NOT NULL, color_json TEXT, game_version TEXT NOT NULL);
+    CREATE TABLE player_title_grants (id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, title_key TEXT NOT NULL, map_id TEXT, gameplay_revision_id TEXT, slot TEXT, status TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT NOT NULL, granted_by TEXT NOT NULL, granted_at INTEGER NOT NULL, revoked_by TEXT, revoked_at INTEGER, revoke_reason TEXT, completion_id TEXT, revocation_type TEXT);
+    CREATE TABLE player_equipped_titles (grant_id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, equipped_at INTEGER NOT NULL);
+  `);
+  const { sqlite } = harness;
+  const now = Date.now();
+  const addPlayer = (id: string, name: string, publicProfile = 1) => {
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, public_profile, created_at, updated_at) VALUES (?, ?, ?, ?, 0, 'active', ?, ?, ?)").run(id, id, name, name.toLowerCase(), publicProfile, now, now);
+    sqlite.prepare("INSERT INTO portal_sessions VALUES (?, ?, ?, ?)").run(`session.${id}`, id, hash(`token.${id}`), now + 60_000);
+  };
+  const addMap = (id: string, name: string) => sqlite.prepare("INSERT INTO maps VALUES (?, ?, 'v1', 'active', 'v1', NULL, ?, ?)").run(id, name, now, now);
+  const addRevision = (id: string, mapId: string, lifecycle: string) => sqlite.prepare("INSERT INTO gameplay_revisions VALUES (?, ?, ?, NULL, NULL, NULL, NULL, 'v1', NULL, ?, ?)").run(id, mapId, lifecycle, now, now);
+  const addRun = (id: string, playerAccountId: string, mapId: string, revisionId: string, awardedXp: number, acceptedAt: number, status = "active") =>
+    sqlite.prepare("INSERT INTO mastery_runs (id, player_account_id, source_submission_id, map_id, gameplay_revision_id, accepted_at, status, awarded_xp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(id, playerAccountId, `sub.${id}`, mapId, revisionId, acceptedAt, status, awardedXp);
+  const addTitle = (key: string, scope = "global", category = "成就", publicVisibility = 1) =>
+    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, scope, display_kind, game_version, public_visibility) VALUES (?, ?, 'award', ?, '条件', ?, 'fixed', 'v1', ?)").run(key, key, category, scope, publicVisibility);
+  const addGrant = (id: string, playerAccountId: string, titleKey: string, grantedAt: number, status = "active", mapId: string | null = null) =>
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, status, source_type, source_id, granted_by, granted_at) VALUES (?, ?, ?, ?, ?, 'manual', ?, 'admin', ?)").run(id, playerAccountId, titleKey, mapId, status, `src.${id}`, grantedAt);
+  return { ...harness, services: createPlatformServices(harness.database), now, addPlayer, addMap, addRevision, addRun, addTitle, addGrant };
+};
+
+describe("public leaderboard projections", () => {
+  it("sums Mastery XP across maps and revisions with deterministic tie-breaks", async () => {
+    const { services, addPlayer, addMap, addRevision, addRun } = fixture();
+    addPlayer("p1", "Alpha"); addPlayer("p2", "Beta"); addPlayer("p3", "Gamma");
+    addMap("map.a", "Map A"); addMap("map.b", "Map B");
+    addRevision("rev.a1", "map.a", "default"); addRevision("rev.a0", "map.a", "archived"); addRevision("rev.b1", "map.b", "default");
+    addRun("r1", "p1", "map.a", "rev.a1", 300, 100);
+    addRun("r2", "p1", "map.a", "rev.a0", 200, 50);
+    addRun("r3", "p1", "map.b", "rev.b1", 100, 150);
+    addRun("r4", "p2", "map.a", "rev.a1", 600, 90);
+    addRun("r5", "p3", "map.b", "rev.b1", 600, 80);
+    const board = leaderboardResponseSchema.parse(await services.getPublicLeaderboard({ board: "mastery", page: 1, pageSize: 20 }));
+    expect(board.ruleVersion).toBe("leaderboard.v1");
+    expect(board.total).toBe(3);
+    expect(board.items.map((item) => [item.player?.displayName, item.rank, item.score, item.reachedAt])).toEqual([
+      ["Gamma", 1, 600, 80],
+      ["Beta", 2, 600, 90],
+      ["Alpha", 3, 600, 150],
+    ]);
+    for (const item of board.items) {
+      expect(item.player?.playerKey).toMatch(/^[0-9a-f]{24}$/);
+      expect(item.player?.boards).toBeUndefined();
+    }
+  });
+
+  it("scopes per-map boards to the map's current default revision only", async () => {
+    const { services, addPlayer, addMap, addRevision, addRun } = fixture();
+    addPlayer("p1", "Alpha"); addPlayer("p2", "Beta");
+    addMap("map.a", "Map A"); addMap("map.b", "Map B");
+    addRevision("rev.a1", "map.a", "default"); addRevision("rev.a0", "map.a", "archived"); addRevision("rev.b1", "map.b", "default");
+    addRun("r1", "p1", "map.a", "rev.a1", 300, 100);
+    addRun("r2", "p1", "map.a", "rev.a0", 900, 90);
+    addRun("r3", "p2", "map.b", "rev.b1", 500, 80);
+    const board = await services.getPublicLeaderboard({ board: "mastery", mapId: "map.a", page: 1, pageSize: 20 });
+    expect(board).toMatchObject({ mapId: "map.a", total: 1 });
+    expect(board?.items[0]).toMatchObject({ rank: 1, score: 300, player: { displayName: "Alpha" } });
+    expect(await services.getPublicLeaderboard({ board: "mastery", mapId: "map.missing", page: 1, pageSize: 20 })).toBeNull();
+    expect(await services.getPublicLeaderboard({ board: "achievement", mapId: "map.a", page: 1, pageSize: 20 })).toBeNull();
+  });
+
+  it("counts owned global Titles while excluding map, developer, hidden, and revoked Titles", async () => {
+    const { services, addPlayer, addTitle, addGrant, now } = fixture();
+    addPlayer("p1", "Alpha"); addPlayer("p2", "Beta");
+    addTitle("T1"); addTitle("T2"); addTitle("T3");
+    addTitle("MAP_T", "map");
+    addTitle("DEV_T", "global", "开发保留");
+    addTitle("HIDDEN_T", "global", "成就", 0);
+    addGrant("g1", "p1", "T1", now - 30);
+    addGrant("g2", "p1", "T2", now - 20);
+    addGrant("g3", "p1", "T3", now - 10, "revoked");
+    addGrant("g4", "p1", "MAP_T", now, "active", "map.a");
+    addGrant("g5", "p1", "DEV_T", now);
+    addGrant("g6", "p1", "HIDDEN_T", now);
+    addGrant("g7", "p2", "T1", now - 5);
+    const board = await services.getPublicLeaderboard({ board: "achievement", page: 1, pageSize: 20 });
+    expect(board?.items.map((item) => [item.player?.displayName, item.rank, item.score])).toEqual([
+      ["Alpha", 1, 2],
+      ["Beta", 2, 1],
+    ]);
+    expect(board?.items[0]?.reachedAt).toBe(now - 20);
+  });
+
+  it("withholds the identity block and inlines headline standings for non-public Players", async () => {
+    const { services, addPlayer, addMap, addRevision, addRun, addTitle, addGrant, now } = fixture();
+    addPlayer("p1", "Alpha", 0); addPlayer("p2", "Beta");
+    addMap("map.a", "Map A"); addRevision("rev.a1", "map.a", "default");
+    addRun("r1", "p1", "map.a", "rev.a1", 500, 100);
+    addRun("r2", "p2", "map.a", "rev.a1", 300, 90);
+    addTitle("T1"); addGrant("g1", "p1", "T1", now);
+    const board = await services.getPublicLeaderboard({ board: "mastery", page: 1, pageSize: 20 });
+    const anonymous = board?.items.find((item) => item.player === null);
+    expect(anonymous).toMatchObject({ rank: 1, score: 500, boards: { mastery: { rank: 1, score: 500 }, achievement: { rank: 1, score: 1 } } });
+    expect(board?.items.find((item) => item.player !== null)?.boards).toBeUndefined();
+  });
+
+  it("drops invalidated Runs and revoked Grants from every board and restores them", async () => {
+    const { services, sqlite, addPlayer, addMap, addRevision, addRun, addTitle, addGrant, now } = fixture();
+    addPlayer("p1", "Alpha"); addPlayer("p2", "Beta");
+    addMap("map.a", "Map A"); addRevision("rev.a1", "map.a", "default");
+    addRun("r1", "p1", "map.a", "rev.a1", 500, 100);
+    addRun("r2", "p2", "map.a", "rev.a1", 300, 90);
+    addTitle("T1"); addGrant("g1", "p1", "T1", now);
+    expect((await services.getPublicLeaderboard({ board: "mastery", page: 1, pageSize: 20 }))?.total).toBe(2);
+    sqlite.prepare("UPDATE mastery_runs SET status = 'invalidated' WHERE id = 'r1'").run();
+    const afterInvalidate = await services.getPublicLeaderboard({ board: "mastery", page: 1, pageSize: 20 });
+    expect(afterInvalidate?.items.map((item) => item.player?.displayName)).toEqual(["Beta"]);
+    sqlite.prepare("UPDATE mastery_runs SET status = 'active' WHERE id = 'r1'").run();
+    expect((await services.getPublicLeaderboard({ board: "mastery", page: 1, pageSize: 20 }))?.total).toBe(2);
+    sqlite.prepare("UPDATE player_title_grants SET status = 'revoked' WHERE id = 'g1'").run();
+    expect((await services.getPublicLeaderboard({ board: "achievement", page: 1, pageSize: 20 }))?.total).toBe(0);
+  });
+
+  it("resolves the public summary for a public Player and redacts a non-public one", async () => {
+    const { services, addPlayer, addMap, addRevision, addRun, addTitle, addGrant, addRun: run, sqlite, now } = fixture();
+    addPlayer("p1", "Alpha"); addPlayer("hidden", "Hidden", 0);
+    addMap("map.a", "Map A"); addMap("map.b", "Map B");
+    addRevision("rev.a1", "map.a", "default"); addRevision("rev.a0", "map.a", "archived"); addRevision("rev.b1", "map.b", "default");
+    run("r1", "p1", "map.a", "rev.a1", 300, 100);
+    run("r2", "p1", "map.a", "rev.a0", 900, 90);
+    run("r3", "p1", "map.b", "rev.b1", 200, 80);
+    addTitle("T1"); addTitle("MAP_T", "map");
+    addGrant("g1", "p1", "T1", now);
+    addGrant("g2", "p1", "MAP_T", now, "active", "map.a");
+    sqlite.prepare("INSERT INTO player_equipped_titles VALUES ('g1', 'p1', ?)").run(now);
+    const summary = leaderboardPlayerSummarySchema.parse(await services.getPublicLeaderboardPlayer({ playerKey: await leaderboardPlayerKey("p1") }));
+    expect(summary.publicProfile).toBe(true);
+    expect(summary.player).toMatchObject({ displayName: "Alpha", equippedTitle: { titleKey: "T1" } });
+    expect(summary.boards).toEqual({ mastery: { rank: 1, score: 1400 }, achievement: { rank: 1, score: 1 } });
+    expect(summary.perMapXp).toEqual([
+      { mapId: "map.a", mapName: "Map A", xp: 300, runCount: 1 },
+      { mapId: "map.b", mapName: "Map B", xp: 200, runCount: 1 },
+    ]);
+    expect(summary.titles).toEqual({
+      map: [{ titleKey: "MAP_T", label: "MAP_T", icon: "award", mapId: "map.a", mapName: "Map A" }],
+      general: [{ titleKey: "T1", label: "T1", icon: "award" }],
+    });
+    const redacted = await services.getPublicLeaderboardPlayer({ playerKey: await leaderboardPlayerKey("hidden") });
+    expect(redacted).toEqual({ contractVersion: "1", publicProfile: false, player: null, boards: null, perMapXp: null, titles: null });
+    expect(await services.getPublicLeaderboardPlayer({ playerKey: "0".repeat(24) })).toBeNull();
+  });
+
+  it("reports the current Player's rank, score, and gap to the rank above", async () => {
+    const { services, addPlayer, addMap, addRevision, addRun } = fixture();
+    addPlayer("p1", "Alpha"); addPlayer("p2", "Beta"); addPlayer("p3", "Gamma");
+    addMap("map.a", "Map A"); addRevision("rev.a1", "map.a", "default");
+    addRun("r1", "p1", "map.a", "rev.a1", 500, 100);
+    addRun("r2", "p2", "map.a", "rev.a1", 300, 90);
+    addRun("r3", "p3", "map.a", "rev.a1", 100, 80);
+    const rank = currentPlayerLeaderboardRankSchema.parse(await services.getCurrentPlayerLeaderboardRank({ sessionToken: "token.p2", board: "mastery" }));
+    expect(rank).toMatchObject({ board: "mastery", ruleVersion: "leaderboard.v1", rank: 2, score: 300, reachedAt: 90, gapToNextRank: 200 });
+    expect(await services.getCurrentPlayerLeaderboardRank({ sessionToken: "token.p1", board: "mastery" })).toMatchObject({ rank: 1, gapToNextRank: null });
+    expect(await services.getCurrentPlayerLeaderboardRank({ sessionToken: "token.p1", board: "achievement" })).toMatchObject({ rank: null, score: 0, reachedAt: null, gapToNextRank: null });
+    expect(await services.getCurrentPlayerLeaderboardRank({ sessionToken: "token.p2", board: "mastery", mapId: "map.a" })).toMatchObject({ rank: 2, mapId: "map.a" });
+    await expect(services.getCurrentPlayerLeaderboardRank({ sessionToken: "token.p2", board: "mastery", mapId: "map.missing" })).rejects.toThrow("MAP_NOT_FOUND");
+    expect(await services.getCurrentPlayerLeaderboardRank({ sessionToken: "token.unknown", board: "mastery" })).toBeNull();
+  });
+
+  it("paginates board pages", async () => {
+    const { services, addPlayer, addMap, addRevision, addRun } = fixture();
+    addMap("map.a", "Map A"); addRevision("rev.a1", "map.a", "default");
+    for (let index = 0; index < 5; index += 1) {
+      addPlayer(`p${index}`, `P${index}`);
+      addRun(`r${index}`, `p${index}`, "map.a", "rev.a1", (5 - index) * 100, 100 - index);
+    }
+    const page2 = await services.getPublicLeaderboard({ board: "mastery", page: 2, pageSize: 2 });
+    expect(page2).toMatchObject({ page: 2, pageSize: 2, total: 5, hasMore: true });
+    expect(page2?.items.map((item) => item.rank)).toEqual([3, 4]);
+    expect(await services.getPublicLeaderboard({ board: "mastery", page: 3, pageSize: 2 })).toMatchObject({ hasMore: false });
+  });
+});
+
+describe("leaderboard query budget", () => {
+  it("keeps board page and own-rank statement counts constant as rows grow", async () => {
+    const { services, sqlite, preparedStatementCount, resetPreparedStatementCount, addPlayer, addMap, addRevision, addRun } = fixture();
+    addMap("map.a", "Map A"); addRevision("rev.a1", "map.a", "default");
+    for (let index = 0; index < 4; index += 1) {
+      addPlayer(`p${index}`, `P${index}`);
+      addRun(`r${index}`, `p${index}`, "map.a", "rev.a1", 100 + index, 100 + index);
+    }
+    resetPreparedStatementCount();
+    await services.getPublicLeaderboard({ board: "mastery", page: 1, pageSize: 20 });
+    const smallBoard = preparedStatementCount();
+    resetPreparedStatementCount();
+    await services.getCurrentPlayerLeaderboardRank({ sessionToken: "token.p1", board: "mastery" });
+    const smallRank = preparedStatementCount();
+    for (let index = 4; index < 44; index += 1) {
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, public_profile, created_at, updated_at) VALUES (?, ?, ?, ?, 0, 'active', 1, 1, 1)").run(`x${index}`, `x${index}`, `X${index}`, `x${index}`);
+      sqlite.prepare("INSERT INTO mastery_runs (id, player_account_id, source_submission_id, map_id, gameplay_revision_id, accepted_at, status, awarded_xp) VALUES (?, ?, ?, 'map.a', 'rev.a1', 100, 'active', 50)").run(`xr${index}`, `x${index}`, `xsub.${index}`);
+    }
+    resetPreparedStatementCount();
+    await services.getPublicLeaderboard({ board: "mastery", page: 1, pageSize: 20 });
+    expect(preparedStatementCount()).toBe(smallBoard);
+    resetPreparedStatementCount();
+    await services.getCurrentPlayerLeaderboardRank({ sessionToken: "token.p1", board: "mastery" });
+    expect(preparedStatementCount()).toBe(smallRank);
+  });
+});

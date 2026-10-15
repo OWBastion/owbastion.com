@@ -1556,11 +1556,89 @@ export const leaderboardEntryPlayerSchema = z.object({
   displayName: z.string().trim().min(1).max(64),
   equippedTitle: leaderboardEntryTitleSchema.nullable(),
 }).strict();
+export const leaderboardBoardSchema = z.enum(["mastery", "achievement"]);
+
+// One Player's standing on one headline board. The Mastery board's headline
+// scope is all maps; per-map boards are scopes of the same board.
+export const leaderboardBoardStandingSchema = z.object({
+  rank: z.number().int().positive(),
+  score: z.number().int().nonnegative(),
+}).strict();
+
 export const leaderboardEntrySchema = z.object({
   rank: z.number().int().positive(),
   score: z.number().int().nonnegative(),
   reachedAt: z.number().int().positive(),
   player: leaderboardEntryPlayerSchema.nullable(),
+  // Anonymous rows carry the Player's standing on each headline board inline
+  // because no public key exists to resolve it later; present iff `player` is
+  // null.
+  boards: z.object({
+    mastery: leaderboardBoardStandingSchema.nullable(),
+    achievement: leaderboardBoardStandingSchema.nullable(),
+  }).strict().optional(),
+}).strict();
+
+// Paginated board page (#399). `mapId` scopes the Mastery board to one map's
+// current Gameplay Revision; it is absent on the all-maps and Achievement
+// boards.
+export const leaderboardResponseSchema = z.object({
+  contractVersion,
+  board: leaderboardBoardSchema,
+  mapId: externalId.optional(),
+  ruleVersion: z.string().trim().min(1).max(64),
+  items: z.array(leaderboardEntrySchema).max(50),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive().max(50),
+  total: z.number().int().nonnegative(),
+  hasMore: z.boolean(),
+}).strict();
+
+export const leaderboardPlayerMapXpSchema = z.object({
+  mapId: externalId,
+  mapName: z.string().trim().min(1).max(256),
+  xp: z.number().int().nonnegative(),
+  runCount: z.number().int().nonnegative(),
+}).strict();
+
+export const leaderboardPlayerMapTitleSchema = leaderboardEntryTitleSchema.extend({
+  mapId: externalId,
+  mapName: z.string().trim().min(1).max(256),
+});
+
+// Public per-Player drawer summary (#399). A Player whose public-profile
+// visibility is off yields `publicProfile: false` with every detail field
+// null; an unknown key 404s at the route layer.
+export const leaderboardPlayerSummarySchema = z.object({
+  contractVersion,
+  publicProfile: z.boolean(),
+  player: z.object({
+    displayName: z.string().trim().min(1).max(64),
+    equippedTitle: leaderboardEntryTitleSchema.nullable(),
+  }).strict().nullable(),
+  boards: z.object({
+    mastery: leaderboardBoardStandingSchema.nullable(),
+    achievement: leaderboardBoardStandingSchema.nullable(),
+  }).strict().nullable(),
+  perMapXp: z.array(leaderboardPlayerMapXpSchema).max(200).nullable(),
+  titles: z.object({
+    map: z.array(leaderboardPlayerMapTitleSchema).max(200),
+    general: z.array(leaderboardEntryTitleSchema).max(200),
+  }).strict().nullable(),
+}).strict();
+
+// Authenticated own-rank read (#399). `rank`, `reachedAt`, and `gapToNextRank`
+// are null when the Player has no standing; the gap is the score distance to
+// the entry one rank above and is null at rank 1.
+export const currentPlayerLeaderboardRankSchema = z.object({
+  contractVersion,
+  board: leaderboardBoardSchema,
+  mapId: externalId.optional(),
+  ruleVersion: z.string().trim().min(1).max(64),
+  rank: z.number().int().positive().nullable(),
+  score: z.number().int().nonnegative(),
+  reachedAt: z.number().int().positive().nullable(),
+  gapToNextRank: z.number().int().nonnegative().nullable(),
 }).strict();
 
 export const playerVerifiedRunSchema = z.object({
@@ -1694,7 +1772,14 @@ export type PlayerProfileVisibilityRequest = z.infer<typeof playerProfileVisibil
 export type PlayerProfileVisibilityResponse = z.infer<typeof playerProfileVisibilityResponseSchema>;
 export type LeaderboardEntryTitle = z.infer<typeof leaderboardEntryTitleSchema>;
 export type LeaderboardEntryPlayer = z.infer<typeof leaderboardEntryPlayerSchema>;
+export type LeaderboardBoard = z.infer<typeof leaderboardBoardSchema>;
+export type LeaderboardBoardStanding = z.infer<typeof leaderboardBoardStandingSchema>;
 export type LeaderboardEntry = z.infer<typeof leaderboardEntrySchema>;
+export type LeaderboardResponse = z.infer<typeof leaderboardResponseSchema>;
+export type LeaderboardPlayerMapXp = z.infer<typeof leaderboardPlayerMapXpSchema>;
+export type LeaderboardPlayerMapTitle = z.infer<typeof leaderboardPlayerMapTitleSchema>;
+export type LeaderboardPlayerSummary = z.infer<typeof leaderboardPlayerSummarySchema>;
+export type CurrentPlayerLeaderboardRank = z.infer<typeof currentPlayerLeaderboardRankSchema>;
 export type AchievementProgressRule = z.infer<typeof achievementProgressRuleSchema>;
 export type PlayerChallengeProgress = z.infer<typeof playerChallengeProgressSchema>;
 export type PlayerChallengeProgressListResponse = z.infer<typeof playerChallengeProgressListResponseSchema>;

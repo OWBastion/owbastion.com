@@ -170,6 +170,34 @@
     }
    }
   },
+  "/v1/me/leaderboard": {
+   "get": {
+    "operationId": "getCurrentPlayerLeaderboardRank",
+    "description": "The authenticated Player's own standing on a leaderboard board under rule leaderboard.v1: rank, score, reached time, and the score gap to the entry one rank above (null at rank 1 or when unranked). mapId scopes the mastery board to one map's current Gameplay Revision.",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/leaderboardBoard"
+     },
+     {
+      "$ref": "#/components/parameters/leaderboardMapId"
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     },
+     "404": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
   "/v1/me/mastery": {
    "get": {
     "operationId": "getCurrentPlayerMastery",
@@ -433,6 +461,56 @@
     "responses": {
      "204": {
       "description": "Logged out"
+     }
+    }
+   }
+  },
+  "/v1/public/leaderboard": {
+   "get": {
+    "operationId": "getPublicLeaderboard",
+    "description": "Paginated public leaderboard page derived at read time from authoritative Verified Runs and active Grants; no copied ranking rows are stored. The mastery board sums awarded Mastery XP (all maps and revisions without mapId; the map's current Gameplay Revision only when mapId is given); the achievement board counts owned Titles excluding developer and map Titles. Ranking rule leaderboard.v1: score descending, then earlier reached time, then Player Account id. Every entry keeps rank, score, and reached time; the whole identity block (playerKey, display name, equipped Title) is null when the owning Player's public-profile visibility is off, and anonymous entries carry headline board standings inline instead.",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/leaderboardBoard"
+     },
+     {
+      "$ref": "#/components/parameters/leaderboardMapId"
+     },
+     {
+      "$ref": "#/components/parameters/leaderboardPage"
+     },
+     {
+      "$ref": "#/components/parameters/leaderboardPageSize"
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "404": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/public/leaderboard/players/{playerKey}": {
+   "get": {
+    "operationId": "getPublicLeaderboardPlayer",
+    "description": "Public per-Player summary for the leaderboard drawer, resolved by the opaque playerKey carried on leaderboard entries: rank on each board, per-map current-revision XP, and owned public Titles. A Player whose public-profile visibility is off returns publicProfile=false with every detail field null; an unknown key returns 404.",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/leaderboardPlayerKey"
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "404": {
+      "$ref": "#/components/responses/Json"
      }
     }
    }
@@ -3491,6 +3569,62 @@
      "minimum": 1,
      "maximum": 100,
      "default": 20
+    }
+   },
+   "leaderboardBoard": {
+    "name": "board",
+    "in": "query",
+    "required": true,
+    "description": "Leaderboard board: mastery (Verified Run XP) or achievement (owned public global Titles).",
+    "schema": {
+     "type": "string",
+     "enum": [
+      "mastery",
+      "achievement"
+     ]
+    }
+   },
+   "leaderboardMapId": {
+    "name": "mapId",
+    "in": "query",
+    "required": false,
+    "description": "Scopes the mastery board to one map's current Gameplay Revision; rejected on the achievement board.",
+    "schema": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 256
+    }
+   },
+   "leaderboardPage": {
+    "name": "page",
+    "in": "query",
+    "required": false,
+    "schema": {
+     "type": "integer",
+     "minimum": 1,
+     "default": 1
+    }
+   },
+   "leaderboardPageSize": {
+    "name": "pageSize",
+    "in": "query",
+    "required": false,
+    "schema": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 50,
+     "default": 20
+    }
+   },
+   "leaderboardPlayerKey": {
+    "name": "playerKey",
+    "in": "path",
+    "required": true,
+    "description": "Opaque per-Player key carried by public leaderboard entries.",
+    "schema": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 64
     }
    }
   },
