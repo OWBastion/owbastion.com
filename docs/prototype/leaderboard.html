@@ -214,6 +214,25 @@ tr.me td{background:var(--accent-surface)!important}
 .drawer h4{margin:var(--space-6) 0 var(--space-2);color:var(--muted);font-size:var(--type-label-sm-size);font-weight:500}
 .mrow{display:flex;justify-content:space-between;gap:var(--space-3);padding:var(--space-2) 0;border-bottom:1px solid var(--line);font-size:var(--type-body-sm-size)}
 .tlist{display:flex;flex-wrap:wrap;gap:var(--space-2)}
+/* drawer maps: one row per map, XP and that map's titles together */
+.mlist .mrow{display:grid;grid-template-columns:minmax(0,1fr) auto 5.5rem;align-items:center;gap:var(--space-3);padding:var(--space-2) 0}
+.tsum{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-2);margin-bottom:var(--space-2)}
+.tsum div{display:flex;align-items:baseline;justify-content:center;gap:var(--space-1);padding:var(--space-2);border:1px solid var(--line);border-radius:var(--radius-control)}
+.tsum b{font-size:var(--type-card-title-size);font-weight:700}
+.tsum span{color:var(--muted);font-size:var(--type-caption-size)}
+.tsum .t3{border-color:var(--accent);background:color-mix(in oklch,var(--accent) 24%,var(--surface))}
+.tsum .t2{border-color:color-mix(in oklch,var(--accent) 58%,var(--line-strong));background:color-mix(in oklch,var(--accent) 14%,var(--surface))}
+.tsum .t1{border-color:color-mix(in oklch,var(--accent) 32%,var(--line-strong));background:color-mix(in oklch,var(--accent) 7%,var(--surface))}
+.mlist .mn{min-width:0;overflow:hidden;font-weight:600;white-space:nowrap;text-overflow:ellipsis}
+.mlist .mx{text-align:right;color:var(--muted)}
+.mlist .mx b{color:var(--text);font-weight:600}
+.mlist .mt{display:flex;gap:var(--space-1)}
+.tier{padding:0 var(--space-2);border:1px solid var(--line-strong);border-radius:var(--radius-pill);font-size:var(--type-caption-size);font-weight:600;line-height:1.6}
+.tier.t1{border-color:color-mix(in oklch,var(--accent) 32%,var(--line-strong));background:color-mix(in oklch,var(--accent) 7%,var(--surface))}
+.tier.t2{border-color:color-mix(in oklch,var(--accent) 58%,var(--line-strong));background:color-mix(in oklch,var(--accent) 14%,var(--surface))}
+.tier.t3{border-color:var(--accent);background:color-mix(in oklch,var(--accent) 24%,var(--surface));color:var(--text)}
+.more{margin-top:var(--space-2);padding:0;border:0;background:none;color:var(--accent);font:inherit;font-size:var(--type-label-sm-size);font-weight:600;cursor:pointer}
+.more:hover{text-decoration:underline}
 .notice{padding:var(--space-3) var(--space-4);border-radius:var(--radius-control);background:var(--surface-raised);color:var(--muted);font-size:var(--type-body-sm-size)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -291,15 +310,18 @@ const MAPS = [
   {id:"grimvolcano",name:"监测站：格里姆火山",rev:"R2",since:"2026-09-12"},
   {id:"junkertown",name:"渣客镇",rev:"R1",since:"2026-03-15"},
   {id:"kingsrow",name:"国王大道",rev:"R1",since:"2026-07-01"},
+  // The rest of the 40-map catalog, all still on their first revision.
+  ...["66号公路","艾兴瓦尔德","好莱坞","漓江塔","伊利奥斯","绿洲城","釜山","尼泊尔","南极半岛","努巴尼","多拉多","哈瓦那",
+     "里阿尔托","巡航站","沃斯卡娅工业区","花村","阿努比斯神殿","直布罗陀","中城","新王后街","帕拉伊苏","埃斯佩兰萨","新渣客城","萨摩亚",
+     "苏拉瓦萨","鲁纳塞匹","黑森林","城堡","佩特拉","铁炉","马莱温多","沙漠之城","圣诞好莱坞","雪国花村"]
+    .map((name,i)=>({id:"m"+i,name,rev:"R1",since:"2026-01-01"})),
 ];
 // Admin-run seasons: only public ones (active / archived) appear here; drafts stay hidden.
 const SEASONS = [
   {id:"s2",name:"第二赛季",start:Date.parse("2026-09-01T00:00:00+08:00"),end:Date.parse("2026-11-30T23:59:59+08:00"),status:"active"},
   {id:"s1",name:"第一赛季",start:Date.parse("2026-06-01T00:00:00+08:00"),end:Date.parse("2026-08-31T23:59:59+08:00"),status:"archived"},
 ];
-const TITLES = ["开拓者 · 暴雪世界","征服者 · 暴雪世界","主宰 · 暴雪世界","开拓者 · 斗兽场","征服者 · 斗兽场","主宰 · 斗兽场",
-  "开拓者 · 阿育陀耶","征服者 · 阿育陀耶","开拓者 · 格里姆火山","征服者 · 格里姆火山","主宰 · 格里姆火山","开拓者 · 渣客镇",
-  "征服者 · 渣客镇","开拓者 · 国王大道","征服者 · 国王大道","赌徒：梭哈","赌徒：心之钢","作弊：先知","任务：有福同享","任务：同行链","地狱行者","熔火之心",
+const TITLES = ["赌徒：梭哈","赌徒：心之钢","作弊：先知","任务：有福同享","任务：同行链","地狱行者","熔火之心",
   "赌徒：全押","作弊：透视眼","任务：零失误","任务：守望之誓","速通者","无伤大雅"];
 // Achievement board counts only general titles: map titles belong to map mastery, developer titles never rank.
 const DEV_TITLES = ["开发者"];
@@ -334,10 +356,17 @@ for(const p of players){
     p.clears.push({map:m.id,current:at>=Date.parse(m.since),diff:d,at,xp:xpOf(d,deaths,skips)});
   }
   p.clears.sort((a,b)=>a.at-b.at);
-  // Map achievements only for maps the player has actually cleared.
-  const pool = TITLES.filter(t=>!t.includes(" · ")||p.clears.some(c=>mapName(c.map).includes(t.split(" · ")[1]))).sort(()=>rnd()-.5);
+  // Map titles follow the clears on each map: any clear, expert+ clear, hell clear, 15+ clears.
+  p.titles = [];
+  for(const m of MAPS){
+    const cs = p.clears.filter(c=>c.map===m.id); if(!cs.length) continue;
+    const first = f => cs.find(f)?.at;
+    [["开拓者",first(()=>true)],["征服者",first(c=>c.diff>=3)],["主宰",first(c=>c.diff>=5)],["老兵",cs[14]?.at]]
+      .forEach(([t,at])=>{ if(at) p.titles.push({name:`${t} · ${m.name}`,at}); });
+  }
+  const pool = [...TITLES].sort(()=>rnd()-.5);
   const nt = Math.min(pool.length, Math.round(p.skill*p.activity*7 + rnd()*3));
-  p.titles = pool.slice(0,nt).map(t=>({name:t,at:p.joined+rnd()*(NOW-p.joined)}));
+  p.titles.push(...pool.slice(0,nt).map(t=>({name:t,at:p.joined+rnd()*(NOW-p.joined)})));
   if(p.id==="p1003") p.titles.push({name:"开发者",at:p.joined});
   p.titles.sort((a,b)=>b.at-a.at);
   p.equipped = p.titles[0]?.name || "";
@@ -508,16 +537,32 @@ function openPlayer(pid){
   const xi = xr.findIndex(r=>r.pid===pid), ti = tr.findIndex(r=>r.pid===pid);
   let html = `<button class="icon-btn x pressable" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     <div class="ph ${p.pub?"":"anon"}"><span class="av">${initial(p)}</span><div><h2>${name(p)}</h2>${p.pub&&p.equipped?`<span class="tbadge">${p.equipped}</span>`:""}</div></div>
-    <div class="stats num"><div><b>${xi<0?"—":"#"+(xi+1)}</b><span>地图精通排名 · ${xi<0?0:xr[xi].v.toLocaleString()} XP</span></div>
+    <div class="stats num"><div><b>${xi<0?"—":"#"+(xi+1)}</b><span>精通排名 · ${xi<0?0:xr[xi].v.toLocaleString()} XP</span></div>
     <div><b>${ti<0?"—":"#"+(ti+1)}</b><span>成就排名 · ${p.titles.filter(counts).length} 个</span></div></div>`;
   if(!p.pub){
     html += `<h4>公开主页</h4><div class="notice">这位玩家关闭了公开主页。名次照常保留，但不显示昵称、成就和地图明细。</div>`;
   } else {
-    const mapTs = p.titles.filter(t=>isMapTitle(t.name)), gen = p.titles.filter(t=>!isMapTitle(t.name));
-    const per = MAPS.map(m=>{ const cs=p.clears.filter(c=>c.map===m.id&&c.current); return cs.length?`<div class="mrow"><span>${m.name} <span class="sec">${m.rev}</span></span><span class="num">${cs.reduce((s,c)=>s+c.xp,0).toLocaleString()} XP · ${cs.length} 次</span></div>`:""; }).join("");
-    html += `<h4>各地图精通 XP（当前版本）</h4>${per||'<div class="notice">还没有通关记录</div>'}
-      <h4>地图称号</h4>${mapTs.length?`<div class="tlist">${mapTs.map(t=>`<span class="tbadge">${t.name}</span>`).join("")}</div>`:'<div class="notice">还没有地图称号</div>'}
-      <h4>成就 · ${gen.filter(counts).length}</h4>${gen.length?`<div class="tlist">${gen.map(t=>`<span class="tbadge">${t.name}</span>`).join("")}</div>`:'<div class="notice">还没有解锁成就</div>'}`;
+    // Maps: a tier summary across every played map, then the top maps by current-revision XP.
+    // With a 40-map catalog the full list stays behind "展开".
+    const TIERS = ["开拓者","征服者","主宰"];
+    const maps = MAPS.map(m=>{
+      const cs = p.clears.filter(c=>c.map===m.id&&c.current);
+      const ts = p.titles.filter(t=>isMapTitle(t.name)&&t.name.endsWith(" · "+m.name)).map(t=>t.name.split(" · ")[0]);
+      return {m,xp:cs.reduce((s,c)=>s+c.xp,0),n:cs.length,top:TIERS.filter(t=>ts.includes(t)).pop(),vet:ts.includes("老兵")};
+    }).filter(r=>r.n||r.top).sort((a,b)=>b.xp-a.xp);
+    const tierCount = t => maps.filter(r=>r.top===t).length;
+    const mapRow = r=>`<div class="mrow"><span class="mn">${r.m.name} <span class="sec">${r.m.rev}</span></span>
+      <span class="mt">${r.top?`<span class="tier t${TIERS.indexOf(r.top)+1}">${r.top}</span>`:""}${r.vet?'<span class="tier">老兵</span>':""}</span>
+      <span class="mx num">${r.n?`<b>${r.xp.toLocaleString()}</b> XP`:"—"}</span></div>`;
+    const gen = p.titles.filter(t=>!isMapTitle(t.name));
+    const MAP_SHOW = 5, GEN_SHOW = 10;
+    html += `<h4>地图 · 玩过 ${maps.length} / ${MAPS.length} 张</h4>${maps.length?`<div class="tsum num">${[...TIERS].reverse().map((t,i)=>`<div class="t${3-i}"><b>${tierCount(t)}</b><span>${t}</span></div>`).join("")}</div><div class="mlist" id="dMaps">${maps.slice(0,MAP_SHOW).map(mapRow).join("")}</div>${maps.length>MAP_SHOW?`<button class="more" id="dMapsMore">展开其余 ${maps.length-MAP_SHOW} 张地图</button>`:""}`:'<div class="notice">还没有通关记录</div>'}
+      <h4>成就 · ${gen.filter(counts).length}</h4>${gen.length?`<div class="tlist" id="dGen">${gen.slice(0,GEN_SHOW).map(t=>`<span class="tbadge">${t.name}</span>`).join("")}</div>${gen.length>GEN_SHOW?`<button class="more" id="dGenMore">展开其余 ${gen.length-GEN_SHOW} 个</button>`:""}`:'<div class="notice">还没有解锁成就</div>'}`;
+    queueMicrotask(()=>{
+      const mm=$("dMapsMore"), gm=$("dGenMore");
+      if(mm) mm.onclick=()=>{ $("dMaps").innerHTML=maps.map(mapRow).join(""); mm.remove(); };
+      if(gm) gm.onclick=()=>{ $("dGen").innerHTML=gen.map(t=>`<span class="tbadge">${t.name}</span>`).join(""); gm.remove(); };
+    });
   }
   const d = $("drawer");
   d.innerHTML = html;
