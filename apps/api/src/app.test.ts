@@ -112,9 +112,10 @@ const defaultServices: Partial<PlatformServices> = {
   verifyQqLogin: async () => ({ contractVersion: "1", status: "verified", environment: "test" }),
   getCurrentPlayer: async ({ sessionToken }) => sessionToken === "session-token" ? {
     contractVersion: "1",
-    player: { playerId: "1234", playerName: "Player", isAdmin: false },
+    player: { playerId: "1234", playerName: "Player", isAdmin: false, publicProfile: true },
     recentSubmissions: [{ submissionId: "00000000-0000-0000-0000-000000000003", status: "processing", mapName: "Test Map", createdAt: 2, updatedAt: 3 }],
   } : null,
+  updateCurrentPlayerProfileVisibility: async (input) => input.sessionToken === "session-token" ? { contractVersion: "1" as const, publicProfile: input.publicProfile } : (() => { throw new Error("UNAUTHENTICATED"); })(),
   createPasskeyLoginOptions: async () => ({ contractVersion: "1", challengeId: "00000000-0000-4000-8000-000000000011", options: { challenge: "challenge" } }),
   exchangeBindingClaimSession: async () => ({ contractVersion: "1" as const, status: "authenticated" as const, sessionToken: "claim-session-token" }),
 };
@@ -382,7 +383,7 @@ describe("API", () => {
     const cacheApp = createTestApp({
       getCurrentPlayer: async ({ sessionToken }) => sessionToken === "player-session" ? {
         contractVersion: "1" as const,
-        player: { playerId: "p1", playerName: "Player", isAdmin: false },
+        player: { playerId: "p1", playerName: "Player", isAdmin: false, publicProfile: true },
         recentSubmissions: [],
       } : null,
       listChallenges: async () => [],
@@ -882,9 +883,20 @@ describe("API", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       contractVersion: "1",
-      player: { playerId: "1234", playerName: "Player", isAdmin: false },
+      player: { playerId: "1234", playerName: "Player", isAdmin: false, publicProfile: true },
       recentSubmissions: [{ submissionId: "00000000-0000-0000-0000-000000000003", status: "processing", mapName: "Test Map", createdAt: 2, updatedAt: 3 }],
     });
+  });
+
+  it("lets only the signed-in player update their public-profile visibility", async () => {
+    expect((await app.request("http://localhost/v1/me/profile/visibility", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "vis-unauth" }, body: JSON.stringify({ contractVersion: "1", publicProfile: false }) }, env)).status).toBe(401);
+    expect((await app.request("http://localhost/v1/me/profile/visibility", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=session-token" }, body: JSON.stringify({ contractVersion: "1", publicProfile: false }) }, env)).status).toBe(422);
+    expect((await app.request("http://localhost/v1/me/profile/visibility", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "vis-bad" }, body: JSON.stringify({ contractVersion: "1", publicProfile: "no" }) }, env)).status).toBe(422);
+    const response = await app.request("http://localhost/v1/me/profile/visibility", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "vis-off" }, body: JSON.stringify({ contractVersion: "1", publicProfile: false }) }, env);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(await response.json()).toEqual({ contractVersion: "1", publicProfile: false });
+    expect((await app.request("http://localhost/v1/me/profile/visibility", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=other-token", "idempotency-key": "vis-other" }, body: JSON.stringify({ contractVersion: "1", publicProfile: false }) }, env)).status).toBe(401);
   });
 
   it("returns only the signed-in player's active mastery projections", async () => {
@@ -2000,7 +2012,7 @@ describe("API", () => {
       listLocalDevAccounts: async () => [{ accountId: "local-player-account", playerId: "local-player", playerName: "Local Player", isAdmin: false }],
       createLocalDevSession: async () => ({ sessionToken: "local-session" }),
       getPortalSessionIdentity: async ({ sessionToken }) => sessionToken === "local-session" ? { player: { playerId: "local-player", isAdmin: false } } : null,
-      getCurrentPlayer: async ({ sessionToken }) => sessionToken === "local-session" ? { contractVersion: "1", player: { playerId: "local-player", playerName: "Local Player", isAdmin: false }, recentSubmissions: [] } : null,
+      getCurrentPlayer: async ({ sessionToken }) => sessionToken === "local-session" ? { contractVersion: "1", player: { playerId: "local-player", playerName: "Local Player", isAdmin: false, publicProfile: true }, recentSubmissions: [] } : null,
     });
     const localApp = createApp({ authenticate: anonymousAuth, services: () => localServices });
     expect((await localApp.request("http://localhost/v1/__local/accounts", {}, env)).status).toBe(404);

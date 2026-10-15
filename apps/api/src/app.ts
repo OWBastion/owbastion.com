@@ -22,6 +22,7 @@ import {
   playerUploadSessionRequestSchema,
   ocrAccuracyFeedbackRequestSchema,
   playerEquippedTitlesRequestSchema, adminPlayerEquippedTitlesRequestSchema,
+  playerProfileVisibilityRequestSchema,
 } from "@owbastion/contracts";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
 import { withPublicCache } from "./public-cache";
@@ -529,6 +530,21 @@ export const createApp = (dependencies: AppDependencies) => {
     try { return c.json(await servicesFor(c).replaceCurrentPlayerEquippedTitles({ ...parsed.data, sessionToken }, idempotencyKey)); }
     catch (error) {
       return respondToMappedError(c, error, { ...unauthenticatedErrors, ...equippedTitleErrors });
+    }
+  });
+
+  app.put("/v1/me/profile/visibility", async (c) => {
+    allowPortal(c);
+    c.header("Cache-Control", "private, no-store");
+    const sessionToken = portalSessionToken(c.req.raw);
+    if (!sessionToken) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = playerProfileVisibilityRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await servicesFor(c).updateCurrentPlayerProfileVisibility({ ...parsed.data, sessionToken }, idempotencyKey)); }
+    catch (error) {
+      return respondToMappedError(c, error, { ...unauthenticatedErrors, ...idempotencyErrors });
     }
   });
 

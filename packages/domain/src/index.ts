@@ -23,6 +23,7 @@ import type {
   AdminPlayerListResponse,
   AdminPlayerIdentityRequest,
   CurrentPlayerResponse,
+  PlayerProfileVisibilityResponse,
   CurrentPlayerTitlesResponse,
   CurrentPlayerMasteryResponse,
   PlayerActivityResponse,
@@ -77,6 +78,7 @@ export * from "./mastery";
 export * from "./gameplay-revision";
 export * from "./challenge-conditions";
 export * from "./random-event";
+export * from "./leaderboard";
 
 export type LocalDevAccount = {
   accountId: string;
@@ -311,6 +313,7 @@ export type PlatformServices = {
   listCurrentPlayerChallengeProgress(input: { sessionToken: string }): Promise<PlayerChallengeProgressListResponse | null>;
   getPortalSessionIdentity(input: { sessionToken: string }): Promise<{ player: { playerId: string; isAdmin: boolean } } | null>;
   getCurrentPlayer(input: { sessionToken: string }): Promise<CurrentPlayerResponse | null>;
+  updateCurrentPlayerProfileVisibility(input: { sessionToken: string; publicProfile: boolean }, idempotencyKey: string): Promise<PlayerProfileVisibilityResponse>;
   createQqLoginAttempt(input: QqLoginAttemptRequest): Promise<QqLoginAttemptResponse>;
   getQqLoginStatus(input: { attemptId: string; attemptToken: string }): Promise<QqLoginStatusResponse>;
   verifyQqLogin(input: QqLoginVerifyRequest, auth: AuthContext, idempotencyKey: string): Promise<QqBindingClaimVerifyResponse>;

@@ -1532,9 +1532,36 @@ export const currentPlayerResponseSchema = z.object({
     playerId,
     playerName: z.string().trim().min(1).max(64),
     isAdmin: z.boolean().default(false),
+    publicProfile: z.boolean().default(true),
   }),
   recentSubmissions: z.array(submissionStatusResponseSchema.omit({ contractVersion: true })).max(5),
 });
+export const playerProfileVisibilityRequestSchema = z.object({ contractVersion, publicProfile: z.boolean() }).strict();
+export const playerProfileVisibilityResponseSchema = z.object({ contractVersion, publicProfile: z.boolean() }).strict();
+
+// Public leaderboard field contract (#398): every row keeps rank and score.
+// `player` carries the public display identity and is null when the owning
+// Player's public-profile visibility is off; the equipped Title rides inside
+// the same block so non-public rows never leak it or any per-player key.
+export const leaderboardEntryTitleSchema = z.object({
+  titleKey: externalId,
+  label: z.string().trim().min(1).max(256),
+  icon: achievementIcon,
+  iconUrl: z.string().url().max(2048).nullable().optional(),
+}).strict();
+export const leaderboardEntryPlayerSchema = z.object({
+  // Opaque per-Player key: resolves the public leaderboard summary without
+  // exposing the BattleTag id pair or the internal account id.
+  playerKey: z.string().trim().min(1).max(64),
+  displayName: z.string().trim().min(1).max(64),
+  equippedTitle: leaderboardEntryTitleSchema.nullable(),
+}).strict();
+export const leaderboardEntrySchema = z.object({
+  rank: z.number().int().positive(),
+  score: z.number().int().nonnegative(),
+  reachedAt: z.number().int().positive(),
+  player: leaderboardEntryPlayerSchema.nullable(),
+}).strict();
 
 export const playerVerifiedRunSchema = z.object({
   runId: z.string().uuid(),
@@ -1663,6 +1690,11 @@ export type AdminScreenshotSetExclusion = z.infer<typeof adminScreenshotSetExclu
 export type AdminScreenshotSetDetailResponse = z.infer<typeof adminScreenshotSetDetailResponseSchema>;
 export type OcrkitScreenshotSetResponse = z.infer<typeof ocrkitScreenshotSetResponseSchema>;
 export type CurrentPlayerResponse = z.infer<typeof currentPlayerResponseSchema>;
+export type PlayerProfileVisibilityRequest = z.infer<typeof playerProfileVisibilityRequestSchema>;
+export type PlayerProfileVisibilityResponse = z.infer<typeof playerProfileVisibilityResponseSchema>;
+export type LeaderboardEntryTitle = z.infer<typeof leaderboardEntryTitleSchema>;
+export type LeaderboardEntryPlayer = z.infer<typeof leaderboardEntryPlayerSchema>;
+export type LeaderboardEntry = z.infer<typeof leaderboardEntrySchema>;
 export type AchievementProgressRule = z.infer<typeof achievementProgressRuleSchema>;
 export type PlayerChallengeProgress = z.infer<typeof playerChallengeProgressSchema>;
 export type PlayerChallengeProgressListResponse = z.infer<typeof playerChallengeProgressListResponseSchema>;

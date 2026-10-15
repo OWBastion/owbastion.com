@@ -43,6 +43,7 @@ export const playerAccounts = sqliteTable("player_accounts", {
   normalizedPlayerName: text("normalized_player_name").notNull(),
   isAdmin: integer("is_admin").notNull().default(0),
   status: text("status").notNull().default("active"),
+  publicProfile: integer("public_profile").notNull().default(1),
   bannedAt: integer("banned_at"),
   bannedBy: text("banned_by"),
   banReason: text("ban_reason"),
