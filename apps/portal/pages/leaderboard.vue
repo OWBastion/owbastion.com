@@ -166,7 +166,7 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
 </script>
 
 <template>
-  <main class="leaderboard-page page-shell">
+  <main class="leaderboard-page directory-page page-shell">
     <header class="page-intro" aria-labelledby="leaderboard-title">
       <h1 id="leaderboard-title" class="page-title">排行榜</h1>
       <p class="body-copy">上传通关截图、审核通过后获得精通 XP，满足条件还会解锁成就。精通 XP 和成就会一直保留，不会清零。</p>
@@ -346,7 +346,6 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
 </template>
 
 <style scoped>
-.leaderboard-page { padding-bottom: var(--space-12); }
 .page-intro { margin-bottom: var(--space-8); }
 .page-intro .body-copy { margin: var(--space-2) 0 0; max-width: 40rem; }
 .num { font-variant-numeric: tabular-nums; }
@@ -411,7 +410,7 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
   -webkit-mask: radial-gradient(48% 58% at var(--mx) var(--my), #000, transparent 100%); mask: radial-gradient(48% 58% at var(--mx) var(--my), #000, transparent 100%);
   opacity: .7; }
 .pod.p1::after { background: radial-gradient(38% 46% at var(--mx) var(--my), color-mix(in oklch, white 38%, transparent), transparent 70%); mix-blend-mode: soft-light; opacity: 1; }
-:global(html.dark) .pod.p1::after { mix-blend-mode: screen; opacity: .5; }
+:global(html.dark .pod.p1::after) { mix-blend-mode: screen; opacity: .5; }
 .pod.p1 .big { position: absolute; z-index: 0; left: -0.08em; top: -0.12em; font-size: 13rem; font-weight: 700; line-height: 1; letter-spacing: -0.06em; color: transparent;
   -webkit-text-stroke: 2px color-mix(in oklch, var(--accent) 30%, transparent);
   background: radial-gradient(60% 50% at var(--mx) var(--my), color-mix(in oklch, var(--accent) 40%, transparent), transparent 75%); background-size: 100% 100%;
