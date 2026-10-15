@@ -35,6 +35,7 @@ const summaryPayload = {
   player: { displayName: "霜狐", equippedTitle: { titleKey: "t1", label: "地狱行者", icon: "award" } },
   boards: { mastery: { rank: 1, score: 1200 }, achievement: { rank: 1, score: 8 } },
   perMapXp: [{ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0713.1", xp: 1200, runCount: 5 }],
+  mapCount: 2,
   titles: { map: [], general: [{ titleKey: "t1", label: "地狱行者", icon: "award" }] },
 };
 
@@ -148,6 +149,55 @@ describe("leaderboard page", () => {
     expect(portalApi).toHaveBeenCalledWith("/v1/public/leaderboard/players/key-alpha");
     expect(sheet.text()).toContain("萨摩亚");
     expect(sheet.text()).toContain("地狱行者");
+  });
+
+  it("groups map titles by map with a tier summary and collapses long lists", async () => {
+    const mapIds = Array.from({ length: 7 }, (_, index) => `map.${index}`);
+    const mapTitle = (mapId: string, slot: string | null, label: string) => ({ titleKey: `${mapId}.${label}`, label, icon: "award", mapId, mapName: `地图${mapId.slice(4)}`, slot });
+    portalApi.mockImplementation(async (path) => {
+      if (!path.startsWith("/v1/public/leaderboard/players/")) return defaultPortalApi(path);
+      return {
+        ...summaryPayload,
+        mapCount: 40,
+        perMapXp: mapIds.map((mapId, index) => ({ mapId, mapName: `地图${index}`, gameVersion: "26.0713.1", xp: 7000 - index * 1000, runCount: 1 })),
+        titles: {
+          map: [
+            mapTitle("map.0", "pioneer", "开拓者 · 地图0"), mapTitle("map.0", "dominator", "主宰 · 地图0"), mapTitle("map.0", "conqueror", "征服者 · 地图0"),
+            mapTitle("map.1", "conqueror", "征服者 · 地图1"), mapTitle("map.1", null, "老兵"),
+            mapTitle("map.2", "pioneer", "开拓者 · 地图2"),
+            mapTitle("map.classic", null, "老兵"),
+          ],
+          general: Array.from({ length: 12 }, (_, index) => ({ titleKey: `g${index}`, label: `成就${index}`, icon: "award" })),
+        },
+      };
+    });
+    const wrapper = await mountPage();
+    await flushPromises();
+    await wrapper.findAll("tr.board-row")[0]!.trigger("click");
+    await flushPromises();
+    const sheet = wrapper.get('[role="dialog"]');
+    expect(sheet.text()).toContain("地图 · 玩过 8 / 40 张");
+    const summaryCells = sheet.findAll(".player-sheet-tiers > div").map((cell) => [cell.classes()[0], cell.text()]);
+    expect(summaryCells).toEqual([["t3", "1主宰"], ["t2", "1征服者"], ["t1", "1开拓者"]]);
+    const rows = sheet.findAll(".player-sheet-map-row");
+    expect(rows).toHaveLength(5);
+    expect(rows[0]!.text()).toContain("地图0");
+    expect(rows[0]!.findAll(".tier").map((badge) => badge.text())).toEqual(["主宰"]);
+    expect(rows[1]!.findAll(".tier").map((badge) => badge.text())).toEqual(["征服者", "老兵"]);
+    expect(rows[0]!.text()).toContain("7,000 XP");
+    expect(sheet.text()).not.toContain("开拓者 · 地图0");
+    await sheet.get(".more").trigger("click");
+    const allRows = sheet.findAll(".player-sheet-map-row");
+    expect(allRows).toHaveLength(8);
+    // A map known only through a classic title shows the title and no XP.
+    expect(allRows[7]!.text()).toContain("老兵");
+    expect(allRows[7]!.text()).toContain("—");
+    expect(sheet.text()).toContain("成就 · 12");
+    expect(sheet.findAll(".player-sheet-titles .title-pill")).toHaveLength(10);
+    const more = sheet.findAll(".more");
+    expect(more.map((button) => button.text())).toEqual(["展开其余 2 个"]);
+    await more[0]!.trigger("click");
+    expect(sheet.findAll(".player-sheet-titles .title-pill")).toHaveLength(12);
   });
 
   it("paginates the table and only shows the podium on page 1", async () => {

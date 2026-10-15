@@ -17,6 +17,7 @@ const fixture = () => {
     CREATE TABLE submissions (id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, status TEXT NOT NULL);
     CREATE TABLE mastery_runs (id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, source_submission_id TEXT NOT NULL, map_id TEXT NOT NULL, gameplay_revision_id TEXT NOT NULL, map_variant TEXT, difficulty TEXT, game_version TEXT, run_code TEXT, completion_duration_seconds INTEGER, deaths INTEGER, skips INTEGER, event_counters_json TEXT, acceptance_source TEXT, accepted_at INTEGER NOT NULL, status TEXT NOT NULL, invalidated_at INTEGER, invalidated_by TEXT, invalidation_reason TEXT, xp_rule_version TEXT, xp_input_snapshot_json TEXT, awarded_xp INTEGER NOT NULL, created_at INTEGER);
     CREATE TABLE title_catalog (key TEXT PRIMARY KEY, label TEXT NOT NULL, icon TEXT NOT NULL, icon_url TEXT, icon_object_key TEXT, category TEXT NOT NULL, condition TEXT NOT NULL, lifecycle TEXT NOT NULL DEFAULT 'active', public_visibility INTEGER NOT NULL DEFAULT 1, scope TEXT NOT NULL, display_kind TEXT NOT NULL, color_json TEXT, game_version TEXT NOT NULL);
+    CREATE TABLE map_title_rewards (map_id TEXT NOT NULL REFERENCES maps(id), slot TEXT NOT NULL, title_key TEXT NOT NULL, pioneer_prefixes_json TEXT NOT NULL DEFAULT '[]', PRIMARY KEY (map_id, slot));
     CREATE TABLE player_title_grants (id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, title_key TEXT NOT NULL, map_id TEXT, gameplay_revision_id TEXT, slot TEXT, status TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT NOT NULL, granted_by TEXT NOT NULL, granted_at INTEGER NOT NULL, revoked_by TEXT, revoked_at INTEGER, revoke_reason TEXT, completion_id TEXT, revocation_type TEXT);
     CREATE TABLE player_equipped_titles (grant_id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, equipped_at INTEGER NOT NULL);
   `);
@@ -144,9 +145,20 @@ describe("public leaderboard projections", () => {
     run("r1", "p1", "map.a", "rev.a1", 300, 100);
     run("r2", "p1", "map.a", "rev.a0", 900, 90);
     run("r3", "p1", "map.b", "rev.b1", 200, 80);
-    addTitle("T1"); addTitle("MAP_T", "map");
+    addMap("map.retired", "Map Retired"); addRevision("rev.r1", "map.retired", "default");
+    sqlite.prepare("UPDATE maps SET status = 'retired' WHERE id = 'map.retired'").run();
+    addMap("map.nodefault", "Map No Default"); addRevision("rev.n0", "map.nodefault", "archived");
+    addTitle("T1"); addTitle("MAP_T", "map"); addTitle("CONQ_A", "map"); addTitle("DOM_A", "map");
     addGrant("g1", "p1", "T1", now);
     addGrant("g2", "p1", "MAP_T", now, "active", "map.a");
+    addGrant("g3", "p1", "CONQ_A", now, "active", "map.a");
+    addGrant("g4", "p1", "DOM_A", now, "active", "map.a");
+    // A classic-version title is granted on a historical revision; it still
+    // groups under its map with no slot and adds no current-revision XP.
+    addTitle("CLASSIC_B", "map"); addRevision("rev.b0", "map.b", "archived");
+    addGrant("g5", "p1", "CLASSIC_B", now, "active", "map.b");
+    sqlite.prepare("UPDATE player_title_grants SET gameplay_revision_id = 'rev.b0' WHERE id = 'g5'").run();
+    sqlite.prepare("INSERT INTO map_title_rewards (map_id, slot, title_key) VALUES ('map.a', 'conqueror', 'CONQ_A'), ('map.a', 'dominator', 'DOM_A')").run();
     sqlite.prepare("INSERT INTO player_equipped_titles VALUES ('g1', 'p1', ?)").run(now);
     const summary = leaderboardPlayerSummarySchema.parse(await services.getPublicLeaderboardPlayer({ playerKey: await leaderboardPlayerKey("p1") }));
     expect(summary.publicProfile).toBe(true);
@@ -156,12 +168,19 @@ describe("public leaderboard projections", () => {
       { mapId: "map.a", mapName: "Map A", gameVersion: "v1", xp: 300, runCount: 1 },
       { mapId: "map.b", mapName: "Map B", gameVersion: "v1", xp: 200, runCount: 1 },
     ]);
+    // Only open maps with a current default revision count toward the total.
+    expect(summary.mapCount).toBe(2);
     expect(summary.titles).toEqual({
-      map: [{ titleKey: "MAP_T", label: "MAP_T", icon: "award", mapId: "map.a", mapName: "Map A" }],
+      map: [
+        { titleKey: "CONQ_A", label: "CONQ_A", icon: "award", mapId: "map.a", mapName: "Map A", slot: "conqueror" },
+        { titleKey: "DOM_A", label: "DOM_A", icon: "award", mapId: "map.a", mapName: "Map A", slot: "dominator" },
+        { titleKey: "MAP_T", label: "MAP_T", icon: "award", mapId: "map.a", mapName: "Map A", slot: null },
+        { titleKey: "CLASSIC_B", label: "CLASSIC_B", icon: "award", mapId: "map.b", mapName: "Map B", slot: null },
+      ],
       general: [{ titleKey: "T1", label: "T1", icon: "award" }],
     });
     const redacted = await services.getPublicLeaderboardPlayer({ playerKey: await leaderboardPlayerKey("hidden") });
-    expect(redacted).toEqual({ contractVersion: "1", publicProfile: false, player: null, boards: null, perMapXp: null, titles: null });
+    expect(redacted).toEqual({ contractVersion: "1", publicProfile: false, player: null, boards: null, perMapXp: null, mapCount: null, titles: null });
     expect(await services.getPublicLeaderboardPlayer({ playerKey: "0".repeat(24) })).toBeNull();
   });
 

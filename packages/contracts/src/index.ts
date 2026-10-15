@@ -1619,6 +1619,9 @@ export const leaderboardPlayerMapXpSchema = z.object({
 export const leaderboardPlayerMapTitleSchema = leaderboardEntryTitleSchema.extend({
   mapId: externalId,
   mapName: z.string().trim().min(1).max(256),
+  // The map-title reward slot (tier ladder pioneer < conqueror < dominator);
+  // null for titles without a named slot, such as the classic-version title.
+  slot: z.enum(["pioneer", "conqueror", "dominator"]).nullable(),
 });
 
 // Public per-Player drawer summary (#399). A Player whose public-profile
@@ -1636,6 +1639,9 @@ export const leaderboardPlayerSummarySchema = z.object({
     achievement: leaderboardBoardStandingSchema.nullable(),
   }).strict().nullable(),
   perMapXp: z.array(leaderboardPlayerMapXpSchema).max(200).nullable(),
+  // Maps that are open with a current default Gameplay Revision: the
+  // denominator of the drawer's "played N / total" map heading.
+  mapCount: z.number().int().nonnegative().nullable(),
   titles: z.object({
     map: z.array(leaderboardPlayerMapTitleSchema).max(200),
     general: z.array(leaderboardEntryTitleSchema).max(200),
