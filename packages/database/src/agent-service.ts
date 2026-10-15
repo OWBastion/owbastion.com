@@ -143,7 +143,7 @@ export const createAgentServices = (db: ReturnType<typeof drizzle>, dependencies
         .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
         .where(and(
           eq(titleChallenges.id, input.challengeId),
-          inArray(titleChallenges.status, ["scheduled", "active", "sunsetting"]),
+          eq(titleChallenges.status, "active"),
           eq(titleCatalog.scope, "global"),
           eq(titleCatalog.lifecycle, "active"),
           eq(titleCatalog.publicVisibility, 1),

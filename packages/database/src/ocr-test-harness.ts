@@ -412,7 +412,7 @@ export const seedRevisionAssignment = (sqlite: DatabaseSync, input: {
 
 export const seedTitle = (sqlite: DatabaseSync, key: string) => {
   sqlite.prepare(
-    "INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES (?, ?, 'trophy', '地图系列', '条件', 'active', 'map', 'map_name_suffix', 'null', '2026.07.15')",
+    "INSERT INTO title_catalog (key, label, icon, category, condition, scope, display_kind, color_json, game_version) VALUES (?, ?, 'trophy', '地图系列', '条件', 'map', 'map_name_suffix', 'null', '2026.07.15')",
   ).run(key, `称号 ${key}`);
 };
 

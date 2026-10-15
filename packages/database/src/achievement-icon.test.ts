@@ -15,7 +15,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
 `);
 
 const insertTitle = (sqlite: DatabaseSync, key: string) => sqlite.prepare(
-  "INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES (?, '标题', 'award', '测试', '条件', 'active', 'global', 'fixed', 'null', '2026.07.15')",
+  "INSERT INTO title_catalog (key, label, icon, category, condition, scope, display_kind, color_json, game_version) VALUES (?, '标题', 'award', '测试', '条件', 'global', 'fixed', 'null', '2026.07.15')",
 ).run(key);
 
 const createFakeEvidenceBucket = () => {

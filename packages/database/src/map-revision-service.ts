@@ -202,7 +202,7 @@ export const createMapRevisionServices = (
     const [mapChallengeRows, ruleRows, titleChallengeRows, exceptionRows] = await Promise.all([
       db.select().from(achievementChallenges).where(eq(achievementChallenges.mapId, mapId)),
       db.select({ rule: mapTitleRules, title: titleCatalog }).from(mapTitleRules).innerJoin(titleCatalog, eq(mapTitleRules.titleKey, titleCatalog.key))
-        .where(and(inArray(mapTitleRules.status, ["active", "sunsetting"]), eq(titleCatalog.lifecycle, "active"))),
+        .where(and(eq(mapTitleRules.status, "active"), eq(titleCatalog.lifecycle, "active"))),
       db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges)
         .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
         .innerJoin(achievementChallengeMaps, eq(achievementChallengeMaps.challengeId, titleChallenges.id))
@@ -285,11 +285,11 @@ export const createMapRevisionServices = (
       if (assignment.challengeFamily === "map_challenge") {
         const challenge = await db.select({ id: achievementChallenges.id, status: achievementChallenges.status }).from(achievementChallenges).where(and(eq(achievementChallenges.id, assignment.challengeId), eq(achievementChallenges.mapId, mapId))).get();
         if (!challenge) throw new Error("REVISION_CHALLENGE_NOT_FOUND");
-        if (assignment.enabled && !["active", "sunsetting"].includes(challenge.status)) throw new Error("REVISION_CHALLENGE_NOT_ACTIVE");
+        if (assignment.enabled && challenge.status !== "active") throw new Error("REVISION_CHALLENGE_NOT_ACTIVE");
       } else if (assignment.challengeFamily === "map_title_rule") {
         const rule = await db.select({ id: mapTitleRules.id, kind: mapTitleRules.kind, defaultScope: mapTitleRules.defaultScope, status: mapTitleRules.status }).from(mapTitleRules).where(eq(mapTitleRules.id, assignment.challengeId)).get();
         if (!rule) throw new Error("REVISION_CHALLENGE_NOT_FOUND");
-        if (assignment.enabled && !["active", "sunsetting"].includes(rule.status)) throw new Error("REVISION_CHALLENGE_NOT_ACTIVE");
+        if (assignment.enabled && rule.status !== "active") throw new Error("REVISION_CHALLENGE_NOT_ACTIVE");
         if (assignment.enabled && rule.kind.trim().toLocaleLowerCase() === "pioneer") {
           const exception = await db.select({ enabled: mapTitleRuleExceptions.enabled, startsAt: mapTitleRuleExceptions.startsAt, endsAt: mapTitleRuleExceptions.endsAt }).from(mapTitleRuleExceptions).where(and(eq(mapTitleRuleExceptions.ruleId, rule.id), eq(mapTitleRuleExceptions.mapId, mapId))).get();
           if (rule.defaultScope !== "explicit" || exception?.enabled !== 1 || !pioneerExceptionHasValidWindow(exception.startsAt, exception.endsAt) || exception.endsAt! <= now()) throw new Error("REVISION_CHALLENGE_NOT_ASSIGNABLE");
@@ -300,7 +300,7 @@ export const createMapRevisionServices = (
           .innerJoin(achievementChallengeMaps, eq(achievementChallengeMaps.challengeId, titleChallenges.id))
           .where(and(eq(titleChallenges.id, assignment.challengeId), eq(achievementChallengeMaps.mapId, mapId), eq(titleChallenges.scope, "map"))).get();
         if (!challenge) throw new Error("REVISION_CHALLENGE_NOT_FOUND");
-        if (assignment.enabled && !["scheduled", "active", "sunsetting"].includes(challenge.status)) throw new Error("REVISION_CHALLENGE_NOT_ACTIVE");
+        if (assignment.enabled && challenge.status !== "active") throw new Error("REVISION_CHALLENGE_NOT_ACTIVE");
       }
     }
   };
@@ -475,7 +475,7 @@ export const createMapRevisionServices = (
       const defaultMapTitleRules = activeMap
         ? await db.select().from(mapTitleRules).where(and(
           eq(mapTitleRules.defaultScope, "all_active"),
-          inArray(mapTitleRules.status, ["active", "sunsetting"]),
+          eq(mapTitleRules.status, "active"),
           input.mapVariant === "classic" ? eq(mapTitleRules.mapVariant, "classic") : isNull(mapTitleRules.mapVariant),
         ))
         : [];
@@ -551,7 +551,7 @@ export const createMapRevisionServices = (
       const timestamp = now();
       const defaultMapTitleRules = current.lifecycle === "default" ? [] : await db.select().from(mapTitleRules).where(and(
         eq(mapTitleRules.defaultScope, "all_active"),
-        inArray(mapTitleRules.status, ["active", "sunsetting"]),
+        eq(mapTitleRules.status, "active"),
         isNull(mapTitleRules.mapVariant),
       ));
       const projectedRuleAssignments = defaultMapTitleRules

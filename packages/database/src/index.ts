@@ -66,12 +66,16 @@ export const titleIconVersionOf = (objectKey: string): string => {
   const dotIndex = fileName.lastIndexOf(".");
   return dotIndex === -1 ? fileName : fileName.slice(0, dotIndex);
 };
-export const publicTitleChallengeStatus = (status: string, startsAt: number | null, endsAt: number | null, timestamp: number, gameVersion: string | null | undefined = "known") => {
+// Public availability is derived from the stored lifecycle plus the open
+// window: a draft or archived challenge never projects, an active challenge
+// before its start shows as "scheduled", and an announced retiredVersion shows
+// as "sunsetting".
+export const publicTitleChallengeStatus = (status: string, startsAt: number | null, endsAt: number | null, timestamp: number, gameVersion: string | null | undefined = "known", retiredVersion?: string | null) => {
   if (!gameVersion?.trim()) return null;
-  if (status !== "scheduled" && status !== "active" && status !== "sunsetting") return null;
+  if (status !== "active") return null;
   if (endsAt !== null && timestamp >= endsAt) return null;
-  if (status === "scheduled") return startsAt === null || timestamp < startsAt ? "scheduled" : "active";
-  return startsAt !== null && timestamp < startsAt ? "scheduled" : status;
+  if (startsAt !== null && timestamp < startsAt) return "scheduled";
+  return retiredVersion ? "sunsetting" : "active";
 };
 export const titleChallengeIsSubmittable = (status: string, startsAt: number | null, endsAt: number | null, timestamp: number, gameVersion: string | null | undefined = "known") => {
   const publicStatus = publicTitleChallengeStatus(status, startsAt, endsAt, timestamp, gameVersion);
@@ -320,7 +324,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     if (!revision) throw new Error(input.gameplayRevisionId ? "GAMEPLAY_REVISION_INVALID" : "GAMEPLAY_REVISION_NOT_FOUND");
 
     const rule = await db.select({ ruleId: mapTitleRules.id }).from(mapTitleRules)
-      .where(and(eq(mapTitleRules.titleKey, title.key), ne(mapTitleRules.status, "inactive"))).get();
+      .where(and(eq(mapTitleRules.titleKey, title.key), ne(mapTitleRules.status, "archived"))).get();
     const projection = rule ? await resolveMapTitleProjection(rule.ruleId, input.mapId, revision.id) : null;
     if (projection) return { title, mapId: input.mapId, gameplayRevisionId: revision.id, slot: projection.slot, manualChallengeId };
 
@@ -1208,7 +1212,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
     .where(and(
       isNotNull(titleChallenges.progressRule),
-      inArray(titleChallenges.status, ["scheduled", "active", "sunsetting"]),
+      eq(titleChallenges.status, "active"),
       eq(titleCatalog.lifecycle, "active"),
       challengeId ? eq(titleChallenges.id, challengeId) : undefined,
     )))
@@ -1951,7 +1955,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const timestamp = now();
       const revisionId = `revision:${mapId}:initial`;
       // The default revision starts without spatial configuration and with every active all-map title rule, as the original maps did.
-      const rules = await db.select().from(mapTitleRules).where(and(eq(mapTitleRules.defaultScope, "all_active"), ne(mapTitleRules.status, "inactive"), isNull(mapTitleRules.mapVariant)));
+      const rules = await db.select().from(mapTitleRules).where(and(eq(mapTitleRules.defaultScope, "all_active"), eq(mapTitleRules.status, "active"), isNull(mapTitleRules.mapVariant)));
       await database.batch([
         database.prepare("INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?, ?)").bind(mapId, mapName, gameVersion, gameVersion, timestamp, timestamp),
         database.prepare("INSERT INTO map_metadata (map_id, difficulty_rating, mechanics_json, cover_url, background_url, updated_at, updated_by) VALUES (?, NULL, '[]', NULL, NULL, ?, ?)").bind(mapId, timestamp, auth.subject),
@@ -1989,14 +1993,16 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         const rows = [...await platformCache.cached("catalog", "pub-challenge-map-rows", () => mapChallengeQuery())]
           .sort((left, right) => compareText(left.map.name, right.map.name) || compareText(left.challenge.name, right.challenge.name));
         items.push(...rows.map(({ challenge, map, assignment, revision }) => toPublicMapChallenge(challenge, map, assignment, revision)));
-        items.push(...await loadMapTitleRuleChallenges());
-        items.push(...await loadMapScopedTitleChallenges());
+        const isPublicMapRow = (row: { status: string; gameVersion: string | null }): row is Extract<Challenge, { family: "map" }> =>
+          (row.status === "active" || row.status === "sunsetting") && row.gameVersion !== null;
+        items.push(...(await loadMapTitleRuleChallenges()).filter(isPublicMapRow));
+        items.push(...(await loadMapScopedTitleChallenges()).filter(isPublicMapRow));
       }
       if (!input?.family || input.family === "achievement") {
         const rows = [...await platformCache.cached("catalog", "pub-challenge-title-rows:all", () => db.select({ challenge: titleChallenges, title: titleCatalog })
           .from(titleChallenges)
           .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
-          .where(and(inArray(titleChallenges.status, ["scheduled", "active", "sunsetting"]), eq(titleCatalog.lifecycle, "active"))))]
+          .where(and(eq(titleChallenges.status, "active"), eq(titleCatalog.lifecycle, "active"))))]
           .sort((left, right) => compareText(left.title.category, right.title.category) || compareText(left.title.label, right.title.label));
         const timestamp = now();
         items.push(...rows.flatMap(({ challenge, title }): Challenge[] => {
@@ -2928,14 +2934,14 @@ if (verifiedRunPlan?.superseded) await reconcileVerifiedRunProgressChallenges({ 
         .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
         .where(and(
           isNotNull(titleChallenges.progressRule),
-          inArray(titleChallenges.status, ["scheduled", "active", "sunsetting"]),
+          eq(titleChallenges.status, "active"),
           eq(titleCatalog.lifecycle, "active"),
           eq(titleCatalog.publicVisibility, 1),
         ))
         .orderBy(titleCatalog.category, titleCatalog.label);
       const visibleChallenges = rows.flatMap(({ challenge, title }) => {
         const rule = parseChallengeProgressRule(challenge.progressRule);
-        const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, timestamp, challenge.gameVersion);
+        const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, timestamp, challenge.gameVersion, challenge.retiredVersion);
         return rule && status ? [{ challenge, title, rule, status }] : [];
       });
       const modeMapIds = await standaloneModeMapIds([...new Set(visibleChallenges.flatMap(({ rule }) => !rule.mapIds && rule.mode ? [rule.mode] : []))]);

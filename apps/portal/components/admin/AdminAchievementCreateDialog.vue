@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { DEFAULT_EVIDENCE_RULE, DIFFICULTY_OPTIONS } from "./admin-achievement-types";
+import { DEFAULT_EVIDENCE_RULE, DIFFICULTY_OPTIONS, type ChallengeLifecycle } from "./admin-achievement-types";
 import type { AdminAchievementCreateRequest } from "@owbastion/contracts";
 
 type TargetMap = { mapId: string; mapName: string };
@@ -27,7 +27,7 @@ const form = reactive({
   progressMapIds: [] as string[],
   progressDifficultyAtLeast: "" as string,
   progressGameMode: "" as string,
-  status: "active" as "scheduled" | "active" | "sunsetting" | "retired",
+  status: "active" as ChallengeLifecycle,
   gameVersion: "",
   categoryOverride: "",
   iconUrl: "",
@@ -56,7 +56,7 @@ watch(progressMode, (enabled) => {
   form.mapIds = [];
   form.mapVariant = undefined;
 });
-const canSubmit = computed(() => Boolean(form.titleName.trim() && form.condition.trim() && (form.status !== "sunsetting" || form.retiredVersion.trim()) && (!progressMode.value || form.progressMapIds.length || form.progressGameMode.trim())));
+const canSubmit = computed(() => Boolean(form.titleName.trim() && form.condition.trim() && (!progressMode.value || form.progressMapIds.length || form.progressGameMode.trim())));
 const setScheduleTime = (field: "startsAt" | "endsAt", value: number | null) => { form[field] = value; };
 
 // The key is internal: administrators may set a readable one, otherwise it is generated.
@@ -81,9 +81,9 @@ function submit() {
     ...(form.gameVersion.trim() ? { gameVersion: form.gameVersion.trim() } : {}),
     categoryOverride: form.categoryOverride.trim() || null,
     iconUrl: form.iconUrl.trim() || null,
-    ...(form.status !== "retired" && form.startsAt ? { startsAt: form.startsAt } : {}),
-    ...(form.status !== "retired" && form.endsAt ? { endsAt: form.endsAt } : {}),
-    ...(form.status === "sunsetting" && form.retiredVersion.trim() ? { retiredVersion: form.retiredVersion.trim() } : {}),
+    ...(form.status !== "archived" && form.startsAt ? { startsAt: form.startsAt } : {}),
+    ...(form.status !== "archived" && form.endsAt ? { endsAt: form.endsAt } : {}),
+    ...(form.status === "active" && form.retiredVersion.trim() ? { retiredVersion: form.retiredVersion.trim() } : {}),
   }, iconFile.value);
 }
 </script>
@@ -95,14 +95,14 @@ function submit() {
         <UFormField class="editor-field editor-field--wide" label="称号名称" required><UInput v-model="form.titleName" class="editor-control" :disabled="props.saving" required /></UFormField>
         <UFormField class="editor-field editor-field--wide" label="完成条件" required><UTextarea v-model="form.condition" class="editor-control" :disabled="props.saving" required maxlength="1024" /></UFormField>
         <UFormField class="editor-field" label="完成规则" hint="集齐指定地图的进度型挑战以已验证通关为准，不走截图审核。"><USelect v-model="form.progressMode" class="editor-control" :disabled="props.saving" :items="progressModeItems" /></UFormField>
-        <UFormField class="editor-field" label="状态"><USelect v-model="form.status" class="editor-control" :disabled="props.saving" :items="[{ label: '已开放', value: 'active' }, { label: '未开放', value: 'scheduled' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" /></UFormField>
+        <UFormField class="editor-field" label="状态"><USelect v-model="form.status" class="editor-control" :disabled="props.saving" :items="[{ label: '草稿', value: 'draft' }, { label: '已开放', value: 'active' }, { label: '已下线', value: 'archived' }]" /></UFormField>
         <template v-if="progressMode">
           <UFormField class="editor-field" label="统计范围" hint="选择独立模式后自动跟随该模式的全部地图。"><USelect v-model="progressScope" class="editor-control" :items="scopeItems" :disabled="props.saving" /></UFormField>
           <UFormField class="editor-field" label="最低难度"><USelect v-model="form.progressDifficultyAtLeast" class="editor-control" :items="progressDifficultyItems" :disabled="props.saving" /></UFormField>
           <UFormField v-if="!form.progressGameMode" class="editor-field editor-field--wide" label="要求地图" hint="玩家在活动时间内于每张地图各留下至少一条有效已验证通关即完成。"><USelect v-model="form.progressMapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
         </template>
-        <template v-if="form.status !== 'retired'"><UFormField class="editor-field" label="开始时间"><AdminDateTimePicker class="editor-control" :model-value="form.startsAt" :disabled="props.saving" @update:model-value="setScheduleTime('startsAt', $event)" /></UFormField><UFormField class="editor-field" label="结束时间"><AdminDateTimePicker class="editor-control" :model-value="form.endsAt" :disabled="props.saving" @update:model-value="setScheduleTime('endsAt', $event)" /></UFormField></template>
-        <UFormField v-if="form.status === 'sunsetting'" class="editor-field" label="计划下线版本" required><UInput v-model="form.retiredVersion" class="editor-control" placeholder="例如 26.0801.1" :disabled="props.saving" required /></UFormField>
+        <template v-if="form.status !== 'archived'"><UFormField class="editor-field" label="开始时间"><AdminDateTimePicker class="editor-control" :model-value="form.startsAt" :disabled="props.saving" @update:model-value="setScheduleTime('startsAt', $event)" /></UFormField><UFormField class="editor-field" label="结束时间"><AdminDateTimePicker class="editor-control" :model-value="form.endsAt" :disabled="props.saving" @update:model-value="setScheduleTime('endsAt', $event)" /></UFormField></template>
+        <UFormField v-if="form.status === 'active'" class="editor-field" label="计划下线版本" hint="已开放挑战宣布下线版本后展示为即将结束。"><UInput v-model="form.retiredVersion" class="editor-control" placeholder="例如 26.0801.1" :disabled="props.saving" /></UFormField>
         <details class="editor-field editor-field--wide more-settings">
           <summary>更多设置</summary>
           <div class="admin-achievement-editor more-settings-body">

@@ -6,7 +6,6 @@ export const titleCatalogSchema = `CREATE TABLE title_catalog (
     icon_object_key TEXT,
     category TEXT NOT NULL,
     condition TEXT NOT NULL,
-    availability TEXT NOT NULL,
     lifecycle TEXT NOT NULL DEFAULT 'active',
     public_visibility INTEGER NOT NULL DEFAULT 1,
     scope TEXT NOT NULL,
