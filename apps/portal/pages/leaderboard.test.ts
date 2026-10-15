@@ -47,6 +47,7 @@ const defaultPortalApi = async (path: string) => {
     if (board === "achievement") return boardPayload("achievement", achievementItems);
     return boardPayload("mastery", masteryItems, mapId ? { mapId, mapGameVersion: "26.0713.1" } : {});
   }
+  if (url.pathname === "/v1/public/seasons") return { contractVersion: "1" as const, items: [] };
   if (url.pathname.startsWith("/v1/public/leaderboard/players/")) return summaryPayload;
   if (url.pathname === "/v1/me/leaderboard") {
     return { contractVersion: "1" as const, board: url.searchParams.get("board") ?? "mastery", ruleVersion: "leaderboard.v1", rank: 2, score: 1000, reachedAt: 1_700_000_100_000, gapToNextRank: 200 };
@@ -84,6 +85,8 @@ describe("leaderboard page", () => {
     const segButtons = wrapper.get(".seg").findAll("button");
     expect(segButtons.map((button) => button.text())).toEqual(["地图精通", "成就"]);
     expect(segButtons[0]!.attributes("aria-pressed")).toBe("true");
+    expect(wrapper.findAll(".seg")).toHaveLength(1);
+    expect(wrapper.find(".season").exists()).toBe(false);
     expect(wrapper.get(".chips").findAll("button").map((button) => button.text())).toEqual(["全部地图", "萨摩亚", "国王大道"]);
     expect(wrapper.text()).toContain("所有地图、所有版本获得的精通 XP 总和");
 
@@ -99,6 +102,30 @@ describe("leaderboard page", () => {
     expect(rows[3]!.text()).not.toContain("key-");
     expect(wrapper.get(".side").text()).toContain("精通 XP 怎么算");
     expect(wrapper.get(".mine").text()).toContain("登录");
+  });
+
+  it("scopes the mastery board to a Season and hides the scope on the achievement board", async () => {
+    const day = 86_400_000;
+    const season = { seasonId: "11111111-1111-4111-8111-111111111111", name: "第二赛季", startsAt: Date.now() - 10 * day, endsAt: Date.now() + 20 * day, phase: "running" as const };
+    portalApi.mockImplementation(async (path: string) => new URL(`https://portal.test${path}`).pathname === "/v1/public/seasons"
+      ? { contractVersion: "1" as const, items: [season] }
+      : defaultPortalApi(path));
+    const wrapper = await mountPage();
+    expect(wrapper.find(".season").exists()).toBe(false);
+    const scope = wrapper.findAll(".seg")[1]!;
+    expect(scope.findAll("button").map((button) => button.text())).toEqual(["全部时间", "赛季"]);
+    await scope.findAll("button")[1]!.trigger("click");
+    await flushPromises();
+    expect(portalApi).toHaveBeenCalledWith(expect.stringContaining(`seasonId=${season.seasonId}`));
+    expect(wrapper.get(".season").text()).toContain("第二赛季");
+    expect(wrapper.get(".season").text()).toContain("进行中");
+    expect(wrapper.get(".section-title").text()).toBe("第二赛季 · 地图精通排行榜");
+    expect(wrapper.get(".side").text()).toContain("赛季怎么算");
+    await wrapper.get(".seg").findAll("button")[1]!.trigger("click");
+    await flushPromises();
+    expect(portalApi).toHaveBeenLastCalledWith(expect.not.stringContaining("seasonId"));
+    expect(wrapper.find(".season").exists()).toBe(false);
+    expect(wrapper.findAll(".seg")).toHaveLength(1);
   });
 
   it("switches to the achievement board with achievement columns", async () => {

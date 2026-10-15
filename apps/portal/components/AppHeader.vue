@@ -40,6 +40,7 @@ const adminNavigationItems = computed(() => {
       { label: "玩家列表", description: "身份、称号与进度", icon: "i-lucide-user-round", to: "/admin/players", active: adminPathActive("/admin/players") },
       { label: "绑定与邀请", description: "冲突、换绑与首次注册", icon: "i-lucide-link", to: "/admin/bindings", active: adminPathActive("/admin/bindings") },
       { label: "QQ 群组策略", description: "绑定渠道接入", icon: "i-lucide-radio", to: "/admin/channels", active: adminPathActive("/admin/channels") },
+      { label: "赛季", description: "排行榜赛季的排期与可见性", icon: "i-lucide-calendar-range", to: "/admin/seasons", active: adminPathActive("/admin/seasons") },
     ]),
   ];
 });

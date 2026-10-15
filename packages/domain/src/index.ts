@@ -59,6 +59,7 @@ import type {
   AdminCatalogTitleUpdateRequest,
   AdminMapTitleRule, AdminMapTitleRuleListResponse, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleInheritanceResponse, AdminMapTitleRuleExceptionUpsertRequest,
   AdminStandaloneMode, AdminStandaloneModeListResponse, AdminStandaloneModeUpsertRequest,
+  AdminSeason, AdminSeasonListResponse, AdminSeasonWriteRequest, PublicSeasonListResponse,
   RandomEvent, RandomEventListResponse, AdminRandomEventCreateRequest, AdminRandomEventUpdateRequest, AdminRandomEventBatchRequest, AdminRandomEventImportRequest, RandomEventVersion, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse,
   PlayerUploadSessionRequest,
   PlayerUploadSessionResponse,
@@ -83,6 +84,7 @@ export * from "./gameplay-revision";
 export * from "./challenge-conditions";
 export * from "./random-event";
 export * from "./leaderboard";
+export * from "./season";
 
 export type LocalDevAccount = {
   accountId: string;
@@ -217,6 +219,11 @@ export type PlatformServices = {
   updateAdminRandomEventVersion(input: AdminRandomEventVersionAvailabilityRequest & { gameVersion: string }, auth: AuthContext, idempotencyKey: string): Promise<RandomEventVersion>;
   listAdminStandaloneModes(auth: AuthContext): Promise<AdminStandaloneModeListResponse>;
   upsertAdminStandaloneMode(input: AdminStandaloneModeUpsertRequest & { mode: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminStandaloneMode>;
+  listAdminSeasons(auth: AuthContext): Promise<AdminSeasonListResponse>;
+  createAdminSeason(input: AdminSeasonWriteRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminSeason>;
+  updateAdminSeason(input: AdminSeasonWriteRequest & { seasonId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminSeason>;
+  endAdminSeason(input: { seasonId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminSeason>;
+  listPublicSeasons(): Promise<PublicSeasonListResponse>;
   listMaps(): Promise<Map[]>;
   createAdminMap(input: AdminMapCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<Map>;
   updateAdminMapMetadata(input: AdminMapMetadataUpdateRequest & { mapId: string }, auth: AuthContext, idempotencyKey: string): Promise<Map>;
@@ -318,9 +325,9 @@ export type PlatformServices = {
   getPortalSessionIdentity(input: { sessionToken: string }): Promise<{ player: { playerId: string; isAdmin: boolean } } | null>;
   getCurrentPlayer(input: { sessionToken: string }): Promise<CurrentPlayerResponse | null>;
   updateCurrentPlayerProfileVisibility(input: { sessionToken: string; publicProfile: boolean }, idempotencyKey: string): Promise<PlayerProfileVisibilityResponse>;
-  getPublicLeaderboard(input: { board: LeaderboardBoard; mapId?: string; page: number; pageSize: number }): Promise<LeaderboardResponse | null>;
+  getPublicLeaderboard(input: { board: LeaderboardBoard; mapId?: string; seasonId?: string; page: number; pageSize: number }): Promise<LeaderboardResponse | null>;
   getPublicLeaderboardPlayer(input: { playerKey: string }): Promise<LeaderboardPlayerSummary | null>;
-  getCurrentPlayerLeaderboardRank(input: { sessionToken: string; board: LeaderboardBoard; mapId?: string }): Promise<CurrentPlayerLeaderboardRank | null>;
+  getCurrentPlayerLeaderboardRank(input: { sessionToken: string; board: LeaderboardBoard; mapId?: string; seasonId?: string }): Promise<CurrentPlayerLeaderboardRank | null>;
   createQqLoginAttempt(input: QqLoginAttemptRequest): Promise<QqLoginAttemptResponse>;
   getQqLoginStatus(input: { attemptId: string; attemptToken: string }): Promise<QqLoginStatusResponse>;
   verifyQqLogin(input: QqLoginVerifyRequest, auth: AuthContext, idempotencyKey: string): Promise<QqBindingClaimVerifyResponse>;
