@@ -214,6 +214,18 @@ tr.me td{background:var(--accent-surface)!important}
 .drawer h4{margin:var(--space-6) 0 var(--space-2);color:var(--muted);font-size:var(--type-label-sm-size);font-weight:500}
 .mrow{display:flex;justify-content:space-between;gap:var(--space-3);padding:var(--space-2) 0;border-bottom:1px solid var(--line);font-size:var(--type-body-sm-size)}
 .tlist{display:flex;flex-wrap:wrap;gap:var(--space-2)}
+/* drawer maps: one row per map, XP and that map's titles together */
+.mlist .mrow{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-1) var(--space-3);padding:var(--space-2) 0}
+.mlist .mn{min-width:0;overflow:hidden;font-weight:600;white-space:nowrap;text-overflow:ellipsis}
+.mlist .mx{text-align:right;color:var(--muted)}
+.mlist .mx b{color:var(--text);font-weight:600}
+.mlist .mt{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:var(--space-1)}
+.tier{padding:0 var(--space-2);border:1px solid var(--line-strong);border-radius:var(--radius-pill);font-size:var(--type-caption-size);font-weight:600;line-height:1.6}
+.tier.t1{border-color:color-mix(in oklch,var(--accent) 32%,var(--line-strong));background:color-mix(in oklch,var(--accent) 7%,var(--surface))}
+.tier.t2{border-color:color-mix(in oklch,var(--accent) 58%,var(--line-strong));background:color-mix(in oklch,var(--accent) 14%,var(--surface))}
+.tier.t3{border-color:var(--accent);background:color-mix(in oklch,var(--accent) 24%,var(--surface));color:var(--text)}
+.more{margin-top:var(--space-2);padding:0;border:0;background:none;color:var(--accent);font:inherit;font-size:var(--type-label-sm-size);font-weight:600;cursor:pointer}
+.more:hover{text-decoration:underline}
 .notice{padding:var(--space-3) var(--space-4);border-radius:var(--radius-control);background:var(--surface-raised);color:var(--muted);font-size:var(--type-body-sm-size)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -300,7 +312,7 @@ const SEASONS = [
 const TITLES = ["开拓者 · 暴雪世界","征服者 · 暴雪世界","主宰 · 暴雪世界","开拓者 · 斗兽场","征服者 · 斗兽场","主宰 · 斗兽场",
   "开拓者 · 阿育陀耶","征服者 · 阿育陀耶","开拓者 · 格里姆火山","征服者 · 格里姆火山","主宰 · 格里姆火山","开拓者 · 渣客镇",
   "征服者 · 渣客镇","开拓者 · 国王大道","征服者 · 国王大道","赌徒：梭哈","赌徒：心之钢","作弊：先知","任务：有福同享","任务：同行链","地狱行者","熔火之心",
-  "赌徒：全押","作弊：透视眼","任务：零失误","任务：守望之誓","速通者","无伤大雅"];
+  "老兵 · 斗兽场","老兵 · 渣客镇","赌徒：全押","作弊：透视眼","任务：零失误","任务：守望之誓","速通者","无伤大雅"];
 // Achievement board counts only general titles: map titles belong to map mastery, developer titles never rank.
 const DEV_TITLES = ["开发者"];
 const isMapTitle = t => t.includes(" · ");
@@ -508,16 +520,32 @@ function openPlayer(pid){
   const xi = xr.findIndex(r=>r.pid===pid), ti = tr.findIndex(r=>r.pid===pid);
   let html = `<button class="icon-btn x pressable" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     <div class="ph ${p.pub?"":"anon"}"><span class="av">${initial(p)}</span><div><h2>${name(p)}</h2>${p.pub&&p.equipped?`<span class="tbadge">${p.equipped}</span>`:""}</div></div>
-    <div class="stats num"><div><b>${xi<0?"—":"#"+(xi+1)}</b><span>地图精通排名 · ${xi<0?0:xr[xi].v.toLocaleString()} XP</span></div>
+    <div class="stats num"><div><b>${xi<0?"—":"#"+(xi+1)}</b><span>精通排名 · ${xi<0?0:xr[xi].v.toLocaleString()} XP</span></div>
     <div><b>${ti<0?"—":"#"+(ti+1)}</b><span>成就排名 · ${p.titles.filter(counts).length} 个</span></div></div>`;
   if(!p.pub){
     html += `<h4>公开主页</h4><div class="notice">这位玩家关闭了公开主页。名次照常保留，但不显示昵称、成就和地图明细。</div>`;
   } else {
-    const mapTs = p.titles.filter(t=>isMapTitle(t.name)), gen = p.titles.filter(t=>!isMapTitle(t.name));
-    const per = MAPS.map(m=>{ const cs=p.clears.filter(c=>c.map===m.id&&c.current); return cs.length?`<div class="mrow"><span>${m.name} <span class="sec">${m.rev}</span></span><span class="num">${cs.reduce((s,c)=>s+c.xp,0).toLocaleString()} XP · ${cs.length} 次</span></div>`:""; }).join("");
-    html += `<h4>各地图精通 XP（当前版本）</h4>${per||'<div class="notice">还没有通关记录</div>'}
-      <h4>地图称号</h4>${mapTs.length?`<div class="tlist">${mapTs.map(t=>`<span class="tbadge">${t.name}</span>`).join("")}</div>`:'<div class="notice">还没有地图称号</div>'}
-      <h4>成就 · ${gen.filter(counts).length}</h4>${gen.length?`<div class="tlist">${gen.map(t=>`<span class="tbadge">${t.name}</span>`).join("")}</div>`:'<div class="notice">还没有解锁成就</div>'}`;
+    // One row per map: current-revision XP plus that map's titles, collapsed to the highest tier.
+    const TIERS = ["开拓者","征服者","主宰"];
+    const maps = MAPS.map(m=>{
+      const cs = p.clears.filter(c=>c.map===m.id&&c.current);
+      const ts = p.titles.filter(t=>isMapTitle(t.name)&&t.name.endsWith(" · "+m.name)).map(t=>t.name.split(" · ")[0]);
+      const top = TIERS.filter(t=>ts.includes(t)).pop();
+      const extra = ts.filter(t=>!TIERS.includes(t));
+      return {m,xp:cs.reduce((s,c)=>s+c.xp,0),n:cs.length,top,extra};
+    }).filter(r=>r.n||r.top||r.extra.length).sort((a,b)=>b.xp-a.xp);
+    const mapRow = r=>`<div class="mrow"><span class="mn">${r.m.name} <span class="sec">${r.m.rev}</span></span>
+      <span class="mx num">${r.n?`<b>${r.xp.toLocaleString()}</b> XP · ${r.n} 次`:"本版本未通关"}</span>
+      ${r.top||r.extra.length?`<span class="mt">${r.top?`<span class="tier t${TIERS.indexOf(r.top)+1}">${r.top}</span>`:""}${r.extra.map(t=>`<span class="tier">${t}</span>`).join("")}</span>`:""}</div>`;
+    const gen = p.titles.filter(t=>!isMapTitle(t.name));
+    const MAP_SHOW = 4, GEN_SHOW = 10;
+    html += `<h4>地图 · ${maps.length} 张</h4>${maps.length?`<div class="mlist" id="dMaps">${maps.slice(0,MAP_SHOW).map(mapRow).join("")}</div>${maps.length>MAP_SHOW?`<button class="more" id="dMapsMore">展开其余 ${maps.length-MAP_SHOW} 张地图</button>`:""}`:'<div class="notice">还没有通关记录</div>'}
+      <h4>成就 · ${gen.filter(counts).length}</h4>${gen.length?`<div class="tlist" id="dGen">${gen.slice(0,GEN_SHOW).map(t=>`<span class="tbadge">${t.name}</span>`).join("")}</div>${gen.length>GEN_SHOW?`<button class="more" id="dGenMore">展开其余 ${gen.length-GEN_SHOW} 个</button>`:""}`:'<div class="notice">还没有解锁成就</div>'}`;
+    queueMicrotask(()=>{
+      const mm=$("dMapsMore"), gm=$("dGenMore");
+      if(mm) mm.onclick=()=>{ $("dMaps").innerHTML=maps.map(mapRow).join(""); mm.remove(); };
+      if(gm) gm.onclick=()=>{ $("dGen").innerHTML=gen.map(t=>`<span class="tbadge">${t.name}</span>`).join(""); gm.remove(); };
+    });
   }
   const d = $("drawer");
   d.innerHTML = html;
