@@ -130,6 +130,10 @@ async function retryMastery() {
   }
 }
 
+function setPublicProfile(value: boolean) {
+  if (player.value) player.value.player.publicProfile = value;
+}
+
 onMounted(() => {
   void load();
 });
@@ -191,6 +195,11 @@ onMounted(() => {
           </section>
         </div>
       </div>
+
+      <section class="section-block" aria-labelledby="visibility-title">
+        <PageSectionHeader title="公开主页" heading-id="visibility-title" />
+        <PlayerProfileVisibilityCard :public-profile="player.player.publicProfile" @updated="setPublicProfile" />
+      </section>
 
       <PlayerTitleInspectDialog v-model:open="inspectOpen" :title="inspected" />
     </template>

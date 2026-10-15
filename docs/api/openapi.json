@@ -324,6 +324,31 @@
     }
    }
   },
+  "/v1/me/profile/visibility": {
+   "put": {
+    "operationId": "updateCurrentPlayerProfileVisibility",
+    "description": "Updates the owning Player Account's public-profile visibility. When off, every public projection keeps the Player's rank and score but withholds display name, avatar initial, equipped Title, and per-map/title detail; the Player appears anonymously. The public leaderboard entry contract carries display identity, rank, score, and equipped Title only while the Player is public.",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/idempotencyKey"
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     },
+     "409": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
   "/v1/me/submissions/{submissionId}": {
    "get": {
     "operationId": "getPlayerSubmission",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionPromotionRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventCreateRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventBatchRequestSchema, adminRandomEventVersionAvailabilityRequestSchema, adminRandomEventVersionListResponseSchema, adminSubmissionReviewPreviewRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, adminVerifiedRunCorrectionRequestSchema, adminVerifiedRunSchema, agentMapSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema, agentTitleListResponseSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, ocrAccuracyFeedbackRequestSchema, ocrAccuracyFeedbackResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryResponseSchema, qqBindingClaimVerifyRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema } from "./index";
+import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionPromotionRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventCreateRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventBatchRequestSchema, adminRandomEventVersionAvailabilityRequestSchema, adminRandomEventVersionListResponseSchema, adminSubmissionReviewPreviewRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, adminVerifiedRunCorrectionRequestSchema, adminVerifiedRunSchema, agentMapSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema, agentTitleListResponseSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, ocrAccuracyFeedbackRequestSchema, ocrAccuracyFeedbackResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerProfileVisibilityRequestSchema, playerProfileVisibilityResponseSchema, leaderboardEntrySchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryResponseSchema, qqBindingClaimVerifyRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema } from "./index";
 
 describe("v1 platform contracts", () => {
   it("validates global and scoped achievement creation", () => {
@@ -92,6 +92,20 @@ describe("v1 platform contracts", () => {
 
   it("accepts a player response without QQ identifiers", () => {
     expect(currentPlayerResponseSchema.safeParse({ contractVersion: "1", player: { playerId: "1234", playerName: "Player", isAdmin: false }, recentSubmissions: [] }).success).toBe(true);
+  });
+
+  it("keeps profile visibility owner-shaped and leaderboard entries free of private fields", () => {
+    expect(playerProfileVisibilityRequestSchema.safeParse({ contractVersion: "1", publicProfile: false }).success).toBe(true);
+    expect(playerProfileVisibilityRequestSchema.safeParse({ contractVersion: "1", publicProfile: "no" }).success).toBe(false);
+    expect(playerProfileVisibilityResponseSchema.safeParse({ contractVersion: "1", publicProfile: true }).success).toBe(true);
+    const entry = { rank: 1, score: 100, reachedAt: 1_000, player: { playerKey: "key-1", displayName: "Player", equippedTitle: { titleKey: "PIONEER", label: "开拓者", icon: "trophy", iconUrl: null } } };
+    expect(leaderboardEntrySchema.safeParse(entry).success).toBe(true);
+    expect(leaderboardEntrySchema.safeParse({ ...entry, player: null }).success).toBe(true);
+    expect(leaderboardEntrySchema.safeParse({ ...entry, player: { ...entry.player!, qqOpenId: "qq-1" } }).success).toBe(false);
+    expect(leaderboardEntrySchema.safeParse({ ...entry, player: { ...entry.player!, bindingId: "b-1" } }).success).toBe(false);
+    expect(leaderboardEntrySchema.safeParse({ ...entry, submissionId: "s-1" }).success).toBe(false);
+    expect(leaderboardEntrySchema.safeParse({ ...entry, reviewNote: "note" }).success).toBe(false);
+    expect(leaderboardEntrySchema.safeParse({ ...entry, riskScore: 3 }).success).toBe(false);
   });
 
   it("keeps player mastery responses limited to safe active projections and private history state", () => {

@@ -6,7 +6,7 @@ import ProfilePage from "./profile.vue";
 import type { OwnedTitle } from "~/types/title";
 import type { CurrentPlayerMasteryResponse, PlayerActivityDay, PortalMap } from "~/composables/usePortalApi";
 
-type Player = { player: { playerId: string; playerName: string; isAdmin: boolean }; recentSubmissions: never[] };
+type Player = { player: { playerId: string; playerName: string; isAdmin: boolean; publicProfile: boolean }; recentSubmissions: never[] };
 
 const mapOne = { mapId: "map.one", mapName: "地图一", defaultGameplayRevisionId: "rev.one" };
 const mapTwo = { mapId: "map.two", mapName: "地图二", defaultGameplayRevisionId: "rev.two" };
@@ -39,7 +39,7 @@ const run = (overrides: Partial<CurrentPlayerMasteryResponse["runs"][number]> = 
   ...overrides,
 });
 
-const player = ref<Player | null>({ player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] });
+const player = ref<Player | null>({ player: { playerId: "1", playerName: "Player", isAdmin: false, publicProfile: true }, recentSubmissions: [] });
 const titles = ref<OwnedTitle[]>([]);
 const status = ref<"unknown" | "loading" | "authenticated" | "anonymous">("authenticated");
 const activityDays = ref<PlayerActivityDay[]>([]);
@@ -88,6 +88,7 @@ async function mountPage(): Promise<VueWrapper> {
         UEmpty: { props: ["title"], template: "<div>{{ title }}</div>" },
         USkeleton: { template: "<div class=\"skeleton\" />" },
         UIcon: { props: ["name"], template: "<i :data-icon=\"name\" />" },
+        PlayerProfileVisibilityCard: { props: ["publicProfile"], template: "<div data-visibility=\"card\">{{ publicProfile }}</div>" },
       },
     },
   });
@@ -98,7 +99,7 @@ async function mountPage(): Promise<VueWrapper> {
 const stat = (wrapper: VueWrapper, label: string) => wrapper.findAll(".stat-sheet__item").find((item) => item.get("dt").text() === label)!.get("dd").text().replace(/\s+/g, " ");
 
 function reset(overrides?: { runs?: CurrentPlayerMasteryResponse["runs"]; profiles?: CurrentPlayerMasteryResponse["profiles"] }) {
-  player.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
+  player.value = { player: { playerId: "1", playerName: "Player", isAdmin: false, publicProfile: true }, recentSubmissions: [] };
   titles.value = [];
   status.value = "authenticated";
   activityDays.value = [];
@@ -128,6 +129,14 @@ describe("me profile page", () => {
     expect(wrapper.get(".profile-hero__titles").text()).toContain("极限操作");
     expect(stat(wrapper, "称号")).toBe("3个");
     expect(wrapper.text()).not.toContain("地图成就");
+  });
+
+  it("shows the public-profile visibility control fed by the player setting", async () => {
+    reset();
+    const wrapper = await mountPage();
+    const section = wrapper.get('section[aria-labelledby="visibility-title"]');
+    expect(section.text()).toContain("公开主页");
+    expect(section.get("[data-visibility='card']").text()).toBe("true");
   });
 
   it("groups earned titles into series with the map series first", async () => {
@@ -266,7 +275,7 @@ describe("me profile page", () => {
     expect(wrapper.find('[role="status"][aria-label="读取中…"]').exists()).toBe(false);
     expect(wrapper.text()).toContain("无法读取玩家信息");
 
-    player.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
+    player.value = { player: { playerId: "1", playerName: "Player", isAdmin: false, publicProfile: true }, recentSubmissions: [] };
     status.value = "authenticated";
     await wrapper.findAll("button").find((button) => button.text() === "重试")!.trigger("click");
     await flushPromises();
