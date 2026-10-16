@@ -83,7 +83,8 @@ Portal editorial content is a separate Git-backed surface under
 module compiles Blog development logs and Changelog player-facing notes at
 build time: it parses Markdown via `@nuxtjs/mdc`, validates frontmatter with
 the Zod schemas in `content/editorial-schemas.ts`, and writes generated JSON
-under `.nuxt/editorial/` that `apps/portal/utils/editorial-content.ts` serves.
+under `apps/portal/.generated/editorial/` (gitignored) that
+`apps/portal/utils/editorial-content.ts` serves.
 The runtime bundle carries only that generated data — no parser or raw
 Markdown — and the Blog/Changelog list and detail routes are prerendered to
 static assets. There is no runtime content database or query API. Blog entries

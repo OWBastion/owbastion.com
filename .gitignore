@@ -36,6 +36,7 @@ node_modules/
 dist/
 .nuxt/
 .output/
+.generated/
 .wrangler/
 .dev.vars
 .env

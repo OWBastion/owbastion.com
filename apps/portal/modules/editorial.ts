@@ -65,15 +65,18 @@ async function listMarkdownFiles(directory: string): Promise<string[]> {
 
 /**
  * Compiles the Git-managed Markdown collections into generated JSON at
- * `.nuxt/editorial/` during nuxi prepare/dev/build. The runtime loader only
- * reads these files, so the bundle ships article ASTs without the parser or
- * the raw Markdown.
+ * `.generated/editorial/` (repo-local, gitignored) during nuxi
+ * prepare/dev/build. The runtime loader only reads these files, so the bundle
+ * ships article ASTs without the parser or the raw Markdown. A fixed source
+ * path — rather than nuxt.options.buildDir — keeps the writer and the
+ * `import.meta.glob` reader in agreement across prepare, dev, build, and
+ * plain vitest runs where no Nuxt aliases exist.
  */
 export default defineNuxtModule({
   meta: { name: "editorial-content" },
   async setup(_options, nuxt) {
     const sourceRoot = join(nuxt.options.srcDir, "content");
-    const outputRoot = join(nuxt.options.buildDir, "editorial");
+    const outputRoot = join(nuxt.options.rootDir, ".generated", "editorial");
 
     const generate = async () => {
       const parse = await getParser();
@@ -111,9 +114,9 @@ export default defineNuxtModule({
       }
     };
 
-    // Setup runs before .nuxt is (re)written; generate after templates land so
-    // nuxi prepare, nuxt dev, and nuxt build all see the compiled data.
-    nuxt.hooks.hook("app:templatesGenerated", () => generate());
+    // .generated/ lives outside .nuxt, so template regeneration cannot wipe it;
+    // generate eagerly — setup always runs before Vite resolves the glob.
+    await generate();
     nuxt.hooks.hook("builder:watch", async (_event: string, path: string) => {
       const normalized = path.replaceAll("\\", "/");
       if (normalized.endsWith(".md") && normalized.includes("/content/")) await generate();

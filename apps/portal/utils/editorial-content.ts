@@ -24,19 +24,28 @@ export interface ChangelogSummary extends EditorialBase { releasedAt: string; ve
 
 // The editorial Nuxt module compiles the Markdown collections into these JSON
 // files during nuxi prepare/dev/build; the runtime only reads generated data.
-const summaryModules = import.meta.glob("../.nuxt/editorial/index.*.json", { import: "default" });
-const entryModules = import.meta.glob("../.nuxt/editorial/*/*.json", { import: "default" });
+const summaryModules = import.meta.glob("../.generated/editorial/index.*.json", { import: "default" });
+const entryModules = import.meta.glob("../.generated/editorial/*/*.json", { import: "default" });
 
 const sortField = { blog: "publishedAt", changelog: "releasedAt" } as const;
 
+// A missing index file means generation never ran — fail loudly instead of
+// silently serving empty lists or 404s from stale/absent data.
+function ensureGenerated(kind: EditorialKind): void {
+  if (!summaryModules[`../.generated/editorial/index.${kind}.json`]) {
+    throw new Error(`[editorial] generated data missing for "${kind}" — run \`nuxi prepare\` (or a build) first`);
+  }
+}
+
 async function loadSummaries(kind: EditorialKind): Promise<EditorialSummary[]> {
-  const load = summaryModules[`../.nuxt/editorial/index.${kind}.json`];
-  return load ? ((await load()) as EditorialSummary[]) : [];
+  ensureGenerated(kind);
+  return (await summaryModules[`../.generated/editorial/index.${kind}.json`]!()) as EditorialSummary[];
 }
 
 /** Full entries including the rendered body AST, newest first. */
 export async function queryEditorialEntries(kind: EditorialKind): Promise<EditorialEntry[]> {
-  const prefix = `../.nuxt/editorial/${kind}/`;
+  ensureGenerated(kind);
+  const prefix = `../.generated/editorial/${kind}/`;
   const loads = Object.entries(entryModules)
     .filter(([source]) => source.startsWith(prefix))
     .map(([, load]) => load());
@@ -54,6 +63,7 @@ export function queryEditorialSummaries(kind: EditorialKind): Promise<EditorialS
 
 /** One entry by collection path, or null when the slug does not exist. */
 export async function findEditorialEntry(kind: EditorialKind, slug: string): Promise<EditorialEntry | null> {
-  const load = entryModules[`../.nuxt/editorial/${kind}/${slug}.json`];
+  ensureGenerated(kind);
+  const load = entryModules[`../.generated/editorial/${kind}/${slug}.json`];
   return load ? ((await load()) as EditorialEntry) : null;
 }
