@@ -1,9 +1,7 @@
 import type { H3Event } from "h3";
 import { REQUEST_ID_HEADER, ensureRequestId, normalizeRequestId } from "~/utils/request-id";
 
-const headerValue = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] : value;
-
-export const requestIdForEvent = (event: H3Event) => ensureRequestId(headerValue(event.node.req.headers[REQUEST_ID_HEADER]));
+export const requestIdForEvent = (event: H3Event) => ensureRequestId(getRequestHeader(event, REQUEST_ID_HEADER));
 
 export const setRequestId = (event: H3Event, requestId: string) => setResponseHeader(event, REQUEST_ID_HEADER, requestId);
 

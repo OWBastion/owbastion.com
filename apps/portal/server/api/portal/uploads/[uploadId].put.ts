@@ -8,10 +8,10 @@ export default defineEventHandler(async (event) => {
   if (!uploadId) throw createError({ statusCode: 400, statusMessage: "Upload ID is required" });
 
   const headers: Record<string, string> = { "user-agent": "OWBastion-Portal/1.0" };
-  const cookie = event.node.req.headers.cookie;
-  const contentType = event.node.req.headers["content-type"];
-  if (cookie) headers.cookie = Array.isArray(cookie) ? cookie[0] : cookie;
-  if (contentType) headers["content-type"] = Array.isArray(contentType) ? contentType[0] : contentType;
+  const cookie = getRequestHeader(event, "cookie");
+  const contentType = getRequestHeader(event, "content-type");
+  if (cookie) headers.cookie = cookie;
+  if (contentType) headers["content-type"] = contentType;
   headers["x-request-id"] = requestId;
 
   const rawBody = await readRawBody(event, false);
