@@ -2,7 +2,7 @@
 import type { AdminMapEditorRevision, AdminMapRevisionLifecycle, AdminMapRevisionReplacementLifecycle } from "~/composables/useAdminMapEditor";
 import { useAdminMapEditor } from "~/composables/useAdminMapEditor";
 import type { NewRevisionInput } from "~/components/admin/AdminMapNewRevisionDialog.vue";
-import { groupHonors, recommendedAssignments, type MapAssignments } from "~/utils/map-honors";
+import { groupHonors, recommendedAssignments, windowComplete, type MapAssignments, type PioneerWindows } from "~/utils/map-honors";
 import { spatialProblems } from "~/utils/map-readiness";
 import type { SpatialConfigValue } from "~/utils/spatial-config-import";
 import { portalErrorDetails } from "~/utils/portal-error";
@@ -12,6 +12,7 @@ definePageMeta({ middleware: ["auth", "admin-client"] });
 type Draft = {
   spatialConfig: SpatialConfigValue | null;
   assignments: MapAssignments;
+  windows: PioneerWindows;
   gameVersion: string;
   mapVariant: "classic" | null;
   lifecycle: AdminMapRevisionLifecycle;
@@ -51,6 +52,7 @@ const savedDraft = (revision: AdminMapEditorRevision): Draft => ({
     submissionMode: assignment.submissionMode,
     slot: assignment.slot,
   }])),
+  windows: Object.fromEntries(catalog.value.filter((option) => option.pioneerWindow).map((option) => [option.challengeId, { ...option.pioneerWindow! }])),
   gameVersion: revision.gameVersion,
   mapVariant: revision.mapVariant,
   lifecycle: revision.lifecycle,
@@ -68,7 +70,11 @@ const dirtyRevisionIds = computed(() => revisions.value.filter(isDirty).map((rev
 const selectedDirty = computed(() => Boolean(selectedRevision.value && isDirty(selectedRevision.value)));
 const problems = computed(() => !spatialValid.value ? ["点位代码有问题，见下方提示"] : draft.value ? spatialProblems(draft.value.spatialConfig) : []);
 const assignedCount = computed(() => draft.value ? enabledAssignments(draft.value.assignments).length : 0);
-const canSave = computed(() => selectedDirty.value && spatialValid.value && !api.saving.value);
+// An enabled Pioneer rule needs an opening window; the window is saved with the assignment.
+const pioneerRuleIds = computed(() => new Set(catalog.value.filter((option) => option.kind.trim().toLowerCase() === "pioneer").map((option) => option.challengeId)));
+const enabledPioneerRuleIds = (current: Draft) => enabledAssignments(current.assignments).filter((assignment) => assignment.challengeFamily === "map_title_rule" && pioneerRuleIds.value.has(assignment.challengeId)).map((assignment) => assignment.challengeId);
+const windowsValid = computed(() => !draft.value || enabledPioneerRuleIds(draft.value).every((ruleId) => windowComplete(draft.value!.windows[ruleId])));
+const canSave = computed(() => selectedDirty.value && spatialValid.value && windowsValid.value && !api.saving.value);
 
 function patchDraft(patch: Partial<Draft>) {
   const revision = selectedRevision.value;
@@ -94,6 +100,16 @@ const lifecycleItems = computed(() => (selectedRevision.value?.lifecycle === "de
   : [{ value: "preparing", label: "准备中" }, { value: "selectable", label: "可选" }, { value: "historical", label: "历史" }]));
 const variantItems = [{ value: null, label: "标准版" }, { value: "classic", label: "经典版" }];
 
+// Only windows the maintainer changed are sent, so an unrelated save never rewrites an expired window.
+function changedPioneerWindows(revision: AdminMapEditorRevision, current: Draft) {
+  const saved = savedDraft(revision).windows;
+  return enabledPioneerRuleIds(current).flatMap((ruleId) => {
+    const window = current.windows[ruleId];
+    const before = saved[ruleId];
+    return windowComplete(window) && (before?.startsAt !== window.startsAt || before?.endsAt !== window.endsAt) ? [{ ruleId, startsAt: window.startsAt, endsAt: window.endsAt }] : [];
+  });
+}
+
 async function saveRevision() {
   const revision = selectedRevision.value;
   const current = draft.value;
@@ -107,6 +123,7 @@ async function saveRevision() {
       mapVariant: current.mapVariant,
       spatialConfig: current.spatialConfig,
       challengeAssignments: Object.values(current.assignments),
+      pioneerWindows: changedPioneerWindows(revision, current),
     });
     const { [revision.revisionId]: _saved, ...rest } = drafts.value;
     drafts.value = rest;
@@ -204,7 +221,7 @@ useSeoMeta({ title: "地图编辑器 · 躲避堡垒 3" });
 
       <section class="map-card" aria-labelledby="map-honors-title">
         <h2 id="map-honors-title" class="type-headline"><span class="map-card__step">2</span>成就与称号</h2>
-        <AdminMapHonors :catalog="catalog" :assignments="draft.assignments" :map-variant="draft.mapVariant" :disabled="api.saving.value" @update:assignments="patchDraft({ assignments: $event })" />
+        <AdminMapHonors :catalog="catalog" :assignments="draft.assignments" :windows="draft.windows" :map-variant="draft.mapVariant" :disabled="api.saving.value" @update:assignments="patchDraft({ assignments: $event })" @update:windows="patchDraft({ windows: $event })" />
       </section>
 
       <section class="map-card" aria-labelledby="map-revision-title">

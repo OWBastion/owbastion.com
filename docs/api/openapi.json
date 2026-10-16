@@ -1691,7 +1691,7 @@
   "/v1/admin/maps/{mapId}/revisions/{revisionId}": {
    "put": {
     "operationId": "updateAdminMapRevision",
-    "description": "Saves lifecycle, game version, spatial configuration and revision-scoped challenge assignments. It cannot change a Revision into or out of default; use the explicit promotion operation for that transition.",
+    "description": "Saves lifecycle, game version, spatial configuration and revision-scoped challenge assignments. An enabled Pioneer assignment may carry its map opening window in pioneerWindows, which is written to the map's Pioneer exception in the same request. It cannot change a Revision into or out of default; use the explicit promotion operation for that transition.",
     "parameters": [
      {
       "$ref": "#/components/parameters/mapId"

@@ -58,9 +58,16 @@ export function setOptionsEnabled(assignments: MapAssignments, options: AdminMap
   return next;
 }
 
+export type PioneerWindow = { startsAt: number | null; endsAt: number | null };
+export type PioneerWindows = Record<string, PioneerWindow>;
+
+export const pioneerRule = (honor: MapHonor) => honor.kind === "pioneer" ? honor.items.find((option) => option.challengeFamily === "map_title_rule") ?? null : null;
+export const windowComplete = (window: PioneerWindow | undefined): window is { startsAt: number; endsAt: number } => Boolean(window?.startsAt && window.endsAt && window.endsAt > window.startsAt);
+
 // Classic revisions carry the veteran honor only; every other revision carries the rest.
+// Pioneer needs an opening window, so it is never switched on by recommendation.
 export function recommendedAssignments(assignments: MapAssignments, honors: MapHonor[], mapVariant: "classic" | null): MapAssignments {
   let next = assignments;
-  for (const honor of honors) next = setHonorEnabled(next, honor, mapVariant === "classic" ? honor.kind === "classic" : honor.kind !== "classic");
+  for (const honor of honors.filter((item) => item.kind !== "pioneer")) next = setHonorEnabled(next, honor, mapVariant === "classic" ? honor.kind === "classic" : honor.kind !== "classic");
   return next;
 }

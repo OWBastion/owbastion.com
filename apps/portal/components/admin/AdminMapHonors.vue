@@ -4,21 +4,25 @@ import {
   enabledCount,
   groupHonors,
   optionKey,
+  pioneerRule,
   recommendedAssignments,
   setHonorEnabled,
   setOptionsEnabled,
   type MapAssignments,
   type MapHonor,
   type MapHonorKind,
+  type PioneerWindow,
+  type PioneerWindows,
 } from "~/utils/map-honors";
 
 const props = defineProps<{
   catalog: AdminMapEditorChallengeOption[];
   assignments: MapAssignments;
+  windows: PioneerWindows;
   mapVariant: "classic" | null;
   disabled?: boolean;
 }>();
-const emit = defineEmits<{ "update:assignments": [value: MapAssignments] }>();
+const emit = defineEmits<{ "update:assignments": [value: MapAssignments]; "update:windows": [value: PioneerWindows] }>();
 
 const honors = computed(() => groupHonors(props.catalog));
 const familyLabels = { map_challenge: "地图挑战", map_title_rule: "称号", title_challenge: "称号挑战" } as const;
@@ -30,7 +34,7 @@ const icons: Record<MapHonorKind, string> = {
   other: "i-lucide-trophy",
 };
 const hints: Partial<Record<MapHonorKind, string>> = {
-  pioneer: "限时：只在称号规则设定的有效期内出现",
+  pioneer: "限时：只在开放窗口内可提交",
   classic: "经典版自定义称号",
 };
 // The veteran honor only makes sense on a classic revision; surface that rather than hiding it.
@@ -38,6 +42,20 @@ const unavailable = (honor: MapHonor) => honor.kind === "classic" && props.mapVa
 
 const toggle = (honor: MapHonor) => emit("update:assignments", setHonorEnabled(props.assignments, honor, enabledCount(honor, props.assignments) === 0));
 const toggleItem = (option: AdminMapEditorChallengeOption, enabled: boolean) => emit("update:assignments", setOptionsEnabled(props.assignments, [option], enabled));
+const DAY = 24 * 60 * 60 * 1000;
+const windowOf = (honor: MapHonor): PioneerWindow => props.windows[pioneerRule(honor)?.challengeId ?? ""] ?? { startsAt: null, endsAt: null };
+function setWindow(honor: MapHonor, field: keyof PioneerWindow, value: number | null) {
+  const ruleId = pioneerRule(honor)?.challengeId;
+  if (!ruleId) return;
+  const current = windowOf(honor);
+  // The first start time fills a one-day window, matching the title rule page.
+  const endsAt = field === "startsAt" && value && !current.endsAt ? value + DAY : current.endsAt;
+  emit("update:windows", { ...props.windows, [ruleId]: { ...current, endsAt, [field]: value } });
+}
+const windowInvalid = (honor: MapHonor) => {
+  const { startsAt, endsAt } = windowOf(honor);
+  return !startsAt || !endsAt || endsAt <= startsAt;
+};
 const applyRecommended = () => emit("update:assignments", recommendedAssignments(props.assignments, honors.value, props.mapVariant));
 </script>
 
@@ -63,6 +81,10 @@ const applyRecommended = () => emit("update:assignments", recommendedAssignments
             <UCheckbox :model-value="assignments[optionKey(option)]?.enabled === true" :disabled="disabled" :label="`${familyLabels[option.challengeFamily]} · ${option.label}`" @update:model-value="toggleItem(option, Boolean($event))" />
           </li>
         </ul>
+        <div v-if="pioneerRule(honor) && enabledCount(honor, assignments) > 0" class="honor__window">
+          <UFormField label="开放开始时间" required><AdminDateTimePicker :model-value="windowOf(honor).startsAt" :disabled="disabled" placeholder="选择开放开始时间" @update:model-value="setWindow(honor, 'startsAt', $event)" /></UFormField>
+          <UFormField label="开放结束时间" required :error="windowInvalid(honor) ? '需要设置晚于开始时间的结束时间' : undefined"><AdminDateTimePicker :model-value="windowOf(honor).endsAt" :disabled="disabled" placeholder="选择开放结束时间" @update:model-value="setWindow(honor, 'endsAt', $event)" /></UFormField>
+        </div>
       </li>
     </ul>
   </div>
@@ -80,5 +102,6 @@ const applyRecommended = () => emit("update:assignments", recommendedAssignments
 .honor--on .honor__icon { background: var(--accent-surface); color: var(--accent); }
 .honor__text { display: grid; min-width: 0; }
 .honor__text span { color: var(--muted); font-size: var(--type-caption-size); }
+.honor__window { display: grid; gap: 0.75rem; padding: 0.75rem 0.875rem 0.875rem 4.2rem; border-top: 1px solid var(--line); }
 .honor__items { display: grid; gap: 0.5rem; padding: 0.75rem 0.875rem 0.875rem 4.2rem; margin: 0; list-style: none; border-top: 1px solid var(--line); }
 </style>

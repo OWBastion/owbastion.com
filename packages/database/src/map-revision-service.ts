@@ -135,6 +135,7 @@ export const createMapRevisionServices = (
     `).bind(revisionId),
   ];
   type AdminRevisionAssignmentInput = Omit<AdminMapRevisionChallengeAssignment, "assignmentId" | "gameplayRevisionId" | "mapId">;
+  type PioneerWindowInput = NonNullable<AdminMapRevisionUpdateRequest["pioneerWindows"]>[number];
   const revisionChallengeFamilies = new Set(["map_challenge", "map_title_rule", "title_challenge"]);
   const revisionLifecycles = new Set(["preparing", "default", "selectable", "historical"]);
   const nullableEditorText = (value: string | null) => value?.trim() || null;
@@ -214,13 +215,14 @@ export const createMapRevisionServices = (
       ...mapChallengeRows.map((challenge): AdminMapEditorChallengeOption => ({
         challengeFamily: "map_challenge", challengeId: challenge.id, label: challenge.name, kind: challenge.type, titleKey: challenge.rewardTitleKey, status: challenge.status, gameVersion: challenge.gameVersion,
       })),
-      ...ruleRows.filter(({ rule }) => {
-        if (rule.kind.trim().toLocaleLowerCase() !== "pioneer") return true;
+      ...ruleRows.filter(({ rule }) => rule.kind.trim().toLocaleLowerCase() !== "pioneer" || rule.defaultScope === "explicit").map(({ rule, title }): AdminMapEditorChallengeOption => {
+        const option: AdminMapEditorChallengeOption = {
+          challengeFamily: "map_title_rule", challengeId: rule.id, label: title.label, kind: rule.kind, titleKey: rule.titleKey, status: rule.status, gameVersion: rule.introducedVersion,
+        };
+        if (rule.kind.trim().toLocaleLowerCase() !== "pioneer") return option;
         const exception = exceptionByRule.get(rule.id);
-        return rule.defaultScope === "explicit" && exception?.enabled === 1 && pioneerExceptionHasValidWindow(exception.startsAt, exception.endsAt) && exception.endsAt! > now();
-      }).map(({ rule, title }): AdminMapEditorChallengeOption => ({
-        challengeFamily: "map_title_rule", challengeId: rule.id, label: title.label, kind: rule.kind, titleKey: rule.titleKey, status: rule.status, gameVersion: rule.introducedVersion,
-      })),
+        return { ...option, pioneerWindow: exception?.enabled === 1 && pioneerExceptionHasValidWindow(exception.startsAt, exception.endsAt) ? { startsAt: exception.startsAt!, endsAt: exception.endsAt! } : null };
+      }),
       ...titleChallengeRows.filter(({ challenge, title }) => challenge.gameVersion?.trim() && title.gameVersion?.trim()).map(({ challenge, title }): AdminMapEditorChallengeOption => ({
         challengeFamily: "title_challenge", challengeId: challenge.id, label: title.label, kind: "title_challenge", titleKey: challenge.titleKey, status: challenge.status, gameVersion: challenge.gameVersion!,
       })),
@@ -263,7 +265,19 @@ export const createMapRevisionServices = (
     mapId: string,
     assignments: AdminRevisionAssignmentInput[],
     existingAssignments: Array<typeof gameplayRevisionChallengeAssignments.$inferSelect> = [],
+    pioneerWindows: PioneerWindowInput[] = [],
   ) => {
+    const windowRuleIds = new Set(pioneerWindows.map((window) => window.ruleId));
+    if (windowRuleIds.size !== pioneerWindows.length) throw new Error("INVALID_REVISION_ASSIGNMENT");
+    // A submitted window replaces the stored exception window, so it must belong to an enabled Pioneer assignment and still be open.
+    for (const window of pioneerWindows) {
+      if (!assignments.some((assignment) => assignment.challengeFamily === "map_title_rule" && assignment.challengeId === window.ruleId && assignment.enabled)) throw new Error("INVALID_REVISION_ASSIGNMENT");
+      const rule = await db.select({ kind: mapTitleRules.kind, defaultScope: mapTitleRules.defaultScope, status: mapTitleRules.status }).from(mapTitleRules).where(eq(mapTitleRules.id, window.ruleId)).get();
+      if (!rule) throw new Error("REVISION_CHALLENGE_NOT_FOUND");
+      if (rule.kind.trim().toLocaleLowerCase() !== "pioneer" || rule.defaultScope !== "explicit") throw new Error("INVALID_REVISION_ASSIGNMENT");
+      if (rule.status !== "active") throw new Error("REVISION_CHALLENGE_NOT_ACTIVE");
+      if (window.endsAt <= now()) throw new Error("REVISION_CHALLENGE_NOT_ASSIGNABLE");
+    }
     const seen = new Set<string>();
     const existingByIdentity = new globalThis.Map(existingAssignments.map((assignment) => [
       `${assignment.challengeFamily}:${assignment.challengeId}`,
@@ -290,7 +304,7 @@ export const createMapRevisionServices = (
         const rule = await db.select({ id: mapTitleRules.id, kind: mapTitleRules.kind, defaultScope: mapTitleRules.defaultScope, status: mapTitleRules.status }).from(mapTitleRules).where(eq(mapTitleRules.id, assignment.challengeId)).get();
         if (!rule) throw new Error("REVISION_CHALLENGE_NOT_FOUND");
         if (assignment.enabled && rule.status !== "active") throw new Error("REVISION_CHALLENGE_NOT_ACTIVE");
-        if (assignment.enabled && rule.kind.trim().toLocaleLowerCase() === "pioneer") {
+        if (assignment.enabled && !windowRuleIds.has(rule.id) && rule.kind.trim().toLocaleLowerCase() === "pioneer") {
           const exception = await db.select({ enabled: mapTitleRuleExceptions.enabled, startsAt: mapTitleRuleExceptions.startsAt, endsAt: mapTitleRuleExceptions.endsAt }).from(mapTitleRuleExceptions).where(and(eq(mapTitleRuleExceptions.ruleId, rule.id), eq(mapTitleRuleExceptions.mapId, mapId))).get();
           if (rule.defaultScope !== "explicit" || exception?.enabled !== 1 || !pioneerExceptionHasValidWindow(exception.startsAt, exception.endsAt) || exception.endsAt! <= now()) throw new Error("REVISION_CHALLENGE_NOT_ASSIGNABLE");
         }
@@ -460,7 +474,7 @@ export const createMapRevisionServices = (
       const spatialConfig = assertRevisionConfiguration(input.lifecycle, input.mapVariant, input.spatialConfig, mode);
       const currentAssignments = await db.select().from(gameplayRevisionChallengeAssignments)
         .where(eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, input.revisionId));
-      await validateRevisionAssignments(input.mapId, input.challengeAssignments, currentAssignments);
+      await validateRevisionAssignments(input.mapId, input.challengeAssignments, currentAssignments, input.pioneerWindows);
 
       if (input.mapVariant === "classic") {
         const otherClassic = await db.select({ id: gameplayRevisions.id }).from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.legacyMapVariant, "classic"), ne(gameplayRevisions.id, input.revisionId))).get();
@@ -497,6 +511,11 @@ export const createMapRevisionServices = (
           statements.push(insertDefaultMapTitleRuleAssignment(input.revisionId, input.mapId, rule.id, timestamp));
         }
       }
+      for (const window of input.pioneerWindows ?? []) {
+        statements.push(database.prepare("INSERT INTO map_title_rule_exceptions (id, rule_id, map_id, enabled, starts_at, ends_at, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?, ?, ?) ON CONFLICT(rule_id, map_id) DO UPDATE SET enabled = 1, starts_at = excluded.starts_at, ends_at = excluded.ends_at, updated_at = excluded.updated_at").bind(
+          crypto.randomUUID(), window.ruleId, input.mapId, window.startsAt, window.endsAt, timestamp, timestamp,
+        ));
+      }
       if (current.lifecycle === "selectable" && input.lifecycle === "historical") {
         statements.push(...reconcileEquippedTitlesForHistoricalRevision(input.revisionId));
       }
@@ -508,6 +527,7 @@ export const createMapRevisionServices = (
         lifecycle: input.lifecycle,
         gameVersion: input.gameVersion,
         assignmentCount: input.challengeAssignments.length,
+        pioneerWindows: input.pioneerWindows ?? [],
         spatialConfigUpdated: true,
         progressCopied: false,
       });
