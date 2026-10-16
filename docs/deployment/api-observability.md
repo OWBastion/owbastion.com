@@ -1,236 +1,100 @@
-# API production observability runbook
+# API Observability
 
-This runbook verifies a deployed API behavior. It does not turn CI success or
-a Worker deployment into production verification of a player-facing workflow.
-Do not paste credentials, session cookies, numeric player identifiers,
-submission IDs, evidence URLs, or full API bodies into tickets or logs.
+Verifies deployed behavior; CI success or a deploy is not production verification
+of a player workflow. Never put credentials, cookies, numeric player IDs,
+submission IDs, evidence URLs, or full bodies in tickets or logs.
 
-## State vocabulary
-
-| State | Evidence required |
-| --- | --- |
-| planned | Intent or issue only |
-| coded | Reviewed source and local tests |
-| deployed | A specific immutable revision is returned by production `/health` |
-| production-verified | A recorded production check of the applicable public or authenticated path |
-
-## Confirm the deployed revision
-
-Use a request ID that is safe to share and compare the response revision with
-the intended Git commit SHA:
+## Deployed revision
 
 ```bash
-curl --silent --show-error --include \
-  --header 'X-Request-ID: verify-api-revision-20260729' \
-  https://api.owbastion.com/health
+curl -si -H 'X-Request-ID: verify-api-revision-1' https://api.owbastion.com/health
 ```
 
-Expect `200`, the echoed `X-Request-ID`, `Cache-Control: private, no-store`,
-and a `deploymentRevision` equal to the immutable deployed commit. `unknown`
-means the Worker was deployed outside the release workflow and is not sufficient
-deployment evidence.
+Expect 200, the echoed `X-Request-ID`, `Cache-Control: private, no-store`, and
+`deploymentRevision` equal to the deployed commit (`unknown` means deployed outside
+the workflow: not evidence). In Workers Logs, the same request ID shows
+`request_complete` with only `deploymentRevision`, `routeClass`, method, status,
+duration, cache policy, edge-cache availability. Catalog reads also log
+`service_operation_complete` with a fixed operation class.
 
-In Cloudflare Workers Logs, find the same request ID. The `request_complete`
-record contains only low-cardinality fields: `deploymentRevision`, `routeClass`,
-HTTP method and status, duration, cache policy, and edge-cache availability.
-Catalog reads also emit `service_operation_complete`; its operation name is a
-fixed catalog class. Use it to distinguish cache hits from requests that reach
-the D1-backed catalog service.
+## Public cache
 
-## Verify public caching and bypasses
-
-The initial allowlist is deliberately narrow: `/v1/maps`,
-`/v1/public/achievements`, `/v1/challenges?family=map`, unfiltered
-`/v1/events`, event details, and unfiltered public Agents event lists/details.
-They return `public, max-age=300, s-maxage=300`. Each allowlisted catalog route
-declares that it is identity-independent: requests carrying caller cookies (such
-as signed-in portal sessions) participate in the shared cache, while cached
-entries never store cookies or per-request CORS headers. Search and every
-filtered event variant return `private, no-store`. Routes that read caller
-identity also return `private, no-store`. Public Agents responses set
-`Vary: Authorization`; a request carrying the Bastion build token always
-bypasses shared caching with `private, no-store`.
-
-The Worker also emits one `public_cache` record per allowlisted request. Its
-fixed `operation` and `status` fields distinguish `HIT`, `MISS`, `BYPASS`,
-`READ_FAILURE`, and `WRITE_FAILURE`; it never includes query values, IDs, or
-response data. A `MISS` is followed by the catalog operation, while a `HIT`
-must not emit that catalog operation for the same request. Cache API failures
-fall back to the D1-backed service response.
-
-Use a public Agents request with no build credential. Preserve response headers
-but do not retain the response body:
+- Allowlist: `/v1/maps`, `/v1/public/achievements`, `/v1/challenges?family=map`,
+  unfiltered `/v1/events` and details, unfiltered public Agents event lists/details.
+  They return `public, max-age=300, s-maxage=300`, are identity-independent
+  (cookies join the shared cache; entries store no cookies or per-request CORS).
+- Search, filtered events, and anything reading caller identity return
+  `private, no-store`. Public Agents set `Vary: Authorization`; a Bastion build
+  token request always bypasses with `private, no-store`. Admin paths too.
+- Each allowlisted request logs `public_cache` with `status` in `HIT`, `MISS`,
+  `BYPASS`, `READ_FAILURE`, `WRITE_FAILURE` (no query values, IDs, or data). A MISS
+  is followed by the catalog operation; a HIT must not be. Cache API failures fall
+  back to D1.
+- Check with two identical credential-free requests, keeping headers only
+  (`Cache-Control`, `Age`, `ETag`, `Vary`, `CF-Cache-Status` if present):
 
 ```bash
-curl --silent --show-error --output /dev/null --dump-header - \
-  --header 'X-Request-ID: verify-public-cache-1' \
-  'https://api.owbastion.com/v1/agents/maps?page=1&pageSize=20'
-curl --silent --show-error --output /dev/null --dump-header - \
-  --header 'X-Request-ID: verify-public-cache-2' \
+curl -s -o /dev/null -D - -H 'X-Request-ID: verify-public-cache-1' \
   'https://api.owbastion.com/v1/agents/maps?page=1&pageSize=20'
 ```
 
-Record `Cache-Control`, `Age`, `ETag`, `Vary`, and `CF-Cache-Status` if each
-header is present. Public Agents responses normally use a 300-second public
-policy. Cloudflare may report no edge cache header for a Worker response; that
-is a result to record, not a reason to infer a hit. Use the application
-`public_cache` records together with `service_operation_complete`: the first
-request must be `MISS` plus one catalog operation, and the equivalent second
-request must be `HIT` without that operation. The request logs show the route
-class, cache policy, and duration without request query values or payloads.
+  First request: MISS plus one catalog operation; second: HIT without it. A missing
+  `CF-Cache-Status` is a result to record, not a hit. Never put the build token in
+  shell history, URLs, tickets, or logs. The public achievement icon path is
+  immutable: compare its `ETag` and `Cache-Control` separately.
+- After a catalog mutation, repeat the admin refresh and public read: admin stays
+  `private, no-store`, public shows the current policy. Record outcome, request
+  IDs, revision, status, and cache headers, not the payload.
 
-Use an authorized Bastion build request only in the approved build environment.
-It must return `Cache-Control: private, no-store`; do not put the bearer token
-in a shell history, URL, ticket, or log. Administrative paths are also forced
-to `private, no-store`; verify their headers during an approved administrative
-session and retain only the status, request ID, and cache headers.
+## Slow operations
 
-For the immutable public achievement icon path, additionally compare `ETag`
-and `Cache-Control`; it is intentionally distinct from the short-lived Agents
-catalog policy.
+Search by request ID or `event=service_operation_complete`; investigate high
+`durationMs` by fixed `routeClass` and `operation` only. Never add names, IDs, URLs,
+SQL, evidence keys, query values, or bodies as log dimensions. Batched relationship
+loads keep statement counts bounded (ceilings in
+`packages/database/src/catalog-query-budget.test.ts`).
 
-## Inspect slow operations
+## Queue-backed OCR
 
-Search Workers Logs by a safe request ID or `event=service_operation_complete`.
-Investigate high `durationMs` records by fixed `routeClass` and `operation`
-only. Do not add player names, IDs, event IDs, arbitrary URLs, SQL text,
-evidence keys, query values, or response bodies as log dimensions.
-
-## Diagnose Queue-backed OCR
-
-For a player upload or administrator retry, search Workers Logs by the request
-ID returned by the originating API request. The OCR records use the fixed
-`layer: "ocr"` event names `job_enqueued`, `job_started`, `ocrkit_response`,
+Trace by the originating request ID. Records use `layer: "ocr"` with events
+`job_enqueued`, `job_accepted`, `job_started`, `ocrkit_response`,
 `ocrkit_response_parsed`, `job_completed`, `queue_job_failed`,
-`job_failure_recorded`, and their corresponding `*_failed` events. They retain
-the Queue attempt, manual flag, HTTP status, response field names, processing
-stage, duration, and bounded exception name/message; they never log player or
-QQ identifiers, the image, OCR text, object key, authorization token, or response
-body. OCR job and queue-failure events include the opaque `submissionId` so a
-maintainer can trace one Submission without exposing its evidence or identity.
+`job_failure_recorded`, and matching `*_failed`. They carry attempt, manual flag,
+status, field names, stage, duration, bounded error, and the opaque `submissionId`;
+never identity, image, OCR text, object key, token, or body.
 
-`queue_job_failed` on attempts 1 through 3 means the message will be retried;
-attempt 4 is the last configured OCR delivery. If recording that failure also
-fails, follow `queue_failure_record_failed` by `submissionId` and check the OCR
-dead-letter events `dead_letter_recovered` or `dead_letter_recovery_failed`.
-The five-minute scheduled repair also emits `stale_job_recovered` when a
-Submission has remained `ocr_pending` for 45 minutes, including after the
-dead-letter consumer has exhausted its retries and its message was discarded.
-Compare the `requestId` with the `X-Request-ID` sent to OCRKit and inspect the
-OCRKit container's access/error logs for the same request window. An OCRKit
-access line alone proves only that the request arrived; it does not prove object
-download or recognition succeeded.
+- `queue_job_failed` on attempts 1-3 retries; attempt 4 is last. If recording
+  fails, follow `queue_failure_record_failed`, then `dead_letter_recovered` or
+  `dead_letter_recovery_failed`. The 5-minute repair emits `stale_job_recovered`
+  for Submissions `ocr_pending` over 45 minutes.
+- Intake returns 202 within the 20-second timeout (recognition excluded);
+  OCRKit retries 503 and expires jobs waiting 30 minutes. 202, an OCRKit access
+  line, or OCRKit health does not prove callback delivery or the final outcome:
+  `job_completed` does. Legacy v1 messages log `legacy_job_skipped`; never replay
+  one as a new round or reuse a round UUID.
+- Match `requestId` with the `X-Request-ID` sent to OCRKit when reading its logs.
 
-Representative operation names for D1 performance baselines:
+## Public cache rollback
 
-| Operation | Route class | Notes |
-| --- | --- | --- |
-| `catalog_list_*` / `catalog_get_event` | `catalog` | Public catalog lists and single event; reads are D1-backed |
-| `admin_list_maps` / `admin_list_achievements` / `admin_list_titles` / `admin_list_events` | `admin` | Uncached D1 admin lists |
-| `agents_list_*` / `agents_get_*` / `agents_search` | `agents` | Public or Bastion-token Agents reads; single-title uses a direct lookup |
+Changes only HTTP caching, not migrations, data, or queues.
 
-Catalog relationship loads (challenge↔map associations) are batched in the
-database package so statement counts stay bounded as achievement/title counts
-grow. Assert ceilings live in `packages/database/src/catalog-query-budget.test.ts`.
+1. Deploy the intended revision with caching off:
+   `pnpm exec wrangler deploy --var DEPLOYMENT_REVISION:<sha> --var PUBLIC_HTTP_CACHE_ENABLED:false`
+2. Purge affected URLs via the approved Cloudflare process; Agents responses must now
+   be `private, no-store`.
+3. Record request IDs and revision. Restore by redeploying through the release
+   workflow (`PUBLIC_HTTP_CACHE_ENABLED:true`).
 
-## Mutation refresh check
+The API test `can disable public Agents HTTP caching without changing catalog data`
+guards this switch.
 
-In an approved staging or production administrative session, make one catalog
-mutation with its normal idempotency key, then repeat the affected admin refresh
-and public Agents read. Record the mutation outcome, both request IDs, deployed
-revision, status, cache headers, and resulting cache-policy log records. The
-admin refresh must remain `private, no-store`; the public read must show the
-current policy. Do not record the mutated catalog payload.
+## Portal catalog cache
 
-## Public HTTP cache rollback
+`/maps`, `/events`, `/achievements` stack two 300s TTL caches: the Worker's HTTP cache
+and the Portal's in-memory `getPublicCatalog` (`server/utils/public-catalog.ts`,
+Nitro `cachedFunction`, `swr: false`, fetched without the player cookie; guarded by
+`public-catalog.test.ts`). Worst-case admin-edit visibility on those pages is 600s;
+`/me` and other `/api/portal/*` reads bypass the Portal layer (about 300s). Write-time
+invalidation is an accepted non-goal (#33, #206).
 
-This rollback changes only public HTTP caching. It does not roll back D1
-migrations, catalog mutations, Queue messages, or any other business state.
-
-1. Deploy the currently intended source revision with public caching disabled:
-
-   ```bash
-   pnpm exec wrangler deploy \
-     --var DEPLOYMENT_REVISION:<immutable-commit-sha> \
-     --var PUBLIC_HTTP_CACHE_ENABLED:false
-   ```
-
-2. Purge the affected public URL cache through the approved Cloudflare change
-   process, then repeat the public header checks above. Agents responses must
-   now have `Cache-Control: private, no-store`.
-3. Record the rollback request IDs and deployed revision. Restore normal
-   behavior by redeploying the release workflow, which sets
-   `PUBLIC_HTTP_CACHE_ENABLED:true`.
-
-The API unit test `can disable public Agents HTTP caching without changing
-catalog data` is the local regression check for this rollback control.
-
-## Portal catalog cache layer and combined freshness bound
-
-The Worker's `public, max-age=300, s-maxage=300` policy documented above is
-one of two stacked TTL caches for Portal-rendered public catalog data
-(`/maps`, `/events`, `/achievements`). The Portal server (`apps/portal/server/utils/public-catalog.ts`)
-additionally caches the same identity-independent reads (`getPublicCatalog`,
-Nitro `cachedFunction`, `name: "public-catalog"`) with its own 300-second
-`maxAge`, fetched without the player cookie. This cache is in-process memory
-on the Portal container; it is not Workers KV, D1, or any shared store, and it
-is not visible to or clearable through the Worker's Cache API.
-
-`getPublicCatalog` sets `swr: false`. Nitro's `cachedFunction` defaults to
-`swr: true` (stale-while-revalidate: serve the expired entry immediately,
-refresh in the background, with no bound on how long that stale entry keeps
-being served if traffic is low). `swr: false` makes a read past `maxAge`
-block on a fresh upstream fetch instead, so this layer's own contribution to
-staleness is bounded by its `maxAge` rather than open-ended. Regression check:
-`apps/portal/server/utils/public-catalog.test.ts` fails if `swr` is re-enabled.
-
-**Combined freshness bound.** #206 accepted "about 5 minutes" for the Worker
-layer read alone. With the Portal layer stacked in front of it, the
-documented combined bound for Portal-rendered pages is now the sum of both
-`maxAge` values: up to 300s (Worker) + 300s (Portal) = **up to 600 seconds
-(about 10 minutes)** worst case between an administrator edit and that edit
-being visible on a Portal-rendered public catalog page. `/me` and other
-`/api/portal/*` reads that bypass the Portal catalog cache remain bound by
-the Worker layer alone (about 5 minutes), so they can briefly show fresher
-data than `/maps`, `/events`, or `/achievements` during that gap; this is an
-accepted consequence of the accepted non-goal of write-time cache
-invalidation (#33, #206), not a defect.
-
-**Clearing the Portal cache layer.** The Worker's `PUBLIC_HTTP_CACHE_ENABLED:false`
-rollback above only changes Worker-layer caching; it does not touch the
-Portal process's in-memory cache, which keeps serving its own cached entries
-until their `maxAge` elapses (now bounded to 300s by `swr: false`, previously
-unbounded). To clear the Portal cache immediately — for example while
-investigating a suspected stale-catalog report — deploy a new Portal Worker
-version through [Workers Builds](portal-cloudflare.md). New Worker instances
-start with empty process-local caches; the next read still goes through the
-API Worker layer and may use an entry within that layer's own 300-second TTL.
-There is no global remote purge for the Portal's process-local cache; waiting
-out `maxAge` avoids a deployment solely for cache clearing.
-
-## Asynchronous OCR callback rollout
-
-1. Deploy OCRKit with its durable `/api/v1/ocr/challenge/jobs` intake and
-   callback worker, while retaining the existing synchronous endpoint for
-   the platform version still deployed. Configure its fixed callback base URL
-   as the platform API origin and use the same OCRKit API token on both ends.
-2. Apply forward-only platform migration `0093_async_ocr_callbacks.sql`, then
-   deploy this platform receiver and Queue dispatcher together. New Queue
-   messages use envelope version 2 and carry the pending OCR result UUID.
-3. Verify a newly submitted image receives HTTP 202 promptly, remains pending
-   during recognition, and reaches its expected business state via the
-   authenticated callback. Confirm OCRKit retries 503 responses.
-
-The 20-second HTTP timeout applies only to image intake, not recognition.
-OCRKit expires jobs that wait 30 minutes before inference starts; running
-inference is not forcibly interrupted. The platform's scheduled
-45-minute stale repair remains the recovery boundary for lost callbacks or
-abandoned processing claims. Legacy version-1 Queue messages are logged as
-`legacy_job_skipped` and acknowledged; their old pending Submissions recover
-through stale repair and can then be retried manually. Do not replay a legacy
-message as a new OCR round or reuse an earlier round's UUID.
-
-`job_accepted` logs dispatch acceptance; `job_completed` records the business
-completion. HTTP 202 and OCRKit health do not prove callback delivery or the
-final Submission outcome. No automatic production retry, migration, or
-submission mutation is part of the local implementation.
+The cache rollback switch does not touch the Portal layer. A new Portal Worker version ([Workers Builds](portal-cloudflare.md)) clears it; reads then still use the Worker layer's TTL.

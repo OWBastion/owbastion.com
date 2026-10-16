@@ -1,190 +1,116 @@
 # Data and Security Boundaries
 
-## Data ownership
+The repository is public: never commit credentials, tokens, production endpoints,
+private identifiers, user screenshots, risk signals, signed URLs, or private logs.
 
-| Store | Current responsibility |
+## Stores
+
+| Store | Holds |
 | --- | --- |
-| D1 | Player Accounts, Passkey public credentials and counters, one-time authentication/registration challenges, recovery grants, direct Portal sessions, optional QQ bindings, submissions, upload sessions, attachment metadata, OCR results, Verified Runs and lifecycle events, review records, idempotency records, audit events, title catalog, source achievement rules, canonical Challenges, Challenge Completions and satisfaction relations, map catalog metadata, map title rewards, map title rules, map title rule exceptions, map title rule compatibility mappings, historical title snapshots, and auditable player title grants |
-| R2 | Submission screenshots served as unlisted CDN assets, plus isolated public achievement icons served by their explicit public API route when the EVIDENCE_BUCKET binding is configured |
-| KV (`PLATFORM_CACHE`) | Read-through copies of D1 catalog and grant read projections only, under version-scoped keys invalidated by platform writes; entries expire within hours. Not business truth and never a public response boundary |
-| Bastion Git and release artifacts | Game implementation, builds, releases, and published game artifacts; Bastion reads current platform metadata through the Agents API |
+| D1 | All business truth: accounts, Passkeys, sessions, QQ bindings, submissions, uploads, OCR results, Verified Runs, reviews, idempotency and audit records, catalog and map metadata, Challenges and Completions, title rules, Grants |
+| R2 | Submission screenshots (unlisted CDN assets) and public achievement icons (via their API route) |
+| KV `PLATFORM_CACHE` | Disposable read-through copies of catalog and grant projections, version-scoped keys, hours-long expiry; never truth or a public boundary |
+| Bastion Git/releases | Game implementation and artifacts; Bastion reads metadata via the Agents API |
 
-The OCR Queue carries only an opaque submission ID, object key, schema version,
-and an optional request-correlation ID. The Worker verifies that the key is the
-stored attachment for that Submission, reads that object through its R2 binding,
-and sends only its bytes to OCRKit's authenticated multipart endpoint. OCRKit
-receives neither the object key nor access to the platform evidence bucket. The
-consumer receives the delivery attempt count from Queue metadata and records it
-with OCR results. OCR raw output and review decisions remain in D1; result
-persistence and submission state transitions are platform-owned, idempotent by
-request-correlation ID, and committed together.
-No private screenshot is committed to the repository.
+Read paths follow [ADR 0004](../adr/0004-storage-read-standard.md): stable,
+identity-independent public data goes shared cache, KV, then D1; player-specific
+and mutable workflow/security state reads D1 with `private, no-store` (ADR 0002).
+KV outage falls back to D1; list endpoints must not add per-item queries or KV reads.
 
-## Storage read paths
+## Trust boundaries
 
-Choose among shared HTTP cache, KV, and direct D1 using
-[ADR 0004](../adr/0004-storage-read-standard.md): low-volatility, identity-independent
-public projections go shared cache -> KV read-through -> D1; authenticated,
-player-specific, and mutable workflow/security state read D1 directly with
-`private, no-store` (ADR 0002 is the precedent). D1 stays authoritative; cache
-copies are disposable, KV unavailability falls back to D1, and list/batch
-projections must not grow queries or KV reads per item. Apply the ADR's endpoint
-checklist to any new or modified read path.
+- QQBot calls need `QQBOT_API_TOKEN` (`channel:write`, `channel:read`); writes
+  need an idempotency key and audit event.
+- Admin requests need a session whose account has `is_admin`; the Worker checks
+  this independently of Portal UI. Admin changes, binding removals, and catalog
+  edits are idempotent and audited, and never authorize changes to Bastion artifacts.
+- A verified QQ claim creates a Player Account only with an active, unused admin
+  invitation for that BattleTag; account and first binding commit together. Later
+  rebinding follows invitation and maintainer review. A QQ login attempt
+  authenticates only the account of that member's active binding.
+- Never expose private evidence, QQ identifiers, object keys, source URLs, review
+  notes, or unapproved drafts publicly.
 
-## Platform trust boundaries
+## Evidence and OCR
 
-QQBot service calls require the configured QQBOT_API_TOKEN and receive
-channel:write plus channel:read. Binding and verification writes require an
-idempotency key and record an audit event. A verified QQ claim may create a
-Player Account only when it carries an active, unused administrator invitation
-for that BattleTag; account creation and the initial binding are committed
-together. Rebinding existing accounts continues through the invitation and
-maintainer-review rules. A verified QQ login attempt authenticates only the
-Player Account of the active binding for that QQ member. Administrative
-requests require an authenticated platform session whose player account has
-`is_admin` enabled; the Worker validates this independently of Portal UI
-visibility. Administrator status changes and binding removals are idempotent
-and auditable. Achievement-catalog changes use the same authorization,
-idempotency, and audit boundary. Authorized administrators may modify
-platform-owned title, map, event, and challenge metadata through the platform's
-audited workflows; those workflows do not authorize changes to Bastion-owned
-game implementation, builds, releases, or published game artifacts.
+- Upload sessions accept JPEG/PNG/WebP up to 10 MiB, bind byte size and SHA-256,
+  expire in 10 minutes, write to a submission-scoped high-entropy R2 key, and
+  cannot be reused.
+- Owner and maintainer detail views return the exact CDN evidence URL. The URL is
+  not authorization; keep keys high-entropy and never list buckets or leak URLs
+  through public status. Player OCR summary shows only map, difficulty, player,
+  and completion values.
+- The OCR Queue carries only submission ID, object key, schema version, and an
+  optional correlation ID. The Worker verifies the key is that Submission's
+  attachment, reads R2, and sends only bytes to OCRKit. OCRKit never sees keys or
+  the bucket. Results and transitions commit together, idempotent by correlation ID,
+  with the delivery attempt count recorded.
+- OCR accuracy feedback is one accurate/inaccurate mark per recognition result
+  (owner or maintainer, idempotent, latest writer wins). It never changes
+  decisions, Grants, mastery, or evidence, and is only a sampling hint, never a
+  training label. Projections never include confidence, thresholds, warnings,
+  risk signals, raw payloads, or other players' evidence.
+- Screenshot sets are OCRKit's training supply: admin management needs maintainer
+  role; the read endpoint is private and versioned with Worker secret
+  `OCRKIT_SNAPSHOT_TOKEN`, serves finalized sets only, and returns per-screenshot
+  object facts (source id, key, SHA-256, MIME, size, layout version, accuracy
+  mark), never identity, decisions, Grants, or bytes. OCRKit reads R2 directly with
+  its own read-only prefix-scoped credentials; browsers never get storage
+  credentials. Set members are retained even if the Submission is removed.
 
-Portal upload sessions accept only JPEG, PNG, or WebP, limit the body to 10 MiB,
-bind the expected byte size and SHA-256, expire after ten minutes, and store
-the result under a submission-scoped high-entropy R2 key. The upload URL cannot
-be reused after completion. Public status responses do not expose evidence
-URLs, object keys, source URLs, or QQ OpenIDs.
+## Reviews
 
-Player-owned and maintainer submission detail responses expose the exact
-evidence URL needed by their screenshot view. The browser loads image bytes
-directly from the configured R2 custom domain/CDN, where the unlisted asset is
-cacheable. The URL is not authorization: anyone who obtains it can read the
-image. Keep object keys high-entropy and do not expose bucket listing or URLs
-from public submission status. Public achievement icons remain available only
-through their separate public API route. The player-facing OCR summary contains
-only recognized map, difficulty, player, and completion values; raw OCR output
-and internal match details remain private.
+Ratings are D1 records keyed by account and event/map target; account link, audit,
+hidden and withdrawn state stay private. Anonymous display is presentation only.
+Aggregates exclude withdrawn and invalidated rows; hiding a comment keeps its
+rating. Public reads (summary, bounded batch, paginated comments) return only
+rating, comment text, creation time, and a public display name or no author; never
+review IDs, account or game IDs, QQ identity, moderation state, or audit data.
+They stay `private, no-store`.
 
-OCR accuracy feedback is a screenshot-level mark, not an annotation. The
-player projection exposes only the bound recognition-result ID and the current
-accurate/inaccurate mark; it never includes numeric confidence, thresholds,
-warnings, risk signals, raw OCRKit payloads, transcriptions, or other players'
-evidence. Feedback writes require the Portal session and the player's own
-Submission (players) or the maintainer role (admin route), plus an idempotency
-key. Players and maintainers share one mark per recognition result and the
-latest writer wins. A mark never alters the Submission decision, challenge,
-Grant, mastery, or OCR evidence; it is only a sampling/prioritization hint for
-OCRKit screenshot-set selection, never a training label.
+## Login and sessions
 
-Screenshot sets are the platform's OCRKit training-supply boundary. Admin set
-management requires the maintainer role; the OCRKit read endpoint is a private,
-versioned contract requiring the `OCRKIT_SNAPSHOT_TOKEN` secret (a Worker
-secret, never a committed variable). It serves only finalized sets and returns
-only per-screenshot object facts — source id, R2 object key, SHA-256, MIME
-type, size, layout version, and the accuracy mark — never player identity, QQ
-identifiers, Submission decisions, Grant/mastery state, risk signals, or image
-bytes. OCRKit downloads member objects directly from the evidence bucket with
-its own read-only credentials scoped to the screenshot prefix; the platform
-never issues storage credentials to browsers or other clients. Set-member
-screenshots stay retained as training provenance even if the source Submission
-is later removed.
+- Passkey challenges, session/recovery tokens, QQ login codes and attempt tokens,
+  and QQ OpenIDs are private. Sessions, recovery tokens, attempt tokens, and codes
+  are stored hashed.
+- Passkey challenges expire in 5 minutes, single use; authentication and
+  registration require user verification, registration a discoverable credential.
+  The Worker checks the exact Portal Origin and derives the RP ID from its hostname.
+  Registration needs an authenticated account and is not part of invitation.
+- QQ login attempts expire in 2 minutes and issue the same direct session as
+  Passkey. Only one live pending attempt holds a code; collisions regenerate.
+- Invitations: hashed for verification, encrypted for maintainer re-copy,
+  single-use, one BattleTag, 7-day expiry; only unused, unexpired ones can be
+  revoked (audited, immediate). Confirmation codes expire in 2 minutes. After
+  QQBot verifies in an enabled group, account, binding, and claim approval commit
+  together; the approved claim can bootstrap a session for 5 minutes (retry-safe).
+- Portal sessions last 30 days. Recovery grants last 30 minutes, are single use,
+  replace Passkeys, revoke sessions, and keep all business records.
+- Expired attempts, pending claims, sessions, and challenges are pruned on the
+  next creation path, not by a scheduled job; reviewed or approved claims stay as
+  provenance.
 
-Player ratings are D1-owned records keyed by the authenticated player account
-and a stable event/map target. The account association, audit events, hidden
-comment state, withdrawn rows, and invalidated rows remain private platform
-data. Anonymous display is only a public presentation preference; it never
-removes the internal account association. Rating aggregates exclude withdrawn
-and invalidated rows, while comment hiding does not remove a rating from the
-aggregate.
+## Player and Agents reads
 
-Public review reads use separate summary and comment projections. Single-target
-summaries, bounded batches, and paginated comments return only rating facts,
-comment text, creation time, and either an approved public display name or no
-author for anonymous reviews. They never return review IDs, player account or
-numeric game IDs, QQ identities, session fields, moderation state, or audit
-payloads. These responses remain `private, no-store` because review state is
-not shared through public HTTP cache boundaries.
+- `GET /v1/me`: name, numeric player ID, up to five recent submissions.
+  Player-title read: only the caller's active Grants plus public display data.
+  `GET /v1/me/mastery`: active run projections only (map, difficulty, settlement
+  metrics, XP, personal bests, bounded history). Neither returns run codes,
+  source submissions, account/QQ identity, versions, event facts, OCR/evidence,
+  risk, XP snapshots, or audit data. Admin APIs may read QQ identifiers; public
+  and player APIs never do.
+- Agents projection omits numeric player IDs; with the Bastion build token it may
+  return display name, game player ID, active title keys, and map scope. It never
+  returns QQ identifiers, submissions, review sources, timestamps, audit, analytics,
+  or revoked/historical Grants.
 
-## Private login and player data
+## Title Grants
 
-Passkey challenges, session tokens, recovery tokens, QQ login codes, QQ login attempt tokens, QQ group OpenIDs, and
-member OpenIDs are private. The database stores hashes of session and recovery
-tokens and of the short-lived QQ attempt token and code. QQ login attempts expire
-after two minutes and a verified attempt issues the same direct Player Account
-session as Passkey login. At most one live pending QQ login attempt may hold a
-given code at a time; a colliding creation retries with a new code, and
-verification only ever matches a live (pending, unexpired) attempt for its code.
-Expired QQ login attempts are pruned after a short retention window on the
-login-attempt creation path rather than by a scheduled job. Expired
-`pending_confirmation` binding claims are marked expired and pruned after the
-same retention window when a new invitation claim is redeemed; claims awaiting
-review and approved claims remain as workflow and migration provenance.
-Expired Portal sessions are removed when a new session is issued. Expired
-Passkey challenges and sessions linked to them are pruned when a new Passkey
-challenge is created. Passkey challenges expire after five minutes and can be
-consumed only once. Authentication and registration require
-user verification; registration requires a discoverable credential. The Worker
-checks the exact Portal Origin and derives the WebAuthn RP ID from its hostname
-before it asks the auth package to verify a response. Invitation codes are
-hashed for verification and encrypted at rest for maintainer re-copy, are
-single-use, target one BattleTag, and expire after seven days. A maintainer can
-revoke only an unused, unexpired invitation; the reason is retained in the
-audit record and revocation takes effect immediately.
-Invitation confirmation codes expire after two minutes. The platform creates a
-first Player Account only after QQBot verifies the invited claim in an enabled
-group, then commits the account, QQ binding, and claim approval together. The
-claim browser exchanges the approved claim for a Portal session. Passkey
-registration requires an authenticated Player Account and is not part of the
-invitation flow. An approved claim can bootstrap that session for five minutes
-after its decision; retries in this window recover a response lost in transit.
-Portal sessions expire after 30 days and are stored against the Player Account.
-Existing active QQ sessions were backfilled to direct
-Player Account sessions during the cutover. Maintainer recovery grants expire
-after 30 minutes, are single-use, replace the account's Passkeys, revoke its
-Portal sessions, and preserve all business records on that Player Account.
-
-GET /v1/me returns only the authenticated player's name, numeric player ID,
-and up to five recent player-facing submissions. The separate
-authenticated player-title response returns only the caller's active grants and
-the public title and map-scope data needed to display them; it never returns
-historical holder names, QQ identities, or audit data. QQ identities, evidence
-objects, source URLs, and audit payloads do not cross the API boundary. The
-protected administrator surface may read QQ group/member identifiers to operate
-bindings; these fields are never returned by public or player APIs.
-
-GET /v1/me/mastery is likewise session- and ownership-scoped. It reads only
-active verified-run projections for the current player: stable map ID, canonical
-difficulty, settlement metrics, awarded XP, aggregate personal bests, and a
-bounded recent-run/history page. Run codes, source submission IDs, account and
-QQ identifiers, game-version and event facts, OCR/evidence data, risk signals,
-XP rule snapshots, and lifecycle/audit details remain platform-private. This
-read does not create runs or decide submission eligibility.
-
-The public Agents projection is a separate title-fact boundary. Ordinary
-responses omit numeric player IDs. Requests carrying the dedicated Bastion
-build token may return the current player display name, stable game player ID,
-active title keys, and the map scope required to generate Bastion's in-game
-title database. These are limited game facts, not a player account or review
-record. Agents responses must not include QQ identifiers, submission
-identifiers or content, review sources, timestamps, audit payloads, runtime
-analytics, or revoked and historical title grants.
-
-Historical title holder names are immutable source snapshots, not identity
-proof. `player_title_grants` is the single entitlement table: each record
-stores the player, stable `title_key`, optional map context, source (`historical`,
-`submission`, `manual`, or `automatic`), source ID, and revocation fields.
-Active uniqueness prevents a player from holding the same title in the same
-qualification scope twice. Grant creation and revocation are idempotent and
-auditable; revocation preserves the record and removes the title from the
-player-facing result. A Grant links to its qualifying Challenge Completion.
-Manual grants use `source_type = manual`, create a manual Completion, and never
-create a Submission or Review record; they may target retired titles when
-explicitly selected by a maintainer.
-
-## Public-repository policy
-
-The repository is public. Do not commit credentials, tokens, production
-endpoints, private identifiers, user screenshots, internal risk signals, signed
-URLs, or copied private logs. Public documentation should describe contracts
-and boundaries without exposing operational access details.
+`player_title_grants` is the single entitlement table: player, `title_key`,
+optional map context, source (`historical`, `submission`, `manual`, `automatic`),
+source ID, revocation fields. Active uniqueness prevents the same title in the
+same scope twice. Create and revoke are idempotent and audited; revoke preserves
+the row and hides the title from the player. Each Grant links to its qualifying
+Completion. Manual Grants create a manual Completion, never a Submission or
+Review, and may target retired titles. Historical holder names are immutable
+snapshots, not identity proof.

@@ -1,115 +1,47 @@
 # CSS Ownership
 
-本文档负责 Portal CSS 的职责边界、单位落地、共享模式抽取和页面级例外。
-视觉 token 见 [`visual-foundation.md`](visual-foundation.md)；布局单位见
-[`layout-and-spacing.md`](layout-and-spacing.md)。
+One design system; ownership follows responsibility, not file size. Values: [layout-and-spacing.md](layout-and-spacing.md),
+[visual-foundation.md](visual-foundation.md).
 
-## Ownership rules
+## Who owns what
 
-The Portal has one design system. Ownership follows responsibility rather than
-file size:
+1. `main.css`, Nuxt UI config (`app.config.ts`), and shared tokens: colors, type, materials,
+   elevation, press feedback, touch targets, containers, focus, reduced-motion/transparency/contrast
+   policy. `:root` holds `--space-1..16`, `--control-*`, `--radius-*`, and type role classes.
+2. Shared domain components or classes: stable repeated patterns (`detail-grid`, action row), when
+   they carry semantics or behavior.
+3. A reusable component: scoped CSS for its internal layout and state.
+4. A page: scoped CSS for its own composition (grid areas, region order, sticky `top` in rem/safe-area,
+   natural-aspect evidence, structure-matched skeletons, collapse at `48rem`/`64rem`).
 
-1. `main.css`, Nuxt UI configuration (`app.config.ts` / theme), and shared
-   tokens own semantic colors, type scale, materials, elevation, interaction
-   feedback, touch targets, containers, focus, and reduced-motion /
-   transparency / contrast policy.
-2. Shared domain components or classes own stable patterns repeated across
-   pages, especially when they carry semantics or behavior.
-3. A reusable component may keep scoped CSS for internal layout and state
-   presentation.
-4. A page may keep scoped CSS for its own composition: unique grids, sticky
-   evidence/detail columns, responsive collapse, natural-aspect evidence, and
-   structure-matched skeletons.
+A pattern seen twice gets an extraction review; at three uses extract it or record why they differ.
+Repeated pure visual pattern: shared class or domain component; repeated semantic structure: domain
+component. Fewer files or less scoped CSS is not a goal.
 
-When a pattern appears twice, check whether it is stable; at three or more uses,
-extract it or record why the instances are intentionally different. Do not
-extract a one-off wrapper merely to reduce scoped CSS, and do not redefine
-shared tokens, radii, elevations, materials, type, or container widths locally.
+## Never redefine locally
 
-## What must not be redefined locally
-
-Do not re-declare in page/component scoped CSS:
-
-- Color tokens or ad-hoc hex/oklch used as semantic state
-- Type scale, heading tracking systems, or alternate font stacks
-- Glass / elevation / radius design language
-- Press feedback scale curves (use `pressable` / `pressable-soft`)
-- Touch target floors and control heights (use `--control-*`)
-- `page-shell` max-width and page gutters
-- Spacing values outside the `--space-*` ladder, font weights outside
-  400/500/600/700, radius literals, or button styling outside `UButton`
-
-Pages **may** own: grid-template areas, order of regions, sticky `top` offsets
-using `rem` / safe-area, structure-matched skeleton geometry, and page-layout
-collapse at the two page breakpoints (`48rem`, `64rem`). Components own their
-responsive behavior through container queries (`cq-compact`, `24rem`), never
-viewport media queries. Exception: `AppHeader` is global page chrome pinned to
-the viewport (not a sized container), so its nav-to-drawer collapse uses the
-`48rem` page breakpoint like a layout; its internal spacing at very narrow
-widths still uses `cq-compact`.
-
-## Units in CSS (implementation of layout-and-spacing)
-
-| Property class | Ownership guidance |
-| --- | --- |
-| `gap`, `padding`, `margin` for structure | `var(--space-*)`; `clamp()` only between two ladder steps |
-| `min-height` of controls | `var(--control-*)`; `--control-lg` under `pointer: coarse` |
-| `border-radius` | `var(--radius-control|card|sheet|pill)`; `50%` only for circular marks |
-| `font-weight` | 400 / 500 / 600 / 700 |
-| Grid tracks | `minmax(0, 1fr)`, `minmax(min(100%, Nrem), 1fr)`, `auto-fit` |
-| `border-width: 1px`, shadow blur/offset | `px` OK |
-| Breakpoints | Pages: `48rem` / `64rem` only. Components: `@container` at `24rem` |
-
-Normative unit policy lives in
-[`layout-and-spacing.md`](layout-and-spacing.md). CSS ownership enforces
-**where** styles live; layout doc enforces **what values mean**.
-
-## Tailwind and Nuxt UI styles
-
-- Tailwind utilities are allowed for local composition when they map cleanly to
-  the design system (width, min-width, grid, gap from theme).
-- Do not use Tailwind as a second token system for brand color, type, or glass.
-- Prefer Nuxt UI props / `ui` slot overrides over deep selectors into generated
-  classes.
-- Full policy: [`components-and-patterns.md`](components-and-patterns.md).
-
-## Scoped CSS review checklist
-
-When reviewing a `<style scoped>` block:
-
-- [ ] No new semantic colors or type scale
-- [ ] No page-local container max-width competing with `page-shell`
-- [ ] Spacing, radius, and weight values come from the tokens (no raw `px` except 1px hairlines / shadow geometry)
-- [ ] No viewport `@media` inside a component; container query instead
-- [ ] No CSS button classes; `UButton` only
-- [ ] No `position: fixed` feature docks without layout-doc exception
-- [ ] `min-width: 0` / full-width stack for multi-card columns
-- [ ] Reduced-motion / transparency / contrast not bypassed
-
-## Where the tokens live
-
-`main.css` `:root` owns `--space-1` … `--space-16`, `--control-sm|md|lg`,
-`--radius-control|card|sheet|pill`, and the type role classes, next to the
-color tokens. `app.config.ts` owns the `UButton` variant/size theme and the
-Nuxt UI radius tuning. Shared pattern classes (`detail-grid`, action row) live
-in `main.css` or a domain component, not in page CSS.
+Color tokens or raw hex/oklch as state; type scale, tracking, font stacks; glass, elevation, radius;
+press curves (`pressable`/`pressable-soft`); touch floors and control heights (`--control-*`);
+`page-shell` widths and gutters; spacing off the `--space-*` ladder; weights outside 400-700; radius
+literals; button styling outside `UButton`. Components respond through container queries (`24rem`),
+never viewport queries. Exception: `AppHeader` (viewport-pinned chrome) collapses at `48rem` and
+uses `cq-compact` for very narrow internal spacing.
 
 ## Guardrails
 
-Stylelint enforces the rules above in CI: no raw `px` for
-`padding|margin|gap|inset` (1px allowed), `font-weight` limited to
-400/500/600/700, no `border-radius` literals, and no `@media` width queries in
-component `<style>` blocks other than the two page breakpoints in page
-components. Every rule is an error everywhere.
+`pnpm lint:styles` (also in `pnpm check` and the Portal publish workflow, rules in
+`stylelint.config.mjs`) errors on: raw `px` in `padding|margin|gap|inset` (1px allowed),
+`font-weight` outside 400/500/600/700, `border-radius` literals, and width `@media` in component
+styles. Only `pages/`, `layouts/`, `main.css`, `AppHeader.vue`, and `AdminWorkspace.vue` may use
+`48rem`/`64rem` (and `47.99rem`/`63.99rem`) queries.
 
-Run `pnpm lint:styles`; it also runs in `pnpm check` and the Portal publish
-workflow. Rules live in `stylelint.config.mjs`. Page files (`pages/`,
-`layouts/`), `assets/css/main.css`, and the global chrome (`AppHeader.vue`,
-`AdminWorkspace.vue`) may use only the `48rem` / `64rem` width queries and
-their `47.99rem` / `63.99rem` complements; every other file may use none.
+Tailwind utilities and Nuxt UI `ui` slots/props are preferred over deep selectors
+([components-and-patterns.md](components-and-patterns.md)).
 
-## Refactor extraction rule
+## Scoped CSS review
 
-Repeated pure visual patterns → shared class in `main.css` or domain component.
-Repeated semantic structure → domain component. File-count reduction alone is
-not a goal.
+- [ ] No new semantic colors or type scale; no local container widths competing with `page-shell`
+- [ ] Spacing, radius, weight from tokens (raw `px` only for 1px hairlines and shadow geometry)
+- [ ] No viewport `@media` in a component; no CSS button classes; no feature `position: fixed` docks
+- [ ] `min-width: 0` and full-width stacks for multi-card columns
+- [ ] Reduced-motion, transparency, and contrast policy not bypassed

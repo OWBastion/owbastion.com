@@ -1,139 +1,86 @@
 # Design Direction
 
-本文档负责 Portal 的**设计趋向**：新设计语言要去哪里、凭什么判断一个改动是否在往那里走，
-以及新旧设计共存期间如何保证每一次改动都向前而不是回头。token、单位、组件选型、
-可访问性等基础规则仍由各支柱文档负责，本文不重复。
+Where the Portal's design is heading, and how to judge a change. Foundations (tokens,
+units, a11y, permissions, terminology) always apply; this layer applies to new and
+changed blocks; legacy code is a fact, not a template.
 
-## Status and precedence
-
-规则分三层，层与层之间不互相降级：
-
-| 层 | 内容 | 对新旧页面 |
-| --- | --- | --- |
-| 基础规则 | 语义 token、`--space-*`、四档字重、圆角角色、两个页面断点、容器查询、对比度、减少动态/透明度、权限与公开/私有边界、术语 | 一律有效，任何页面不得绕过 |
-| 方向（本文） | 信息层级、玩家面与管理面的取向、数值与操作的表达、新旧共存规则 | 新建与被改动的页面和区块必须朝它走 |
-| 旧实现 | 仓库中尚未对齐的页面与样式 | 只是事实，**不是先例**，不得作为新工作的模板 |
-
-当其他支柱文档中**关于外观、风格或信息组织**的条目与本文冲突，且改动属于新建或被改动的
-区块，以本文为准，并在同一 PR 里把被取代的条目改掉，不留两套说法。基础规则不被本文覆盖。
+One line: **answer why the user came, then show the rest; the player side has game
+texture, the admin side has working efficiency, on the same tokens.**
 
 ## Direction
 
-新设计语言可以概括为一句话：**先回答用户为什么来，再展示其余；玩家面有游戏的质感，管理面
-有工作的效率，两者共用同一套 token。**
-
-### 1. 先回答用户关心的问题
-
-每个页面开头回答用户带着的问题，而不是把能展示的东西平铺：玩家中心回答“我下一步做什么”，
-个人主页回答“我是谁、做过什么”，事件目录回答“我要找的事件在哪、数值如何”，审核回答
-“这张截图能不能过”。能直接回答问题的内容在前，其余按需展开。
-
-### 2. 一屏一个焦点，三级层次
-
-一个页面有一个视觉焦点（档案卡、主操作、选中的详情），其后是支撑区块，最后是明细。
-同一屏里不要出现三个以上同等权重的卡片组。层次靠尺寸、字重、位置和 accent 强度表达，
-不靠加更多容器。
-
-### 3. 渐进披露
-
-显示已经开始的，折叠没有开始的；显示摘要，明细在展开或详情里；长列表折叠到一个合理的数量并
-写明总数。不要渲染一整面内容相同的空卡片。折叠后的内容必须仍可达（展开、链接或详情），
-不能为了好看删掉。
-
-### 4. 数值要可感
-
-数值是页面的一等内容：用概览行、分段进度、概率条、排名、换算语句（如“平均每触发约 N 次出现 1
-次”）让用户一眼比较，而不是只列一个数字。数值使用 `tabular-nums`，单位和分母作为次级信息。
-
-### 5. 按含义分组与检索
-
-按系列、事件组、标签、槽位这类**含义**分组，而不是强制按时间或版本分桶。筛选用可叠加的标签，
-带数量，已选条件可见可清除；时间或版本只作为可选的分组方式。
-
-### 6. 玩家面有游戏质感，管理面有工作效率
-
-- **玩家面**：身份、等级感和收藏感可以被表达——档案卡、佩戴称号、按槽位的边框强度、聚焦卡片上的
-  一处 accent 渐变、最高档的光晕，以及仅限指针的图标倾斜。
-- **管理面**：效率优先——主从布局、就地编辑、批量操作、操作后撤销代替确认、默认一步完成。
-  不使用装饰。
-- 两者用同一套 token、圆角、字阶和按压反馈，差别只在取向，不在另一套视觉系统。
-
-### 7. 宽容的操作
-
-可逆的操作立即生效，并给出带“撤销”的反馈；只有不可逆或有破坏性的操作才需要确认，并写清后果。
-获得、批准、拒绝等管理决定不要求理由（见产品规则）。
-
-### 8. 数据诚实
-
-只展示平台已有的数据；缺失显示“—”或直接省略，不编造等级、稀有度、排名或进度。槽位就是槽位
-（用边框强度表达，同时有文字），不被包装成段位。不能做的操作不渲染，而不是渲染后置灰来解释。
-
-### 9. 移动端同等重要
-
-移动端保持同一信息层级：主操作在最前，次要操作并排或收进抽屉/折叠，筛选收进抽屉；触控目标不小于
-`--control-lg`；任何信息或操作不依赖悬停。设计时先画窄屏的顺序，再决定宽屏如何展开。
-
-### 10. 动效服务于操控
-
-动效只用于回应用户的操作（按压、指针跟随、浮层进出）。不做循环、入场编排、浮动、扫光或脉冲。
-唯一例外：排行榜第一名卡片允许一道缓慢循环的箔光（foil light），作为最高荣誉的质感表达；减少动态时
-箔光静止，指针倾斜也关闭。除此之外，所有动效都是可选的，减少动态时退化为静态且信息完整。
+1. **Answer the user's question first.** Center: "what next"; profile: "who am I, what have
+   I done"; events: "where is it, what are the numbers"; review: "can this pass".
+2. **One focus, three levels.** A focus, supporting blocks, then detail. No more than two
+   equally weighted card groups per screen; hierarchy comes from size, weight, position, and
+   accent, not more containers.
+3. **Progressive disclosure.** Show what has started, fold what has not; summary first,
+   detail on expand; fold long lists with a total. Folded content stays reachable.
+4. **Tangible numbers.** Overview rows, segmented progress, probability bars, ranks,
+   conversions ("about 1 in N triggers"); `tabular-nums`, unit and denominator secondary.
+5. **Group and search by meaning** (series, event group, tag, slot), not forced time or
+   version buckets. Stackable filter chips with counts, visible and clearable.
+6. **Player texture, admin efficiency.** Player: profile card, equipped title, frame
+   intensity by slot, one accent gradient on the focal card, glow on the top tier, pointer-only
+   icon tilt. Admin: master/detail, edit in place, bulk actions, undo over confirm, no
+   decoration. Same tokens, radii, type, and press feedback.
+7. **Forgiving actions.** Reversible actions apply at once with an undo toast; confirm only
+   irreversible or destructive ones, stating the consequence. Admin decisions never require
+   a reason.
+8. **Honest data.** Show only data the platform has; missing is "—" or omitted. A slot is a
+   slot (border intensity plus text), not a rank. Unavailable actions are not rendered.
+9. **Mobile is equal.** Same hierarchy; primary action first; filters in a drawer; touch
+   targets at least `--control-lg`; nothing hover-only. Design the narrow order first.
+10. **Motion serves control.** Only responses to action (press, pointer follow, overlays).
+    No loops, entrance choreography, floating, sweeps, or pulses. The one exception: the
+    leaderboard first-place card may have a slow foil light, static under reduced motion.
 
 ## Visual vocabulary
 
-只用基础规则里的 token 搭出下面的语汇；需要新颜色先改 token，不在页面里造。
+Built only from tokens; a new color means a new token. Limit: one radial gradient and one
+glow class per page; no atmospheric blobs, stacked gradients, raw colors, or loops.
 
-| 语汇 | 做法 | 参考实现 |
+| Pattern | How | Reference |
 | --- | --- | --- |
-| 焦点卡 | `surface-card elevation-2`，一处 accent 径向渐变（`color-mix` 到透明），圆形头像带 accent 描边 | `PlayerProfileHero` |
-| 概览行 | 一排 3–4 个大数字，标签在下，分隔用 1px 线 | `PlayerStatSheet` |
-| 强度阶梯 | accent 在 `--surface-raised` 上的混合比例 7% → 14% → 24%，仅最高档加光晕；同时必须有文字 | `PlayerTitleMark` |
-| 分段进度 | 等宽小段，已达成用 `--accent`，其余 `--line` | `PlayerNextGoals` |
-| 系列架 | 按系列的卡片，内部是一行图标，超出折叠并写总数 | `PlayerTitleShelf` |
-| 详情弹层 | 点开看大图与条件，沿用 Nuxt UI 浮层 | `PlayerTitleInspectDialog` |
-| 指针倾斜 | `useIconTilt`；仅限精确指针且可悬停，减少动态时关闭 | `PlayerTitleBadge` |
+| Focal card | `surface-card elevation-2`, one accent radial gradient, accent-ringed avatar | `PlayerProfileHero` |
+| Overview row | 3-4 large numbers, labels below, 1px dividers | `PlayerStatSheet` |
+| Intensity ladder | accent mixed on `--surface-raised` 7%, 14%, 24%; glow only at top; always with text | `PlayerTitleMark` |
+| Segmented progress | equal segments, reached `--accent`, rest `--line` | `PlayerNextGoals` |
+| Series shelf | card per series, one row of icons, overflow folded with total | `PlayerTitleShelf` |
+| Detail overlay | Nuxt UI overlay with large image and conditions | `PlayerTitleInspectDialog` |
+| Pointer tilt | `useIconTilt`; fine, hovering pointers only; off under reduced motion | `PlayerTitleBadge` |
 
-装饰的上限：一个页面最多一处径向渐变、一类光晕；不使用氛围色块、多重渐变、原始色值和循环动画。
+## Old and new
 
-## Coexisting old and new
+Old and new designs coexist. A block is "new" if built from this direction and the
+references above; no page-migration list is kept (code and PRs are the record).
 
-未来一段时间旧设计与新设计会并存。目标是让每一次改动都把页面推向新语言，且旧规则不会限制新设计。
+1. Legacy is not precedent; "same as the next page" is not a reason.
+2. New blocks in old pages use the new language.
+3. Migrate whole blocks or pages, not one old block piecemeal; neighbors stay coherent via
+   shared tokens (`surface-card`, radius roles, type roles).
+4. Touching means moving forward: no new legacy patterns, fixed `px`, local colors,
+   equal-weight card walls, or hover-only information. Small fixes need not redesign; explain
+   unmet items in the PR.
+5. Extract a pattern on its third use ([css-ownership.md](css-ownership.md)).
+6. If a rule blocks a direction-aligned design, change the rule in the same PR.
+7. Whole-page migration is its own PR; do not widen a bugfix.
+8. When an old pattern is fully replaced, delete it from code and docs.
 
-**如何判断一个区块属于哪一边。** 由方向指引和上述参考组件/模式构成的是新语言，其余是旧实现。
-本目录不维护“哪个页面已迁移”的清单（那会很快过期）；以代码和 PR 为准。
+## PR checklist
 
-**规则**
+- [ ] The page opens by answering why the user came; one focus.
+- [ ] Three content levels; no wall of equal cards.
+- [ ] Empty or not-started content folds but stays reachable.
+- [ ] Numbers are comparable (overview, progress, probability, conversion).
+- [ ] Grouping and search follow meaning.
+- [ ] Reversible actions undo; confirmation only for irreversible ones.
+- [ ] Only existing data; missing is "—"; no invented grades or ranks.
+- [ ] Narrow order and primary action match wide; touch targets pass; no hover dependence.
+- [ ] Motion only responds to action; static and complete under reduced motion.
+- [ ] No new raw colors, size/weight/radius/spacing literals, or page-level fixed action bars.
 
-1. **旧实现不是先例。** 不以旧页面的布局、样式或组件组合作为模板；引用以本目录文档和参考组件为准。
-   “和旁边的页面一样”不构成理由。
-2. **新增的必须是新的。** 在旧页面里新增区块或组件，用新语言写，不模仿邻居的旧样式。
-3. **按区块迁移。** 迁移以整个区块或整个页面为单位，不在一个旧区块里单点换皮。新旧区块相邻时靠共享
-   token（`surface-card`、圆角角色、字阶）保持协调，不需要额外的过渡样式。
-4. **触碰即前进。** 每个改动 PR 对照下面的清单自检。小修不必顺带重设计，但**不得倒退**：不新增旧模式、
-   固定 `px`、局部颜色、整面同权重的卡片、悬停才可见的信息。做不到的项在 PR 描述里写原因。
-5. **第三次出现就抽取。** 新模式第三次被使用时抽成共享组件或 `main.css` 类，见
-   [`css-ownership.md`](css-ownership.md)。
-6. **规则阻碍时先改规则。** 发现某条旧规则挡住了符合方向的设计，先在同一 PR 里改规范，再写代码；
-   不在页面里绕过，也不在 PR 里只写“例外”。
-7. **整页迁移独立成 PR。** 与功能混做必须在描述里说明范围；不把 bugfix 扩成无关页面的重做。
-8. **旧模式退场就删除。** 一个旧模式被全部替换后，从代码和文档里一并删除，不保留“旧写法”的说明。
+## Next
 
-**方向清单（每个 PR 自检）**
-
-- [ ] 页面开头回答了用户为什么来，焦点只有一个。
-- [ ] 内容分了三级层次，没有整面同权重的卡片。
-- [ ] 空的、没开始的内容被折叠，但仍可达。
-- [ ] 数值以可比较的方式表达（概览、进度、概率、换算）。
-- [ ] 分组与检索按含义，而不是强制按时间或版本。
-- [ ] 可逆操作立即生效并可撤销；确认只用于不可逆操作。
-- [ ] 只展示已有数据，缺失是“—”，没有编造的等级或排名。
-- [ ] 窄屏的信息顺序和主操作与宽屏一致，触控目标达标，没有悬停依赖。
-- [ ] 动效只回应操作，减少动态时静态且完整。
-- [ ] 没有新增原始色值、字号/字重/圆角/间距字面量，没有页面级固定操作条。
-
-## Next directions
-
-以下是方向，尚未成为规则；落地后提升到 [`page-archetypes.md`](page-archetypes.md) 和组件文档，
-并从这里删除。
-
-- 公开玩家主页：在个人主页之上增加可分享的公开视图，字段范围另行决定。
+Public player home: a shareable view atop the profile (fields TBD). Promote to
+page-archetypes once decided and delete here.

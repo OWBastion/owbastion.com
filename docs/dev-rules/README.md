@@ -18,5 +18,3 @@
   UI 视觉、交互和内容设计放在 [`../design-rules/`](../design-rules/)。
 - 架构决策记录放在 [`../adr/`](../adr/)，部署和生产验证手册放在
   [`../deployment/`](../deployment/)。
-- 本目录不复制[功能状态矩阵](../product-rules/feature-status.md)；实现和
-  验证等级以该矩阵为唯一来源。
