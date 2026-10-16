@@ -406,6 +406,8 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: var(--elevation-1); }
 .chips { display: flex; flex: 1 1 100%; gap: var(--space-2); min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .chips::-webkit-scrollbar { display: none; }
+/* A hidden-scrollbar row cannot be scrolled with a mouse wheel, so pointer devices wrap the chips instead. */
+@media (hover: hover) and (pointer: fine) { .chips { flex-wrap: wrap; overflow-x: visible; } }
 .chip { min-height: var(--control-sm); padding: 0 var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-pill); background: var(--surface); color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 500; white-space: nowrap; cursor: pointer; }
 .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-surface); color: var(--text); font-weight: 600; }
 
