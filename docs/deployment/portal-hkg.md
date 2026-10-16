@@ -1,33 +1,43 @@
-# Public Portal on HKG
+# Public Portal deployment
 
 ## Scope
 
-The public Portal is deployed to the HKG server as the `portal` service in the
-repository's Docker Compose configuration. The Hono API, D1, queues, R2, and
-future administrative surfaces remain separate platform components.
+The public Portal is being migrated from the HKG Docker/Cloudflare Tunnel
+origin to a Cloudflare Worker with Workers Static Assets. The Hono API, D1,
+queues, R2, and other platform components remain separate; `api.owbastion.com`
+is not part of either Portal deployment path.
 
-The intended request path is:
+The two origins are:
 
 ```text
+current (pre-cutover):
 visitor
   → Cloudflare Edge TLS
   → server-managed cloudflared Tunnel
   → HKG loopback port 3000
-  → portal container
+  → portal container (Node 26 Nuxt SSR)
+
+target (post-cutover):
+visitor
+  → Cloudflare Edge TLS
+  → owbastion-codes-portal Worker (Nitro cloudflare_module)
+  → Static Assets for prerendered/public files
 ```
 
-The public hostname for the Portal is `owbastion.com`. The platform API is
-served at `api.owbastion.com` and is not part of this Compose deployment.
+The public hostname for the Portal is `owbastion.com`. The Worker origin is
+preview-only until an explicitly authorized cutover attaches the custom domain;
+`wrangler.jsonc` intentionally ships without production routes.
 
-The Portal container sets `NUXT_PUBLIC_API_BASE_URL=https://api.owbastion.com`.
-The Worker allows credentialed browser requests only from `https://owbastion.com`.
-For local browser development, run the Worker with `PORTAL_ORIGIN=http://localhost:3000`;
-the Portal defaults to `http://localhost:8787` and the API omits the `Secure`
-cookie attribute for that HTTP origin.
+The Portal sets `NUXT_PUBLIC_API_BASE_URL=https://api.owbastion.com` in both
+origins. The API Worker allows credentialed browser requests only from
+`https://owbastion.com`. For local browser development, run the Worker with
+`PORTAL_ORIGIN=http://localhost:3000`; the Portal defaults to
+`http://localhost:8787` and the API omits the `Secure` cookie attribute for
+that HTTP origin.
 
 Portal browser requests use the same-origin Nuxt `/api/portal/*` proxy. The
-Nuxt server forwards the incoming session cookie to the Worker and relays the
-Worker's session cookie back to the browser. `NUXT_PUBLIC_API_BASE_URL` is a
+Nuxt server forwards the incoming session cookie to the API Worker and relays
+the session cookie back to the browser. `NUXT_PUBLIC_API_BASE_URL` is a
 server-side upstream setting; browser authentication must not bypass the
 Portal proxy with direct cross-origin requests.
 
@@ -36,8 +46,10 @@ Portal proxy with direct cross-origin requests.
 This repository contains:
 
 - the Nuxt Portal application;
-- its Dockerfile;
-- `compose.yaml`, which runs only the Portal container;
+- `apps/portal/wrangler.jsonc`, the Cloudflare Workers + Static Assets
+  deployment configuration;
+- its Dockerfile and `compose.yaml`, which run only the Portal container on
+  HKG until the cutover cleanup;
 - this deployment contract and operational checklist.
 
 This repository does not contain:
@@ -48,10 +60,86 @@ This repository does not contain:
 - a public origin listener.
 
 The server operator owns the Tunnel installation and injects its configuration
-outside the repository. The Tunnel must route `owbastion.com` to the Portal's
-server-local HTTP endpoint, normally `http://127.0.0.1:3000`.
+outside the repository. The Tunnel routes `owbastion.com` to the Portal's
+server-local HTTP endpoint, normally `http://127.0.0.1:3000`, until cutover.
 
-## CI image publishing
+## Cloudflare Worker build and preview
+
+The Worker build uses the Nitro `cloudflare_module` preset:
+
+```bash
+pnpm --filter @owbastion/portal run build:worker
+```
+
+This produces `.output/server/index.mjs` (the Worker entry configured as
+`main` in `wrangler.jsonc`) and `.output/public/` (Static Assets directory).
+Prerendered editorial pages, `index.html` shells, and public files are served
+from assets; dynamic and authenticated routes execute in the Worker.
+
+Preview the Worker locally with Miniflare:
+
+```bash
+pnpm --filter @owbastion/portal run preview:worker
+```
+
+Static Assets use `html_handling: drop-trailing-slash`, keeping the existing
+slashless URLs (`/blog`, `/changelog/26.0801.1`) canonical; the trailing-slash
+form redirects to it.
+
+Deploys go to `owbastion-codes-portal.<account>.workers.dev`:
+
+```bash
+pnpm --filter @owbastion/portal run deploy:worker
+```
+
+Every deploy produces an immutable, identifiable Worker version; `wrangler
+rollback` or the dashboard restores a previous version. The workers.dev
+surface is a preview origin only — `owbastion.com` traffic is unaffected until
+the custom-domain route is added under an authorized cutover.
+
+GitHub Actions runs `build:worker` for Portal changes, and the `deploy-portal.yml`
+`Deploy Portal Worker` job publishes the Worker version on `main` using
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, the same secrets used by
+the API Worker deployment.
+
+## Cutover (requires explicit authorization)
+
+Switching `owbastion.com` to the Portal Worker is a separately authorized
+operation. The sequence:
+
+1. Verify the workers.dev preview: anonymous Blog/Changelog list and detail
+   pages (static assets), an authenticated page, an admin page, an unknown
+   editorial slug (404), `/api/portal/*` proxying with credentials, and a
+   screenshot upload boundary. WebAuthn/Passkey semantics on the preview
+   hostname differ from `owbastion.com`; verify login flows in the final
+   same-origin check below.
+2. Add the custom-domain route to `apps/portal/wrangler.jsonc`:
+
+   ```jsonc
+   "workers_dev": false,
+   "routes": [{ "pattern": "owbastion.com", "custom_domain": true }]
+   ```
+
+   Committing this change does not switch traffic by itself; the cutover is
+   performed by deploying with it.
+3. Deploy the Worker and confirm the custom domain activates (Cloudflare
+   manages the DNS/TLS switch on the zone).
+4. Verify production paths: `/health`, anonymous editorial reads,
+   canonical/SEO metadata, QQ and Passkey login, authenticated reads, admin
+   denial and writes, upload boundaries, and `/api/portal/*` proxying.
+5. Record the deployed Worker version and production-path evidence.
+
+Rollback before cleanup: remove the custom-domain route (redeploy) or restore
+the Tunnel hostname on the HKG origin, which keeps serving the last deployed
+`sha-<commit>` image.
+
+Only after sustained accepted production validation is the superseded
+HKG-only machinery removed: `publish-portal.yml` image publishing, the
+Compose/SSH deploy job, `apps/portal/Dockerfile`, `compose.yaml`, the Tunnel
+route, and unused secrets — without disturbing HKG services still hosting
+QQBot/OCRKit.
+
+## CI image publishing (pre-cutover path)
 
 GitHub Actions builds the Portal image after the Portal checks pass on `main`
 and publishes it to the public GitHub Container Registry package. The workflow
@@ -149,5 +237,6 @@ Tunnel credentials and DNS changes are not part of either operation.
 ## Failure boundary
 
 If the Portal container is unhealthy, Docker restarts it and the Tunnel may
-return an origin-unavailable response. This does not change API or D1 state.
+return an origin-unavailable response. A Portal Worker failure surfaces as an
+error page or the Workers error response. Neither changes API or D1 state.
 The Portal must not become a second business API or a durable source of truth.

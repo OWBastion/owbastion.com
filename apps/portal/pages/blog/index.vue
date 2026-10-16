@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const { data: posts, status, error, refresh } = await useAsyncData(
   "public-blog-list",
-  () => queryCollection("blog").select("title", "description", "path", "publishedAt", "tags").order("publishedAt", "DESC").all(),
+  () => queryEditorialSummaries("blog"),
   { default: () => [] },
 );
 

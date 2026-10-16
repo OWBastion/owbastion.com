@@ -1,28 +1,34 @@
 <script setup lang="ts">
 import { editorialToc } from "~/utils/editorial";
+import { findEditorialEntry, queryEditorialSummaries } from "~/utils/editorial-content";
 
 const route = useRoute();
 const slug = computed(() => String(route.params.slug ?? ""));
 const contentPath = computed(() => `/changelog/${slug.value}`);
-const requestUrl = useRequestURL();
+const siteUrl = useRuntimeConfig().public.siteUrl;
+const requestEvent = useRequestEvent();
 
 const { data: entry, status, error } = await useAsyncData(
-  "public-changelog-entry",
-  () => queryCollection("changelog").path(contentPath.value).first(),
+  () => `public-changelog-entry-${slug.value}`,
+  () => findEditorialEntry("changelog", slug.value),
   { default: () => null, watch: [contentPath] },
 );
 const { data: all } = await useAsyncData(
   "public-changelog-neighbours",
-  () => queryCollection("changelog").select("title", "path", "version", "releasedAt").order("releasedAt", "DESC").all(),
+  () => queryEditorialSummaries("changelog"),
   { default: () => [] },
 );
+
+if (import.meta.server && status.value !== "pending" && !entry.value && requestEvent) {
+  setResponseStatus(requestEvent, 404);
+}
 
 const title = computed(() => {
   if (!entry.value) return "版本更新 · 躲避堡垒 3";
   return `${entry.value.version} ${entry.value.title} · 版本更新 · 躲避堡垒 3`;
 });
 const description = computed(() => entry.value?.description ?? "查看已发布的平台内容与规则变化。");
-const canonical = computed(() => new URL(contentPath.value, requestUrl.origin).toString());
+const canonical = computed(() => new URL(contentPath.value, siteUrl).toString());
 const shareTitle = computed(() => entry.value ? `${entry.value.version} ${entry.value.title}` : "版本更新");
 const index = computed(() => all.value.findIndex((item) => item.path === contentPath.value));
 const neighbour = (offset: number, label: string) => { const item = index.value >= 0 ? all.value[index.value + offset] : undefined; return item ? { path: item.path, title: `${item.version} ${item.title}`, label } : null; };

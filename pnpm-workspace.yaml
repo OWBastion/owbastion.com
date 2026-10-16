@@ -14,3 +14,8 @@ minimumReleaseAgeExclude:
   - miniflare
   - wrangler
   - '@simplewebauthn/server@14.0.3'
+
+# @nuxt/ui advertises @nuxt/content as an optional peer; Portal no longer uses it,
+# so keep pnpm from installing the (native-SQLite-bound) package at all.
+overrides:
+  "@nuxt/ui>@nuxt/content": "-"

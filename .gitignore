@@ -36,7 +36,7 @@ node_modules/
 dist/
 .nuxt/
 .output/
-apps/portal/.data/
+.generated/
 .wrangler/
 .dev.vars
 .env

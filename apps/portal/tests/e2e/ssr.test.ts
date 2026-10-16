@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
-import { $fetch, setup } from "@nuxt/test-utils/e2e";
+import { $fetch, fetch, setup } from "@nuxt/test-utils/e2e";
 import { afterAll, describe, expect, it } from "vitest";
 
 const rootDir = fileURLToPath(new URL("../..", import.meta.url));
@@ -106,55 +106,41 @@ describe("Portal SSR", async () => {
     expect(upstreamRequests.some((request) => request.path === "/v1/me")).toBe(false);
   });
 
-  it("queries both built editorial collections", async () => {
-    const [blogRows, changelogRows] = await Promise.all([
-      $fetch("/__nuxt_content/blog/query", {
-        method: "POST",
-        body: { sql: "SELECT \"title\", \"path\", \"publishedAt\" FROM _content_blog ORDER BY \"publishedAt\" DESC" },
-      }),
-      $fetch("/__nuxt_content/changelog/query", {
-        method: "POST",
-        body: { sql: "SELECT \"title\", \"description\", \"path\", \"version\", \"releasedAt\" FROM _content_changelog ORDER BY \"releasedAt\" DESC" },
-      }),
-    ]);
+  it("prerenders Git-backed editorial pages as static assets", async () => {
+    const { existsSync, readFileSync } = await import("node:fs");
+    const readPublic = (route: string) => readFileSync(resolve(outputDir, `public${route}/index.html`), "utf8");
 
-    const blogTitles = blogRows.map((row) => row.title);
-    expect(blogTitles.length).toBeGreaterThan(0);
-    expect(blogTitles.every((title) => typeof title === "string" && title.length > 0)).toBe(true);
-    expect(blogRows.every((row) => typeof row.path === "string" && row.path.startsWith("/blog/"))).toBe(true);
-    expect(blogRows.every((row) => typeof row.publishedAt === "string")).toBe(true);
-    expect(changelogRows.length).toBeGreaterThan(0);
-    const changelogVersions = changelogRows.map((row) => row.version);
-    expect(new Set(changelogVersions).size).toBe(changelogVersions.length);
-    expect(changelogRows.every((row) => typeof row.title === "string" && row.title.length > 0)).toBe(true);
-    expect(changelogRows.every((row) => typeof row.path === "string" && row.path.startsWith("/changelog/"))).toBe(true);
-    expect(changelogVersions.every((version) => typeof version === "string" && version.length > 0)).toBe(true);
-    expect(changelogRows.every((row) => typeof row.releasedAt === "string")).toBe(true);
-
-    const latestBlog = blogRows[0];
-    const latestChangelog = changelogRows[0];
-    if (!latestBlog || !latestChangelog) throw new Error("built editorial collections are unexpectedly empty");
+    for (const route of ["/blog", "/changelog", "/blog/random-system-weighted-algorithm", "/changelog/26.0801.1"]) {
+      expect(existsSync(resolve(outputDir, `public${route}/index.html`)), `${route} should be a prerendered asset`).toBe(true);
+    }
 
     const [blogIndex, changelogIndex, blogDetail, changelogDetail] = await Promise.all([
       $fetch("/blog"),
       $fetch("/changelog"),
-      $fetch(latestBlog.path),
-      $fetch(latestChangelog.path),
+      $fetch("/blog/random-system-weighted-algorithm"),
+      $fetch("/changelog/26.0801.1"),
     ]);
+    expect(readPublic("/blog")).toBe(blogIndex);
+    expect(readPublic("/changelog/26.0801.1")).toBe(changelogDetail);
 
-    expect(blogIndex).toContain(`href="${latestBlog.path}"`);
-    expect(blogIndex).toContain(latestBlog.title);
-    expect(blogDetail).toContain(latestBlog.title);
-    expect(changelogIndex).toContain(`href="${latestChangelog.path}"`);
-    expect(changelogIndex).toContain(latestChangelog.version);
-    expect(changelogDetail).toContain(latestChangelog.title);
+    expect(blogIndex).toContain('href="/blog/random-system-weighted-algorithm"');
+    expect(changelogIndex).toContain('href="/changelog/26.0801.1"');
+    expect(changelogIndex).toContain("26.0801.1");
+    expect(blogDetail).toContain("随机系统");
+    expect(changelogDetail).toContain("随机事件调整");
     expect(changelogDetail).toContain('property="og:title"');
     expect(changelogDetail).toContain('property="og:description"');
-    expect(changelogDetail).toContain('property="og:url"');
+    // Prerendered metadata must carry the public origin, never a request host.
+    expect(changelogDetail).toContain('property="og:url" content="https://owbastion.com/changelog/26.0801.1"');
+    expect(changelogDetail).toContain('rel="canonical" href="https://owbastion.com/changelog/26.0801.1"');
+    expect(changelogDetail).not.toMatch(/(?:content|href)="https?:\/\/localhost/);
     expect(changelogDetail).toContain('name="twitter:card"');
     expect(changelogDetail).toContain('name="twitter:title"');
     expect(changelogDetail).toContain('name="twitter:description"');
-    expect(changelogDetail).toContain(latestChangelog.description);
+
+    // The runtime content database and its SQL query surface are gone entirely.
+    const response = await fetch("/__nuxt_content/blog/query", { method: "POST" });
+    expect(response.status).toBe(404);
   });
 
   it("renders the weighted-random article formulas as KaTeX", async () => {

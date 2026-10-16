@@ -1,0 +1,26 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "owbastion-codes-portal",
+  // Nitro `cloudflare_module` output; rebuild with `pnpm --filter @owbastion/portal build:worker`.
+  "main": "./.output/server/index.mjs",
+  "compatibility_date": "2026-07-14",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./.output/public",
+    // Keep the existing slashless URLs canonical: /blog/ redirects to /blog.
+    "html_handling": "drop-trailing-slash",
+  },
+  // Preview surface only: deploys go to <name>.<account>.workers.dev and do not
+  // touch owbastion.com. The authorized cutover adds the custom-domain route:
+  //   "workers_dev": false,
+  //   "routes": [{ "pattern": "owbastion.com", "custom_domain": true }]
+  "workers_dev": true,
+  "observability": {
+    "enabled": true,
+  },
+  "vars": {
+    // Same-origin proxies forward to the API Worker; override locally via .dev.vars.
+    "NUXT_PUBLIC_API_BASE_URL": "https://api.owbastion.com",
+  },
+}

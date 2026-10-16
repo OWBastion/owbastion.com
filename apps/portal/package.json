@@ -4,14 +4,16 @@
   "type": "module",
   "scripts": {
     "build": "nuxt build",
+    "build:worker": "NITRO_PRESET=cloudflare_module nuxt build",
     "dev": "nuxt dev",
+    "preview:worker": "wrangler dev --config wrangler.jsonc",
+    "deploy:worker": "wrangler deploy --config wrangler.jsonc",
     "test:ui": "vitest --config vitest.config.ts",
     "test:e2e": "vitest --config vitest.e2e.config.ts --run",
     "typecheck": "nuxt typecheck"
   },
   "dependencies": {
     "@internationalized/date": "^3.12.4",
-    "@nuxt/content": "^3.16.0",
     "@nuxt/ui": "^4.11.1",
     "@nuxtjs/color-mode": "^4.0.1",
     "@nuxtjs/mdc": "^0.23.1",
@@ -24,16 +26,18 @@
     "nuxt": "^4.4.8",
     "rehype-katex": "^7.0.1",
     "remark-math": "^6.0.0",
-    "vue": "^3.5.43"
+    "shiki": "^4.4.3",
+    "vue": "^3.5.43",
+    "zod": "^4.6.2"
   },
   "devDependencies": {
     "@iconify-json/lucide": "^1.2.122",
     "@nuxt/hints": "^1.1.4",
+    "@nuxt/kit": "4.4.8",
     "@nuxt/test-utils": "^4.3.2",
     "@vue/test-utils": "^2.5.1",
     "happy-dom": "^20.11.2",
     "tailwindcss": "^4.3.3",
-    "vue-tsc": "^3.3.9",
-    "zod": "^4.6.2"
+    "vue-tsc": "^3.3.9"
   }
 }

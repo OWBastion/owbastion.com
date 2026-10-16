@@ -79,13 +79,21 @@ detail or editor content, followed by the normal Portal build/check gate.
 
 Portal editorial content is a separate Git-backed surface under
 `apps/portal/content/`, with future media assets rooted at
-`apps/portal/public/content/`. Nuxt Content indexes Blog development logs and
-Changelog player-facing notes from Markdown during development and builds. Blog
-entries may describe work in progress; Changelog entries describe changes that
-have already been released. Editorial metadata and a Changelog `version` value
-do not replace platform D1 facts or Bastion's authoritative implementation,
-build, release, and published-artifact state. This content foundation does not
-add D1, R2, or an editorial API.
+`apps/portal/public/content/`. The `apps/portal/modules/editorial.ts` Nuxt
+module compiles Blog development logs and Changelog player-facing notes at
+build time: it parses Markdown via `@nuxtjs/mdc`, validates frontmatter with
+the Zod schemas in `content/editorial-schemas.ts`, and writes generated JSON
+under `apps/portal/.generated/editorial/` (gitignored) that
+`apps/portal/utils/editorial-content.ts` serves.
+The runtime bundle carries only that generated data — no parser or raw
+Markdown — and the Blog/Changelog list and detail routes are prerendered to
+static assets. There is no runtime content database or query API. Blog entries
+may describe work in progress; Changelog entries describe changes that have
+already been released.
+Editorial metadata and a Changelog `version` value do not replace platform D1
+facts or Bastion's authoritative implementation, build, release, and
+published-artifact state. This content foundation does not add D1, R2, or an
+editorial API.
 
 Editorial changes use the repository's ordinary Git workflow. The Portal reads
 the Markdown content during development and build; it does not provide a CMS or
@@ -115,7 +123,9 @@ corresponding game implementation.
 ## Deployment boundary
 
 The Worker API is configured for the api.owbastion.com custom domain. The
-Portal has a separate Docker Compose deployment configuration for HKG, with a
+Portal is migrating to a separate Cloudflare Worker with Workers Static
+Assets configured in `apps/portal/wrangler.jsonc`; until the authorized
+cutover it is still served by the HKG Docker Compose deployment behind a
 server-managed Cloudflare Tunnel outside this repository. Deployment
 configuration is not evidence of a live environment; verify operational state
 separately.

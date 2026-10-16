@@ -801,7 +801,7 @@ Secondary or contextual tools include:
 - Audit;
 - OCR Feedback.
 
-Blog/Studio/changelog editing does not belong in the core admin application.
+Blog/changelog editing does not belong in the core admin application.
 
 Standalone CRUD pages may be removed when their capability is fully represented
 inside the coherent workflow. Do not preserve empty or duplicate admin surfaces

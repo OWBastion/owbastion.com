@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const { data: releases, status, error, refresh } = await useAsyncData(
   "public-changelog-list",
-  () => queryCollection("changelog").select("title", "path", "version", "releasedAt").order("releasedAt", "DESC").all(),
+  () => queryEditorialSummaries("changelog"),
   { default: () => [] },
 );
 
