@@ -115,7 +115,7 @@ const titleColumns: TableColumn<TitleChallengeRow>[] = [
         </template>
         <template #actions-cell="{ row }">
           <div class="table-actions">
-            <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-pencil" :label="editingId === itemIdentity(row.original) ? '收起' : '编辑'" :aria-label="editingId === itemIdentity(row.original) ? '收起编辑' : '编辑规则'" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)" />
+            <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-pencil" :label="editingId === itemIdentity(row.original) ? '收起' : '编辑'" :aria-label="editingId === itemIdentity(row.original) ? '收起编辑' : '编辑规则'" :disabled="isSaving(row.original)" @click="toggleEditing(row.original)" />
             <UPopover v-if="row.original.status === 'active'" :open="planningId === row.original.challengeId" @update:open="(open) => { planningId = open ? row.original.challengeId : null; }">
               <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-calendar-clock" label="计划" aria-label="计划下线" :disabled="isSaving(row.original)" />
               <template #content>

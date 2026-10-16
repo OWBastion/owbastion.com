@@ -31,6 +31,7 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record
   if (path === "/v1/achievements/map-1" && options?.method === "PUT") return Promise.resolve({ ...map, ...options.body });
   if (path === "/v1/achievements/map-2" && options?.method === "PUT") return Promise.resolve({ ...secondMap, ...options.body });
   if (path === "/v1/titles/INTERNAL" && options?.method === "PUT") return Promise.resolve();
+  if (path === "/v1/titles/FLAWLESS" && options?.method === "PUT") return Promise.resolve();
   throw new Error(`Unexpected request: ${path}`);
 });
 mockNuxtImport("useAdminApi", () => () => adminApi);
@@ -153,9 +154,25 @@ describe("achievement admin page", () => {
     expect(wrapper.text()).not.toContain("守望先锋");
   });
 
+  it("edits the catalog row when its challenge shares the same challenge id", async () => {
+    adminApi.mockImplementationOnce((path: string) => path === "/v1/achievements"
+      ? Promise.resolve({ items: [{ ...title, challengeId: "title.FLAWLESS" }, { ...linkedCatalogTitle }] })
+      : Promise.reject(new Error(`Unexpected request: ${path}`)));
+    const wrapper = await mountPage("titles");
+    await wrapper.get('button[aria-label="编辑称号"]').trigger("click");
+    await flushPromises();
+    const form = wrapper.get("form#achievement-editor");
+    expect(form.text()).toContain("称号标签");
+    expect(wrapper.findAll("textarea")).toHaveLength(0);
+    await form.get('input[maxlength="256"]').setValue("守望先锋改");
+    await form.trigger("submit");
+    await flushPromises();
+    expect(adminApi).toHaveBeenCalledWith("/v1/titles/FLAWLESS", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ label: "守望先锋改" }) }));
+  });
+
   it("edits title lifecycle and public visibility without creating a challenge", async () => {
     const wrapper = await mountPage("titles");
-    await wrapper.get('button[aria-label="编辑状态"]').trigger("click");
+    await wrapper.get('button[aria-label="编辑称号"]').trigger("click");
     await flushPromises();
     expect(wrapper.find("form").text()).toContain("称号标签");
     expect(wrapper.findAll("textarea")).toHaveLength(0);

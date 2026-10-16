@@ -14,7 +14,7 @@ const { maps, mapItems, loading, errorMessage, openCreate, toggleEditing } = wor
     <template #actions><UButton label="新建挑战" icon="i-lucide-plus" @click="openCreate" /></template>
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <AdminAchievementNav />
-    <AdminMapAchievementWorkspace :maps="maps" :challenges="mapItems" :loading="loading" :initial-map-id="typeof route.query.mapId === 'string' ? route.query.mapId : ''" :initial-rule-id="typeof route.query.ruleId === 'string' ? route.query.ruleId : ''" @edit-challenge="(challenge) => toggleEditing(challenge.challengeId, challenge.mapId, challenge.gameplayRevisionId)" />
+    <AdminMapAchievementWorkspace :maps="maps" :challenges="mapItems" :loading="loading" :initial-map-id="typeof route.query.mapId === 'string' ? route.query.mapId : ''" :initial-rule-id="typeof route.query.ruleId === 'string' ? route.query.ruleId : ''" @edit-challenge="(challenge) => toggleEditing(challenge)" />
     <AdminAchievementDialogs :workspace="workspace" />
   </AdminWorkspace>
 </template>
