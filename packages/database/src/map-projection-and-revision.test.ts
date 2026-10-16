@@ -487,12 +487,55 @@ describe("Admin map revision editor", () => {
     ]));
 
     sqlite.prepare("UPDATE map_title_rules SET default_scope = 'explicit' WHERE id = ?").run("rule.pioneer.catalog");
-    seedException(sqlite, "exception.pioneer.catalog", "rule.pioneer.catalog", "map.editor.catalog", { startsAt: now - 60_000, endsAt: now + 60_000 });
     sqlite.prepare("DELETE FROM gameplay_revision_challenge_assignments WHERE map_id = 'map.editor.catalog' AND challenge_family = 'map_title_rule' AND challenge_id = 'rule.pioneer.catalog'").run();
-    const repaired = await services.getAdminMapEditor({ mapId: "map.editor.catalog" }, auth);
-    expect(repaired.challengeCatalog).toEqual(expect.arrayContaining([
-      expect.objectContaining({ challengeId: "rule.pioneer.catalog" }),
+    const withoutWindow = await services.getAdminMapEditor({ mapId: "map.editor.catalog" }, auth);
+    expect(withoutWindow.challengeCatalog).toEqual(expect.arrayContaining([
+      expect.objectContaining({ challengeId: "rule.pioneer.catalog", pioneerWindow: null }),
     ]));
+
+    seedException(sqlite, "exception.pioneer.catalog", "rule.pioneer.catalog", "map.editor.catalog", { startsAt: now - 60_000, endsAt: now + 60_000 });
+    const withWindow = await services.getAdminMapEditor({ mapId: "map.editor.catalog" }, auth);
+    expect(withWindow.challengeCatalog).toEqual(expect.arrayContaining([
+      expect.objectContaining({ challengeId: "rule.pioneer.catalog", pioneerWindow: { startsAt: now - 60_000, endsAt: now + 60_000 } }),
+    ]));
+  });
+
+  it("saves a Pioneer opening window together with its assignment", async () => {
+    const { database, sqlite } = createTestDatabase("map.editor.window");
+    seedTitle(sqlite, "PIONEER");
+    seedRule(sqlite, "rule.pioneer.window", "PIONEER", "pioneer", { slot: "pioneer", defaultScope: "explicit" });
+    seedTitle(sqlite, "CONQUEROR");
+    seedRule(sqlite, "rule.conqueror.window", "CONQUEROR", "conqueror", { slot: "conqueror" });
+    seedAgentSpatialConfig(sqlite, "revision:map.editor.window:initial");
+    const services = createPlatformServices(database);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
+    const revision = (await services.getAdminMapEditor({ mapId: "map.editor.window" }, auth)).revisions[0]!;
+    const assignments = revision.challengeAssignments.map(({ assignmentId: _assignmentId, gameplayRevisionId: _gameplayRevisionId, mapId: _mapId, ...assignment }) => assignment);
+    const pioneer = { challengeFamily: "map_title_rule" as const, challengeId: "rule.pioneer.window", enabled: true, condition: null, evidenceRule: null, submissionMode: null, slot: "pioneer" as const };
+    const update = (challengeAssignments: typeof assignments, pioneerWindows?: Array<{ ruleId: string; startsAt: number; endsAt: number }>) => ({
+      contractVersion: "1" as const,
+      mapId: "map.editor.window",
+      revisionId: revision.revisionId,
+      lifecycle: revision.lifecycle,
+      gameVersion: revision.gameVersion,
+      mapVariant: revision.mapVariant,
+      spatialConfig: revision.spatialConfig!,
+      challengeAssignments,
+      pioneerWindows,
+    });
+    const window = { ruleId: "rule.pioneer.window", startsAt: now - 60_000, endsAt: now + 3_600_000 };
+
+    await expect(services.updateAdminMapRevision(update([...assignments, pioneer]), auth, "window-missing")).rejects.toThrow("REVISION_CHALLENGE_NOT_ASSIGNABLE");
+    await expect(services.updateAdminMapRevision(update([...assignments, pioneer], [{ ...window, endsAt: now - 1 }]), auth, "window-expired")).rejects.toThrow("REVISION_CHALLENGE_NOT_ASSIGNABLE");
+    await expect(services.updateAdminMapRevision(update(assignments, [window]), auth, "window-unassigned")).rejects.toThrow("INVALID_REVISION_ASSIGNMENT");
+    await expect(services.updateAdminMapRevision(update([...assignments, { ...pioneer, challengeId: "rule.conqueror.window" }], [{ ...window, ruleId: "rule.conqueror.window" }]), auth, "window-not-pioneer")).rejects.toThrow("INVALID_REVISION_ASSIGNMENT");
+
+    await services.updateAdminMapRevision(update([...assignments, pioneer], [window]), auth, "window-saved");
+    expect(sqlite.prepare("SELECT enabled, starts_at, ends_at FROM map_title_rule_exceptions WHERE rule_id = ? AND map_id = ?").get("rule.pioneer.window", "map.editor.window"))
+      .toMatchObject({ enabled: 1, starts_at: window.startsAt, ends_at: window.endsAt });
+    const saved = await services.getAdminMapEditor({ mapId: "map.editor.window" }, auth);
+    expect(saved.revisions[0]!.challengeAssignments).toEqual(expect.arrayContaining([expect.objectContaining({ challengeId: "rule.pioneer.window", enabled: true })]));
+    expect(saved.challengeCatalog).toEqual(expect.arrayContaining([expect.objectContaining({ challengeId: "rule.pioneer.window", pioneerWindow: { startsAt: window.startsAt, endsAt: window.endsAt } })]));
   });
 
   it("promotes explicitly, preserves R1 history, and independently qualifies R2", async () => {

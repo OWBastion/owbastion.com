@@ -632,6 +632,10 @@ export const adminMapRevisionChallengeAssignmentSchema = adminMapRevisionChallen
   gameplayRevisionId: externalId,
   mapId: externalId,
 }).strict();
+const pioneerWindowShape = { startsAt: scheduleTimestamp, endsAt: scheduleTimestamp };
+const pioneerWindowOrdered = (value: { startsAt: number; endsAt: number }) => value.endsAt > value.startsAt;
+const pioneerWindowOrderedError = { path: ["endsAt"], message: "The end time must be after the start time" };
+export const adminMapPioneerWindowSchema = z.object(pioneerWindowShape).strict().refine(pioneerWindowOrdered, pioneerWindowOrderedError);
 export const adminMapRevisionCreateRequestSchema = z.object({
   contractVersion,
   sourceRevisionId: externalId.nullable().optional(),
@@ -649,6 +653,7 @@ export const adminMapRevisionUpdateRequestSchema = z.object({
   mapVariant: z.literal("classic").nullable(),
   spatialConfig: agentSpatialConfigSchema.nullable(),
   challengeAssignments: z.array(adminMapRevisionChallengeAssignmentInputSchema).max(256),
+  pioneerWindows: z.array(z.object({ ruleId: externalId, ...pioneerWindowShape }).strict().refine(pioneerWindowOrdered, pioneerWindowOrderedError)).max(16).optional(),
 }).strict();
 export const adminMapRevisionPromotionRequestSchema = z.object({
   contractVersion,
@@ -791,6 +796,7 @@ export const adminMapEditorChallengeOptionSchema = z.object({
   titleKey: externalId.nullable(),
   status: z.string().trim().min(1).max(32),
   gameVersion: z.string().trim().min(1).max(64),
+  pioneerWindow: adminMapPioneerWindowSchema.nullable().optional(),
 }).strict();
 export const adminMapRevisionSchema = z.object({
   revisionId: externalId,

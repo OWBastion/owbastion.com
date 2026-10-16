@@ -457,7 +457,10 @@ materializes those assignments on eligible revisions; `explicit` rules require
 an explicit assignment. Per-map management exposes resolved inheritance and
 writes only the permitted override fields and Pioneer submission window; it does
 not change revision assignment or update `achievement_challenges` for a
-map-title projection.
+map-title projection. The map editor is the other writer of the Pioneer window:
+enabling a Pioneer assignment there carries its start and end timestamps in the
+same Revision save, which upserts the map exception (enabled, window only) with
+the assignment atomically.
 
 **Projection and exception resolution** — the deterministic resolution for a
 `(ruleId, mapId, gameplayRevisionId)` follows these steps:

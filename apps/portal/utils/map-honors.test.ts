@@ -38,4 +38,10 @@ describe("map honors", () => {
     const standard = recommendedAssignments(classic, honors, null);
     expect(Object.values(standard).filter((item) => item.enabled).map((item) => item.challengeId).sort()).toEqual(["map.conqueror", "map.solo", "rule.conqueror"]);
   });
+
+  it("never recommends Pioneer, which needs an opening window", () => {
+    const honors = groupHonors([...catalog, option({ challengeFamily: "map_title_rule", challengeId: "rule.pioneer", label: "开拓者", kind: "pioneer", titleKey: "PIONEER" })]);
+    const standard = recommendedAssignments({}, honors, null);
+    expect(Object.keys(standard)).not.toContain("map_title_rule:rule.pioneer");
+  });
 });
