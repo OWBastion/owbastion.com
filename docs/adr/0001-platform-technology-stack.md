@@ -30,8 +30,7 @@
 > `docs/*-rules/` directories.
 > The original Playwright selection is superseded: the current policy does not
 > add a permanent browser runner unless a concrete product requirement calls
-> for one. Capability implementation and verification status belongs only in
-> the [feature status matrix](../product-rules/feature-status.md).
+> for one.
 
 ## Context
 
