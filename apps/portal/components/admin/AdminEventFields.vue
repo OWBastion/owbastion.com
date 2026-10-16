@@ -19,7 +19,7 @@ const tagsModel = computed({ get: () => props.values.effectTags, set: (value: st
       <UFormField label="类别"><UInputMenu :model-value="values.category" :items="categories" create-item placeholder="选择或输入" class="w-full" :disabled="disabled" required @update:model-value="emit('patch', { category: $event })" @create="emit('patch', { category: $event.trim() })" /></UFormField>
     </div>
     <div class="event-fields__pair">
-      <UFormField label="版本"><USelect :model-value="values.gameVersion" :items="versions" class="w-full" :disabled="disabled" @update:model-value="emit('patch', { gameVersion: $event })" /></UFormField>
+      <UFormField label="版本"><UInputMenu :model-value="values.gameVersion" :items="versions" create-item placeholder="选择或输入" class="w-full" :disabled="disabled" required @update:model-value="emit('patch', { gameVersion: $event })" @create="emit('patch', { gameVersion: $event.trim() })" /></UFormField>
       <UFormField label="状态"><USelect :model-value="values.releaseStatus" :items="[{ label: '开发中', value: 'development' }, { label: '已实装', value: 'implemented' }, { label: '已移除', value: 'removed' }]" class="w-full" :disabled="disabled" @update:model-value="emit('patch', { releaseStatus: $event as EventFieldValues['releaseStatus'] })" /></UFormField>
     </div>
     <div class="event-fields__pair">
