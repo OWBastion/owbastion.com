@@ -11,10 +11,6 @@
     // Keep the existing slashless URLs canonical: /blog/ redirects to /blog.
     "html_handling": "drop-trailing-slash",
   },
-  // Preview surface only: deploys go to <name>.<account>.workers.dev and do not
-  // touch owbastion.com. The authorized cutover adds the custom-domain route:
-  //   "workers_dev": false,
-  //   "routes": [{ "pattern": "owbastion.com", "custom_domain": true }]
   "workers_dev": true,
   "observability": {
     "enabled": true,

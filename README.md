@@ -1,8 +1,7 @@
 # OWBastion Web Platform
 
 [![Deploy API](https://github.com/OWBastion/owbastion.com/actions/workflows/deploy-api.yml/badge.svg)](https://github.com/OWBastion/owbastion.com/actions/workflows/deploy-api.yml)
-[![Publish Portal image](https://github.com/OWBastion/owbastion.com/actions/workflows/publish-portal.yml/badge.svg)](https://github.com/OWBastion/owbastion.com/actions/workflows/publish-portal.yml)
-[![Deploy Portal](https://github.com/OWBastion/owbastion.com/actions/workflows/deploy-portal.yml/badge.svg)](https://github.com/OWBastion/owbastion.com/actions/workflows/deploy-portal.yml)
+[![Validate Portal](https://github.com/OWBastion/owbastion.com/actions/workflows/validate-portal.yml/badge.svg)](https://github.com/OWBastion/owbastion.com/actions/workflows/validate-portal.yml)
 
 OWBastion 平台运行在 Cloudflare Workers 上，为 Bastion 提供 Web Portal、HTTP API、业务数据存储和外部服务集成。本仓库维护当前事件、地图、称号和挑战元数据，以及玩家和管理流程使用的平台状态。
 

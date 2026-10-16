@@ -38,7 +38,7 @@
 | [openapi.json](api/openapi.json) | API 契约 | artifact | Worker API 路由、请求响应和部署契约 | API |
 | [api-github-actions.md](deployment/api-github-actions.md) | API 部署手册 | authoritative | GitHub Actions、Worker、Queue、QQBot 集成部署 | API / 运维 |
 | [api-observability.md](deployment/api-observability.md) | API 运维手册 | authoritative | 生产 revision、缓存、Queue OCR 和请求追踪验证 | API / 运维 |
-| [portal-hkg.md](deployment/portal-hkg.md) | Portal 部署手册 | authoritative | Cloudflare Workers + Static Assets、HKG Docker Compose 迁移期边界与 cutover 流程 | Portal / 运维 |
+| [portal-cloudflare.md](deployment/portal-cloudflare.md) | Portal 部署手册 | authoritative | Cloudflare Workers Builds、Static Assets、验证与版本回滚 | Portal / 运维 |
 
 ## 如何判断文档归属
 

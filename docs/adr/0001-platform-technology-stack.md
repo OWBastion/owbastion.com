@@ -5,6 +5,11 @@
 - Decision owners: OWBastion maintainers
 - Scope: `OWBastion/owbastion.com`
 
+> Portal hosting amendment: the public Portal runs on Cloudflare Workers +
+> Static Assets and deploys through Workers Builds Git integration. The HKG
+> Docker/Tunnel deployment described below records the original decision and
+> is superseded. See [Portal deployment](../deployment/portal-cloudflare.md).
+
 > Current architecture amendment (2026-07-26): the platform is the sole source
 > of current event, map, title, and challenge metadata. Bastion owns game
 > implementation, builds, and release artifacts, and reads platform metadata
