@@ -20,7 +20,7 @@ visitor
 target (post-cutover):
 visitor
   → Cloudflare Edge TLS
-  → owbastion-codes-portal Worker (Nitro cloudflare_module)
+  → owbastion-com Worker (Nitro cloudflare_module)
   → Static Assets for prerendered/public files
 ```
 
@@ -86,7 +86,7 @@ Static Assets use `html_handling: drop-trailing-slash`, keeping the existing
 slashless URLs (`/blog`, `/changelog/26.0801.1`) canonical; the trailing-slash
 form redirects to it.
 
-Deploys go to `owbastion-codes-portal.<account>.workers.dev`:
+Deploys go to `owbastion-com.<account>.workers.dev`:
 
 ```bash
 pnpm --filter @owbastion/portal run deploy:worker
@@ -105,7 +105,7 @@ HKG image/Compose deployment until cutover acceptance. It does not publish
 the Portal Worker. The API Worker keeps its existing deployment workflow.
 
 In Cloudflare **Workers & Pages**, connect `OWBastion/owbastion.com` to the
-`owbastion-codes-portal` Worker. For an existing Worker, open **Settings >
+`owbastion-com` Worker. For an existing Worker, open **Settings >
 Build** and connect the repository there. Configure:
 
 | Setting | Value |

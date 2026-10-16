@@ -1,6 +1,6 @@
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
-  "name": "owbastion-codes-portal",
+  "name": "owbastion-com",
   // Nitro `cloudflare_module` output; rebuild with `pnpm --filter @owbastion/portal build:worker`.
   "main": "./.output/server/index.mjs",
   "compatibility_date": "2026-07-14",
