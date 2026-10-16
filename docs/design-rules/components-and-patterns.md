@@ -1,237 +1,111 @@
 # Components and Patterns
 
-本文档负责 Portal 的组件选型、组合约定和禁止的平行系统。
-页面骨架与管理台细则见 [`portal-ui-guidelines.md`](portal-ui-guidelines.md)；
-布局单位与定位见 [`layout-and-spacing.md`](layout-and-spacing.md)；
-文案与状态词见 [`portal-copy-guidelines.md`](portal-copy-guidelines.md) 与
-[`terminology.md`](terminology.md)。
+Selection, composition, and forbidden parallel systems. Layout: [layout-and-spacing.md](layout-and-spacing.md);
+page structure: [page-archetypes.md](page-archetypes.md).
 
-## Selection order (normative)
+## Selection order
 
-1. **Domain components** already in `apps/portal/components/` (and domain
-   subfolders): e.g. `AdminWorkspace`, `AdminDataTable`,
-   `AdminResponsiveDialog`, `StatusBadge`, `SubmissionStatusBadge`,
-   `PageSectionHeader`, catalog and player components (`PlayerProfileHero`, `PlayerStatSheet`,
-   `PlayerTitleBadge`, `PlayerNextGoals`, … — the
-   reference implementations of [`design-direction.md`](design-direction.md)).
-2. **Nuxt UI primitives** (`@nuxt/ui` v4): `UButton`, `UCard`, `UAlert`,
-   `UEmpty`, `UForm` / `UFormField`, `UInput`, `USelect`, `UTextarea`,
-   `UCheckbox`, `UTabs`, `UPagination`, `USkeleton`, `UFileUpload`, menus and
-   focus-managed overlays.
-3. **Shared CSS patterns** from `main.css`: `page-shell`, `surface-card`,
-   `card-heading`, `detail-grid`, `glass*`, `elevation-*`, `pressable*`,
-   `hit-target-lg`, `scroll-edge*`, type scale classes.
-4. **Page- or feature-scoped composition** only when 1–3 cannot express the
-   layout. Scoped CSS may own grid areas, sticky columns, and structure-matched
-   skeletons — not a new color, type, or radius system.
+1. Domain components in `apps/portal/components/` (`AdminWorkspace`, `AdminDataTable`,
+   `AdminResponsiveDialog`, `StatusBadge`, `SubmissionStatusBadge`, `PageSectionHeader`, player
+   and catalog components; the `Player*` set are reference implementations of the direction).
+2. Nuxt UI v4 primitives (`UButton`, `UCard`, `UAlert`, `UEmpty`, `UForm`/`UFormField`, `UInput`,
+   `USelect`, `UTextarea`, `UCheckbox`, `UTabs`, `UPagination`, `USkeleton`, `UFileUpload`, menus).
+3. Shared CSS from `main.css`: `page-shell`, `surface-card`, `card-heading`, `detail-grid`,
+   `glass*`, `elevation-*`, `pressable*`, `hit-target-lg`, `scroll-edge*`, type classes.
+4. Page-scoped composition only when 1-3 cannot express the layout (grid areas, sticky columns,
+   structure-matched skeletons), never a new color, type, or radius system.
 
-New wrappers need a clear domain responsibility. Do not create a one-off
-component that only renames a single HTML element or Nuxt UI primitive.
+A new wrapper needs a real domain responsibility; no wrapper that renames one element or primitive,
+and no abstraction used once.
 
-## Nuxt UI usage
+## Nuxt UI and Tailwind
 
-- Semantic colors only via Nuxt UI color props and Portal tokens (`primary`,
-  `neutral`, `info`, `success`, `warning`, `error`). Do not hard-code Tailwind
-  palette classes such as `text-gray-500` or `bg-orange-500` for meaning.
-- Prefer component APIs (`block`, `loading`, `disabled`, `color`, `variant`,
-  `size`, `ui` slot overrides) over fighting internals with deep selectors.
-- Overlays for admin edit/decision/confirm: **`AdminResponsiveDialog`**
-  (modal ≥768px, drawer below). Do not introduce a second modal/drawer system
-  on admin pages.
-- File pickers: **`UFileUpload` only**. No native file inputs for new work.
-- Toasts, tooltips, and programmatic overlays require the app `UApp` shell
-  already used by Portal.
+- Colors only via Nuxt UI color props and tokens. Prefer component APIs (`block`, `loading`,
+  `disabled`, `color`, `variant`, `size`, `ui`) over deep selectors into internals.
+- Admin edit, decision, and confirm overlays use `AdminResponsiveDialog` (modal at `48rem`+, bottom
+  drawer below); `UPopover` only for a small contextual form next to its trigger. No second
+  modal/drawer system.
+- File picking uses `UFileUpload` only (no native file input or custom dropzone); validation stays
+  in the feature composable/API boundary and the component exposes the `File` via `v-model`.
+- Toasts, tooltips, and programmatic overlays need the existing `UApp` shell. `UDashboard*` is not
+  the Portal shell; adopting it is an explicit project that updates this doc.
+- Tailwind (via `@nuxt/ui`): utilities are fine for local composition (`w-full`, `min-w-0`, `grid`,
+  themed `gap-*`). Not allowed: rebuilding type, brand colors, or glass with utilities; arbitrary
+  values like `w-[347px]`; raw palette colors for state. Scoped CSS stays preferred for multi-rule
+  grid areas and sticky behavior; do not restyle a page to utilities during an unrelated fix.
 
-Nuxt UI does **not** own page grid composition. Dashboard layout primitives
-(`UDashboard*`) are not the current Portal shell; do not adopt them in a
-drive-by change. A future shell migration must be an explicit project and
-update this document.
+## Buttons
 
-## Tailwind CSS usage
+`UButton` is the only button: no CSS button classes (`primary-button`, `.submit-button`, ...) and
+no styled native `<button>`. The theme lives once in `app.config.ts`.
 
-Portal ships Tailwind via `@nuxt/ui`. Policy:
-
-| Allowed | Not allowed as a parallel system |
-| --- | --- |
-| Utility classes for **local composition** when clearer than scoped CSS (e.g. `w-full`, `min-w-0`, `grid`, `gap-*` with theme spacing) | Rebuilding the type scale, brand colors, or glass materials only with ad-hoc utilities |
-| Responding with standard breakpoints when they match system breakpoints | One-off arbitrary values that reintroduce hard-coded layout debt (`w-[347px]`, `top-[13px]`) without cause |
-| `ui` prop / theme overrides documented by Nuxt UI | Raw palette colors for semantic state |
-
-Scoped CSS remains valid and preferred for multi-rule grid areas and
-page-specific sticky behavior. Do not rewrite an entire page to utilities
-solely for style preference during an unrelated fix.
-
-## Control patterns
-
-### Buttons and actions
-
-**`UButton` is the only button.** Do not add CSS button classes
-(`primary-button`, `secondary-button`, `.submit-button`, …) or style native
-`<button>` elements as buttons. The variant/size theme lives once in
-`app.config.ts`.
-
-| Role | `UButton` props | Use |
+| Role | Props | Use |
 | --- | --- | --- |
-| Primary | `color="primary"` (solid) | The one main action of a decision surface (`提交截图`, `保存`) |
-| Secondary | `color="neutral" variant="outline"` | The action beside a primary (`取消`, `编辑`) |
+| Primary | `color="primary"` | The one main action (`提交截图`, `保存`) |
+| Secondary | `color="neutral" variant="outline"` | Beside a primary (`取消`, `编辑`) |
 | Low emphasis | `color="neutral" variant="soft"` | Toolbar and row actions |
-| Tertiary / icon | `color="neutral" variant="ghost"` | Tertiary actions and icon-only buttons |
-| Destructive | `color="error" variant="soft"` | `下线`, `结束`, `撤销`; state the consequence nearby, confirm irreversible actions in `AdminResponsiveDialog` |
+| Tertiary / icon | `color="neutral" variant="ghost"` | Tertiary, icon-only |
+| Destructive | `color="error" variant="soft"` | `下线`, `结束`, `撤销`; state the consequence, confirm irreversible ones in `AdminResponsiveDialog` |
 
-| Size | Height | Inline padding | Label | Use |
+| Size | Height | Padding | Label | Use |
 | --- | --- | --- | --- | --- |
-| `sm` | `--control-sm` | `--space-3` | `0.8125rem` / 600 | Admin table rows and dense toolbars |
-| `md` (default) | `--control-md` | `--space-4` | `0.875rem` / 600 | Everything else |
-| `lg` | `--control-lg` | `--space-5` | `0.9375rem` / 600 | Primary action of a player-facing flow |
+| `sm` | `--control-sm` | `--space-3` | `0.8125rem`/600 | Admin rows, dense toolbars |
+| `md` | `--control-md` | `--space-4` | `0.875rem`/600 | Default |
+| `lg` | `--control-lg` | `--space-5` | `0.9375rem`/600 | Primary of a player flow |
 
-- All sizes use `--radius-control`, a 16px Lucide icon, and `--space-2`
-  between icon and label. Icon-only buttons are square and require
-  `aria-label`.
-- Under `pointer: coarse` every size renders at `--control-lg`; do not write
-  separate mobile button styles.
-- Hover changes fill only (no lift, no scale). Press uses the shared press
-  scale. Disabled: `disabled` + 0.5 opacity. Busy: the `loading` prop, a
-  loading label (`保存中…`), and duplicate submits blocked.
-- Navigation uses `NuxtLink` or `UButton to`, never a click handler that only
-  pushes a route.
+- All sizes: `--radius-control`, 16px Lucide icon, `--space-2` icon gap. Icon-only is square with
+  `aria-label` (row actions `sm`). Under `pointer: coarse` all sizes become `--control-lg`; no
+  mobile-specific button CSS.
+- Hover changes fill only. Press uses the shared scale. Disabled: `disabled` plus 0.5 opacity. Busy:
+  `loading`, a label like `保存中…`, duplicate submits blocked. Navigate with `NuxtLink` or
+  `UButton to`, never a click handler that only pushes a route.
+- Group actions in one **action row**, primary first in DOM order, a container
+  (`container-type: inline-size`): at `cq-compact` and up, inline right-aligned with primary
+  rightmost (`row-reverse`), `md`; below it, stacked full-width `lg`, primary on top. In flow or
+  sticky, never fixed.
 
-#### Action row
+## Cards, detail grid, directory cards
 
-A surface's actions are grouped in one action row, **primary first in DOM
-order**. The row is a container (`container-type: inline-size`):
+- Cards: `UCard` or `surface-card` (`--surface`, 1px `--line`, `--radius-card`, `elevation-2`);
+  padding `--space-4` below `cq-compact`, `--space-5` above; header `card-heading`.
+- Key-value: `<dl class="detail-grid">` with `<div class="detail-grid__row"><dt/><dd/></div>`. Label
+  column `7.5rem`, value left-aligned, `--space-4` column gap, row padding `--space-3`, 1px `--line`
+  dividers. Label `type-label-sm` `--muted`; value `type-label` `--text`, tabular,
+  `overflow-wrap: anywhere`; optional `<small>` caption line. Below `cq-compact` rows stack, still
+  left-aligned. Values are text, numbers, badges, or links (never buttons). Missing = `暂无记录` in
+  `--quiet`, not an empty cell or `-`. Shorten labels instead of widening.
+- Directory cards share one anatomy at every width (`MapCard` reference): media (cover 16:9, 2:1
+  below `cq-compact`, fallback two-letter index on `--accent-surface`, `aria-hidden`); title row
+  (name `type-card-title`, version `type-caption` `--quiet`); summary line (accent star, score,
+  count or `样本不足`); at most three stats above a 1px line (gated values `暂无记录`/`登录后查看`/
+  `读取中…` in `--quiet` 500); neutral tag pills. The whole card is one `<button>` or link with an
+  `aria-label` (`查看<地图>详情`, `aria-haspopup="dialog"` if it opens one); hover/focus is
+  `--line-strong` plus `elevation-1`, press `pressable-soft`, no lift. Nothing restacks across
+  widths; a fourth stat belongs in the detail view.
+- Cards without media or stats drop only the parts with no data. Event: title row (name, release
+  badge), meta line (category, rarity), description (3-line clamp), review summary, effect tags.
+  Achievement: icon (3.5rem, 2.5rem compact) beside one column of title, condition, status; selectable
+  submission cards add a category/variant kicker and omit the icon. Selectable submission cards are
+  the `<button>` themselves, so they keep one padding (`--space-4`) and no `cq-compact` variant.
 
-- at or above `cq-compact`: inline, right-aligned, primary rightmost
-  (`flex-direction: row-reverse`), `md` size;
-- below `cq-compact`: stacked, full-width `lg` buttons, primary on top.
+## Forms, status, states
 
-The row reads its own width, so a narrow desktop dialog and a phone screen
-behave the same. Action rows stay in document flow or `sticky`; never a
-`position: fixed` dock.
+- `UForm` + `UFormField`; validation inline and actionable. Mark only required fields; never add
+  `（可选）`/`optional` to labels or placeholders; optional controls must not block submit. Admin
+  decisions never require an optional reason.
+- Status uses `StatusBadge`/`SubmissionStatusBadge` before ad-hoc chips, attached to its object.
+- Every data region handles: loading (structure-matched `USkeleton` or `读取中…`, `role="status"`),
+  read failure (`UAlert`/`role="alert"` naming the object and next step), empty (`UEmpty`, current
+  condition only), unavailable (`未开放`, no fake action), in progress (loading plus disabled peers).
 
-### Cards and panels
+## Admin
 
-- Prefer `UCard` or `surface-card` / established panel classes for grouped
-  content (`--surface`, 1px `--line`, `--radius-card`, `elevation-2`).
-- Card padding is `--space-4` below `cq-compact` and `--space-5` above.
-- Headers use `card-heading` (`type-card-title` + optional `--quiet` meta). Do
-  not invent a second header row pattern per page.
-- Stacked cards on narrow viewports must share full column width (see layout
-  doc). Uneven widths are defects.
-
-### Detail lists (key–value)
-
-Key–value details use the `detail-grid` pattern, replacing the v1
-`detail-list` (right-aligned values, `space-between`):
-
-```html
-<dl class="detail-grid">
-  <div class="detail-grid__row"><dt>BattleTag</dt><dd>Teakowa#51234</dd></div>
-  <div class="detail-grid__row"><dt>当前称号</dt><dd>先驱者<small>全局展示</small></dd></div>
-</dl>
-```
-
-- Two columns: label column `7.5rem`, value left-aligned beside it,
-  `--space-4` column gap; rows padded `--space-3`, divided by 1px `--line`.
-- Label `type-label-sm` in `--muted`; value `type-label` in `--text`,
-  tabular numbers, `overflow-wrap: anywhere`; optional `<small>` secondary
-  line in `type-caption` / `--quiet`.
-- Below `cq-compact` each row stacks (label above value), both still
-  left-aligned. Order and alignment never change.
-- Values may be text, numbers, a status badge, or a link — not buttons;
-  actions belong in the card's action row.
-- Missing values render `暂无记录` in `--quiet`, never an empty cell or `-`.
-- Keep labels short; shorten a label rather than widening the column.
-
-### Directory cards
-
-Directory cards (maps first, then events and achievements) share one anatomy
-at every width. `MapCard` is the reference:
-
-1. **Media** — cover image, `object-fit: cover`, 16:9 (2:1 below
-   `cq-compact`); fallback is the two-letter index on `--accent-surface`.
-   Decorative (`aria-hidden`).
-2. **Title row** — name in `type-card-title`, version on the right in
-   `type-caption` / `--quiet`, tabular.
-3. **Summary line** — e.g. the review summary: `--accent` star, score in
-   `--text` 600, count or `样本不足` in `--muted`.
-4. **Stats** — at most three equal columns above a 1px `--line`: label
-   `type-label-sm` / `--muted`, value `type-label` / `--text`. Empty or gated
-   values (`暂无记录`, `登录后查看`, `读取中…`) use `--quiet` at 500.
-5. **Tags** — neutral pills (`--surface-raised`, badge type).
-
-- The whole card is one `<button>` (or link) with an `aria-label` naming the
-  target (`查看<地图>详情`) and `aria-haspopup="dialog"` when it opens one.
-- Hover/focus: `--line-strong` border + `elevation-1`; press via
-  `pressable-soft`; no hover lift.
-- Nothing restacks or reorders across widths; only media ratio and padding
-  change (container query).
-- Grids follow the fluid grid recipe in the layout doc (`17rem` minimum track).
-- A fourth stat belongs in the detail view, not on the card.
-
-#### Cards without media or stats
-
-Event and achievement cards keep the same rules — one anatomy at every width,
-`type-card-title` / `type-label` / `type-label-sm`, `.directory-grid`, container
-query at `24rem` — but drop the parts they have no data for:
-
-- **Event card** — title row (name in `type-card-title`, release status badge on
-  the right) → meta line (category · rarity, `type-label-sm` / `--muted`) →
-  description (3-line clamp) → review summary → effect tags. No media, no stats.
-  The title, meta and description are the `<button aria-haspopup="dialog">`.
-- **Achievement card** — icon (fixed square, 3.5rem; 2.5rem below `cq-compact`)
-  left of one text column: title in `type-card-title`, condition in
-  `type-label-sm` / `--muted`, then status (`未开放`, `即将结束` + version).
-  Selectable submission cards add the category/variant kicker between title and
-  condition; the icon is omitted there and nothing else moves.
-- **Exception:** selectable submission cards are themselves the `<button>`, so
-  they cannot switch their own padding in a container query. They keep one
-  padding (`--space-4`) at every width and define no `cq-compact` variant.
-
-### Forms
-
-- `UForm` + `UFormField` for labeled fields and validation display.
-- Required fields only are marked required; never append “（可选）” to optional
-  labels (see portal UI guidelines).
-- Validation is inline and actionable; do not block admin decisions on optional
-  reason fields (product rule).
-
-### Status
-
-- Domain badges (`StatusBadge`, `SubmissionStatusBadge`) before ad-hoc chips.
-- Color never carries meaning alone — pair with text or accessible semantics.
-
-### Empty / loading / error
-
-| State | Pattern |
-| --- | --- |
-| Loading | Structure-matched `USkeleton` or concise `读取中…` with `role="status"` |
-| Error | `UAlert` / `role="alert"` with object + next step |
-| Empty | `UEmpty` with current condition only |
-| Unavailable | `未开放` — no fake primary action |
-
-## Admin-specific patterns
-
-- Lists: `AdminDataTable` by default (desktop table + mobile record list).
-- Workspace chrome: `AdminWorkspace` for title, count, messages, toolbar.
-- Detail review and similar operational pages: claim → decide → evidence /
-  verify order on narrow screens; decisions stay in-flow or sticky, not fixed
-  docks (see [`layout-and-spacing.md`](layout-and-spacing.md)).
+`AdminWorkspace` for title, count, messages, toolbar; `AdminDataTable` for lists. Table and
+page-structure rules: [page-archetypes.md](page-archetypes.md). Optional admin fields stay
+unmarked; keep character limits out of the flow unless an error is imminent.
 
 ## Anti-patterns
 
-- Parallel design systems (new radius scale, new shadow language, new success
-  green outside tokens).
-- CSS button classes or styled native buttons instead of `UButton`.
-- Components that restack, reorder, or hide information at a viewport
-  breakpoint.
-- Fixed bottom action bars for feature flows that expand with optional panels.
-- `display: contents` used only to reorder, when it breaks width consistency.
-- Deep-styling Nuxt UI internals instead of `ui` / props / wrapping layout.
-- Copying legacy `px`-heavy scoped CSS into new surfaces.
-
-## Future refactors
-
-Component refactors should move repeated structure into domain components or
-shared CSS only when the pattern is stable (rule of three). Prefer improving
-the existing primitive map over introducing Nuxt UI Dashboard or a second
-component library.
+New radius/shadow/success-green outside tokens; CSS button classes or styled native buttons; parts
+that restack, reorder, or hide at a viewport breakpoint; fixed bottom bars for growing flows;
+`display: contents` only to reorder; deep-styling Nuxt UI internals; copying legacy `px` CSS.

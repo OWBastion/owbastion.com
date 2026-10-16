@@ -30,9 +30,7 @@ screenshot evidence processing, and making repeated verified play valuable
 through progression and ranking.
 
 The complete accepted product contract is maintained in
-[platform-domain-model.md](../product-rules/platform-domain-model.md). Capability
-status remains in
-[feature-status.md](../product-rules/feature-status.md).
+[platform-domain-model.md](../product-rules/platform-domain-model.md).
 
 ## Decision
 
@@ -169,8 +167,7 @@ Each slice should:
 1. identify the current source of truth it replaces or generalizes;
 2. preserve historical provenance and idempotency;
 3. avoid creating a compatibility layer unless an active consumer requires it;
-4. update the feature-status matrix only for capability state actually achieved;
-5. perform correctness validation and a separate necessity/ablation pass.
+4. perform correctness validation and a separate necessity/ablation pass.
 
 The intended dependency order is roughly:
 

@@ -1,20 +1,17 @@
-# Product Rules Index
+# Product Rules
 
-本目录统一维护平台的产品行为、用户可见状态、跨服务流程和产品边界。
-这些文档描述当前产品契约，不替代源码中的实现；能力状态和验证等级只看
-功能状态矩阵。
+Current product contracts: behavior, user-visible state, cross-service workflows,
+boundaries. Source and tests decide implementation detail; progress and status live in
+Issues and PRs. Read the index entry for your task, then only that document.
 
-| 文档 | 类型 | 状态 | 治理 / 相关代码 |
-| --- | --- | --- | --- |
-| [feature-status.md](feature-status.md) | 能力状态矩阵 | authoritative | 能力实现、测试和生产验证状态；唯一状态来源 |
-| [integrations-and-workflows.md](integrations-and-workflows.md) | 产品流程与跨仓契约 | authoritative | API、Portal、QQBot、OCRKit、Bastion 的业务流程和状态转换 |
-| [platform-domain-model.md](platform-domain-model.md) | 平台领域模型 | authoritative | 已接受的事实模型、生命周期、称号获取、进度、身份与管理信息架构 contract |
+| Document | Read when |
+| --- | --- |
+| [platform-domain-model.md](platform-domain-model.md) | Facts, lifecycles, ownership, XP, revisions, admin IA |
+| [submissions-and-review.md](submissions-and-review.md) | Upload, QQ ingress, approval, review, Run conflicts |
+| [ocr.md](ocr.md) | OCR jobs, evidence policy, mastery gates, accuracy marks, screenshot sets |
+| [catalog-and-challenges.md](catalog-and-challenges.md) | Titles, Challenges, map title rules, revisions, random events |
+| [agents-api.md](agents-api.md) | Bastion-facing projection and `spatialConfig` |
+| [accounts-and-qq.md](accounts-and-qq.md) | Request tracing, login, invitations, binding, group access |
+| [reviews.md](reviews.md) | Event and map ratings, comments, moderation |
 
-## 使用规则
-
-- 产品行为、用户体验、状态词汇、权限边界和跨服务流程放在本目录。
-- 工程实现约束放在 [`../dev-rules/`](../dev-rules/)，UI 视觉、交互和内容
-  设计放在 [`../design-rules/`](../design-rules/)。
-- 当产品规则与实现状态需要同时更新时，先核对源码和测试，再只在
-  `feature-status.md` 更新能力状态。
-- 临时计划、审计和一次性验证记录放在 issue 或 PR 中，不写入当前规则索引。
+Engineering rules: [`../dev-rules/`](../dev-rules/). UI and copy: [`../design-rules/`](../design-rules/).

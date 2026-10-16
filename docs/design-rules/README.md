@@ -1,42 +1,46 @@
-# Design Rules Index
+# Design Rules
 
-本目录统一维护 Portal 的 UI 视觉、布局、组件、交互、动效、可访问性和内容
-设计规则。[`DESIGN.md`](DESIGN.md) 是按职责路由的主题索引与设计宪章；各主题
-文档和既有 Portal 细则在各自范围内具有约束力。
+Portal (`apps/portal`) UI rules. Docs win over legacy code; legacy is never a precedent.
+Read this index, then only the documents your change touches.
 
-| 文档 | 类型 | 状态 | 治理 / 相关代码 |
-| --- | --- | --- | --- |
-| [DESIGN.md](DESIGN.md) | 设计宪章与主题索引 | authoritative | 支柱路由、跨页原则、重构契约 |
-| [design-direction.md](design-direction.md) | 设计趋向与新旧共存 | authoritative | 设计方向、视觉语汇、共存规则、PR 方向清单 |
-| [visual-foundation.md](visual-foundation.md) | 视觉基础 | authoritative | 语义 token、颜色状态、字体、材料和深度 |
-| [layout-and-spacing.md](layout-and-spacing.md) | 布局与间距 | authoritative | 单位制、容器、栅格、定位、溢出、断点 |
-| [components-and-patterns.md](components-and-patterns.md) | 组件与模式 | authoritative | 选型顺序、Nuxt UI / Tailwind、控件模式 |
-| [interaction-accessibility.md](interaction-accessibility.md) | 交互与无障碍 | authoritative | 响应式、管理列表、触控、ARIA |
-| [motion-and-feedback.md](motion-and-feedback.md) | 动效与反馈 | authoritative | 按压、路由过渡、motion 边界、反馈类型 |
-| [page-archetypes.md](page-archetypes.md) | 页面范式 | authoritative | 公开目录、玩家中心、提交流程和管理工作区 |
-| [css-ownership.md](css-ownership.md) | CSS 归属 | authoritative | 全局样式、共享组件和页面 scoped CSS 边界 |
-| [content-and-state.md](content-and-state.md) | 内容与状态语言 | authoritative | 内容层级、状态表达和权限展示边界 |
-| [portal-ui-guidelines.md](portal-ui-guidelines.md) | Portal UI 规则 | authoritative | `apps/portal` 页面结构、组件、状态和响应式行为 |
-| [portal-copy-guidelines.md](portal-copy-guidelines.md) | Portal 文案规则 | authoritative | `apps/portal` 文案、状态词汇、空状态与错误 |
-| [changelog-guidelines.md](changelog-guidelines.md) | 版本更新规范 | authoritative | `apps/portal/content/changelog` 结构、排版与文案规范 |
-| [design-system-v2-migration.md](design-system-v2-migration.md) | v2 迁移记录 | historical | v1 → v2 token 对照与迁移顺序的历史记录；迁移已完成，规则以支柱文档为准 |
-| [terminology.md](terminology.md) | Portal 术语表 | authoritative | Portal 称号、槽位、展示方式、状态词、事件与绑定术语的中文唯一来源 |
+| Change | Read |
+| --- | --- |
+| Page orientation, hierarchy, old vs new | [design-direction.md](design-direction.md) |
+| Color, type, radius, material, elevation | [visual-foundation.md](visual-foundation.md) |
+| Grid, spacing, breakpoints, sticky/fixed, overflow | [layout-and-spacing.md](layout-and-spacing.md) |
+| New component, Nuxt UI, Tailwind, buttons, cards, admin patterns | [components-and-patterns.md](components-and-patterns.md) |
+| Page structure, admin tables, workbench, review | [page-archetypes.md](page-archetypes.md) |
+| Scoped CSS, `main.css`, stylelint | [css-ownership.md](css-ownership.md) |
+| Press, motion, toasts, loading | [motion-and-feedback.md](motion-and-feedback.md) |
+| Responsive behavior, a11y, admin lists | [interaction-accessibility.md](interaction-accessibility.md) |
+| Copy, states, explanatory text | [portal-copy-guidelines.md](portal-copy-guidelines.md) |
+| Titles, challenges, statuses wording | [terminology.md](terminology.md) |
+| Changelog Markdown | [changelog-guidelines.md](changelog-guidelines.md) |
 
-## 使用规则
+## Principles
 
-当文档存在冲突时，先按主题索引判断文档归属；主题文档对其负责范围具有最高
-优先级。Portal 细则负责页面和组件实现细节，必须复用相同的 token、状态词汇、
-无障碍基线和权限边界，不得覆盖主题文档的跨页面规则。
+1. Make content, state, and next action obvious; omit decoration that does not aid operation.
+2. One system: tokens, type, materials, elevation, press, and containers live in `main.css`,
+   Nuxt UI config, or shared components, never in page-local forks.
+3. Adaptive layout: `--space-*` ladder, `fr`/`minmax`, container queries; one anatomy at every
+   width; no growing `position: fixed` docks.
+4. Reuse in order: domain component, Nuxt UI, local composition. No second component library.
+5. Color, icon, or position alone never carries meaning; honor reduced motion, transparency,
+   and contrast.
+6. The API decides what renders for public, player, and admin; CSS is not access control.
+7. Feedback is mandatory, spectacle is not.
+8. Every change moves its surface toward the direction; never regress to legacy.
 
-一次性审计与整改记录保存在对应 Issue/PR 历史中，不作为当前设计规则索引。
+## Before changing UI
 
-**方向高于旧写法。** 新建与被改动的区块以 [`design-direction.md`](design-direction.md)
-为准；旧实现不是先例。与其冲突的外观、风格、信息组织类条目在同一 PR 里改掉，基础规则
-（token、单位、可访问性、权限边界）不被覆盖。
-
-**规范优先于历史实现。** 代码中的固定 `px` 布局、页面级 fixed 操作条等若与
-主题文档冲突，后续重构以文档为准；见 [`DESIGN.md`](DESIGN.md) 的 Refactor
-contract 与 [`layout-and-spacing.md`](layout-and-spacing.md)。
-
-产品行为和流程规则放在 [`../product-rules/`](../product-rules/)，工程规则放在
-[`../dev-rules/`](../dev-rules/)。
+1. Classify the page (directory, player center, submission flow, admin) and its data and
+   permission boundary.
+2. Search for a reusable component before writing CSS.
+3. Keep loading, failure, empty, in-progress, success, and permission states (explain any
+   that do not apply in the PR).
+4. Check 320px layout, keyboard, ARIA, private fields, status wording, and that only
+   required fields are marked.
+5. Run affected Portal tests and `pnpm --dir apps/portal exec nuxt typecheck`; build when
+   shared styles change.
+6. Realign one pillar or surface per refactor PR; fill a doc gap before spreading code.
+   Behavior and copy changes still follow `docs/product-rules/` and the terminology.

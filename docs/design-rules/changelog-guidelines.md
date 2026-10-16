@@ -1,221 +1,43 @@
-# 版本更新（Changelog）文案与排版规范
+# Changelog Guidelines
 
-本文档是 Portal 中**版本更新（Changelog）** Markdown 内容编写的唯一权威规范。新增、维护或同步任何版本更新日志前，必须遵循本文档约定的结构、层级、文案风格与术语规则。
+Rules for `apps/portal/content/changelog/YY.MMDD.V.md` ("版本更新"). It holds **released** changes only;
+in-progress or planned work goes in `blog`. The filename date and sequence match the real release.
 
----
-
-## 1. 定位与文件契约
-
-- **内容定位**：`changelog`（Portal 展示为“版本更新”）**只收录已发布的更新内容**；进行中、预告或设计中的开发内容应写入 `blog`（开发日志）。
-- **文件路径**：`apps/portal/content/changelog/{version}.md`
-- **文件名格式**：`YY.MMDD.V.md`，日期和序号必须对应实际发布记录。
-
----
-
-## 2. Frontmatter 结构与校验规则
-
-所有 Changelog 文件必须以 YAML Frontmatter 开头，且必须满足以下字段契约：
+## Frontmatter
 
 ```yaml
 ---
-title: "本次更新主题"
-description: "YY.MMDD.V 已发布，更新主题为本次更新主题。"
-releasedAt: YYYY-MM-DD
+title: "本次更新主题"            # <= 160 chars, names the core modules
+description: "YY.MMDD.V 已发布，更新主题为本次更新主题。"   # fixed pattern, <= 320 chars
+releasedAt: YYYY-MM-DD           # matches the version's date
 version: "YY.MMDD.V"
 tags:
-  - "版本更新"
+  - "版本更新"                   # always exactly this
 ---
 ```
 
-### 字段说明与约束
-- `title`：简明概括本次更新的核心模块（不超过 160 字符）。
-- `description`：固定采用事实陈述句式：`"${version} 已发布，更新主题为${title}。"`（不超过 320 字符）。
-- `releasedAt`：发布日期，必须为 `YYYY-MM-DD` 格式，与版本号日期严格一致。
-- `version`：完整版本号字符串，格式为 `YY.MMDD.V`。
-- `tags`：固定为 `["版本更新"]`，不使用已废弃的“版本记录”或自定义标签。
-
----
-
-## 3. Markdown 层级与排版规则
-
-1. **禁止在正文使用 H1 (`# `)**：页面大标题由前端根据 Frontmatter `title` 渲染，正文顶层标题一律从 H2 (`## `) 开始。
-2. **严格的标题层级递进**：
-   - 允许使用的标题层级为 `H2` (`## `)、`H3` (`### `)、`H4` (`#### `)。
-   - **严禁跨级跳跃**（例如从 H2 直接跳至 H4）。
-   - **严禁使用 H5 (`#####`) 及更深层级**。
-3. **列表符号统一**：无序列表一律使用 `- `，不使用 `* `。子列表缩进统一为 4 个空格。
-4. **禁止反斜杠转义字符**：正文中严禁出现 `\(`、`\[`、`\*`、`\.` 等无意义的 Markdown 反斜杠转义。
-5. **严禁占位符**：禁止在已发布日志中残留 `xx`、`xxx`、未补全的空章节或草稿占位。
-
----
-
-## 4. 核心模块排版范式
-
-### 4.1 英雄更新
-- 一级分区：`## 🕛 英雄更新`
-- 英雄标题：`### [英雄名称]`
-- 设计意图/背景说明：单行引用 `> 说明文本`（仅在确需解释原因时添加，简明扼要）。
-- 改动条目：`- **技能名/属性（键位/说明）：** 调整内容`
-
-```markdown
-## 🕛 英雄更新
-
-### [英雄名称]
-
-> 已发布变更的简短背景（仅在确需解释时添加）。
-
-- **[技能名称]（[键位]）：** 由[旧行为]调整为[新行为]
-```
-
-### 4.2 地图更新与重制版
-- 一级分区：`## 🗺 全新地图：[地图名]` 或 `## 🗺 [地图名] 重制版`
-- 地图概述：仅记录本次发布确认的地区、点位数量与分布。
-- 如果本次发布确有地图上线窗口或限时挑战，按已确认的发布记录写明实际
-  日期、条件和奖励；不要把固定上线窗口或完成条件写进通用模板。
-
-```markdown
-## 🗺 [地图名称] 重制版
-
-[国旗/地区 Emoji] [地图名称]：重制版现已发布。全图共计 X 个堡垒，综合分布为 X/X/X。
-
-### [地图名称]限时挑战（MM.DD）
-
-- [按发布数据填写挑战条件、开放时间和奖励；没有限时挑战时省略本节。]
-```
-
-### 4.3 随机事件调整
-- 一级分区：`## 🔃 随机事件调整`
-- 标准分类（H3）：
-  - `### 增益类事件 （好运降临）`
-  - `### 减益类事件 （厄运缠身）`
-  - 机制类别和对应概率按本次发布数据填写；不要在通用规范中固定比例。
-  - `### 赌徒事件组机制改动`
-- 具体事件（H4）：`#### [事件名称]`（重做事件标注 `#### [事件名称]（重做）`）
-- 数值与规则调整：采用直观的事实对比或数值变化描述，并以本次发布的
-  实际规则和数值为准。
-
-```markdown
-## 🔃 随机事件调整
-
-### 增益类事件 （好运降临）
-
-#### [事件名称]
-
-> 说明此次已发布的改动（仅在确需解释时添加）。
-
-- [具体规则或数值]由[旧值]调整为[新值]
-
-### [机制类别]（如有发布数据则注明实际概率）
-
-#### [事件名称]（重做）
-
-- [重做后的规则]
-
-### [事件组]机制改动
-
-- [说明事件组范围和已发布的规则变化]
-```
-
-### 4.4 综合更新与模式更新
-- 一级分区：`## 🕹 综合更新`
-- 适用于全局机制、游戏设置、大厅规则等不归属于单一英雄或事件的改动。
-
-### 4.5 错误修复
-- 一级分区：`## 🐛 错误修复`
-- 模块分类（H3）：`### 英雄`、`### 随机事件`、`### 地图`
-- 条目格式：`- **[对象名]：** 修复了...的问题`
-
-```markdown
-## 🐛 错误修复
-
-### 随机事件
-
-- **[事件名称]：** 修复了[可复现的问题]。
-```
-
----
-
-## 5. 文案风格与去 AI 化规范
-
-1. **避免机械式加粗前缀**：严禁机械套用公式化前缀（如“`**触发条件放宽：** 降低门槛`”、“`**定向反转机制：** 重做规则`”），应直接陈述事实。
-2. **消除公文式填充词与假大空评价**：
-   - 🚫 避免：“旨在降低……以提升……体验”、“大幅减少极端负面情况”、“确保交互逻辑的合理性与严密性”。
-   - ✅ 推荐：直接写出具体机制行为与数值。
-3. **数字与状态变化简洁直接**：优先使用 `由 A 降低/增加/调整至 B`，不用冗长的过渡段落。
-4. **严格遵循术语表（[`terminology.md`](terminology.md)）**：
-   - 严禁在玩家侧使用内部词汇（如“审核”、“发放”、“OCR”、“持久化”、“编排”等）。
-   - 正确使用称号术语（“获得称号”、“成就挑战”、“地图限定称号”）。
-
----
-
-## 6. 完整 Changelog 模板
-
-```markdown
----
-title: "更新主题概括"
-description: "YY.MMDD.V 已发布，更新主题为更新主题概括。"
-releasedAt: YYYY-MM-DD
-version: "YY.MMDD.V"
-tags:
-  - "版本更新"
----
-
-## 🕹 综合更新
-
-- 模式通用规则或机制调整条目
-
-## 🕛 英雄更新
-
-### [英雄名称]
-
-> 简要设计背景或意图说明（可选）。
-
-- **[技能名称]（[键位]）：** 调整内容描述
-
-## 🗺 [地图名称] 重制版
-
-[国旗/地区 Emoji] [地图名称]：重制版 现已登场！全图共计 X 个堡垒，综合分布为 X/X/X
-
-### [地图名称]限时挑战（MM.DD）
-
-- [按本次发布确认的挑战条件、开放时间与奖励填写；没有限时挑战时省略本节。]
-
-## 🔃 随机事件调整
-
-### 增益类事件 （好运降临）
-
-#### [事件名称]
-
-> 设计说明（可选）。
-
-- 具体调整内容，数值变化由 X 调整至 Y
-
-### 减益类事件 （厄运缠身）
-
-#### [事件名称]
-
-- 具体调整内容
-
-### [机制类别]（如有发布数据则注明实际概率）
-
-#### [事件名称]（重做）
-
-- 重做后的第一项规则
-- 重做后的第二项规则
-
-### 赌徒事件组机制改动
-
-- 规则调整说明：
-    - 子条目一
-    - 子条目二
-
-## 🐛 错误修复
-
-### 英雄
-
-- **[英雄名称]：** 修复了...的问题
-
-### 随机事件
-
-- **[事件名称]：** 修复了...的问题
-```
+## Markdown
+
+- No H1 (the page renders `title`); start at H2; use only H2-H4 with no skipped level.
+- Lists use `- `, sublists indent 4 spaces. No backslash escapes (`\(`, `\*`). No placeholders (`xx`,
+  empty sections, drafts).
+
+## Sections
+
+Order is free; omit sections with no content.
+
+| Section | Heading | Contents |
+| --- | --- | --- |
+| Hero | `## 🕛 英雄更新` / `### [英雄]` | `- **技能（键位）：** 由旧调整为新`; one-line `> 背景` only if the reason needs explaining |
+| Map | `## 🗺 全新地图：[名]` or `## 🗺 [名] 重制版` | Only confirmed region, fortress count and distribution; a timed challenge as `### [名]限时挑战（MM.DD）` with the real conditions, window, rewards; omit if none |
+| Events | `## 🔃 随机事件调整` | `### 增益类事件 （好运降临）`, `### 减益类事件 （厄运缠身）`, `### [机制类别]`, `### 赌徒事件组机制改动`; events as `#### [名]` (`（重做）` if reworked); facts and numbers from this release, no fixed ratios |
+| General | `## 🕹 综合更新` | Global mechanics, settings, lobby rules not tied to one hero or event |
+| Fixes | `## 🐛 错误修复` | `### 英雄` / `### 随机事件` / `### 地图`; `- **[对象]：** 修复了……的问题` |
+
+## Style
+
+- State facts directly; no mechanical bold-prefix formulas (`**触发条件放宽：**`) and no filler or
+  verdicts ("旨在提升……体验", "大幅减少极端负面情况"). Write the mechanism and numbers.
+- Use `由 A 降低/增加/调整至 B`, no long transitions.
+- Follow [terminology.md](terminology.md); no internal player-facing words (审核, 发放, OCR, 持久化,
+  编排). Use 获得称号, 成就挑战, 地图限定称号.

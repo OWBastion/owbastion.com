@@ -1,185 +1,96 @@
-# API deployment through GitHub Actions
+# API Deployment
 
-The platform API is deployed as the `owbastion-codes-api` Cloudflare Worker.
-HKG hosts run QQBot only; they call the Worker over HTTPS. The implemented API
-also serves the Portal's QQ login, session, player, and public submission-status
-requests.
+The API is the `owbastion-codes-api` Cloudflare Worker at `https://api.owbastion.com`,
+deployed by GitHub Actions. QQBot runs on HKG and calls the Worker over HTTPS.
 
-## Required Cloudflare resources
+## Cloudflare resources
 
-Create these resources in the target Cloudflare account before enabling the
-deployment job:
+Create before enabling the deploy job:
 
-- D1 database named `owbastion-codes-prod`;
-- isolated D1 database named `owbastion-codes-staging` for remote migration validation;
-- R2 bucket named `owbastion-codes-evidence`;
-- R2 custom domain `evidence.owbastion.codes` connected to that bucket, with
-  Cloudflare Cache enabled for object paths; keep bucket listing and its
-  `r2.dev` URL disabled. Screenshot URLs are unlisted and cacheable, not
-  per-request authorized;
-- Worker variable `EVIDENCE_PUBLIC_ORIGIN` set to
-  `https://evidence.owbastion.codes`;
-- Queue `owbastion-qq-policy` and dead-letter queue
-  `owbastion-qq-policy-dlq` for QQ group-policy events;
-- Queue `owbastion-ocr` and dead-letter queue `owbastion-ocr-dlq` for
-  screenshot recognition jobs; exhausted OCR jobs are recorded as failed so
-  the Submission becomes actionable again;
-- a five-minute scheduled Worker recovery that moves OCR jobs left pending for
-  45 minutes into the actionable resubmission state;
-- the real D1 `database_id` written to `wrangler.toml`.
+- D1 `owbastion-codes-prod`, and isolated `owbastion-codes-staging` (ID in
+  `wrangler.staging-d1.toml`; schema validation only, never player data). Put the
+  real prod `database_id` in `wrangler.toml`; the workflow refuses the placeholder.
+- R2 `owbastion-codes-evidence` with custom domain `evidence.owbastion.codes`,
+  Cache enabled, bucket listing and `r2.dev` disabled. Set Worker var
+  `EVIDENCE_PUBLIC_ORIGIN=https://evidence.owbastion.codes`.
+- Queues `owbastion-qq-policy` (+`-dlq`) and `owbastion-ocr` (+`-dlq`). Exhausted
+  OCR jobs are recorded failed; a 5-minute scheduled repair moves jobs pending
+  45 minutes to `resubmission_required`.
+- Do not reuse QQBot's channel D1 or OCRKit's model bucket. OCRKit's read-only R2
+  key and `OCRKIT_R2_ALLOWED_BUCKETS` cover only the model bucket.
 
-For an existing deployment, remove the legacy WAF rule that requires a static
-review header and keep the R2 custom domain/CDN path enabled. Scope OCRKit's
-read-only R2 key and `OCRKIT_R2_ALLOWED_BUCKETS` to the model bucket, then
-restart OCRKit. The platform reads only the queued Submission's stored
-attachment and sends those bytes to OCRKit; OCRKit does not need access to the
-platform evidence bucket.
+## Settings
 
-Record the staging database ID in `wrangler.staging-d1.toml`. It is used only
-for migration and schema validation, and must not contain production player,
-binding, evidence, or private submission data.
+- `OCRKIT_BASE_URL` in `wrangler.toml` is the public OCRKit host; `OCRKIT_API_TOKEN`
+  goes only there. Browsers and QQBot never call OCRKit.
+- `OCR_AUTO_REVIEW_SAMPLE_RATE` (0 to 1, default 0) deterministically samples
+  automatic approvals for maintainer spot checks.
+- Mastery writes are off by default. Enable only by setting both
+  `MASTERY_MIN_GAME_VERSION` (`major.minor.patch`) and
+  `MASTERY_SUPPORTED_OCR_LAYOUT_VERSIONS` (comma list) once Bastion and OCRKit have
+  released compatible versions; absent, invalid, or partial values fail closed.
+  Roll back by clearing either and redeploying; never delete ledger rows or evidence.
 
-Do not reuse the QQBot channel-state D1 or OCRKit's model bucket. For OCR, the
-Worker verifies the queued object key against the Submission's stored
-attachment, reads that one image through its R2 binding, and sends the image
-bytes to OCRKit's authenticated multipart endpoint. OCRKit receives neither
-the platform object key nor access to the platform evidence bucket.
+## Secrets
 
-`OCR_AUTO_REVIEW_SAMPLE_RATE` is an optional decimal from `0` to `1`. It
-deterministically samples automatic approvals for maintainer spot checks; the
-default `0` leaves automatic approval unchanged and disables sampling.
-
-Mastery writes are disabled by default. Keep both
-`MASTERY_MIN_GAME_VERSION` and `MASTERY_SUPPORTED_OCR_LAYOUT_VERSIONS` empty
-until the Bastion run-code HUD and matching OCRKit layout each have an actual
-released compatibility record. Enable the capability only by setting both: the
-former is the released minimum `major.minor.patch` version, and the latter is a
-comma-separated allowlist of released OCR layout versions. An absent, invalid,
-or partial value fails closed. To roll back acceptance, clear either setting
-and redeploy; do not delete accepted mastery ledger rows or evidence.
-
-## GitHub configuration
-
-Configure these repository or production-environment secrets:
+Repository or `production` environment secrets (values are never printed):
 
 | Secret | Purpose |
 | --- | --- |
-| `CLOUDFLARE_API_TOKEN` | Worker, D1 migration, and R2 access |
-| `CLOUDFLARE_ACCOUNT_ID` | Target Cloudflare account |
-| `CLOUDFLARE_ZONE_ID` | Zone where API Shield Endpoint Management is configured |
-| `QQBOT_API_TOKEN` | Service credential accepted by the API from QQBot |
-| `BASTION_BUILD_TOKEN` | Dedicated credential required for Bastion build requests that need numeric player IDs |
-| `QQBOT_POLICY_WEBHOOK_URL` | QQBot's internal group-policy callback URL |
-| `QQBOT_POLICY_WEBHOOK_SECRET` | HMAC secret for the group-policy callback |
-| `OCRKIT_API_TOKEN` | Bearer credential shared only with OCRKit |
-| `OCRKIT_SNAPSHOT_TOKEN` | Bearer credential OCRKit uses to read finalized screenshot sets |
-| `BINDING_INVITE_CODE_ENCRYPTION_KEY` | AES-GCM key material for re-copyable invitation codes; generate with `openssl rand -base64 32` and retain it while invitations remain active |
-| `ADMIN_BATTLETAG` | Full BattleTag, such as `TestPlayer#1234`, that receives administrator access during deployment |
+| `CLOUDFLARE_API_TOKEN` | Worker, D1, R2, and API Gateway read/write |
+| `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID` | Account and API Shield zone |
+| `QQBOT_API_TOKEN` | QQBot service credential; same value as QQBot's `PLATFORM_SERVICE_TOKEN` |
+| `BASTION_BUILD_TOKEN` | Bastion build only (numeric player IDs); never to browsers or QQBot |
+| `QQBOT_POLICY_WEBHOOK_URL`, `QQBOT_POLICY_WEBHOOK_SECRET` | Group-policy callback and its HMAC secret |
+| `OCRKIT_API_TOKEN` | Shared only with OCRKit |
+| `OCRKIT_SNAPSHOT_TOKEN` | OCRKit reads finalized screenshot sets |
+| `BINDING_INVITE_CODE_ENCRYPTION_KEY` | AES-GCM key (`openssl rand -base64 32`); keep while invitations are active |
+| `ADMIN_BATTLETAG` | Full BattleTag, already in `player_accounts`; deploy sets its `is_admin` |
 
-The workflow never prints secret values. `QQBOT_API_TOKEN` is sent to the
-Worker as a secret and must be the same value configured on the HKG QQBot.
-`BASTION_BUILD_TOKEN` is separate and must be configured in the Bastion build
-environment; it is never sent to browsers or QQBot.
-`ADMIN_BATTLETAG` must already exist in `player_accounts`; the deployment
-validates the full BattleTag and idempotently enables its `is_admin` flag after
-migrations. The Portal container does not receive this value.
+## Workflow
 
-## Workflow behavior
+Runs only when API inputs change (`apps/api`, API packages, migrations, API tooling,
+wrangler configs, OpenAPI, shared build inputs, the workflow).
 
-The workflow runs for pull requests and pushes to `main` only when API inputs
-change: `apps/api`, API-owned packages, D1 migrations, API tooling,
-`wrangler.toml`, `wrangler.staging-d1.toml`, the OpenAPI document, shared
-pnpm/TypeScript/Vitest build inputs, or the API workflow itself. Pull requests
-run migration checks, API/package/tool tests, the API dependency typecheck, and
-the Worker build only. The API build runs Wrangler's local Worker bundling and
-validation with `wrangler deploy --dry-run`; it does not upload or deploy the
-Worker. A qualifying push to `main` or a manual dispatch runs those checks,
-first applies migrations to the isolated staging D1 database and verifies the
-submission/review schema there, then applies forward-only production D1
-migrations, validates and bootstraps `ADMIN_BATTLETAG`, updates the Worker
-secret, deploys the Worker, publishes the API URL, and submits the OpenAPI
-endpoint inventory to Cloudflare API Shield Endpoint Management. The API token must also have
-`Account API Gateway` or `Domain API Gateway` read and write permission. The source
-OpenAPI document remains the complete API contract, but API Shield intentionally
-manages only its public and integration routes: `/v1/admin/**` and
-`/v1/internal/**` are excluded because they are private control-plane surfaces.
-The selected operation set has an 80-operation deployment budget to preserve
-headroom under the Free plan's 100 saved-endpoint limit.
+1. Pull request: migration checks, tests, typecheck, `wrangler deploy --dry-run`.
+2. Push to `main` or manual dispatch: the same checks; staging migrations and
+   schema check; forward-only production migrations; validate and bootstrap
+   `ADMIN_BATTLETAG`; update secrets; deploy with the commit SHA as
+   `DEPLOYMENT_REVISION`; submit API Shield endpoints.
 
-Endpoint deployment is a local desired-state reconciliation for the API host. It
-first reads the complete paginated zone inventory, deletes stale operations on
-the managed API host, and then submits only missing operations. Operations for
-other hosts in the same zone are preserved. Deletions happen one at a time so
-stale operations free capacity before new operations are added; a missing
-Cloudflare operation ID stops the deployment rather than attempting an unsafe
-delete.
+The workflow does not verify the public hostname; follow the
+[observability runbook](api-observability.md).
 
-The source inventory is [`docs/api/openapi.json`](../api/openapi.json). To run
-the same deployment locally:
+API Shield manages public and integration routes only (`/v1/admin/**` and
+`/v1/internal/**` excluded; budget 80 of the Free plan's 100). Deploy reconciles
+the API host: read the full zone inventory, delete stale host operations one at a
+time, add missing ones, keep other hosts; a missing operation ID aborts. Source:
+[openapi.json](../api/openapi.json). Locally:
 
-~~~bash
-CLOUDFLARE_ZONE_ID=<zone-id> CLOUDFLARE_API_TOKEN=<api-token> pnpm deploy:api-endpoints
-~~~
+```bash
+CLOUDFLARE_ZONE_ID=<id> CLOUDFLARE_API_TOKEN=<token> pnpm deploy:api-endpoints
+```
 
-The workflow refuses to deploy while the D1 ID is still the repository's
-placeholder. It does not reset, delete, or roll back D1 data.
+## QQBot
 
-Set `OCRKIT_BASE_URL` in `wrangler.toml` to the public OCRKit hostname. The Worker sends
-`OCRKIT_API_TOKEN` only to that service as a Bearer credential; browser and QQBot clients do
-not call OCRKit directly.
-
-The Worker is deployed to the Git-managed Custom Domain
-`https://api.owbastion.com`. The workflow does not automatically verify the
-public hostname after deployment; production reachability is checked through
-separate operational monitoring. Each deployment supplies the immutable GitHub
-commit SHA as `DEPLOYMENT_REVISION`; `/health` returns it without exposing
-credentials or business data. Follow the [API observability runbook](api-observability.md)
-to verify the deployed revision and public cache behavior.
-
-## HKG QQBot configuration
-
-Add these values to the existing QQBot runtime environment:
+Add to QQBot's environment, then restart only that container:
 
 ```env
 PLATFORM_BASE_URL=https://api.owbastion.com
-PLATFORM_SERVICE_TOKEN=<same-value-as-QQBOT_API_TOKEN>
+PLATFORM_SERVICE_TOKEN=<QQBOT_API_TOKEN>
 PLATFORM_REQUEST_TIMEOUT_MS=10000
-PLATFORM_POLICY_WEBHOOK_SECRET=<same-value-as-QQBOT_POLICY_WEBHOOK_SECRET>
+PLATFORM_POLICY_WEBHOOK_SECRET=<QQBOT_POLICY_WEBHOOK_SECRET>
 ```
 
-Restart only the QQBot container. Then test in a dedicated QQ group:
-
-```text
-/绑定 TestPlayer#1234  # retired; should return invitation-flow guidance
-/验证 ABC234             # use the code generated by the invitation flow
-```
-
-The binding test must be sent from the dedicated test group. For one QQ robot,
-the same QQ member OpenID is reused across groups and maps to one platform
-binding.
-
-The Portal login flow additionally requires an enabled group-access record and
-an existing binding for the same QQ member OpenID. Maintainers configure that
-record through the authenticated Portal `/admin` surface; the API enforces the
-same maintainer authorization independently.
-
-The QQBot reverse proxy must forward
-`/internal/v1/qq/group-policy-events` to the existing QQBot service. This path
-is not a public API: the Worker signs every request with
-`QQBOT_POLICY_WEBHOOK_SECRET`; QQBot rejects stale or invalid signatures. The
-Worker's dedicated Queue and five-minute outbox repair trigger retry delivery,
-so QQBot does not poll `GET /v1/admin/qq/groups` after startup.
-
-With the R2 binding available, a valid Portal upload reaches `ocr_pending`; an
-unavailable or invalid source image reaches `resubmission_required`.
-OCRKit orchestration, review, and title grants are coded platform capabilities
-but are not production-verified by this deployment workflow. Bastion
-implementation, build, and release changes are outside this workflow. See the
-[feature status matrix](../product-rules/feature-status.md).
+- Test in a dedicated group: `/验证 <code>` from an invitation; `/绑定` is retired
+  and returns invitation guidance. One QQ member OpenID maps to one binding.
+- Portal QQ login also needs an enabled group-access record (set in `/admin`).
+- The QQBot reverse proxy must forward `/internal/v1/qq/group-policy-events`. The
+  Worker signs each request with the webhook secret; QQBot rejects stale or invalid
+  signatures. The Queue and 5-minute outbox repair retry delivery.
 
 ## Rollback
 
-Redeploy the previous successful commit through the same workflow. Keep D1
-records and migrations intact. If the API must be isolated temporarily, stop
-the QQBot integration by removing its platform endpoint or restore the last
-known-good platform endpoint; do not delete evidence or business records.
+Redeploy the previous successful commit. Keep D1 records and migrations. To isolate
+the API, remove QQBot's platform endpoint or restore the last known-good one. Never
+delete evidence or business records.

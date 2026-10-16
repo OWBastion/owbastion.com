@@ -1,6 +1,6 @@
 # OWBastion Web Platform: Agent Work Entry
 
-This is the repository-specific agent entrypoint shared by coding agents. [OWBastion organization routing](https://github.com/OWBastion/.github/blob/main/AGENTS.md) owns repository ownership, shared policy routing, and global invariants; this file specializes platform ownership, risk routing, authorization boundaries, and validation. Keep tool-specific entry files limited to tool behavior, and keep mutable feature status out of durable agent guidance.
+This is the repository-specific agent entrypoint shared by coding agents. [OWBastion organization routing](https://github.com/OWBastion/.github/blob/main/AGENTS.md) owns repository ownership, shared policy routing, and global invariants; this file specializes platform ownership, risk routing, authorization boundaries, and validation. Keep tool-specific entry files limited to tool behavior, and keep mutable feature status out of durable docs and agent guidance; it lives in Issues, PRs, CI, and Git history.
 
 ## Repository role
 
@@ -30,12 +30,11 @@ Follow [organization PR delivery policy](https://github.com/OWBastion/.github/bl
 
 - Repository orientation: `README.md`, then `docs/README.md`.
 - Architecture/package/service boundaries: `docs/dev-rules/README.md`, then `docs/dev-rules/architecture-overview.md`.
-- Bastion/QQBot/OCRKit integration, submissions, review, grants, state transitions: `docs/product-rules/README.md`, then `docs/product-rules/integrations-and-workflows.md`.
-- Current capability/verification status: `docs/product-rules/feature-status.md`. Do not recreate mutable status inventories elsewhere.
+- Bastion/QQBot/OCRKit integration, submissions, review, grants, state transitions: `docs/product-rules/README.md`, then the one document it routes to.
 - Authentication, privacy, credentials, storage, caching, public/private boundaries: `docs/dev-rules/data-and-security.md`.
 - D1 schema, migrations, fixtures, imports, repair/reconciliation: `docs/dev-rules/database-migrations-and-seeds.md`.
 - Tests, queues, CI, release behavior, or implementation-change policy: `docs/dev-rules/testing-and-change-policy.md`.
-- Portal UI/layout/components/interaction/accessibility/copy: root `DESIGN.md`, then `docs/design-rules/README.md` and the routed topic.
+- Portal UI/layout/components/interaction/accessibility/copy: `docs/design-rules/README.md`, then the routed topic.
 - Product terminology/copy: `docs/design-rules/terminology.md` and `docs/design-rules/portal-copy-guidelines.md`.
 - Git-backed editorial Markdown and build-time rendering (`apps/portal/modules/editorial.ts`, `utils/editorial-content.ts`, `content/editorial-schemas.ts`): relevant development/design indexes; edits use the normal repository workflow.
 - Deployment or production verification: applicable `docs/deployment/` runbook. Local implementation, integration evidence, deployment, and production business-path verification are distinct states.
