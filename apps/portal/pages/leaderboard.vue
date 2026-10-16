@@ -31,6 +31,30 @@ const fetchedAt = ref<number | null>(null);
 const { data: catalog } = await useAsyncData("leaderboard-map-catalog", () => usePublicCatalog<{ items: Map[] }>("maps"));
 const maps = computed(() => catalog.value?.items ?? []);
 
+const chipsEl = ref<HTMLElement | null>(null);
+const chipsOverflow = ref(false);
+const canScrollPrev = ref(false);
+const canScrollNext = ref(false);
+function updateChipsScroll() {
+  const el = chipsEl.value;
+  if (!el) return;
+  chipsOverflow.value = el.scrollWidth > el.clientWidth + 1;
+  canScrollPrev.value = el.scrollLeft > 0;
+  canScrollNext.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+}
+function scrollChips(direction: -1 | 1) {
+  chipsEl.value?.scrollBy({ left: direction * chipsEl.value.clientWidth * 0.8, behavior: "smooth" });
+}
+// The row only exists on the mastery board, so observe it whenever it mounts.
+watch(chipsEl, (el, _previous, onCleanup) => {
+  if (!el) return;
+  const observer = new ResizeObserver(updateChipsScroll);
+  observer.observe(el);
+  onCleanup(() => observer.disconnect());
+  updateChipsScroll();
+}, { flush: "post" });
+watch(maps, () => nextTick(updateChipsScroll));
+
 // Seasons are an optional scope: a failed read just hides the season controls.
 const { data: seasonCatalog } = await useAsyncData("leaderboard-seasons", () => api<PublicSeasonListResponse>("/v1/public/seasons").catch(() => ({ contractVersion: "1" as const, items: [] })), { getCachedData: () => undefined });
 const seasonList = computed(() => seasonCatalog.value?.items ?? []);
@@ -210,16 +234,20 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
         </select>
       </div>
       <div v-if="board === 'mastery'" class="ctl-row">
-        <div class="chips" role="group" aria-label="地图">
-          <button type="button" class="chip pressable" :aria-pressed="!mapId" @click="setMap(undefined)">全部地图</button>
-          <button
-            v-for="map in maps"
-            :key="map.mapId"
-            type="button"
-            class="chip pressable"
-            :aria-pressed="mapId === map.mapId"
-            @click="setMap(map.mapId)"
-          >{{ map.mapName }}</button>
+        <div class="chips-wrap" :class="{ 'chips-wrap--overflow': chipsOverflow }">
+          <button type="button" class="chips-arrow" aria-label="向左滑动地图" :disabled="!canScrollPrev" @click="scrollChips(-1)"><UIcon name="i-lucide-chevron-left" aria-hidden="true" /></button>
+          <div ref="chipsEl" class="chips" role="group" aria-label="地图" @scroll.passive="updateChipsScroll">
+            <button type="button" class="chip pressable" :aria-pressed="!mapId" @click="setMap(undefined)">全部地图</button>
+            <button
+              v-for="map in maps"
+              :key="map.mapId"
+              type="button"
+              class="chip pressable"
+              :aria-pressed="mapId === map.mapId"
+              @click="setMap(map.mapId)"
+            >{{ map.mapName }}</button>
+          </div>
+          <button type="button" class="chips-arrow" aria-label="向右滑动地图" :disabled="!canScrollNext" @click="scrollChips(1)"><UIcon name="i-lucide-chevron-right" aria-hidden="true" /></button>
         </div>
         <span class="note">{{ mapNote }}</span>
       </div>
@@ -404,10 +432,14 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
 .seg { display: inline-flex; gap: 0.125rem; padding: 0.1875rem; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-raised); }
 .seg button { min-height: var(--control-md); padding: 0 var(--space-4); border: 0; border-radius: calc(var(--radius-control) / 1.5); background: none; color: var(--muted); font-size: var(--type-body-sm-size); font-weight: 500; white-space: nowrap; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: var(--elevation-1); }
-.chips { display: flex; flex: 1 1 100%; gap: var(--space-2); min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.chips { display: flex; flex: 1 1 0; gap: var(--space-2); min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .chips::-webkit-scrollbar { display: none; }
-/* A hidden-scrollbar row cannot be scrolled with a mouse wheel, so pointer devices wrap the chips instead. */
-@media (hover: hover) and (pointer: fine) { .chips { flex-wrap: wrap; overflow-x: visible; } }
+/* A hidden-scrollbar row cannot be scrolled with a mouse wheel, so pointer devices get arrow buttons. */
+.chips-wrap { display: flex; flex: 1 1 100%; align-items: center; gap: var(--space-1); min-width: 0; }
+.chips-arrow { display: none; flex: none; place-items: center; width: var(--control-sm); height: var(--control-sm); padding: 0; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--surface); color: var(--muted); cursor: pointer; }
+.chips-arrow:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+.chips-arrow:disabled { opacity: 0.4; cursor: default; }
+@media (hover: hover) and (pointer: fine) { .chips-wrap--overflow .chips-arrow { display: grid; } }
 .chip { min-height: var(--control-sm); padding: 0 var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-pill); background: var(--surface); color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 500; white-space: nowrap; cursor: pointer; }
 .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-surface); color: var(--text); font-weight: 600; }
 
