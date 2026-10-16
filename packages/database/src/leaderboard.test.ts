@@ -44,16 +44,21 @@ const fixture = () => {
 };
 
 describe("public leaderboard projections", () => {
-  it.each([0, 1])("excludes active developer title holders from every ranking regardless of profile visibility (%i)", async (publicProfile) => {
+  it.each([
+    { titleKey: "WILD_DEV", publicProfile: 1, titleVisibility: 1 },
+    { titleKey: "ARCHITECT", publicProfile: 1, titleVisibility: 1 },
+    { titleKey: "MAINTAINER", publicProfile: 0, titleVisibility: 1 },
+    { titleKey: "FUTURE_DEV_TITLE", publicProfile: 0, titleVisibility: 0 },
+  ])("excludes holders of any developer-reserved title from every ranking ($titleKey)", async ({ titleKey, publicProfile, titleVisibility }) => {
     const { services, sqlite, addPlayer, addMap, addRevision, addRun, addTitle, addGrant, addSeason } = fixture();
     addPlayer("dev", "Developer", publicProfile); addPlayer("player", "Player");
     addMap("map.a", "Map A"); addRevision("rev.a1", "map.a", "default");
     addSeason("season", 0, 2000);
     addRun("dev.run", "dev", "map.a", "rev.a1", 1000, 100);
     addRun("player.run", "player", "map.a", "rev.a1", 100, 100);
-    addTitle("WILD_DEV", "global", "开发保留", 0);
+    addTitle(titleKey, "global", "开发保留", titleVisibility);
     addTitle("T1"); addTitle("T2");
-    addGrant("dev.title", "dev", "WILD_DEV", 100);
+    addGrant("dev.title", "dev", titleKey, 100);
     addGrant("dev.t1", "dev", "T1", 100);
     addGrant("dev.t2", "dev", "T2", 100);
     addGrant("player.t1", "player", "T1", 100);
@@ -120,18 +125,16 @@ describe("public leaderboard projections", () => {
     expect(await services.getPublicLeaderboard({ board: "achievement", mapId: "map.a", page: 1, pageSize: 20 })).toBeNull();
   });
 
-  it("counts owned global Titles while excluding map, developer, hidden, and revoked Titles", async () => {
+  it("counts owned global Titles while excluding map, hidden, and revoked Titles", async () => {
     const { services, addPlayer, addTitle, addGrant, addMap, addRevision, addRun, now } = fixture();
     addPlayer("p1", "Alpha"); addPlayer("p2", "Beta");
     addTitle("T1"); addTitle("T2"); addTitle("T3");
     addTitle("MAP_T", "map");
-    addTitle("DEV_T", "global", "开发保留");
     addTitle("HIDDEN_T", "global", "成就", 0);
     addGrant("g1", "p1", "T1", now - 30);
     addGrant("g2", "p1", "T2", now - 20);
     addGrant("g3", "p1", "T3", now - 10, "revoked");
     addGrant("g4", "p1", "MAP_T", now, "active", "map.a");
-    addGrant("g5", "p1", "DEV_T", now);
     addGrant("g6", "p1", "HIDDEN_T", now);
     addGrant("g7", "p2", "T1", now - 5);
     addMap("map.a", "Map A"); addRevision("rev.a1", "map.a", "default");

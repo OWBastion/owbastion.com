@@ -34,7 +34,8 @@ const titleView = (title: { key: string; label: string; icon: string; iconUrl: s
 
 export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): LeaderboardServices => {
   const developerAccounts = db.select({ playerAccountId: playerTitleGrants.playerAccountId }).from(playerTitleGrants)
-    .where(and(eq(playerTitleGrants.titleKey, "WILD_DEV"), eq(playerTitleGrants.status, "active")));
+    .innerJoin(titleCatalog, eq(titleCatalog.key, playerTitleGrants.titleKey))
+    .where(and(eq(titleCatalog.category, "开发保留"), eq(playerTitleGrants.status, "active")));
 
   const defaultRevision = (mapId: string) => db.select({ id: gameplayRevisions.id, gameVersion: gameplayRevisions.gameVersion }).from(gameplayRevisions)
     .where(and(eq(gameplayRevisions.mapId, mapId), eq(gameplayRevisions.lifecycle, "default"))).get();
