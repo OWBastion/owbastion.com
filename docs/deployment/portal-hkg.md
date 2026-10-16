@@ -97,10 +97,58 @@ rollback` or the dashboard restores a previous version. The workers.dev
 surface is a preview origin only — `owbastion.com` traffic is unaffected until
 the custom-domain route is added under an authorized cutover.
 
-GitHub Actions runs `build:worker` for Portal changes, and the `deploy-portal.yml`
-`Deploy Portal Worker` job publishes the Worker version on `main` using
-`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, the same secrets used by
-the API Worker deployment.
+## Cloudflare Workers Builds Git integration
+
+Cloudflare Workers Builds owns automatic Portal Worker deployment. GitHub
+Actions keeps the Portal validation jobs, including `build:worker`, and the
+HKG image/Compose deployment until cutover acceptance. It does not publish
+the Portal Worker. The API Worker keeps its existing deployment workflow.
+
+In Cloudflare **Workers & Pages**, connect `OWBastion/owbastion.com` to the
+`owbastion-codes-portal` Worker. For an existing Worker, open **Settings >
+Build** and connect the repository there. Configure:
+
+| Setting | Value |
+| --- | --- |
+| Production branch | `main` |
+| Root directory | Repository root (`/`) |
+| Build command | `pnpm --filter @owbastion/portal run build:worker` |
+| Deploy command | `pnpm --filter @owbastion/portal run deploy:worker` |
+| Preview command | `pnpm exec wrangler preview --config apps/portal/wrangler.jsonc` |
+| Build variable `NODE_VERSION` | `26` (matches the repository Node engine) |
+| Build variable `PNPM_VERSION` | `11.11.0` (matches `package.json`'s `packageManager`) |
+
+Keep automatic dependency installation enabled. The repository root contains
+the workspace manifest and lockfile; using `apps/portal` as the build root
+would omit the shared workspace packages. The commands explicitly select the
+Portal package/configuration so the root API `wrangler.toml` is not deployed.
+
+Set **Build watch paths** to include `apps/portal/*`, `packages/*`,
+`package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, and `tsconfig.json`.
+Shared package changes must trigger Portal builds too.
+
+Cloudflare manages the Git connection and build deployment token. GitHub's
+Cloudflare secrets remain available for the API deployment; do not remove
+or copy them for this integration. Runtime settings stay in
+`apps/portal/wrangler.jsonc`; build variables are separate from runtime
+variables and secrets.
+
+Enable preview builds for non-production branches when branch previews are
+needed. Configure their required upstream variables in Cloudflare's Preview
+settings; Worker Previews use separate settings from the deployed Worker.
+Preview URLs are for review, and production-domain login semantics still
+require the cutover verification below.
+
+Protect `main` with the required GitHub CI checks before merging. Workers
+Builds reacts to commits on its configured branch independently of GitHub
+Actions; it does not wait for the post-merge GitHub workflow. A successful
+production-branch build updates the Worker's `workers.dev` origin until the
+custom domain is attached. Merging repository changes alone does not create
+the Cloudflare Git connection.
+
+See Cloudflare's [build configuration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/),
+[build image](https://developers.cloudflare.com/workers/ci-cd/builds/build-image/),
+and [watch paths](https://developers.cloudflare.com/workers/ci-cd/builds/build-watch-paths/).
 
 ## Cutover (requires explicit authorization)
 
