@@ -121,6 +121,71 @@ describe("spatial-config-import", () => {
     });
   });
 
+  it("accepts OverPy list assignments pasted from map source", () => {
+    const result = parseSpatialConfigSource(`
+      # BEGIN AUTO-GENERATED PLATFORM MAP REVISION
+      macro platformMapRevision_WATCHPOINT_GIBRALTAR_DEFAULT():
+          __currentMapText___ = "直布罗陀"
+          bastionPosition = [
+              vect(70.099, 9, 26.803),
+              vect(86.26, 7.46, 2.95),
+              vect(61.64, 3.67, -20.79)
+          ]
+          resetPosition = vect(97.55, 1.06, 60.38)
+          endPosition = vect(43.42, 5.15, -129.34)
+          thirdPersonPosition = vect(93.88, 1.06, 63.17)
+          creditsPosition = vect(112.23, 0, 73.59)
+          portalPosition = [
+              vect(1, 2, 3)
+          ]
+      # END AUTO-GENERATED PLATFORM MAP REVISION
+    `);
+
+    expect(result).toMatchObject({ ok: true });
+    if (!result.ok) return;
+    expect(result.config).toMatchObject({
+      bastionPositions: [[70.099, 9, 26.803], [86.26, 7.46, 2.95], [61.64, 3.67, -20.79]],
+      resetPosition: [97.55, 1.06, 60.38],
+      endPosition: [43.42, 5.15, -129.34],
+      thirdPersonPosition: [93.88, 1.06, 63.17],
+      creditsPosition: [112.23, 0, 73.59],
+      portalPositions: [[1, 2, 3]],
+      control: null,
+    });
+  });
+
+  it("unwraps compressed list wrappers and control fields from composite stage source", () => {
+    const result = parseSpatialConfigSource(`
+      bastionPosition = compressed([
+          vect(-387.866, 12.231, 177.954),
+          vect(-372.397, 12.203, 128.218)
+      ])
+      controlCenterPosition = [
+          vect(-328.53, 8.17, 153.32),
+          vect(51.89, 14.5, -114.7)
+      ]
+      controlJumpPosition = [
+          vect(-251.99, 11.34, 174.77)
+      ]
+      controlRespawnPosition = [
+          vect(-426.04, 11.11, 165.81),
+          vect(-30.95, 17, -125.55)
+      ]
+    `, null, "composite-stage");
+
+    expect(result).toMatchObject({
+      ok: true,
+      config: {
+        bastionPositions: [[-387.866, 12.231, 177.954], [-372.397, 12.203, 128.218]],
+        control: {
+          centerPositions: [[-328.53, 8.17, 153.32], [51.89, 14.5, -114.7]],
+          jumpPositions: [[-251.99, 11.34, 174.77]],
+          respawnPositions: [[-426.04, 11.11, 165.81], [-30.95, 17, -125.55]],
+        },
+      },
+    });
+  });
+
   it("accepts existing platform JSON as a compatibility path", () => {
     const config = { bastionPositions: [[1, 2, 3]] };
     const result = parseSpatialConfigSource(JSON.stringify(config));

@@ -52,10 +52,13 @@ function normalizeWorkshopAliases(source: string): string {
 }
 
 function collectArrayAssignmentVectors(source: string, field: string): Vector[] {
-  const assignmentPattern = new RegExp(`(?:Global\\.)?${field}\\s*=\\s*Array\\s*\\(`, "g");
+  const assignmentPattern = new RegExp(`(?:Global\\.)?${field}\\s*=\\s*(Array\\s*\\(|(?:[A-Za-z_]\\w*\\s*\\(\\s*)?\\[)`, "g");
   const vectorPattern = new RegExp(vectorCapture, "g");
   const values: Vector[] = [];
-  while (assignmentPattern.exec(source)) {
+  let assignment: RegExpExecArray | null;
+  while ((assignment = assignmentPattern.exec(source))) {
+    const openChar = source[assignmentPattern.lastIndex - 1] === "[" ? "[" : "(";
+    const closeChar = openChar === "(" ? ")" : "]";
     let depth = 1;
     let cursor = assignmentPattern.lastIndex;
     let quote: string | null = null;
@@ -66,8 +69,8 @@ function collectArrayAssignmentVectors(source: string, field: string): Vector[] 
         continue;
       }
       if (character === "\"" || character === "'") quote = character;
-      else if (character === "(") depth += 1;
-      else if (character === ")") depth -= 1;
+      else if (character === openChar) depth += 1;
+      else if (character === closeChar) depth -= 1;
     }
     if (depth !== 0) continue;
     const body = source.slice(assignmentPattern.lastIndex, cursor - 1);
@@ -264,7 +267,7 @@ export function parseSpatialConfigSource(
   const trimmed = normalizeWorkshopAliases(source).trim();
   if (!trimmed) return invalidImport("请粘贴游戏内的点位代码。");
   if (trimmed.startsWith("{")) {
-    if (scope !== "single") return invalidImport("此处只接受当前路线或阶段的 Raw Workshop 点位代码。");
+    if (scope !== "single") return invalidImport("此处只接受当前路线或阶段的点位代码（Raw Workshop 或 .opy 赋值）。");
     try {
       const parsed: unknown = JSON.parse(trimmed);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return invalidImport("空间配置必须是对象。");

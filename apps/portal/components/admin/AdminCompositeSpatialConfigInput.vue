@@ -66,7 +66,7 @@ function stageSpatialError(index: number) {
     const hasInvalidSpatialField = issues.value.some((issue) => issue.path[0] === "stages" && issue.path[1] === index && [
       "bastionPositions", "resetPosition", "endPosition", "thirdPersonPosition", "creditsPosition", "control", "portalPositions", "springboardPositions",
     ].includes(String(issue.path[2])));
-    return hasInvalidSpatialField ? "请粘贴此阶段完整的 Raw Workshop 点位代码。" : "";
+    return hasInvalidSpatialField ? "请粘贴此阶段完整的点位代码（Raw Workshop 或 .opy 赋值）。" : "";
   }
   const stageFields = new Set(["bastionPositions", "control", "portalPositions", "springboardPositions", "resetPosition", "thirdPersonPosition", "creditsPosition", "endPosition"]);
   const issue = issues.value.find((item) => item.path[0] === "stages" && item.path[1] === index && stageFields.has(String(item.path[2])));
