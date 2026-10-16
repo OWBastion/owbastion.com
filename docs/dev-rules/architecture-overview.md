@@ -79,13 +79,16 @@ detail or editor content, followed by the normal Portal build/check gate.
 
 Portal editorial content is a separate Git-backed surface under
 `apps/portal/content/`, with future media assets rooted at
-`apps/portal/public/content/`. The build-time loader in
-`apps/portal/utils/editorial-content.ts` parses Blog development logs and
-Changelog player-facing notes from Markdown via `@nuxtjs/mdc`, validates
-frontmatter with the Zod schemas in `content/editorial-schemas.ts`, and the
-Blog/Changelog list and detail routes are prerendered to static assets. There
-is no runtime content database or query API. Blog entries may describe work in
-progress; Changelog entries describe changes that have already been released.
+`apps/portal/public/content/`. The `apps/portal/modules/editorial.ts` Nuxt
+module compiles Blog development logs and Changelog player-facing notes at
+build time: it parses Markdown via `@nuxtjs/mdc`, validates frontmatter with
+the Zod schemas in `content/editorial-schemas.ts`, and writes generated JSON
+under `.nuxt/editorial/` that `apps/portal/utils/editorial-content.ts` serves.
+The runtime bundle carries only that generated data — no parser or raw
+Markdown — and the Blog/Changelog list and detail routes are prerendered to
+static assets. There is no runtime content database or query API. Blog entries
+may describe work in progress; Changelog entries describe changes that have
+already been released.
 Editorial metadata and a Changelog `version` value do not replace platform D1
 facts or Bastion's authoritative implementation, build, release, and
 published-artifact state. This content foundation does not add D1, R2, or an

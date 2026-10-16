@@ -130,7 +130,10 @@ describe("Portal SSR", async () => {
     expect(changelogDetail).toContain("随机事件调整");
     expect(changelogDetail).toContain('property="og:title"');
     expect(changelogDetail).toContain('property="og:description"');
-    expect(changelogDetail).toContain('property="og:url"');
+    // Prerendered metadata must carry the public origin, never a request host.
+    expect(changelogDetail).toContain('property="og:url" content="https://owbastion.com/changelog/26.0801.1"');
+    expect(changelogDetail).toContain('rel="canonical" href="https://owbastion.com/changelog/26.0801.1"');
+    expect(changelogDetail).not.toMatch(/(?:content|href)="https?:\/\/localhost/);
     expect(changelogDetail).toContain('name="twitter:card"');
     expect(changelogDetail).toContain('name="twitter:title"');
     expect(changelogDetail).toContain('name="twitter:description"');

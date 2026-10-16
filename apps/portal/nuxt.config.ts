@@ -20,10 +20,10 @@ export default defineNuxtConfig({
       enabled: true
     }
   },
-  modules: ["@nuxtjs/mdc", "@nuxt/ui", "@nuxtjs/color-mode", "@nuxt/hints"],
+  modules: ["./modules/editorial", "@nuxtjs/mdc", "@nuxt/ui", "@nuxtjs/color-mode", "@nuxt/hints"],
   mdc: {
-    // The editorial loader wires Shiki itself; the module-level highlighter API
-    // route and its Oniguruma virtual bundle are not needed.
+    // The editorial generator module wires Shiki itself; the module-level
+    // highlighter API route and its Oniguruma virtual bundle are not needed.
     highlight: false,
   },
   components: {
@@ -74,6 +74,9 @@ export default defineNuxtConfig({
     public: {
       apiBaseUrl: "http://localhost:8787",
       localDevAuth: false,
+      // Canonical origin for prerendered SEO metadata; prerendering has no
+      // request URL, so canonical/og:url must not be derived from the request.
+      siteUrl: "https://owbastion.com",
     },
   },
   vite: {

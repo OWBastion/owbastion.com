@@ -5,7 +5,7 @@ import { findEditorialEntry, queryEditorialSummaries } from "~/utils/editorial-c
 const route = useRoute();
 const slug = computed(() => String(route.params.slug ?? ""));
 const contentPath = computed(() => `/blog/${slug.value}`);
-const requestUrl = useRequestURL();
+const siteUrl = useRuntimeConfig().public.siteUrl;
 const requestEvent = useRequestEvent();
 
 const { data: post, status, error } = await useAsyncData(
@@ -26,7 +26,7 @@ if (import.meta.server && status.value !== "pending" && !post.value && requestEv
 
 const title = computed(() => post.value ? `${post.value.title} · 开发日志 · 躲避堡垒 3` : "开发日志 · 躲避堡垒 3");
 const description = computed(() => post.value?.description ?? "阅读 Portal 的开发日志与设计记录。");
-const canonical = computed(() => new URL(contentPath.value, requestUrl.origin).toString());
+const canonical = computed(() => new URL(contentPath.value, siteUrl).toString());
 const index = computed(() => all.value.findIndex((item) => item.path === contentPath.value));
 const older = computed(() => index.value >= 0 && all.value[index.value + 1] ? { path: all.value[index.value + 1]!.path, title: all.value[index.value + 1]!.title, label: "上一篇" } : null);
 const newer = computed(() => index.value > 0 ? { path: all.value[index.value - 1]!.path, title: all.value[index.value - 1]!.title, label: "下一篇" } : null);
