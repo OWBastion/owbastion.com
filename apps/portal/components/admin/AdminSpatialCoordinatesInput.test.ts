@@ -90,7 +90,7 @@ describe("AdminSpatialCoordinatesInput", () => {
     });
     await wrapper.get("textarea").setValue(JSON.stringify(compositeConfig));
     expect(wrapper.find('[role="alert"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain("只接受当前路线或阶段的 Raw Workshop 点位代码");
+    expect(wrapper.text()).toContain("只接受当前路线或阶段的点位代码");
     expect(wrapper.emitted("update:modelValue")).toBeUndefined();
   });
 
