@@ -357,7 +357,7 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
 .seg { display: inline-flex; gap: 0.125rem; padding: 0.1875rem; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-raised); }
 .seg button { min-height: var(--control-md); padding: 0 var(--space-4); border: 0; border-radius: calc(var(--radius-control) / 1.5); background: none; color: var(--muted); font-size: var(--type-body-sm-size); font-weight: 500; white-space: nowrap; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: var(--elevation-1); }
-.chips { display: flex; flex: 1 1 0; gap: var(--space-2); min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.chips { display: flex; flex: 1 1 100%; gap: var(--space-2); min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .chips::-webkit-scrollbar { display: none; }
 .chip { min-height: var(--control-sm); padding: 0 var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-pill); background: var(--surface); color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 500; white-space: nowrap; cursor: pointer; }
 .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-surface); color: var(--text); font-weight: 600; }
