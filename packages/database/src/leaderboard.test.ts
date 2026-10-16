@@ -44,6 +44,43 @@ const fixture = () => {
 };
 
 describe("public leaderboard projections", () => {
+  it.each([0, 1])("excludes active developer title holders from every ranking regardless of profile visibility (%i)", async (publicProfile) => {
+    const { services, sqlite, addPlayer, addMap, addRevision, addRun, addTitle, addGrant, addSeason } = fixture();
+    addPlayer("dev", "Developer", publicProfile); addPlayer("player", "Player");
+    addMap("map.a", "Map A"); addRevision("rev.a1", "map.a", "default");
+    addSeason("season", 0, 2000);
+    addRun("dev.run", "dev", "map.a", "rev.a1", 1000, 100);
+    addRun("player.run", "player", "map.a", "rev.a1", 100, 100);
+    addTitle("WILD_DEV", "global", "开发保留", 0);
+    addTitle("T1"); addTitle("T2");
+    addGrant("dev.title", "dev", "WILD_DEV", 100);
+    addGrant("dev.t1", "dev", "T1", 100);
+    addGrant("dev.t2", "dev", "T2", 100);
+    addGrant("player.t1", "player", "T1", 100);
+    const boards = [
+      { board: "achievement" as const },
+      { board: "mastery" as const },
+      { board: "mastery" as const, mapId: "map.a" },
+      { board: "mastery" as const, seasonId: "season" },
+      { board: "mastery" as const, seasonId: "season", mapId: "map.a" },
+    ];
+    for (const input of boards) {
+      const page = await services.getPublicLeaderboard({ ...input, page: 1, pageSize: 1 });
+      expect(page).toMatchObject({ total: 1, hasMore: false });
+      expect(page?.items).toEqual([expect.objectContaining({ rank: 1, player: expect.objectContaining({ displayName: "Player" }) })]);
+      expect(await services.getCurrentPlayerLeaderboardRank({ ...input, sessionToken: "token.dev" })).toMatchObject({ rank: null, gapToNextRank: null });
+      expect(await services.getCurrentPlayerLeaderboardRank({ ...input, sessionToken: "token.player" })).toMatchObject({ rank: 1, gapToNextRank: null });
+    }
+    if (publicProfile) {
+      expect(await services.getPublicLeaderboardPlayer({ playerKey: await leaderboardPlayerKey("dev") })).toMatchObject({ boards: { mastery: null, achievement: null } });
+    }
+    sqlite.prepare("UPDATE player_title_grants SET status = 'revoked' WHERE id = 'dev.title'").run();
+    for (const input of boards) {
+      expect(await services.getPublicLeaderboard({ ...input, page: 1, pageSize: 1 })).toMatchObject({ total: 2, hasMore: true });
+      expect(await services.getCurrentPlayerLeaderboardRank({ ...input, sessionToken: "token.dev" })).toMatchObject({ rank: 1 });
+    }
+  });
+
   it("sums Mastery XP across maps and revisions with deterministic tie-breaks", async () => {
     const { services, addPlayer, addMap, addRevision, addRun } = fixture();
     addPlayer("p1", "Alpha"); addPlayer("p2", "Beta"); addPlayer("p3", "Gamma");

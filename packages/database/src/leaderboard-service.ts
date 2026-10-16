@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, lte, ne, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, ne, notInArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { PlatformServices } from "@owbastion/domain";
 import { leaderboardPlayerKey, leaderboardRuleVersion, projectLeaderboardEntry, rankLeaderboardRows, verifiedRunDifficulties, type VerifiedRunDifficulty } from "@owbastion/domain";
@@ -33,6 +33,9 @@ const titleView = (title: { key: string; label: string; icon: string; iconUrl: s
 });
 
 export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): LeaderboardServices => {
+  const developerAccounts = db.select({ playerAccountId: playerTitleGrants.playerAccountId }).from(playerTitleGrants)
+    .where(and(eq(playerTitleGrants.titleKey, "WILD_DEV"), eq(playerTitleGrants.status, "active")));
+
   const defaultRevision = (mapId: string) => db.select({ id: gameplayRevisions.id, gameVersion: gameplayRevisions.gameVersion }).from(gameplayRevisions)
     .where(and(eq(gameplayRevisions.mapId, mapId), eq(gameplayRevisions.lifecycle, "default"))).get();
 
@@ -46,7 +49,7 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
   };
 
   const masteryRows = async (mapId?: string, revisionId?: string, window?: { startsAt: number; endsAt: number }): Promise<BoardRow[]> => {
-    const conditions = [eq(verifiedRuns.status, "active")];
+    const conditions = [eq(verifiedRuns.status, "active"), notInArray(verifiedRuns.playerAccountId, developerAccounts)];
     if (window) conditions.push(gte(verifiedRuns.acceptedAt, window.startsAt), lte(verifiedRuns.acceptedAt, window.endsAt));
     if (mapId) conditions.push(eq(verifiedRuns.mapId, mapId), eq(verifiedRuns.gameplayRevisionId, revisionId!));
     const rows = await db.select({
@@ -66,7 +69,7 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
       reachedAt: sql<number>`max(${playerTitleGrants.grantedAt})`,
     }).from(playerTitleGrants)
       .innerJoin(titleCatalog, eq(titleCatalog.key, playerTitleGrants.titleKey))
-      .where(achievementGrantFilter)
+      .where(and(achievementGrantFilter, notInArray(playerTitleGrants.playerAccountId, developerAccounts)))
       .groupBy(playerTitleGrants.playerAccountId);
 
   const boardRows = (board: LeaderboardBoard, mapId?: string, revisionId?: string, window?: { startsAt: number; endsAt: number }) =>
