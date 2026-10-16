@@ -97,7 +97,7 @@ export const isChallengeTitle = (item: AdminAchievement): item is TitleAchieveme
 export const isMap = (item: AdminAchievement): item is MapAchievement => item.family === "map";
 export const isCatalog = (item: AdminAchievement): item is CatalogTitle => item.family === "title_catalog";
 export const isDeveloperOnly = (item: CatalogTitle) => item.category === "开发保留";
-export const itemIdentity = (item: AdminAchievement) => isMap(item) ? `${item.mapId}:${item.challengeId}:${item.gameplayRevisionId}` : item.challengeId;
+export const itemIdentity = (item: AdminAchievement) => isCatalog(item) ? `catalog:${item.challengeId}` : isMap(item) ? `${item.mapId}:${item.challengeId}:${item.gameplayRevisionId}` : item.challengeId;
 export const DEFAULT_EVIDENCE_RULE = "上传包含结算画面、称号条件与玩家信息的完整截图。";
 
 // One coherent status per challenge row: an active challenge before its start

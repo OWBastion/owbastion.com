@@ -262,10 +262,9 @@ export function useAdminAchievementWorkspace() {
     void nextTick(() => trigger?.isConnected && trigger.focus());
   }
 
-  function toggleEditing(id: string, mapId?: string, gameplayRevisionId?: string) {
+  function toggleEditing(item: AdminAchievement) {
     iconFile.value = null;
-    const item = items.value.find((candidate) => candidate.challengeId === id && (!mapId || !isMap(candidate) || candidate.mapId === mapId && (!gameplayRevisionId || candidate.gameplayRevisionId === gameplayRevisionId)));
-    const identity = item ? itemIdentity(item) : id;
+    const identity = itemIdentity(item);
     editingId.value = editingId.value === identity ? null : identity;
     if (editingId.value) void loadMapOptions();
   }

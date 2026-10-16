@@ -74,7 +74,7 @@ const catalogColumns: TableColumn<CatalogRow>[] = [
         </template>
         <template #actions-cell="{ row }">
           <div class="table-actions">
-            <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-pencil" label="编辑" aria-label="编辑状态" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)" />
+            <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-pencil" label="编辑" aria-label="编辑称号" :disabled="isSaving(row.original)" @click="toggleEditing(row.original)" />
             <UButton v-if="row.original.lifecycle === 'active'" size="sm" color="error" variant="soft" icon="i-lucide-square-stop" label="退休" aria-label="退休称号" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)" />
             <UButton v-else size="sm" color="neutral" variant="outline" icon="i-lucide-rotate-ccw" label="重开" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)" />
           </div>
