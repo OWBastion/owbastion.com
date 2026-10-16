@@ -18,6 +18,9 @@
   "workers_dev": true,
   "observability": {
     "enabled": true,
+    "issues": {
+      "enabled": true,
+    },
   },
   "vars": {
     // Same-origin proxies forward to the API Worker; override locally via .dev.vars.
