@@ -244,8 +244,8 @@ describe("submission mastery outcomes", () => {
       expect(sqlite.prepare("SELECT submission_id, status, awarded_xp FROM submission_outcomes WHERE outcome_key = 'verified_run' ORDER BY submission_id").all()).toEqual([
         { submission_id: conflict.submissionId, status: "conflict", awarded_xp: 0 },
         { submission_id: exactReplay.submissionId, status: "reused", awarded_xp: 0 },
-        { submission_id: first.submissionId, status: "created", awarded_xp: 236 },
-        { submission_id: otherPlayer.submissionId, status: "created", awarded_xp: 236 },
+        { submission_id: first.submissionId, status: "created", awarded_xp: 0 },
+        { submission_id: otherPlayer.submissionId, status: "created", awarded_xp: 0 },
         { submission_id: reencodedReplay.submissionId, status: "reused", awarded_xp: 0 },
       ].sort((left, right) => left.submission_id.localeCompare(right.submission_id)));
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants").get()).toEqual({ count: 0 });
@@ -253,7 +253,7 @@ describe("submission mastery outcomes", () => {
 
       const firstProfile = await services.getCurrentPlayerMastery({ sessionToken: playerOneSession, mapId: "map.mastery", page: 1, pageSize: 20 });
       expect(firstProfile).toMatchObject({
-        profiles: [{ mapId: "map.mastery", totalXp: 236, verifiedRunCount: 1, difficultyStats: [{ difficulty: "困难", verifiedRunCount: 1, fastestCompletionSeconds: 600 }], lowestDeaths: 1, fewestSkips: 0, highestSingleRunXp: 236, highestCompletedDifficulty: "困难" }],
+        profiles: [{ mapId: "map.mastery", totalXp: 0, verifiedRunCount: 1, difficultyStats: [{ difficulty: "困难", verifiedRunCount: 1, fastestCompletionSeconds: 600 }], lowestDeaths: 1, fewestSkips: 0, highestSingleRunXp: 0, highestCompletedDifficulty: "困难" }],
         total: 1,
         hasMore: false,
       });
@@ -262,8 +262,8 @@ describe("submission mastery outcomes", () => {
       const publicServices = createPlatformServices(database);
       const publicFirst = await publicServices.getSubmission({ submissionId: first.submissionId }, {} as never);
       const playerFirst = await services.getPlayerSubmission({ submissionId: first.submissionId }, playerOneSession);
-      expect(publicFirst.verifiedRunOutcome).toEqual({ status: "created", awardedXp: 236 });
-      expect(playerFirst.verifiedRunOutcome).toEqual({ status: "created", awardedXp: 236 });
+      expect(publicFirst.verifiedRunOutcome).toEqual({ status: "created", awardedXp: 0 });
+      expect(playerFirst.verifiedRunOutcome).toEqual({ status: "created", awardedXp: 0 });
       expect(JSON.stringify({ publicFirst, playerFirst })).not.toMatch(/1234-5678-9012|player\.one|integration-evidence|uploads\/submissions|verifiedRunId|object_key/);
 
       const adminConflict = await services.getAdminSubmission({ submissionId: conflict.submissionId }, {} as never);
@@ -273,7 +273,7 @@ describe("submission mastery outcomes", () => {
       await services.resolveAdminVerifiedRunConflict({ verifiedRunId, submissionId: conflict.submissionId, action: "invalidate_existing", reason: "local integration invalidation" }, maintainer, "integration-invalidate");
       expect(await services.getCurrentPlayerMastery({ sessionToken: playerOneSession, mapId: "map.mastery", page: 1, pageSize: 20 })).toMatchObject({ profiles: [], total: 1, runs: [{ status: "invalidated" }] });
       await services.transitionAdminVerifiedRun({ verifiedRunId, action: "restore", reason: "local integration restoration" }, maintainer, "integration-restore");
-      expect(await services.getCurrentPlayerMastery({ sessionToken: playerOneSession, mapId: "map.mastery", page: 1, pageSize: 20 })).toMatchObject({ profiles: [{ totalXp: 236, verifiedRunCount: 1 }], total: 1, runs: [{ status: "active" }] });
+      expect(await services.getCurrentPlayerMastery({ sessionToken: playerOneSession, mapId: "map.mastery", page: 1, pageSize: 20 })).toMatchObject({ profiles: [{ totalXp: 0, verifiedRunCount: 1 }], total: 1, runs: [{ status: "active" }] });
 
       seedTitle(sqlite, "CONQUEROR");
       sqlite.prepare("INSERT INTO achievement_challenges (id, map_id, type, name, difficulty, condition, evidence_rule, submission_mode, reward_title_key, game_version, status, introduced_version, created_at, updated_at) VALUES ('challenge.combined', 'map.mastery', 'difficulty_completion', '困难通关', '困难', '完成', '截图', 'manual', 'CONQUEROR', '99.0101.1', 'active', '99.0101.1', ?, ?)").run(now, now);
@@ -867,14 +867,14 @@ describe("submission mastery outcomes", () => {
     }
 
     expect(sqlite.prepare("SELECT player_account_id, run_code, awarded_xp FROM mastery_runs ORDER BY player_account_id").all()).toEqual([
-      { player_account_id: "player.one", run_code: "1234-5678-9012", awarded_xp: 236 },
-      { player_account_id: "player.two", run_code: "1234-5678-9012", awarded_xp: 236 },
+      { player_account_id: "player.one", run_code: "1234-5678-9012", awarded_xp: 0 },
+      { player_account_id: "player.two", run_code: "1234-5678-9012", awarded_xp: 0 },
     ]);
     expect(sqlite.prepare("SELECT submission_id, status, awarded_xp FROM submission_outcomes WHERE outcome_key = 'verified_run' ORDER BY submission_id").all()).toEqual([
       { submission_id: "submission.conflict", status: "conflict", awarded_xp: 0 },
       { submission_id: "submission.exact", status: "reused", awarded_xp: 0 },
-      { submission_id: "submission.first", status: "created", awarded_xp: 236 },
-      { submission_id: "submission.other", status: "created", awarded_xp: 236 },
+      { submission_id: "submission.first", status: "created", awarded_xp: 0 },
+      { submission_id: "submission.other", status: "created", awarded_xp: 0 },
       { submission_id: "submission.reencoded", status: "reused", awarded_xp: 0 },
     ]);
     expect(sqlite.prepare("SELECT status FROM submissions WHERE id = 'submission.conflict'").get()).toEqual({ status: "ocr_review_required" });
@@ -890,7 +890,7 @@ describe("submission mastery outcomes", () => {
       "submission.conflict",
     ].map((submissionId) => publicServices.getSubmission({ submissionId }, {} as never)));
     expect(publicOutcomes.map((submission) => submission.verifiedRunOutcome)).toEqual([
-      { status: "created", awardedXp: 236 },
+      { status: "created", awardedXp: 0 },
       { status: "reused", awardedXp: 0 },
       undefined,
     ]);
@@ -931,7 +931,7 @@ describe("submission mastery outcomes", () => {
 
     const inspected = await publicServices.getAdminVerifiedRun({ verifiedRunId }, maintainer);
     expect(inspected).toMatchObject({
-      run: { sourceSubmissionId: "submission.first", acceptanceSource: "submission_automatic", xpRuleVersion: "v2", xpInputSnapshot: { ruleVersion: "v2" } },
+      run: { sourceSubmissionId: "submission.first", acceptanceSource: "submission_automatic", xpRuleVersion: "v3", xpInputSnapshot: { ruleVersion: "v3" } },
       projection: { mapId: "map.mastery", verifiedRunCount: 1 },
       sourceSubmission: { submissionId: "submission.first", evidenceUrl: null },
       lifecycle: [{ transition: "accepted", actorType: "service" }],

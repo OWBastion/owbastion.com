@@ -47,7 +47,7 @@ type SubmissionOcrServicesDependencies = {
   ocrkitApiToken?: string;
   ocrAutoReviewSampleRate: number;
   preparePlayerAutoMatchChallenges: (row: SubmissionRow, response: OcrResponse) => Promise<PreparedAutoMatchChallenges>;
-  resolveVerifiedRunSubmissionOutcome: (row: SubmissionRow, response: OcrResponse, acceptanceSource: "submission_automatic" | "submission_review") => Promise<VerifiedRunSubmissionOutcome>;
+  resolveVerifiedRunSubmissionOutcome: (row: SubmissionRow, response: OcrResponse, acceptanceSource: "submission_automatic" | "submission_review", humanConfirmed?: boolean, achievementCount?: number) => Promise<VerifiedRunSubmissionOutcome>;
   masterySubmissionOutcomeStatement: (submissionId: string, outcome: VerifiedRunSubmissionOutcome) => D1PreparedStatement;
   approvedSubmissionOutcomeStatement: (input: { submissionId: string; outcomeKey: string; outcomeType: "title_grant" | "challenge"; status: "created" | "reused"; entityId: string | null; details: Record<string, unknown> }) => D1PreparedStatement;
   withCanonicalMode: (response: OcrResponse) => Promise<OcrResponse>;
@@ -260,7 +260,7 @@ export const createSubmissionOcrServices = ({
       stage = "resolve_auto_candidates";
       const preparedCanonicalCandidates = await preparePlayerAutoMatchChallenges(row, result);
       const canonicalDecision = matchOcrAgainstChallenges(preparedCanonicalCandidates.candidates, result, preparedCanonicalCandidates.mapIdsByName, preparedCanonicalCandidates.titleNamesByKey);
-      const verifiedRunOutcome = await resolveVerifiedRunSubmissionOutcome(row, result, input.manual ? "submission_review" : "submission_automatic");
+      const verifiedRunOutcome = await resolveVerifiedRunSubmissionOutcome(row, result, input.manual ? "submission_review" : "submission_automatic", false, canonicalDecision.exact.length);
       const masteryAccepted = verifiedRunOutcome.status === "created" || verifiedRunOutcome.status === "reused";
       if (verifiedRunOutcome.status === "conflict") {
         stage = "persist_mastery_conflict";

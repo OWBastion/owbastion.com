@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMasteryMapProfile, buildMasteryProfiles, calculateVerifiedRunXpV1, calculateVerifiedRunXpV2, createVerifiedRunEvidenceCompatibilityV1, isVerifiedRunEvidenceCompatibilityEnabled, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, verifiedRunXpRuleV1, verifiedRunXpRuleV2, normalizeMatchCode, runCodeEventWeightTotal, eventWeightTotalCode, type VerifiedRunForProjection } from "./mastery";
+import { buildMasteryMapProfile, buildMasteryProfiles, calculateVerifiedRunXpV1, calculateVerifiedRunXpV2, calculateVerifiedRunXpV3, beijingDayStart, createVerifiedRunEvidenceCompatibilityV1, isVerifiedRunEvidenceCompatibilityEnabled, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, verifiedRunXpRuleV1, verifiedRunXpRuleV2, normalizeMatchCode, runCodeEventWeightTotal, eventWeightTotalCode, type VerifiedRunForProjection } from "./mastery";
 
 const run = (overrides: Partial<VerifiedRunForProjection> = {}): VerifiedRunForProjection => ({
   runId: "run-1",
@@ -178,5 +178,37 @@ describe("mastery projections", () => {
       highestCompletedDifficulty: "传奇",
       recentRuns: [runs[3]],
     });
+  });
+});
+
+describe("verified run XP rule v3", () => {
+  it("awards XP only for Legend and Hell and ignores deaths and skips", () => {
+    for (const difficulty of ["简单", "一般", "困难", "专家"] as const) {
+      expect(calculateVerifiedRunXpV3({ difficulty, mapRating: "T0", achievementCount: 3, dailyFirstClear: true }).awardedXp).toBe(0);
+    }
+    expect(calculateVerifiedRunXpV3({ difficulty: "传奇" })).toEqual({
+      awardedXp: 450,
+      snapshot: { ruleVersion: "v3", baseDifficultyXp: 450, mapRating: null, mapRatingBonus: 0, achievementCount: 0, achievementBonus: 0, dailyFirstClear: false, dailyFirstClearBonus: 0 },
+    });
+    expect(calculateVerifiedRunXpV3({ difficulty: "地狱" }).awardedXp).toBe(600);
+  });
+
+  it("adds 5% per Challenge, 10% for the daily first clear, and the map-rating bonus", () => {
+    expect(calculateVerifiedRunXpV3({ difficulty: "地狱", achievementCount: 2 }).awardedXp).toBe(660);
+    expect(calculateVerifiedRunXpV3({ difficulty: "地狱", dailyFirstClear: true }).awardedXp).toBe(660);
+    expect(calculateVerifiedRunXpV3({ difficulty: "地狱", mapRating: "T0" }).awardedXp).toBe(720);
+    expect(calculateVerifiedRunXpV3({ difficulty: "地狱", mapRating: "T5" }).awardedXp).toBe(600);
+    expect([..."T0 T1 T2 T3 T4 T5".split(" ")].map((mapRating) => calculateVerifiedRunXpV3({ difficulty: "地狱", mapRating: mapRating as "T0" }).awardedXp)).toEqual([720, 696, 672, 648, 624, 600]);
+    const all = calculateVerifiedRunXpV3({ difficulty: "地狱", mapRating: "T0", achievementCount: 3, dailyFirstClear: true });
+    expect(all.awardedXp).toBe(870);
+    expect(all.snapshot).toMatchObject({ mapRatingBonus: 0.2, achievementBonus: 0.15, dailyFirstClearBonus: 0.1 });
+  });
+
+  it("rejects invalid inputs and rolls the day over at Beijing midnight", () => {
+    expect(() => calculateVerifiedRunXpV3({ difficulty: "地狱", achievementCount: -1 })).toThrow("VERIFIED_RUN_ACHIEVEMENT_COUNT_INVALID");
+    expect(() => calculateVerifiedRunXpV3({ difficulty: "地狱", achievementCount: 1.5 })).toThrow("VERIFIED_RUN_ACHIEVEMENT_COUNT_INVALID");
+    expect(() => calculateVerifiedRunXpV3({ difficulty: "地狱", mapRating: "T9" as never })).toThrow("VERIFIED_RUN_MAP_RATING_INVALID");
+    expect(beijingDayStart(Date.parse("2026-10-15T23:59:59+08:00"))).toBe(Date.parse("2026-10-15T00:00:00+08:00"));
+    expect(beijingDayStart(Date.parse("2026-10-16T00:00:00+08:00"))).toBe(Date.parse("2026-10-16T00:00:00+08:00"));
   });
 });

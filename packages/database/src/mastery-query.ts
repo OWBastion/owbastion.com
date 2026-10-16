@@ -1,8 +1,10 @@
-import { and, count, desc, eq, ne } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, lte, ne } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import { buildMasteryProfiles, normalizeMatchCode, verifiedRunProjection } from "@owbastion/domain";
+import { beijingDayStart, buildMasteryProfiles, normalizeMatchCode, verifiedRunMapRatings, verifiedRunProjection, verifiedRunXpDifficulties } from "@owbastion/domain";
 import type {
   MasteryMapProfile,
+  VerifiedRunDifficulty,
+  VerifiedRunMapRating,
   VerifiedRun,
   VerifiedRunConflictField,
   VerifiedRunEventCounters,
@@ -10,7 +12,7 @@ import type {
   VerifiedRunInput,
 } from "@owbastion/domain";
 import type { CurrentPlayerMasteryResponse } from "@owbastion/contracts";
-import { gameplayRevisions, verifiedRuns } from "./schema";
+import { gameplayRevisions, mapMetadata, verifiedRuns } from "./schema";
 
 type Database = ReturnType<typeof drizzle>;
 
@@ -87,8 +89,27 @@ export const prepareVerifiedRun = (input: VerifiedRunInput, timestamp: number) =
     eventCounters: normalizeVerifiedRunEventCounters(input.eventCounters),
     acceptanceSource: input.acceptanceSource,
     acceptedAt,
-    mapFactor: input.mapFactor ?? null,
+    achievementCount: input.achievementCount ?? 0,
   };
+};
+
+// The v3 award inputs that live outside the run itself: the map's current rating and whether this
+// is the Player's first XP-earning clear of the Beijing day.
+export const loadVerifiedRunXpContext = async (db: Database, input: { playerAccountId: string; mapId: string; difficulty: VerifiedRunDifficulty; acceptedAt: number; exceptRunId?: string }) => {
+  const earns = (verifiedRunXpDifficulties as readonly string[]).includes(input.difficulty);
+  const [metadata, earlier] = await Promise.all([
+    db.select({ rating: mapMetadata.difficultyRating }).from(mapMetadata).where(eq(mapMetadata.mapId, input.mapId)).get(),
+    earns ? db.select({ id: verifiedRuns.id }).from(verifiedRuns).where(and(
+      eq(verifiedRuns.playerAccountId, input.playerAccountId),
+      eq(verifiedRuns.status, "active"),
+      inArray(verifiedRuns.difficulty, [...verifiedRunXpDifficulties]),
+      gte(verifiedRuns.acceptedAt, beijingDayStart(input.acceptedAt)),
+      lte(verifiedRuns.acceptedAt, input.acceptedAt),
+      input.exceptRunId ? ne(verifiedRuns.id, input.exceptRunId) : undefined,
+    )).get() : Promise.resolve(undefined),
+  ]);
+  const mapRating = (verifiedRunMapRatings as readonly string[]).includes(metadata?.rating ?? "") ? metadata!.rating as VerifiedRunMapRating : null;
+  return { mapRating, dailyFirstClear: earns && !earlier };
 };
 
 export const masteryConflictFields = (run: VerifiedRun, input: ReturnType<typeof prepareVerifiedRun>): VerifiedRunConflictField[] => {

@@ -101,6 +101,12 @@ describe("leaderboard page", () => {
     expect(rows[3]!.text()).toContain("匿名玩家");
     expect(rows[3]!.text()).not.toContain("key-");
     expect(wrapper.get(".side").text()).toContain("精通 XP 怎么算");
+    const rules = wrapper.get(".side .xpt").text();
+    expect(rules).toContain("传奇");
+    expect(rules).toContain("地狱");
+    expect(rules).not.toContain("简单");
+    expect(wrapper.get(".side").text()).toContain("T0 +20%");
+    expect(wrapper.get(".side").text()).toContain("每天首次拿到精通 XP 的通关 +10%");
     expect(wrapper.get(".mine").text()).toContain("登录");
   });
 
