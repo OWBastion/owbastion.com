@@ -207,7 +207,7 @@ const formatDateTime = (timestamp: number) => {
   return `${date.getMonth() + 1}月${date.getDate()}日 ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 const difficultyTiers = (Object.entries(verifiedRunXpRuleV3.baseDifficultyXp) as Array<[string, number]>).filter(([, xp]) => xp > 0);
-const ratingBonuses = (Object.entries(verifiedRunXpRuleV3.mapRatingBonus) as Array<[string, number]>).map(([rating, bonus]) => `${rating} ${bonus ? `+${Math.round(bonus * 100)}%` : "不加"}`).join("、");
+const ratingTiers = Object.entries(verifiedRunXpRuleV3.mapRatingBonus) as Array<[string, number]>;
 const entryInitial = (entry: LeaderboardEntry) => entry.player ? entry.player.displayName.charAt(0) : "?";
 const entryName = (entry: LeaderboardEntry) => entry.player?.displayName ?? "匿名玩家";
 const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.rank === mine.value?.rank;
@@ -391,20 +391,19 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
         </div>
         <div v-if="board === 'mastery'" class="card surface-card">
           <h3>精通 XP 怎么算</h3>
-          <p>只有通关传奇和地狱难度才会给精通 XP，其他难度只记录通关。每张审核通过的通关截图：</p>
-          <table class="xpt num">
-            <tbody>
-              <tr v-for="[difficulty, xp] in difficultyTiers" :key="difficulty"><td>{{ difficulty }}</td><td>{{ xp }} XP</td></tr>
-            </tbody>
-          </table>
-          <ul>
-            <li>本局每解锁一个成就 +{{ Math.round(verifiedRunXpRuleV3.achievementBonus * 100) }}%</li>
-            <li>每天首次拿到精通 XP 的通关 +{{ Math.round(verifiedRunXpRuleV3.dailyFirstClearBonus * 100) }}%，北京时间 0 点刷新</li>
-            <li>地图评级加成：{{ ratingBonuses }}</li>
-            <li>所有加成先相加，再乘以基础 XP</li>
-            <li>同一局重复上传只算一次</li>
-            <li>如果 XP 相同，先达到的玩家排在前面</li>
-          </ul>
+          <div class="xp-base num" aria-label="基础 XP，仅传奇和地狱计入">
+            <div v-for="[difficulty, xp] in difficultyTiers" :key="difficulty"><span>{{ difficulty }}</span><b>{{ xp }}</b><small>XP</small></div>
+          </div>
+          <p class="xp-hint">简单到专家只记录通关</p>
+          <div class="xp-tags num">
+            <span class="xp-tag"><UIcon name="i-lucide-trophy" aria-hidden="true" />成就 +{{ Math.round(verifiedRunXpRuleV3.achievementBonus * 100) }}%<small>每个</small></span>
+            <span class="xp-tag" title="北京时间 0 点刷新"><UIcon name="i-lucide-sun" aria-hidden="true" />每日首通 +{{ Math.round(verifiedRunXpRuleV3.dailyFirstClearBonus * 100) }}%</span>
+          </div>
+          <div class="xp-tags xp-tags--rating num" aria-label="地图评级加成">
+            <span v-for="[rating, bonus] in ratingTiers" :key="rating" class="xp-tag xp-tag--rating">{{ rating }}<small>{{ bonus ? `+${Math.round(bonus * 100)}%` : "—" }}</small></span>
+          </div>
+          <p class="xp-formula num">基础 XP × （1 + 加成之和）</p>
+          <p class="xp-foot"><UIcon name="i-lucide-copy-x" aria-hidden="true" />重复上传只算一次<UIcon name="i-lucide-timer" aria-hidden="true" />同分先到者在前</p>
         </div>
         <div v-else class="card surface-card">
           <h3>成就排行怎么算</h3>
@@ -568,10 +567,20 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
 .card h3 { margin: 0 0 var(--space-2); font-size: var(--type-label-size); font-weight: 600; }
 .card p, .card li { margin: 0; color: var(--muted); font-size: var(--type-body-sm-size); }
 .card ul { display: grid; gap: var(--space-1); margin: var(--space-3) 0 0; padding-left: var(--space-5); }
-.xpt { width: 100%; border-collapse: collapse; margin-top: var(--space-2); }
-.xpt td { padding: var(--space-1) 0; border: 0; font-size: var(--type-body-sm-size); }
-.xpt td:first-child { color: var(--muted); }
-.xpt td:last-child { text-align: right; }
+.xp-base { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+.xp-base div { display: flex; flex-direction: column; align-items: center; padding: var(--space-2); border: 1px solid color-mix(in oklch, var(--accent) 32%, var(--line-strong)); border-radius: var(--radius-control); background: color-mix(in oklch, var(--accent) 7%, var(--surface)); }
+.xp-base div:last-child { border-color: var(--accent); background: color-mix(in oklch, var(--accent) 14%, var(--surface)); }
+.xp-base span { color: var(--muted); font-size: var(--type-caption-size); }
+.xp-base b { font-size: var(--type-headline-size); font-weight: 700; line-height: 1.1; }
+.xp-base small, .xp-tag small { color: var(--quiet); font-size: var(--type-caption-size); }
+.card .xp-hint { margin-top: var(--space-2); text-align: center; font-size: var(--type-caption-size); color: var(--quiet); }
+.xp-tags { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-3); }
+.xp-tag { display: inline-flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-2); border: 1px solid var(--line-strong); border-radius: var(--radius-pill); background: var(--surface); color: var(--text); font-size: var(--type-caption-size); font-weight: 600; line-height: 1.8; white-space: nowrap; }
+.xp-tag :deep(svg), .xp-foot :deep(svg) { width: 0.9rem; height: 0.9rem; flex: none; color: var(--accent); }
+.xp-tags--rating { margin-top: var(--space-2); }
+.xp-tag--rating { color: var(--muted); font-weight: 500; }
+.card .xp-formula { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); text-align: center; color: var(--text); font-weight: 600; }
+.card .xp-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--space-1) var(--space-2); margin-top: var(--space-2); font-size: var(--type-caption-size); color: var(--quiet); }
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 </style>
