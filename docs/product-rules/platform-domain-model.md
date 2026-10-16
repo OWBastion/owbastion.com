@@ -369,17 +369,24 @@ stop contributing to derived projections; restoration contributes exactly once.
 
 XP represents value from the verified gameplay run itself.
 
-Challenge completion does not directly add Mastery XP. The existing
-`challengeBonus` concept is removed from the target product contract.
+New awards use XP rule v3:
 
-New awards use XP rule v2, which has no Challenge bonus input. Existing accepted
-v1 snapshots and awards remain historical facts until an administrator corrects
-the underlying gameplay facts; an explicit correction records the prior
-snapshot and recalculates the Run using the current rule.
+- Only Legend (传奇, 450) and Hell (地狱, 600) earn XP. Easy through Expert
+  runs are still recorded but award 0 XP, and deaths and skips no longer matter.
+- Bonuses are percentages of the base XP and add together: +5% for each
+  Challenge confirmed on the Run's Submission, +10% for the Player's first
+  XP-earning clear of the Beijing day, and a map-rating bonus (T0 +20%, T1 +16%,
+  T2 +12%, T3 +8%, T4 +4%, T5 and unrated none).
+- The daily first clear is decided when the Run is recorded and is not
+  re-assigned when an earlier Run is later invalidated.
 
-The XP rule may use approved Verified Run facts such as difficulty, map factor,
-and reliable performance fields. It remains deterministic, centralized,
-versioned, explainable, and reproducible from stored inputs.
+Existing accepted v1 and v2 snapshots and awards remain historical facts. A
+legacy Run keeps its rule when an administrator corrects it; a v3 Run keeps its
+recorded Challenge count and re-derives map rating and daily-first from the
+corrected facts. An explicit correction records the prior snapshot.
+
+The XP rule remains deterministic, centralized, versioned, explainable, and
+reproducible from stored inputs.
 
 Mastery is a projection over valid Verified Runs and is scoped to
 `(Player, Map, Gameplay Revision)`.

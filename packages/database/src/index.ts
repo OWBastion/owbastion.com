@@ -2,7 +2,7 @@ import { count, desc, eq, and, or, inArray, isNull, isNotNull, ne, lte, lt, gte,
 
 import { drizzle } from "drizzle-orm/d1";
 import { createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, passkeyUserHandleMatches, verifyPasskeyAuthentication, verifyPasskeyRegistration } from "@owbastion/auth";
-import { buildMasteryMapProfile, buildMasteryProfiles, calculateVerifiedRunXpV2, difficultyAtLeastSatisfied, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, isWellFormedGameVersion, matchGameMode, normalizeGameMode, regularGameModeLabel, eventWeightTotalCode, runCodeEventWeightTotal, parseCanonicalChallengeConditions, parseChallengeProgressRule, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
+import { buildMasteryMapProfile, buildMasteryProfiles, calculateVerifiedRunXpV3, difficultyAtLeastSatisfied, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, isWellFormedGameVersion, matchGameMode, normalizeGameMode, regularGameModeLabel, eventWeightTotalCode, runCodeEventWeightTotal, parseCanonicalChallengeConditions, parseChallengeProgressRule, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
 import type { AdminVerifiedRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, ChallengeCondition, ChallengeProgressRule, VerifiedRunDifficulty, VerifiedRunEventCounters, VerifiedRunEvidenceCompatibilityV1, MasteryMapProfile, VerifiedRunActor, VerifiedRunConflictField, VerifiedRunForProjection, VerifiedRunXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
 import type { AdminRandomEventBatchRequest, AdminStandaloneMode, AdminStandaloneModeListResponse, AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrReevaluateResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReopenResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerChallengeProgressListResponse, PlayerProfileVisibilityResponse, PlayerSubmissionStatus, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, QqScreenshotSubmissionRequest, QqScreenshotSubmissionResponse, RandomEvent, RandomEventVersion, ScreenshotSetStatus, Title } from "@owbastion/contracts";
@@ -27,7 +27,7 @@ import { createMapRevisionServices, pioneerExceptionHasValidWindow } from "./map
 import { createPlayerTitleServices, type ManualTitleGrantResolution } from "./player-title-service";
 import { createBindingServices } from "./binding-service";
 import { createPortalAuthenticationServices } from "./portal-authentication-service";
-import { activeMasteryProfiles, asVerifiedRun, loadActiveVerifiedRuns, loadPlayerMasteryHistory, masteryConflictFields, playerMasteryProfileView, playerVerifiedRunView, prepareVerifiedRun } from "./mastery-query";
+import { activeMasteryProfiles, asVerifiedRun, loadActiveVerifiedRuns, loadPlayerMasteryHistory, loadVerifiedRunXpContext, masteryConflictFields, playerMasteryProfileView, playerVerifiedRunView, prepareVerifiedRun } from "./mastery-query";
 import { pageResult, paginate } from "./page-result";
 import { createChallengeSnapshotServices, type MapTitleRuleSnapshot } from "./challenge-snapshot-service";
 import { createChallengeCatalogServices } from "./challenge-catalog-service";
@@ -719,6 +719,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     if (!revision || revision.mapId !== candidate.mapId || (revision.legacyMapVariant ?? null) !== candidate.mapVariant) throw new Error("VERIFIED_RUN_GAMEPLAY_REVISION_NOT_FOUND");
 
     const bySource = await db.select().from(verifiedRuns).where(eq(verifiedRuns.sourceSubmissionId, candidate.sourceSubmissionId)).get();
+    const xpContext = await loadVerifiedRunXpContext(db, { playerAccountId: candidate.playerAccountId, mapId: candidate.mapId, difficulty: candidate.difficulty, acceptedAt: candidate.acceptedAt, exceptRunId: bySource?.id });
+    const awardFor = () => calculateVerifiedRunXpV3({ difficulty: candidate.difficulty, achievementCount: candidate.achievementCount, ...xpContext });
     const keyMatch = and(
       eq(verifiedRuns.playerAccountId, candidate.playerAccountId),
       eq(verifiedRuns.mapId, candidate.mapId),
@@ -734,7 +736,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     // Rewrites the Submission's own Run in place from the candidate (restoring it as active); `before`
     // runs first in the same batch, so it can free the match code or invalidate the Run being rewritten.
     const rewriteOwnRun = (own: typeof verifiedRuns.$inferSelect, before: D1PreparedStatement[], superseded?: VerifiedRunRecordPlan["superseded"]): VerifiedRunRecordPlan => {
-      const award = calculateVerifiedRunXpV2({ difficulty: candidate.difficulty, mapFactor: candidate.mapFactor, deaths: candidate.deaths, skips: candidate.skips });
+      const award = awardFor();
       const restoredAt = now();
       const run: VerifiedRun = {
         ...asVerifiedRun(own),
@@ -824,12 +826,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       superseded = { runId: existing.id, conflictFields };
     }
 
-    const award = calculateVerifiedRunXpV2({
-      difficulty: candidate.difficulty,
-      mapFactor: candidate.mapFactor,
-      deaths: candidate.deaths,
-      skips: candidate.skips,
-    });
+    const award = awardFor();
     const runId = crypto.randomUUID();
     const run: VerifiedRun = {
       runId,
@@ -882,6 +879,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     acceptanceSource: "submission_automatic" | "submission_review",
     humanConfirmed = false,
     rejectConcurrentInsert = false,
+    achievementCount = 0,
   ): Promise<VerifiedRunSubmissionPlan> => {
     const plan = (outcome: VerifiedRunSubmissionOutcome, statements: D1PreparedStatement[] = [], recorded = false, recordInput?: VerifiedRunInput, superseded?: VerifiedRunSubmissionPlan["superseded"]): VerifiedRunSubmissionPlan => ({ outcome, statements, recorded, ...(recordInput ? { recordInput } : {}), ...(superseded ? { superseded } : {}) });
     const existing = await loadVerifiedRunSubmissionOutcome(row.id);
@@ -942,6 +940,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       skips: evidence.skips,
       eventCounters: {},
       acceptanceSource,
+      achievementCount,
     };
     const recorded = await planVerifiedRunRecord(recordInput, rejectConcurrentInsert, restamp, humanConfirmed && acceptanceSource === "submission_review");
     const statements = [
@@ -989,8 +988,9 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     response: OcrResponse,
     acceptanceSource: "submission_automatic" | "submission_review",
     humanConfirmed = false,
+    achievementCount = 0,
   ): Promise<VerifiedRunSubmissionOutcome> => {
-    const planned = await planVerifiedRunSubmissionOutcome(row, response, acceptanceSource, humanConfirmed);
+    const planned = await planVerifiedRunSubmissionOutcome(row, response, acceptanceSource, humanConfirmed, false, achievementCount);
     if (planned.statements.length) await database.batch(planned.statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
     if (!planned.recordInput) {
       // A plan can revalidate an invalidated run in place; that path bypasses
@@ -2686,7 +2686,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       ];
 
       const [verifiedRunPlan, matchCodeCandidates, knownModeRows] = await Promise.all([
-        planVerifiedRunSubmissionOutcome(row, evidence.correctedResponse, "submission_review", true),
+        planVerifiedRunSubmissionOutcome(row, evidence.correctedResponse, "submission_review", true, false, evidence.selections.length),
         listReviewMatchCodeCandidates(row, evidence.correctedResponse),
         db.select({ mode: standaloneModes.mode }).from(standaloneModes).orderBy(standaloneModes.mode).all(),
       ]);
@@ -2758,7 +2758,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           reviewedChallengeIds = selectedRows.filter((selection) => selection.basis === "conditions").map((selection) => selection.canonicalChallengeId);
           reviewerConfirmedChallengeIds = selectedRows.filter((selection) => selection.basis === "reviewer").map((selection) => selection.canonicalChallengeId);
           if (selectedRows.length) approvalRewards = await planApprovalRewards(row, selectedRows, approvalTimestamp, materializingCanonicalChallenges, evidence.prepared.canonicalChallengePlans);
-          verifiedRunPlan = await planVerifiedRunSubmissionOutcome(row, evidence.correctedResponse, "submission_review", true, true);
+          verifiedRunPlan = await planVerifiedRunSubmissionOutcome(row, evidence.correctedResponse, "submission_review", true, true, selectedRows.length);
           verifiedRunOutcome = verifiedRunPlan.outcome;
           const verifiedRunAccepted = verifiedRunOutcome.status === "created" || verifiedRunOutcome.status === "reused";
           if (!selectedRows.length) {

@@ -7,7 +7,7 @@ import type {
   Map,
   PublicSeasonListResponse,
 } from "@owbastion/contracts";
-import { verifiedRunXpRuleV1 } from "@owbastion/domain";
+import { verifiedRunXpRuleV3 } from "@owbastion/domain";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { daysLeft, formatSeasonDate, seasonWeeks } from "~/utils/season";
 
@@ -206,7 +206,8 @@ const formatDateTime = (timestamp: number) => {
   const pad = (value: number) => String(value).padStart(2, "0");
   return `${date.getMonth() + 1}月${date.getDate()}日 ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
-const difficultyTiers = Object.entries(verifiedRunXpRuleV1.baseDifficultyXp) as Array<[string, number]>;
+const difficultyTiers = (Object.entries(verifiedRunXpRuleV3.baseDifficultyXp) as Array<[string, number]>).filter(([, xp]) => xp > 0);
+const ratingBonuses = (Object.entries(verifiedRunXpRuleV3.mapRatingBonus) as Array<[string, number]>).map(([rating, bonus]) => `${rating} ${bonus ? `+${Math.round(bonus * 100)}%` : "不加"}`).join("、");
 const entryInitial = (entry: LeaderboardEntry) => entry.player ? entry.player.displayName.charAt(0) : "?";
 const entryName = (entry: LeaderboardEntry) => entry.player?.displayName ?? "匿名玩家";
 const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.rank === mine.value?.rank;
@@ -390,18 +391,19 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
         </div>
         <div v-if="board === 'mastery'" class="card surface-card">
           <h3>精通 XP 怎么算</h3>
-          <p>每张审核通过的通关截图按难度获得精通 XP：</p>
+          <p>只有通关传奇和地狱难度才会给精通 XP，其他难度只记录通关。每张审核通过的通关截图：</p>
           <table class="xpt num">
             <tbody>
               <tr v-for="[difficulty, xp] in difficultyTiers" :key="difficulty"><td>{{ difficulty }}</td><td>{{ xp }} XP</td></tr>
             </tbody>
           </table>
           <ul>
-            <li>无死亡 +5%，无跳过 +5%，最多 +10%</li>
+            <li>本局每解锁一个成就 +{{ Math.round(verifiedRunXpRuleV3.achievementBonus * 100) }}%</li>
+            <li>每天首次拿到精通 XP 的通关 +{{ Math.round(verifiedRunXpRuleV3.dailyFirstClearBonus * 100) }}%，北京时间 0 点刷新</li>
+            <li>地图评级加成：{{ ratingBonuses }}</li>
+            <li>所有加成先相加，再乘以基础 XP</li>
             <li>同一局重复上传只算一次</li>
-            <li>解锁成就不额外加 XP</li>
-            <li>没有每日奖励，不用天天上线</li>
-            <li>XP 相同时，先达到的玩家排在前面</li>
+            <li>如果 XP 相同，先达到的玩家排在前面</li>
           </ul>
         </div>
         <div v-else class="card surface-card">

@@ -94,8 +94,15 @@ function sourcePath(submissionId: string) {
         <dl class="detail-grid verified-run-detail__facts">
           <div class="detail-grid__row"><dt>规则版本</dt><dd>{{ detail.run.xpRuleVersion }}</dd></div>
           <div class="detail-grid__row"><dt>基础经验</dt><dd>{{ detail.run.xpInputSnapshot.baseDifficultyXp }}</dd></div>
-          <div class="detail-grid__row"><dt>地图系数</dt><dd>{{ detail.run.xpInputSnapshot.mapFactor }}</dd></div>
-          <div class="detail-grid__row"><dt>表现加成</dt><dd>{{ detail.run.xpInputSnapshot.performanceBonus }}</dd></div>
+          <template v-if="detail.run.xpInputSnapshot.ruleVersion === 'v3'">
+            <div class="detail-grid__row"><dt>地图评级加成</dt><dd>{{ detail.run.xpInputSnapshot.mapRating ?? NONE }} · {{ detail.run.xpInputSnapshot.mapRatingBonus }}</dd></div>
+            <div class="detail-grid__row"><dt>成就加成</dt><dd>{{ detail.run.xpInputSnapshot.achievementCount }} 个 · {{ detail.run.xpInputSnapshot.achievementBonus }}</dd></div>
+            <div class="detail-grid__row"><dt>每日首通加成</dt><dd>{{ detail.run.xpInputSnapshot.dailyFirstClearBonus }}</dd></div>
+          </template>
+          <template v-else>
+            <div class="detail-grid__row"><dt>地图系数</dt><dd>{{ detail.run.xpInputSnapshot.mapFactor }}</dd></div>
+            <div class="detail-grid__row"><dt>表现加成</dt><dd>{{ detail.run.xpInputSnapshot.performanceBonus }}</dd></div>
+          </template>
           <div v-if="detail.run.xpInputSnapshot.ruleVersion === 'v1'" class="detail-grid__row"><dt>历史挑战加成</dt><dd>{{ detail.run.xpInputSnapshot.challengeBonus }}</dd></div>
           <div class="detail-grid__row"><dt>本局经验</dt><dd>{{ detail.run.awardedXp }}</dd></div>
         </dl>

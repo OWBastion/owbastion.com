@@ -2,6 +2,7 @@ import {
   auditEventsRequiredIdSchema,
   gameplayRevisionsSchema,
   idempotencyKeysRequiredIdSchema,
+  mapMetadataSchema,
   mapsSchema,
   ocrAccuracyFeedbackSchema,
   ocrResultsSchema,
@@ -23,6 +24,7 @@ const createD1 = () => createTestD1({ foreignKeys: true, batchMode: "serialized"
 const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   ${playerAccountsSchema}
   ${mapsSchema}
+  ${mapMetadataSchema}
   ${gameplayRevisionsSchema}
   CREATE TABLE bindings (id TEXT PRIMARY KEY NOT NULL, identity_id TEXT NOT NULL, player_account_id TEXT NOT NULL REFERENCES player_accounts(id), provider TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL, status TEXT NOT NULL, revoked_at INTEGER, revoked_by TEXT, created_at INTEGER NOT NULL);
   ${portalSessionsSchema}
@@ -94,7 +96,7 @@ const input = (overrides: Partial<VerifiedRunInput> = {}): VerifiedRunInput => (
   mapId: "map.test",
   gameplayRevisionId: "revision:map.test:initial",
   mapVariant: null,
-  difficulty: "困难",
+  difficulty: "传奇",
   gameVersion: "26.0810.1",
   matchCode: "1234-5678-9012",
   completionDurationSeconds: 600,
@@ -114,13 +116,47 @@ describe("verified run ledger", () => {
     const services = createPlatformServices(database);
 
     const created = await services.recordVerifiedRun(input());
-    expect(created).toMatchObject({ outcome: "created", run: { playerAccountId: "account-1", matchCode: "1234-5678-9012", awardedXp: 225, xpRuleVersion: "v2", xpInputSnapshot: { ruleVersion: "v2", mapFactor: 1, performanceBonus: 0 } } });
+    expect(created).toMatchObject({ outcome: "created", run: { playerAccountId: "account-1", matchCode: "1234-5678-9012", awardedXp: 495, xpRuleVersion: "v3", xpInputSnapshot: { ruleVersion: "v3", mapRating: null, achievementCount: 0, dailyFirstClear: true } } });
     expect(await services.recordVerifiedRun(input())).toMatchObject({ outcome: "reused", run: { runId: created.run.runId } });
     expect(await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-2", acceptedAt: 1_100 }))).toMatchObject({ outcome: "reused", run: { runId: created.run.runId } });
-    expect(await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-4", difficulty: "传奇", acceptedAt: 1_200 }))).toMatchObject({ outcome: "conflict", run: { runId: created.run.runId }, conflictFields: ["difficulty"] });
+    expect(await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-4", difficulty: "地狱", acceptedAt: 1_200 }))).toMatchObject({ outcome: "conflict", run: { runId: created.run.runId }, conflictFields: ["difficulty"] });
     expect(await services.recordVerifiedRun(input({ playerAccountId: "account-2", sourceSubmissionId: "submission-3", acceptedAt: 1_300 }))).toMatchObject({ outcome: "created", run: { playerAccountId: "account-2", matchCode: "1234-5678-9012" } });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs").get()).toEqual({ count: 2 });
     expect(sqlite.prepare("SELECT transition, COUNT(*) AS count FROM mastery_run_lifecycle_events GROUP BY transition").all()).toEqual([{ transition: "accepted", count: 2 }]);
+  });
+
+  it("applies the v3 map rating, Challenge count, and once-per-Beijing-day first-clear bonus", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seed(sqlite);
+    sqlite.exec("INSERT INTO map_metadata (map_id, difficulty_rating, mechanics_json, updated_at, updated_by) VALUES ('map.test', 'T1', '[]', 1, 'seed');");
+    const services = createPlatformServices(database);
+    const day = Date.parse("2026-10-15T00:00:00+08:00");
+    const record = (overrides: Partial<VerifiedRunInput>) => services.recordVerifiedRun(input(overrides)).then((result) => result.run);
+
+    const first = await record({ sourceSubmissionId: "submission-1", matchCode: "1111-1111-1111", difficulty: "地狱", acceptedAt: day + 1_000, achievementCount: 2 });
+    expect(first).toMatchObject({ awardedXp: 816, xpInputSnapshot: { mapRating: "T1", mapRatingBonus: 0.16, achievementCount: 2, achievementBonus: 0.1, dailyFirstClear: true, dailyFirstClearBonus: 0.1 } });
+    const second = await record({ sourceSubmissionId: "submission-2", matchCode: "2222-2222-2222", difficulty: "地狱", acceptedAt: day + 2_000 });
+    expect(second).toMatchObject({ awardedXp: 696, xpInputSnapshot: { dailyFirstClear: false } });
+    const nextDay = await record({ sourceSubmissionId: "submission-4", matchCode: "3333-3333-3333", difficulty: "传奇", acceptedAt: day + 86_400_000 + 1_000 });
+    expect(nextDay).toMatchObject({ awardedXp: 567, xpInputSnapshot: { dailyFirstClear: true } });
+    const otherPlayer = await record({ playerAccountId: "account-2", sourceSubmissionId: "submission-3", matchCode: "4444-4444-4444", difficulty: "传奇", acceptedAt: day + 3_000 });
+    expect(otherPlayer.xpInputSnapshot).toMatchObject({ dailyFirstClear: true });
+  });
+
+  it("does not spend the daily first clear on a no-XP difficulty or an invalidated run", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seed(sqlite);
+    const services = createPlatformServices(database);
+    const day = Date.parse("2026-10-15T00:00:00+08:00");
+    const easy = await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-1", matchCode: "1111-1111-1111", difficulty: "专家", acceptedAt: day + 1_000, achievementCount: 4 }));
+    expect(easy.run).toMatchObject({ awardedXp: 0, xpInputSnapshot: { baseDifficultyXp: 0, dailyFirstClear: false } });
+    const hard = await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-2", matchCode: "2222-2222-2222", difficulty: "传奇", acceptedAt: day + 2_000 }));
+    expect(hard.run).toMatchObject({ awardedXp: 495, xpInputSnapshot: { dailyFirstClear: true } });
+    await services.invalidateVerifiedRun({ verifiedRunId: hard.run.runId }, { actorType: "user", actorId: "maintainer-1" });
+    const retry = await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-4", matchCode: "3333-3333-3333", difficulty: "传奇", acceptedAt: day + 3_000 }));
+    expect(retry.run).toMatchObject({ awardedXp: 495, xpInputSnapshot: { dailyFirstClear: true } });
   });
 
   it("treats the same match code on another map or game version as a separate run for the same player", async () => {
@@ -152,9 +188,9 @@ describe("verified run ledger", () => {
     ]);
 
     expect(results.map((result) => result.outcome).sort()).toEqual(["created", "reused"]);
-    expect(sqlite.prepare("SELECT COUNT(*) AS count, SUM(awarded_xp) AS awarded_xp FROM mastery_runs WHERE player_account_id = 'account-1'").get()).toEqual({ count: 1, awarded_xp: 225 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count, SUM(awarded_xp) AS awarded_xp FROM mastery_runs WHERE player_account_id = 'account-1'").get()).toEqual({ count: 1, awarded_xp: 495 });
     expect(sqlite.prepare("SELECT transition, COUNT(*) AS count FROM mastery_run_lifecycle_events GROUP BY transition").all()).toEqual([{ transition: "accepted", count: 1 }]);
-    expect(await services.rebuildMasteryProfiles({ playerAccountId: "account-1" })).toMatchObject([{ totalXp: 225, verifiedRunCount: 1 }]);
+    expect(await services.rebuildMasteryProfiles({ playerAccountId: "account-1" })).toMatchObject([{ totalXp: 495, verifiedRunCount: 1 }]);
   });
 
   it("rebuilds active projections and applies invalidation/restoration exactly once", async () => {
@@ -163,14 +199,14 @@ describe("verified run ledger", () => {
     seed(sqlite);
     const services = createPlatformServices(database);
     const first = await services.recordVerifiedRun(input());
-    const second = await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-2", matchCode: "2234-5678-9012", difficulty: "传奇", completionDurationSeconds: 500, deaths: 0, skips: 0, acceptedAt: 2_000 }));
+    const second = await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-2", matchCode: "2234-5678-9012", difficulty: "地狱", completionDurationSeconds: 500, deaths: 0, skips: 0, acceptedAt: 2_000 }));
     if (first.outcome !== "created" || second.outcome !== "created") throw new Error("fixture setup failed");
 
     const before = await services.rebuildMasteryProfiles({ playerAccountId: "account-1" });
-    expect(before).toMatchObject([{ mapId: "map.test", totalXp: 720, verifiedRunCount: 2, lowestDeaths: 0, fewestSkips: 0, highestSingleRunXp: 495, highestCompletedDifficulty: "传奇" }]);
+    expect(before).toMatchObject([{ mapId: "map.test", totalXp: 1095, verifiedRunCount: 2, lowestDeaths: 0, fewestSkips: 0, highestSingleRunXp: 600, highestCompletedDifficulty: "地狱" }]);
     await services.invalidateVerifiedRun({ verifiedRunId: second.run.runId, reason: "evidence invalidated" }, { actorType: "user", actorId: "maintainer-1" });
     await services.invalidateVerifiedRun({ verifiedRunId: second.run.runId, reason: "replay" }, { actorType: "user", actorId: "maintainer-1" });
-    expect(await services.rebuildMasteryProfiles({ playerAccountId: "account-1" })).toMatchObject([{ mapId: "map.test", totalXp: 225, verifiedRunCount: 1, highestCompletedDifficulty: "困难" }]);
+    expect(await services.rebuildMasteryProfiles({ playerAccountId: "account-1" })).toMatchObject([{ mapId: "map.test", totalXp: 495, verifiedRunCount: 1, highestCompletedDifficulty: "传奇" }]);
     await services.restoreVerifiedRun({ verifiedRunId: second.run.runId }, { actorType: "user", actorId: "maintainer-1" });
     await services.restoreVerifiedRun({ verifiedRunId: second.run.runId }, { actorType: "user", actorId: "maintainer-1" });
     expect(await services.rebuildMasteryProfiles({ playerAccountId: "account-1" })).toEqual(before);
@@ -210,22 +246,22 @@ describe("verified run ledger", () => {
     const correctionInput = {
       contractVersion: "1",
       verifiedRunId: created.run.runId,
-      changes: { mapId: "map.next", gameplayRevisionId: "revision:map.next:initial", difficulty: "传奇", matchCode: "2234-5678-9012", completionDurationSeconds: 500, deaths: 0, skips: 0, eventCounters: { "event.alpha": 3 } },
+      changes: { mapId: "map.next", gameplayRevisionId: "revision:map.next:initial", difficulty: "地狱", matchCode: "2234-5678-9012", completionDurationSeconds: 500, deaths: 0, skips: 0, eventCounters: { "event.alpha": 3 } },
     } as const;
     const auth = { actorType: "user" as const, subject: "maintainer-1", roles: ["maintainer"], provider: "test" };
     const corrected = await services.correctAdminVerifiedRun(correctionInput, auth, "correction-1");
 
-    expect(corrected.detail.run).toMatchObject({ runId: created.run.runId, sourceSubmissionId: "submission-1", mapId: "map.next", gameplayRevisionId: "revision:map.next:initial", difficulty: "传奇", matchCode: "2234-5678-9012", completionDurationSeconds: 500, deaths: 0, skips: 0, eventCounters: { "event.alpha": 3 }, xpRuleVersion: "v2", awardedXp: 495 });
+    expect(corrected.detail.run).toMatchObject({ runId: created.run.runId, sourceSubmissionId: "submission-1", mapId: "map.next", gameplayRevisionId: "revision:map.next:initial", difficulty: "地狱", matchCode: "2234-5678-9012", completionDurationSeconds: 500, deaths: 0, skips: 0, eventCounters: { "event.alpha": 3 }, xpRuleVersion: "v3", awardedXp: 660 });
     expect(corrected.affectedProjections).toMatchObject([
       { mapId: "map.test", gameplayRevisionId: "revision:map.test:initial", totalXp: 0, verifiedRunCount: 0 },
-      { mapId: "map.next", gameplayRevisionId: "revision:map.next:initial", totalXp: 495, verifiedRunCount: 1 },
+      { mapId: "map.next", gameplayRevisionId: "revision:map.next:initial", totalXp: 660, verifiedRunCount: 1 },
     ]);
     expect(corrected.detail.corrections).toHaveLength(1);
-    expect(corrected.detail.corrections[0]).toMatchObject({ actorId: "maintainer-1", reason: null, before: { mapId: "map.test", xpRuleVersion: "v2", awardedXp: 225 }, after: { mapId: "map.next", xpRuleVersion: "v2", awardedXp: 495 } });
-    expect(sqlite.prepare("SELECT awarded_xp FROM submission_outcomes WHERE id = 'outcome-1'").get()).toEqual({ awarded_xp: 495 });
+    expect(corrected.detail.corrections[0]).toMatchObject({ actorId: "maintainer-1", reason: null, before: { mapId: "map.test", xpRuleVersion: "v3", awardedXp: 495 }, after: { mapId: "map.next", xpRuleVersion: "v3", awardedXp: 660 } });
+    expect(sqlite.prepare("SELECT awarded_xp FROM submission_outcomes WHERE id = 'outcome-1'").get()).toEqual({ awarded_xp: 660 });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs").get()).toEqual({ count: 1 });
     expect(sqlite.prepare("SELECT operation, entity_type FROM audit_events WHERE entity_id = ?").get(created.run.runId)).toEqual({ operation: "verified_run.correct", entity_type: "verified_run" });
-    expect(await services.rebuildMasteryProfiles({ playerAccountId: "account-1" })).toMatchObject([{ mapId: "map.next", gameplayRevisionId: "revision:map.next:initial", totalXp: 495, verifiedRunCount: 1 }]);
+    expect(await services.rebuildMasteryProfiles({ playerAccountId: "account-1" })).toMatchObject([{ mapId: "map.next", gameplayRevisionId: "revision:map.next:initial", totalXp: 660, verifiedRunCount: 1 }]);
     await expect(services.correctAdminVerifiedRun(correctionInput, auth, "correction-1")).resolves.toEqual(corrected);
     await expect(services.correctAdminVerifiedRun({ ...correctionInput, reason: "different request" }, auth, "correction-1")).rejects.toThrow("IDEMPOTENCY_CONFLICT");
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE entity_id = ?").get(created.run.runId)).toEqual({ count: 1 });
@@ -270,7 +306,7 @@ describe("verified run ledger", () => {
     const corrected = await services.correctAdminVerifiedRun({
       contractVersion: "1",
       verifiedRunId: created.run.runId,
-      changes: { difficulty: "困难" },
+      changes: { difficulty: "传奇" },
       reason: "核对后确认原事实无误",
     }, { actorType: "user", subject: "maintainer-1", roles: ["maintainer"], provider: "test" }, "noop-correction");
 

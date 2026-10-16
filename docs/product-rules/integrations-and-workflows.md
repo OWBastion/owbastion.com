@@ -362,8 +362,9 @@ explicit `reward_title_key`, and both retain map context. If the player already
 owns the same active title in that scope, the Submission links to the existing
 Grant and records reuse in the audit event. A Run-only approval keeps
 `grant_id = NULL`; the normalized Verified Run is `created` once, while an exact
-same-player match-code reuse receives 0 XP. New XP awards use v2 without a
-Challenge bonus; untouched historical v1 snapshots and awards remain unchanged.
+same-player match-code reuse receives 0 XP. New XP awards use v3 (Legend and Hell
+only, with Challenge-count, daily-first-clear, and map-rating bonuses); untouched
+historical v1 and v2 snapshots and awards remain unchanged.
 Public and player responses expose only the safe outcome status and awarded XP;
 maintainer detail may additionally show the Verified Run ID and internal reason
 or conflict fields. Pull requests

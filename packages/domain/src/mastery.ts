@@ -103,7 +103,21 @@ export type VerifiedRunXpSnapshotV2 = {
   performanceBonusReasons: Array<"no_deaths" | "no_skips">;
 };
 
-export type VerifiedRunXpSnapshot = VerifiedRunXpSnapshotV1 | VerifiedRunXpSnapshotV2;
+export const verifiedRunMapRatings = ["T0", "T1", "T2", "T3", "T4", "T5"] as const;
+export type VerifiedRunMapRating = (typeof verifiedRunMapRatings)[number];
+
+export type VerifiedRunXpSnapshotV3 = {
+  ruleVersion: "v3";
+  baseDifficultyXp: number;
+  mapRating: VerifiedRunMapRating | null;
+  mapRatingBonus: number;
+  achievementCount: number;
+  achievementBonus: number;
+  dailyFirstClear: boolean;
+  dailyFirstClearBonus: number;
+};
+
+export type VerifiedRunXpSnapshot = VerifiedRunXpSnapshotV1 | VerifiedRunXpSnapshotV2 | VerifiedRunXpSnapshotV3;
 
 export type VerifiedRunXpAward = {
   awardedXp: number;
@@ -122,7 +136,7 @@ const calculateBaseXp = (input: VerifiedRunXpInput, rule: {
   const mapFactor = input.mapFactor ?? rule.defaultMapFactor;
   if (!Number.isFinite(mapFactor) || mapFactor <= 0) throw new Error("VERIFIED_RUN_MAP_FACTOR_INVALID");
 
-  const performanceBonusReasons: VerifiedRunXpSnapshot["performanceBonusReasons"] = [];
+  const performanceBonusReasons: VerifiedRunXpSnapshotV2["performanceBonusReasons"] = [];
   if (input.deaths === 0) performanceBonusReasons.push("no_deaths");
   if (input.skips === 0) performanceBonusReasons.push("no_skips");
   const performanceBonus = Math.min(
@@ -192,6 +206,61 @@ export const calculateVerifiedRunXpV2 = (input: VerifiedRunXpInput): VerifiedRun
   };
 };
 
+// v3: only Legend and Hell earn Mastery XP. Every bonus is a percentage of the
+// base XP and they add together: +5% per Challenge confirmed on the run's
+// Submission, +10% for the Player's first XP-earning clear of the Beijing day,
+// and a map-rating bonus from T0 (+20%) down to T5 (none). Deaths and skips no
+// longer matter.
+export const verifiedRunXpRuleV3 = {
+  version: "v3",
+  baseDifficultyXp: { 简单: 0, 一般: 0, 困难: 0, 专家: 0, 传奇: 450, 地狱: 600 } satisfies Record<VerifiedRunDifficulty, number>,
+  mapRatingBonus: { T0: 0.2, T1: 0.16, T2: 0.12, T3: 0.08, T4: 0.04, T5: 0 } satisfies Record<VerifiedRunMapRating, number>,
+  achievementBonus: 0.05,
+  dailyFirstClearBonus: 0.1,
+} as const;
+
+export const verifiedRunXpDifficulties = verifiedRunDifficulties.filter((difficulty) => verifiedRunXpRuleV3.baseDifficultyXp[difficulty] > 0);
+
+const BEIJING_OFFSET_MS = 8 * 3_600_000;
+const DAY_MS = 86_400_000;
+export const beijingDayStart = (timestamp: number) => Math.floor((timestamp + BEIJING_OFFSET_MS) / DAY_MS) * DAY_MS - BEIJING_OFFSET_MS;
+
+export type VerifiedRunXpInputV3 = {
+  difficulty: VerifiedRunDifficulty;
+  mapRating?: VerifiedRunMapRating | null;
+  achievementCount?: number;
+  dailyFirstClear?: boolean;
+};
+
+export const calculateVerifiedRunXpV3 = (input: VerifiedRunXpInputV3): { awardedXp: number; snapshot: VerifiedRunXpSnapshotV3 } => {
+  const rule = verifiedRunXpRuleV3;
+  if (!Object.hasOwn(rule.baseDifficultyXp, input.difficulty)) throw new Error("VERIFIED_RUN_DIFFICULTY_INVALID");
+  const achievementCount = input.achievementCount ?? 0;
+  if (!Number.isInteger(achievementCount) || achievementCount < 0) throw new Error("VERIFIED_RUN_ACHIEVEMENT_COUNT_INVALID");
+  const mapRating = input.mapRating ?? null;
+  if (mapRating !== null && !Object.hasOwn(rule.mapRatingBonus, mapRating)) throw new Error("VERIFIED_RUN_MAP_RATING_INVALID");
+  const baseDifficultyXp = rule.baseDifficultyXp[input.difficulty];
+  // Whole percentage points keep the sum and the rounding exact.
+  const percent = (fraction: number) => Math.round(fraction * 100);
+  const mapRatingPercent = mapRating ? percent(rule.mapRatingBonus[mapRating]) : 0;
+  const achievementPercent = percent(rule.achievementBonus) * achievementCount;
+  const dailyFirstClear = input.dailyFirstClear ?? false;
+  const dailyFirstClearPercent = dailyFirstClear ? percent(rule.dailyFirstClearBonus) : 0;
+  return {
+    awardedXp: Math.round(baseDifficultyXp * (100 + mapRatingPercent + achievementPercent + dailyFirstClearPercent) / 100),
+    snapshot: {
+      ruleVersion: rule.version,
+      baseDifficultyXp,
+      mapRating,
+      mapRatingBonus: mapRatingPercent / 100,
+      achievementCount,
+      achievementBonus: achievementPercent / 100,
+      dailyFirstClear,
+      dailyFirstClearBonus: dailyFirstClearPercent / 100,
+    },
+  };
+};
+
 export type VerifiedRunForProjection = {
   runId: string;
   mapId: string;
@@ -221,7 +290,7 @@ export type VerifiedRunInput = {
   eventCounters?: VerifiedRunEventCounters;
   acceptanceSource: VerifiedRunAcceptanceSource;
   acceptedAt?: number;
-  mapFactor?: number | null;
+  achievementCount?: number;
 };
 
 export type VerifiedRun = VerifiedRunForProjection & {

@@ -74,4 +74,13 @@ describe("AdminVerifiedRunDetail", () => {
     expect(wrapper.emitted("conflict")).toEqual([[{ submissionId: "00000000-0000-4000-8000-000000000004", action: "invalidate_existing" }]]);
     expect(wrapper.emitted("correct")).toEqual([[]]);
   });
+
+  it("shows the v3 map-rating, Challenge, and daily-first bonuses instead of the legacy factors", async () => {
+    const run = { ...createAdminVerifiedRun(), xpRuleVersion: "v3" as const, awardedXp: 756, xpInputSnapshot: { ruleVersion: "v3" as const, baseDifficultyXp: 600, mapRating: "T1" as const, mapRatingBonus: 0.16, achievementCount: 2, achievementBonus: 0.1, dailyFirstClear: true, dailyFirstClearBonus: 0.1 } };
+    const wrapper = await mountSuspended(AdminVerifiedRunDetail, { props: { detail: { ...detail, run } }, global: { stubs: { StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" }, NuxtLink: { props: ["to"], template: "<a :href=\"to\"><slot /></a>" } } } });
+    expect(wrapper.text()).toContain("T1 · 0.16");
+    expect(wrapper.text()).toContain("2 个 · 0.1");
+    expect(wrapper.text()).toContain("每日首通加成");
+    expect(wrapper.text()).not.toContain("地图系数");
+  });
 });

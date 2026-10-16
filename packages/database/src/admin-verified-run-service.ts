@@ -1,6 +1,6 @@
 import { and, count, desc, eq, gte, inArray, lte, notExists } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import { buildMasteryMapProfile, calculateVerifiedRunXpV2, normalizeMatchCode, verifiedRunDifficulties } from "@owbastion/domain";
+import { buildMasteryMapProfile, calculateVerifiedRunXpV2, calculateVerifiedRunXpV3, normalizeMatchCode, verifiedRunDifficulties } from "@owbastion/domain";
 import type { AdminVerifiedRunQuery, AuthContext, VerifiedRun, VerifiedRunActor, VerifiedRunConflictField, VerifiedRunDifficulty } from "@owbastion/domain";
 import type {
   AdminVerifiedRun,
@@ -30,6 +30,7 @@ import {
   findConflictingVerifiedRun,
   masteryRevisionLifecycle,
   normalizeVerifiedRunEventCounters,
+  loadVerifiedRunXpContext,
 } from "./mastery-query";
 import { normalizeOcrDifficulty, type OcrResponse } from "./ocr-response";
 
@@ -272,12 +273,16 @@ export const createAdminVerifiedRunServices = ({
       if (await findConflictingVerifiedRun(db, { playerAccountId: previous.playerAccountId, mapId: corrected.mapId, gameVersion: corrected.gameVersion, matchCode: corrected.matchCode, exceptRunId: previous.runId })) {
         throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
       }
-      const award = calculateVerifiedRunXpV2({
-        difficulty: corrected.difficulty,
-        mapFactor: previous.xpInputSnapshot.mapFactor,
-        deaths: corrected.deaths,
-        skips: corrected.skips,
-      });
+      // A legacy run keeps the rule it was awarded under; v3 runs re-derive map rating and daily-first
+      // from the corrected facts and keep the Challenge count they were recorded with.
+      const snapshot = previous.xpInputSnapshot;
+      const award = snapshot.ruleVersion === "v3"
+        ? calculateVerifiedRunXpV3({
+          difficulty: corrected.difficulty,
+          achievementCount: snapshot.achievementCount,
+          ...await loadVerifiedRunXpContext(db, { playerAccountId: previous.playerAccountId, mapId: corrected.mapId, difficulty: corrected.difficulty, acceptedAt: previous.acceptedAt, exceptRunId: previous.runId }),
+        })
+        : calculateVerifiedRunXpV2({ difficulty: corrected.difficulty, mapFactor: snapshot.mapFactor, deaths: corrected.deaths, skips: corrected.skips });
       const afterRun = { ...previous, ...corrected, xpRuleVersion: award.snapshot.ruleVersion, xpInputSnapshot: award.snapshot, awardedXp: award.awardedXp };
       const after = verifiedRunCorrectionSnapshot(afterRun);
       const correctionId = crypto.randomUUID();

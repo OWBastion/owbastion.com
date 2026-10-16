@@ -1122,7 +1122,17 @@ const verifiedRunXpInputSnapshotV2Schema = z.object({
   performanceBonus: z.number().nonnegative(),
   performanceBonusReasons: z.array(z.enum(["no_deaths", "no_skips"])).max(2),
 }).strict();
-const verifiedRunXpInputSnapshotSchema = z.discriminatedUnion("ruleVersion", [verifiedRunXpInputSnapshotV1Schema, verifiedRunXpInputSnapshotV2Schema]);
+const verifiedRunXpInputSnapshotV3Schema = z.object({
+  ruleVersion: z.literal("v3"),
+  baseDifficultyXp: z.number().int().nonnegative(),
+  mapRating: z.enum(["T0", "T1", "T2", "T3", "T4", "T5"]).nullable(),
+  mapRatingBonus: z.number().nonnegative(),
+  achievementCount: z.number().int().nonnegative(),
+  achievementBonus: z.number().nonnegative(),
+  dailyFirstClear: z.boolean(),
+  dailyFirstClearBonus: z.number().nonnegative(),
+}).strict();
+const verifiedRunXpInputSnapshotSchema = z.discriminatedUnion("ruleVersion", [verifiedRunXpInputSnapshotV1Schema, verifiedRunXpInputSnapshotV2Schema, verifiedRunXpInputSnapshotV3Schema]);
 
 const verifiedRunFactFields = {
   mapVariant: z.literal("classic").nullable(),
@@ -1152,7 +1162,7 @@ export const adminVerifiedRunSchema = z.object({
   invalidatedAt: z.number().int().positive().nullable(),
   invalidatedBy: z.string().trim().min(1).max(256).nullable(),
   invalidationReason: z.string().trim().max(512).nullable(),
-  xpRuleVersion: z.enum(["v1", "v2"]),
+  xpRuleVersion: z.enum(["v1", "v2", "v3"]),
   xpInputSnapshot: verifiedRunXpInputSnapshotSchema,
   awardedXp: z.number().int().nonnegative(),
   conflictCount: z.number().int().nonnegative(),
@@ -1219,7 +1229,7 @@ const verifiedRunCorrectionSnapshotSchema = z.object({
   mapId: externalId,
   gameplayRevisionId: externalId,
   ...verifiedRunFactFields,
-  xpRuleVersion: z.enum(["v1", "v2"]),
+  xpRuleVersion: z.enum(["v1", "v2", "v3"]),
   xpInputSnapshot: verifiedRunXpInputSnapshotSchema,
   awardedXp: z.number().int().nonnegative(),
 }).strict();
