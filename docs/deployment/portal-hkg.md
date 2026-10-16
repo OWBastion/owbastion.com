@@ -111,21 +111,29 @@ Build** and connect the repository there. Configure:
 | Setting | Value |
 | --- | --- |
 | Production branch | `main` |
-| Root directory | Repository root (`/`) |
-| Build command | `pnpm --filter @owbastion/portal run build:worker` |
-| Deploy command | `pnpm --filter @owbastion/portal run deploy:worker` |
-| Preview command | `pnpm exec wrangler preview --config apps/portal/wrangler.jsonc` |
+| Root directory | `apps/portal` |
+| Build command | `pnpm run build:worker` |
+| Deploy command | `pnpm run deploy:worker` |
+| Preview command | `pnpm exec wrangler preview --config wrangler.jsonc` |
 | Build variable `NODE_VERSION` | `26` (matches the repository Node engine) |
-| Build variable `PNPM_VERSION` | `11.11.0` (matches `package.json`'s `packageManager`) |
+| Build variable `PNPM_VERSION` | `11.11.0` (matches the root `package.json`'s `packageManager`) |
+| Build variable `NODE_OPTIONS` | `--max-old-space-size=4096` (initial heap budget for prerendering) |
 
-Keep automatic dependency installation enabled. The repository root contains
-the workspace manifest and lockfile; using `apps/portal` as the build root
-would omit the shared workspace packages. The commands explicitly select the
-Portal package/configuration so the root API `wrangler.toml` is not deployed.
+Keep automatic dependency installation enabled. Cloudflare clones the whole
+repository; `apps/portal` selects the working directory for build and deploy
+commands. pnpm discovers the parent `pnpm-workspace.yaml` and shared lockfile,
+so workspace dependencies remain available. From this directory, the deploy
+script selects `apps/portal/wrangler.jsonc`, not the root API `wrangler.toml`.
+
+Set these variables under **Settings > Build > Build Variables and Secrets**,
+including for preview builds when enabled. `NODE_OPTIONS` raises the build
+process heap budget after a prerenderer heap-exhaustion failure; verify a
+successful Cloudflare build before treating that budget as sufficient.
 
 Set **Build watch paths** to include `apps/portal/*`, `packages/*`,
 `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, and `tsconfig.json`.
-Shared package changes must trigger Portal builds too.
+These watch paths are relative to the repository root. Shared package changes
+must trigger Portal builds too.
 
 Cloudflare manages the Git connection and build deployment token. GitHub's
 Cloudflare secrets remain available for the API deployment; do not remove
