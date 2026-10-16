@@ -201,11 +201,12 @@ rollback above only changes Worker-layer caching; it does not touch the
 Portal process's in-memory cache, which keeps serving its own cached entries
 until their `maxAge` elapses (now bounded to 300s by `swr: false`, previously
 unbounded). To clear the Portal cache immediately — for example while
-investigating a suspected stale-catalog report — restart or redeploy the Portal
-container (`docs/deployment/portal-hkg.md`, "HKG operations"). The next read
-still goes through the Worker layer and may use an entry within that layer's
-own 300-second TTL. There is no remote purge for the Portal cache; a restart
-is the only way to clear it without waiting out `maxAge`.
+investigating a suspected stale-catalog report — deploy a new Portal Worker
+version through [Workers Builds](portal-cloudflare.md). New Worker instances
+start with empty process-local caches; the next read still goes through the
+API Worker layer and may use an entry within that layer's own 300-second TTL.
+There is no global remote purge for the Portal's process-local cache; waiting
+out `maxAge` avoids a deployment solely for cache clearing.
 
 ## Asynchronous OCR callback rollout
 

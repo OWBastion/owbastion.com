@@ -1,4 +1,4 @@
-name: Publish Portal image
+name: Validate Portal
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ on:
       - 'pnpm-workspace.yaml'
       - 'tsconfig.json'
       - 'vitest.config.ts'
-      - '.github/workflows/publish-portal.yml'
+      - '.github/workflows/validate-portal.yml'
   push:
     branches: [main]
     paths:
@@ -19,7 +19,7 @@ on:
       - 'pnpm-workspace.yaml'
       - 'tsconfig.json'
       - 'vitest.config.ts'
-      - '.github/workflows/publish-portal.yml'
+      - '.github/workflows/validate-portal.yml'
 
 permissions:
   contents: read
@@ -88,40 +88,3 @@ jobs:
     steps:
       - name: Require all validation checks to pass
         run: test "${{ needs.validate.result }}" = success
-
-  publish:
-    name: Publish Portal image
-    if: github.event_name == 'push'
-    needs: verify
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract image metadata
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ghcr.io/owbastion/owbastion.codes-portal
-          tags: |
-            type=sha,prefix=sha-,format=long
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-
-      - name: Build and push Portal image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: ./apps/portal/Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}

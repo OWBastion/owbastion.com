@@ -123,9 +123,9 @@ corresponding game implementation.
 ## Deployment boundary
 
 The Worker API is configured for the api.owbastion.com custom domain. The
-Portal is migrating to a separate Cloudflare Worker with Workers Static
-Assets configured in `apps/portal/wrangler.jsonc`; until the authorized
-cutover it is still served by the HKG Docker Compose deployment behind a
-server-managed Cloudflare Tunnel outside this repository. Deployment
+Portal runs on a separate Cloudflare Worker with Workers Static Assets
+configured in `apps/portal/wrangler.jsonc`. Cloudflare Workers Builds connects
+to the repository for Portal deployment; GitHub Actions validates Portal
+changes. See [Portal deployment](../deployment/portal-cloudflare.md). Deployment
 configuration is not evidence of a live environment; verify operational state
 separately.
