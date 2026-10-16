@@ -31,7 +31,7 @@ docs/        架构、开发、部署和 API 文档
 
 Portal 通过服务端 API 访问平台数据。业务规则位于 domain 和 database 包，Worker 与 Portal 负责协议适配。D1 保存业务状态，R2 保存私有提交证据，Queue 驱动 OCR 处理，公共目录在 HTTP 边界使用短期缓存。QQBot 负责 QQ 绑定、验证、群策略和通知，不创建 Portal 截图提交。OCRKit 只负责识别，Bastion 在构建时通过 Agents API 读取平台元数据。
 
-Portal 提供公开目录、QQ 浏览器登录、玩家中心、截图提交与状态查询，以及受平台会话保护的管理面。博客和版本更新是仓库中的 Git Markdown，由 Nuxt Content 渲染；编辑通过正常的仓库工作流完成。称号、挑战、地图、随机事件和提交审核数据由平台维护。实现和验证状态见[功能状态矩阵](docs/product-rules/feature-status.md)。
+Portal 提供公开目录、QQ 浏览器登录、玩家中心、截图提交与状态查询，以及受平台会话保护的管理面。博客和版本更新是仓库中的 Git Markdown，在构建期解析、校验并预渲染为静态页面；编辑通过正常的仓库工作流完成。称号、挑战、地图、随机事件和提交审核数据由平台维护。实现和验证状态见[功能状态矩阵](docs/product-rules/feature-status.md)。
 
 ## 文档
 

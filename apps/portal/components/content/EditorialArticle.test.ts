@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import EditorialArticle from "./EditorialArticle.vue";
 
 const stubs = {
-  ContentRenderer: { template: "<div>rendered content</div>" },
+  MDCRenderer: { template: "<div>rendered content</div>" },
 };
 
 const changelogEntry = {

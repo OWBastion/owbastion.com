@@ -2,6 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { blogFrontmatterSchema, changelogFrontmatterSchema } from "../../content/editorial-schemas";
+import { findEditorialEntry, queryEditorialEntries, queryEditorialSummaries } from "../../utils/editorial-content";
 
 describe("editorial content collections", () => {
   it("validates Blog metadata", () => {
@@ -81,5 +82,52 @@ describe("editorial content boundary", () => {
       expect(levels.every((level, index) => index === 0 || level <= levels[index - 1] + 1)).toBe(true);
     }
     expect(combined).not.toMatch(/\\[.(){}[\]*_+\-|~%&<>]/);
+  });
+});
+
+describe("build-time editorial loader", () => {
+  it("parses every Markdown file with valid frontmatter", async () => {
+    const files = await listMarkdownFiles(contentRoot);
+    const fileCount = (prefix: string) => files.filter((file) => relative(contentRoot, file).startsWith(prefix)).length;
+
+    const blog = await queryEditorialEntries("blog");
+    const changelog = await queryEditorialEntries("changelog");
+
+    expect(blog).toHaveLength(fileCount("blog/"));
+    expect(changelog).toHaveLength(fileCount("changelog/"));
+    expect(blog.every((entry) => entry.title.length > 0 && entry.path.startsWith("/blog/"))).toBe(true);
+    expect(changelog.every((entry) => entry.version && entry.releasedAt)).toBe(true);
+    expect(new Set(changelog.map((entry) => entry.version)).size).toBe(changelog.length);
+    expect(blog.every((entry) => !Number.isNaN(Date.parse(entry.publishedAt ?? "")))).toBe(true);
+    expect(changelog.every((entry) => !Number.isNaN(Date.parse(entry.releasedAt ?? "")))).toBe(true);
+  });
+
+  it("orders entries newest first and exposes summaries without bodies", async () => {
+    const blog = await queryEditorialSummaries("blog");
+    const changelog = await queryEditorialSummaries("changelog");
+
+    const blogDates = blog.map((entry) => Date.parse(entry.publishedAt ?? ""));
+    expect([...blogDates].sort((a, b) => b - a)).toEqual(blogDates);
+    const changelogDates = changelog.map((entry) => Date.parse(entry.releasedAt ?? ""));
+    expect([...changelogDates].sort((a, b) => b - a)).toEqual(changelogDates);
+    expect(blog.every((entry) => !("body" in entry))).toBe(true);
+  });
+
+  it("finds detail entries and returns null for unknown slugs", async () => {
+    const entry = await findEditorialEntry("changelog", "26.0801.1");
+
+    expect(entry?.path).toBe("/changelog/26.0801.1");
+    expect(entry?.body.children.length).toBeGreaterThan(0);
+    expect(await findEditorialEntry("blog", "no-such-post")).toBeNull();
+    expect(await findEditorialEntry("changelog", "0.0000.0")).toBeNull();
+  });
+
+  it("renders math into KaTeX markup inside the parsed body", async () => {
+    const entry = await findEditorialEntry("blog", "random-system-weighted-algorithm");
+    const serialized = JSON.stringify(entry?.body);
+
+    expect(entry).toBeTruthy();
+    expect(serialized).toContain("katex");
+    expect(serialized).toContain("W_{total}");
   });
 });

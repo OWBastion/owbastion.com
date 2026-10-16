@@ -1,22 +1,28 @@
 <script setup lang="ts">
 import { editorialText, editorialToc, readingMinutes } from "~/utils/editorial";
+import { findEditorialEntry, queryEditorialSummaries } from "~/utils/editorial-content";
 
 const route = useRoute();
 const slug = computed(() => String(route.params.slug ?? ""));
 const contentPath = computed(() => `/blog/${slug.value}`);
 const requestUrl = useRequestURL();
+const requestEvent = useRequestEvent();
 
 const { data: post, status, error } = await useAsyncData(
-  "public-blog-entry",
-  () => queryCollection("blog").path(contentPath.value).first(),
+  () => `public-blog-entry-${slug.value}`,
+  () => findEditorialEntry("blog", slug.value),
   { default: () => null, watch: [contentPath] },
 );
 // Neighbours come from a light projection of the whole list, newest first.
 const { data: all } = await useAsyncData(
   "public-blog-neighbours",
-  () => queryCollection("blog").select("title", "path", "publishedAt").order("publishedAt", "DESC").all(),
+  () => queryEditorialSummaries("blog"),
   { default: () => [] },
 );
+
+if (import.meta.server && status.value !== "pending" && !post.value && requestEvent) {
+  setResponseStatus(requestEvent, 404);
+}
 
 const title = computed(() => post.value ? `${post.value.title} · 开发日志 · 躲避堡垒 3` : "开发日志 · 躲避堡垒 3");
 const description = computed(() => post.value?.description ?? "阅读 Portal 的开发日志与设计记录。");

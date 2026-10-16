@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { MDCRoot } from "@nuxtjs/mdc";
 import { computed } from "vue";
 import { editorialTags, formatEditorialDate, type EditorialTocEntry } from "~/utils/editorial";
 
@@ -20,6 +21,11 @@ const props = withDefaults(defineProps<{
   minutes?: number;
 }>(), { toc: () => [], minutes: undefined });
 
+const rendererBody = computed<MDCRoot>(() => (props.entry.body as MDCRoot | undefined) ?? { type: "root", children: [] });
+const rendererData = computed(() => {
+  const { body: _body, ...data } = props.entry;
+  return data;
+});
 const dateValue = computed(() => props.kind === "blog" ? props.entry.publishedAt : props.entry.releasedAt);
 const date = computed(() => dateValue.value ? formatEditorialDate(dateValue.value) : "");
 const isChangelog = computed(() => props.kind === "changelog");
@@ -48,7 +54,7 @@ const showToc = computed(() => props.toc.length >= 3);
       </details>
 
       <div class="editorial-article-body">
-        <ContentRenderer :value="entry" />
+        <MDCRenderer :body="rendererBody" :data="rendererData" />
       </div>
     </article>
   </div>

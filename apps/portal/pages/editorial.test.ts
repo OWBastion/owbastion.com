@@ -1,16 +1,21 @@
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { clearNuxtData } from "#imports";
-import { flushPromises } from "@vue/test-utils";
+import { flushPromises, type VueWrapper } from "@vue/test-utils";
 import { reactive } from "vue";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import BlogListPage from "./blog/index.vue";
 import BlogDetailPage from "./blog/[slug].vue";
 import ChangelogListPage from "./changelog/index.vue";
 import ChangelogDetailPage from "./changelog/[slug].vue";
 
-const queryCollection = vi.hoisted(() => vi.fn());
+const editorial = vi.hoisted(() => ({
+  queryEditorialSummaries: vi.fn(),
+  findEditorialEntry: vi.fn(),
+  queryEditorialEntries: vi.fn(),
+}));
+vi.mock("~/utils/editorial-content", () => editorial);
+
 const route = reactive({ path: "/blog/rotation-challenges-map-mastery", fullPath: "/blog/rotation-challenges-map-mastery", params: { slug: "rotation-challenges-map-mastery" } });
-mockNuxtImport("queryCollection", () => queryCollection);
 mockNuxtImport("useRoute", () => () => route);
 
 const blogEntry = {
@@ -31,27 +36,36 @@ const changelogEntry = {
   body: { type: "root", children: [] },
 };
 
-function setCollection(rows: unknown[], failure?: Error) {
-  const list = { order: () => ({ all: async () => {
+function setCollection(rows: Array<{ path: string }>, failure?: Error) {
+  const summaries = () => rows.map(({ body: _body, ...entry }) => entry);
+  editorial.queryEditorialSummaries.mockImplementation(async () => {
     if (failure) throw failure;
-    return rows;
-  } }) };
-  queryCollection.mockImplementation(() => ({
-    ...list,
-    select: () => list,
-    path: () => ({ first: async () => {
-      if (failure) throw failure;
-      return rows[0] ?? null;
-    } }),
-  }));
+    return summaries();
+  });
+  editorial.findEditorialEntry.mockImplementation(async (_kind: string, slug: string) => {
+    if (failure) throw failure;
+    return rows.find((row) => row.path.endsWith(`/${slug}`)) ?? null;
+  });
 }
 
 const stubs = {
   UEmpty: { props: ["title"], template: "<p>{{ title }}</p>" },
   UAlert: { props: ["title", "description"], template: "<div role='alert'><strong>{{ title }}</strong><p>{{ description }}</p><slot name='actions' /></div>" },
   UButton: { props: ["label"], template: "<button type='button'>{{ label }}</button>" },
-  ContentRenderer: { template: "<article>rendered content</article>" },
+  MDCRenderer: { template: "<article>rendered content</article>" },
 };
+
+// The shared reactive `route` keeps previously mounted components alive and they
+// would react to later slug changes, so every mounted page is released per test.
+const mounted: VueWrapper[] = [];
+const mountPage = async (page: Parameters<typeof mountSuspended>[0]) => {
+  const wrapper = await mountSuspended(page, { global: { stubs } });
+  mounted.push(wrapper);
+  return wrapper;
+};
+afterEach(() => {
+  for (const wrapper of mounted.splice(0)) wrapper.unmount();
+});
 
 describe("public editorial surfaces", () => {
   it("renders anonymous Blog entries with stable links", async () => {
@@ -59,7 +73,7 @@ describe("public editorial surfaces", () => {
     route.path = "/blog";
     route.fullPath = "/blog";
     setCollection([blogEntry]);
-    const wrapper = await mountSuspended(BlogListPage, { global: { stubs } });
+    const wrapper = await mountPage(BlogListPage);
     await flushPromises();
 
     expect(wrapper.get("h1").text()).toBe("开发日志");
@@ -71,24 +85,24 @@ describe("public editorial surfaces", () => {
     route.path = "/changelog";
     route.fullPath = "/changelog";
     setCollection([changelogEntry]);
-    const wrapper = await mountSuspended(ChangelogListPage, { global: { stubs } });
+    const wrapper = await mountPage(ChangelogListPage);
     await flushPromises();
 
     expect(wrapper.get("h1").text()).toBe("版本更新");
     expect(wrapper.get('a[href="/changelog/26.0801.1"]').text()).toContain("26.0801.1");
   });
 
-  it("renders Markdown content through ContentRenderer on detail pages", async () => {
-    clearNuxtData("public-blog-entry");
+  it("renders Markdown content through MDCRenderer on detail pages", async () => {
+    clearNuxtData("public-blog-entry-rotation-challenges-map-mastery");
     route.path = "/blog/rotation-challenges-map-mastery";
     route.fullPath = "/blog/rotation-challenges-map-mastery";
     route.params.slug = "rotation-challenges-map-mastery";
     setCollection([blogEntry]);
-    const wrapper = await mountSuspended(BlogDetailPage, { global: { stubs } });
+    const wrapper = await mountPage(BlogDetailPage);
     await flushPromises();
 
     expect(wrapper.get("h1").text()).toBe("开发日志 #8：轮换挑战与地图精通");
-    expect(wrapper.text()).toContain("开发日志");
+    expect(wrapper.text()).toContain("rendered content");
   });
 
   it("keeps read failures and empty results explicit", async () => {
@@ -96,24 +110,24 @@ describe("public editorial surfaces", () => {
     route.path = "/blog";
     route.fullPath = "/blog";
     setCollection([], new Error("content unavailable"));
-    const errorWrapper = await mountSuspended(BlogListPage, { global: { stubs } });
+    const errorWrapper = await mountPage(BlogListPage);
     await flushPromises();
     expect(errorWrapper.get("[role='alert']").text()).toContain("无法读取开发日志");
 
     clearNuxtData("public-blog-list");
     setCollection([]);
-    const emptyWrapper = await mountSuspended(BlogListPage, { global: { stubs } });
+    const emptyWrapper = await mountPage(BlogListPage);
     await flushPromises();
     expect(emptyWrapper.text()).toContain("暂无开发日志");
   });
 
   it("renders a changelog detail with the version above the title and a copy-link action", async () => {
-    clearNuxtData("public-changelog-entry");
+    clearNuxtData("public-changelog-entry-26.0801.1");
     route.path = "/changelog/26.0801.1";
     route.fullPath = "/changelog/26.0801.1";
     route.params.slug = "26.0801.1";
     setCollection([changelogEntry]);
-    const wrapper = await mountSuspended(ChangelogDetailPage, { global: { stubs } });
+    const wrapper = await mountPage(ChangelogDetailPage);
     await flushPromises();
 
     expect(wrapper.text().indexOf("26.0801.1")).toBeLessThan(wrapper.text().indexOf("随机事件调整"));
@@ -124,16 +138,13 @@ describe("public editorial surfaces", () => {
   it("links a blog entry to its neighbours and offers sharing at both ends", async () => {
     const newer = { ...blogEntry, path: "/blog/newer", title: "较新的一篇", publishedAt: "2026-09-01T00:00:00.000Z" };
     const older = { ...blogEntry, path: "/blog/older", title: "较旧的一篇", publishedAt: "2026-07-01T00:00:00.000Z" };
-    clearNuxtData("public-blog-entry");
+    clearNuxtData("public-blog-entry-rotation-challenges-map-mastery");
     clearNuxtData("public-blog-neighbours");
     route.path = blogEntry.path;
     route.fullPath = blogEntry.path;
     route.params.slug = "rotation-challenges-map-mastery";
-    queryCollection.mockImplementation(() => ({
-      select: () => ({ order: () => ({ all: async () => [newer, blogEntry, older] }) }),
-      path: () => ({ first: async () => blogEntry }),
-    }));
-    const wrapper = await mountSuspended(BlogDetailPage, { global: { stubs } });
+    setCollection([newer, blogEntry, older]);
+    const wrapper = await mountPage(BlogDetailPage);
     await flushPromises();
 
     const neighbours = wrapper.get("nav[aria-label='上一篇和下一篇']");
@@ -147,12 +158,12 @@ describe("public editorial surfaces", () => {
   it("copies the changelog canonical URL", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
-    clearNuxtData("public-changelog-entry");
+    clearNuxtData("public-changelog-entry-26.0801.1");
     route.path = "/changelog/26.0801.1";
     route.fullPath = "/changelog/26.0801.1";
     route.params.slug = "26.0801.1";
     setCollection([changelogEntry]);
-    const wrapper = await mountSuspended(ChangelogDetailPage, { global: { stubs } });
+    const wrapper = await mountPage(ChangelogDetailPage);
     await flushPromises();
 
     const copyButton = wrapper.findAll("button").find((button) => button.text() === "复制链接");

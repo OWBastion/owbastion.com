@@ -1,21 +1,27 @@
 <script setup lang="ts">
 import { editorialToc } from "~/utils/editorial";
+import { findEditorialEntry, queryEditorialSummaries } from "~/utils/editorial-content";
 
 const route = useRoute();
 const slug = computed(() => String(route.params.slug ?? ""));
 const contentPath = computed(() => `/changelog/${slug.value}`);
 const requestUrl = useRequestURL();
+const requestEvent = useRequestEvent();
 
 const { data: entry, status, error } = await useAsyncData(
-  "public-changelog-entry",
-  () => queryCollection("changelog").path(contentPath.value).first(),
+  () => `public-changelog-entry-${slug.value}`,
+  () => findEditorialEntry("changelog", slug.value),
   { default: () => null, watch: [contentPath] },
 );
 const { data: all } = await useAsyncData(
   "public-changelog-neighbours",
-  () => queryCollection("changelog").select("title", "path", "version", "releasedAt").order("releasedAt", "DESC").all(),
+  () => queryEditorialSummaries("changelog"),
   { default: () => [] },
 );
+
+if (import.meta.server && status.value !== "pending" && !entry.value && requestEvent) {
+  setResponseStatus(requestEvent, 404);
+}
 
 const title = computed(() => {
   if (!entry.value) return "版本更新 · 躲避堡垒 3";
