@@ -10,6 +10,7 @@ Read this index, then only the documents your change touches.
 | Grid, spacing, breakpoints, sticky/fixed, overflow | [layout-and-spacing.md](layout-and-spacing.md) |
 | New component, Nuxt UI, Tailwind, buttons, cards, admin patterns | [components-and-patterns.md](components-and-patterns.md) |
 | Finding an existing component | [component-inventory.md](component-inventory.md) |
+| Target look of a component (previews, states) | [../design-prototype/README.md](../design-prototype/README.md) |
 | Page structure, admin tables, workbench, review | [page-archetypes.md](page-archetypes.md) |
 | Scoped CSS, `main.css` | [css-ownership.md](css-ownership.md) |
 | Press, motion, toasts, loading | [motion-and-feedback.md](motion-and-feedback.md) |

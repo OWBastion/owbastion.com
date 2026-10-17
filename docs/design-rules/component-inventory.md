@@ -168,6 +168,21 @@ Admin components follow [page-archetypes.md](page-archetypes.md) and share the s
 | `AdminEventSelectionBar` | Bulk actions for selected events: status, version, group, weight set, add, or multiply. |
 | `AdminEventPoolSummary` | Candidate pool overview: implemented count, total weight, suspend or resume by version. |
 
+## Pending consolidation
+
+The [design prototype](../design-prototype/README.md) merges components that carry the same content. The tables above describe the code as it is; delete a row here and above when its Issue lands.
+
+| Merged into | Replaces | Issue |
+| --- | --- | --- |
+| `StatusBadge` (adds `accent` rating tone) | `SubmissionStatusBadge`, `ReviewSummaryBadge` | #430 |
+| `MapMasteryCard` | `MapRecords`, `MapProgressOverview`, `MapMasteryProfile` | #431 |
+| `UCard` + `PlayerBattleTag` identity mode | `PlayerIdentityCard` | #431 |
+| `PageSectionHeader` | `SubmissionSectionHeading` | #431 |
+| `SubmissionProgress` | `SubmissionProcess` | #431 |
+| Delete (no importers) | `NextGoals` | #431 |
+| `AdminEventActionBar` | `AdminEventDraftBar`, `AdminEventSelectionBar` | #432 |
+| `BindingInvitePanel` (single / batch) | `BindingInviteBatchPanel` | #432 |
+
 ## Nuxt UI roles
 
 Use Nuxt UI directly and theme it once in `app.config.ts`; do not wrap it without a reason.

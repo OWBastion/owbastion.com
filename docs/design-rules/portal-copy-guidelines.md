@@ -40,6 +40,18 @@ rescues an ambiguous layout.
   title plus paragraph saying the same; an identity block repeating bound status; `未开放` on the
   section and every child.
 
+### Display rules from the design prototype
+
+- Never show program field names, enum keys, or internal IDs (`map_…`, `evt_…`, `kind`); show the
+  name or Chinese label, and use a selector instead of asking people to type an ID.
+- A BattleTag is always one unit, `名字#数字 ID`, with the number in `quiet`.
+- Required `*` sits on the same line as its label, right after the text; mark only required fields.
+- Do not write `证据`, `通关码`, or `样本不足`; see [terminology.md](terminology.md#不使用的词).
+- Wording that only restates a UI label, status, or field is removed (examples: a description under
+  an already named section, `公开结果` beside a visibility switch, a share slogan, a hint repeating a
+  filled-in value). Abbreviate actions to `展开`/`收起`.
+- A revoked title is not undone in place; re-granting is a new manual grant.
+
 ## Submission status
 
 Player API exposes four states; `rejected` with `resubmissionRequired` shows "需重新提交".
