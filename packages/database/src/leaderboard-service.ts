@@ -9,6 +9,7 @@ import { resolvePortalSession } from "./portal-session";
 type LeaderboardServices = Pick<PlatformServices,
   | "getPublicLeaderboard"
   | "getPublicLeaderboardPlayer"
+  | "getPublicProfileByHandle"
   | "getCurrentPlayerLeaderboardRank"
 >;
 
@@ -132,87 +133,7 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
     return { mastery: headlineStandings(mastery), achievement: headlineStandings(achievement) };
   };
 
-  return {
-    async getPublicLeaderboard(input) {
-      const window = input.seasonId ? await visibleSeasonWindow(input.seasonId) : undefined;
-      let revision: Awaited<ReturnType<typeof defaultRevision>>;
-      if (input.mapId) {
-        if (input.board !== "mastery") return null;
-        const map = await db.select({ id: maps.id }).from(maps).where(eq(maps.id, input.mapId)).get();
-        if (!map) return null;
-        revision = await defaultRevision(input.mapId);
-      }
-      const ranked = input.mapId && !revision ? [] : rankLeaderboardRows(await boardRows(input.board, input.mapId, revision?.id, window));
-      // Achievement rows display each Player's all-maps Mastery XP, and the
-      // same board feeds anonymous entries' inline headline standings.
-      const masteryAll = input.board === "achievement" ? rankLeaderboardRows(await masteryRows()) : null;
-      const masteryScoreById = masteryAll ? new Map(masteryAll.map((row) => [row.playerAccountId, row.score])) : null;
-      const total = ranked.length;
-      const slice = ranked.slice((input.page - 1) * input.pageSize, input.page * input.pageSize);
-      const accountIds = slice.map((row) => row.playerAccountId);
-      const accounts = accountIds.length === 0 ? [] : await db.select({
-        id: playerAccounts.id,
-        playerName: playerAccounts.playerName,
-        publicProfile: playerAccounts.publicProfile,
-      }).from(playerAccounts).where(inArray(playerAccounts.id, accountIds));
-      const accountById = new Map(accounts.map((account) => [account.id, account]));
-      const publicIds = slice.filter((row) => accountById.get(row.playerAccountId)?.publicProfile === 1).map((row) => row.playerAccountId);
-      const [equipped, latestTitles] = await Promise.all([
-        loadEquippedTitles(publicIds),
-        input.board === "achievement" ? loadLatestCountedTitles(publicIds) : new Map<string, LeaderboardEntryTitle>(),
-      ]);
-      const anonymous = slice.filter((row) => accountById.get(row.playerAccountId)?.publicProfile !== 1);
-      const boards = anonymous.length > 0
-        ? await headlineBoardsForAnonymous({ board: input.board, mapId: input.mapId, rows: ranked, seasonal: Boolean(window), masteryAll })
-        : null;
-      const items: LeaderboardEntry[] = await Promise.all(slice.map(async (row) => {
-        const account = accountById.get(row.playerAccountId);
-        const publicProfile = account?.publicProfile === 1;
-        const standingFor = (standings: Map<string, LeaderboardBoardStanding> | undefined) => standings?.get(row.playerAccountId) ?? null;
-        const entry = projectLeaderboardEntry({
-          rank: row.rank,
-          score: row.score,
-          reachedAt: row.reachedAt,
-          publicProfile,
-          identity: {
-            playerKey: await leaderboardPlayerKey(row.playerAccountId),
-            displayName: account?.playerName ?? "",
-            equippedTitle: equipped.get(row.playerAccountId) ?? null,
-          },
-          boards: {
-            mastery: standingFor(boards?.mastery),
-            achievement: standingFor(boards?.achievement),
-          },
-        });
-        if (input.board === "mastery") return { ...entry, runCount: row.runCount ?? 0, ...(row.topDifficulty ? { topDifficulty: row.topDifficulty } : {}) };
-        return { ...entry, masteryXp: masteryScoreById?.get(row.playerAccountId) ?? 0, ...(publicProfile ? { latestTitle: latestTitles.get(row.playerAccountId) ?? null } : {}) };
-      }));
-      return {
-        contractVersion: "1" as const,
-        board: input.board,
-        ...(input.mapId ? { mapId: input.mapId } : {}),
-        ...(input.seasonId ? { seasonId: input.seasonId } : {}),
-        ...(input.mapId && revision ? { mapGameVersion: revision.gameVersion } : {}),
-        ruleVersion: leaderboardRuleVersion,
-        items,
-        page: input.page,
-        pageSize: input.pageSize,
-        total,
-        hasMore: input.page * input.pageSize < total,
-      };
-    },
-
-    async getPublicLeaderboardPlayer(input) {
-      const accounts = await db.select({
-        id: playerAccounts.id,
-        playerName: playerAccounts.playerName,
-        publicProfile: playerAccounts.publicProfile,
-      }).from(playerAccounts);
-      let account: (typeof accounts)[number] | undefined;
-      for (const candidate of accounts) {
-        if (await leaderboardPlayerKey(candidate.id) === input.playerKey) { account = candidate; break; }
-      }
-      if (!account) return null;
+  const publicSummaryFor = async (account: { id: string; playerName: string; publicProfile: number }) => {
       if (account.publicProfile !== 1) {
         return { contractVersion: "1" as const, publicProfile: false, player: null, boards: null, perMapXp: null, mapCount: null, titles: null };
       }
@@ -273,6 +194,105 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
           general: generalTitleRows.map(titleView).sort((a, b) => a.titleKey.localeCompare(b.titleKey)),
         },
       };
+  };
+
+  return {
+    async getPublicLeaderboard(input) {
+      const window = input.seasonId ? await visibleSeasonWindow(input.seasonId) : undefined;
+      let revision: Awaited<ReturnType<typeof defaultRevision>>;
+      if (input.mapId) {
+        if (input.board !== "mastery") return null;
+        const map = await db.select({ id: maps.id }).from(maps).where(eq(maps.id, input.mapId)).get();
+        if (!map) return null;
+        revision = await defaultRevision(input.mapId);
+      }
+      const ranked = input.mapId && !revision ? [] : rankLeaderboardRows(await boardRows(input.board, input.mapId, revision?.id, window));
+      // Achievement rows display each Player's all-maps Mastery XP, and the
+      // same board feeds anonymous entries' inline headline standings.
+      const masteryAll = input.board === "achievement" ? rankLeaderboardRows(await masteryRows()) : null;
+      const masteryScoreById = masteryAll ? new Map(masteryAll.map((row) => [row.playerAccountId, row.score])) : null;
+      const total = ranked.length;
+      const slice = ranked.slice((input.page - 1) * input.pageSize, input.page * input.pageSize);
+      const accountIds = slice.map((row) => row.playerAccountId);
+      const accounts = accountIds.length === 0 ? [] : await db.select({
+        id: playerAccounts.id,
+        playerName: playerAccounts.playerName,
+        publicProfile: playerAccounts.publicProfile,
+        publicHandle: playerAccounts.publicHandle,
+      }).from(playerAccounts).where(inArray(playerAccounts.id, accountIds));
+      const accountById = new Map(accounts.map((account) => [account.id, account]));
+      const publicIds = slice.filter((row) => accountById.get(row.playerAccountId)?.publicProfile === 1).map((row) => row.playerAccountId);
+      const [equipped, latestTitles] = await Promise.all([
+        loadEquippedTitles(publicIds),
+        input.board === "achievement" ? loadLatestCountedTitles(publicIds) : new Map<string, LeaderboardEntryTitle>(),
+      ]);
+      const anonymous = slice.filter((row) => accountById.get(row.playerAccountId)?.publicProfile !== 1);
+      const boards = anonymous.length > 0
+        ? await headlineBoardsForAnonymous({ board: input.board, mapId: input.mapId, rows: ranked, seasonal: Boolean(window), masteryAll })
+        : null;
+      const items: LeaderboardEntry[] = await Promise.all(slice.map(async (row) => {
+        const account = accountById.get(row.playerAccountId);
+        const publicProfile = account?.publicProfile === 1;
+        const standingFor = (standings: Map<string, LeaderboardBoardStanding> | undefined) => standings?.get(row.playerAccountId) ?? null;
+        const entry = projectLeaderboardEntry({
+          rank: row.rank,
+          score: row.score,
+          reachedAt: row.reachedAt,
+          publicProfile,
+          identity: {
+            playerKey: await leaderboardPlayerKey(row.playerAccountId),
+            ...(account?.publicHandle ? { publicHandle: account.publicHandle } : {}),
+            displayName: account?.playerName ?? "",
+            equippedTitle: equipped.get(row.playerAccountId) ?? null,
+          },
+          boards: {
+            mastery: standingFor(boards?.mastery),
+            achievement: standingFor(boards?.achievement),
+          },
+        });
+        if (input.board === "mastery") return { ...entry, runCount: row.runCount ?? 0, ...(row.topDifficulty ? { topDifficulty: row.topDifficulty } : {}) };
+        return { ...entry, masteryXp: masteryScoreById?.get(row.playerAccountId) ?? 0, ...(publicProfile ? { latestTitle: latestTitles.get(row.playerAccountId) ?? null } : {}) };
+      }));
+      return {
+        contractVersion: "1" as const,
+        board: input.board,
+        ...(input.mapId ? { mapId: input.mapId } : {}),
+        ...(input.seasonId ? { seasonId: input.seasonId } : {}),
+        ...(input.mapId && revision ? { mapGameVersion: revision.gameVersion } : {}),
+        ruleVersion: leaderboardRuleVersion,
+        items,
+        page: input.page,
+        pageSize: input.pageSize,
+        total,
+        hasMore: input.page * input.pageSize < total,
+      };
+    },
+
+    async getPublicLeaderboardPlayer(input) {
+      const accounts = await db.select({
+        id: playerAccounts.id,
+        playerName: playerAccounts.playerName,
+        publicProfile: playerAccounts.publicProfile,
+      }).from(playerAccounts);
+      let account: (typeof accounts)[number] | undefined;
+      for (const candidate of accounts) {
+        if (await leaderboardPlayerKey(candidate.id) === input.playerKey) { account = candidate; break; }
+      }
+      if (!account) return null;
+      return publicSummaryFor(account);
+    },
+
+    async getPublicProfileByHandle(input) {
+      const account = await db.select({
+        id: playerAccounts.id,
+        playerName: playerAccounts.playerName,
+        publicProfile: playerAccounts.publicProfile,
+      }).from(playerAccounts).where(and(
+        eq(playerAccounts.publicHandle, input.publicHandle),
+        eq(playerAccounts.publicProfile, 1),
+        eq(playerAccounts.status, "active"),
+      )).get();
+      return account ? publicSummaryFor(account) : null;
     },
 
     async getCurrentPlayerLeaderboardRank(input) {
