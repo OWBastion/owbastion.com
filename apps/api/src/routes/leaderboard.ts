@@ -1,3 +1,4 @@
+import { publicHandleSchema } from "@owbastion/contracts";
 import { isUuid, type AdminRouteDependencies, type ApiApp } from "./route-contract";
 
 type LeaderboardDependencies = Pick<AdminRouteDependencies, "services" | "errorResponse"> & {
@@ -47,6 +48,15 @@ export const registerLeaderboardRoutes = (app: ApiApp, dependencies: Leaderboard
     c.header("Cache-Control", "private, no-store");
     const summary = await logServiceOperation(c, "leaderboard_player_summary", () => services(c.env).getPublicLeaderboardPlayer({ playerKey: c.req.param("playerKey") }));
     return summary ? c.json(summary) : errorResponse(c, 404, "PLAYER_NOT_FOUND", "The player does not exist");
+  });
+
+  app.get("/v1/public/profiles/:publicHandle", async (c) => {
+    allowPortal(c);
+    c.header("Cache-Control", "private, no-store");
+    const parsed = publicHandleSchema.safeParse(c.req.param("publicHandle"));
+    if (!parsed.success) return errorResponse(c, 404, "PROFILE_NOT_FOUND", "The profile does not exist");
+    const profile = await logServiceOperation(c, "public_profile", () => services(c.env).getPublicProfileByHandle({ publicHandle: parsed.data }));
+    return profile ? c.json(profile) : errorResponse(c, 404, "PROFILE_NOT_FOUND", "The profile does not exist");
   });
 
   app.get("/v1/me/leaderboard", async (c) => {
