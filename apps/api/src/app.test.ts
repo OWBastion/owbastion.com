@@ -388,7 +388,7 @@ describe("API", () => {
     const cacheApp = createTestApp({
       getCurrentPlayer: async ({ sessionToken }) => sessionToken === "player-session" ? {
         contractVersion: "1" as const,
-        player: { playerId: "p1", playerName: "Player", isAdmin: false, publicProfile: true },
+        player: { playerId: "p1", playerName: "Player", isAdmin: false, publicProfile: true, publicHandle: null },
         recentSubmissions: [],
       } : null,
       listChallenges: async () => [],
@@ -2117,7 +2117,7 @@ describe("API", () => {
       listLocalDevAccounts: async () => [{ accountId: "local-player-account", playerId: "local-player", playerName: "Local Player", isAdmin: false }],
       createLocalDevSession: async () => ({ sessionToken: "local-session" }),
       getPortalSessionIdentity: async ({ sessionToken }) => sessionToken === "local-session" ? { player: { playerId: "local-player", isAdmin: false } } : null,
-      getCurrentPlayer: async ({ sessionToken }) => sessionToken === "local-session" ? { contractVersion: "1", player: { playerId: "local-player", playerName: "Local Player", isAdmin: false, publicProfile: true }, recentSubmissions: [] } : null,
+      getCurrentPlayer: async ({ sessionToken }) => sessionToken === "local-session" ? { contractVersion: "1", player: { playerId: "local-player", playerName: "Local Player", isAdmin: false, publicProfile: true, publicHandle: null }, recentSubmissions: [] } : null,
     });
     const localApp = createApp({ authenticate: anonymousAuth, services: () => localServices });
     expect((await localApp.request("http://localhost/v1/__local/accounts", {}, env)).status).toBe(404);
