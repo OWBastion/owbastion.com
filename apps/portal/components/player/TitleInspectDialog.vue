@@ -46,9 +46,10 @@ const facts = computed(() => {
 .inspect__stage[style]::after { content: ""; position: absolute; inset: 0; pointer-events: none; background-image: var(--sweep); background-size: 300% 300%; background-position: 100% 100%; mask: var(--mark-image) center / contain no-repeat; }
 .inspect__facts { width: 100%; }
 @media (prefers-reduced-motion: no-preference) {
-  .inspect__stage.is-opening :deep(.title-mark__icon), .inspect__stage.is-opening[style]::after { animation: inspect-sweep .9s ease-in-out; }
-  .inspect__stage:hover :deep(.title-mark__icon), .inspect__stage[style]:hover::after { animation: inspect-sweep-hover .9s ease-in-out; }
+  .inspect__stage.is-opening :deep(.title-mark__icon), .inspect__stage.is-opening[style]::after { animation: inspect-sweep 1.2s ease-out; }
+  .inspect__stage:hover :deep(.title-mark__icon), .inspect__stage[style]:hover::after { animation: inspect-sweep-hover 1.2s ease-out; }
 }
+/* Two identical keyframes: switching animation-name on hover is what restarts the sweep. */
 @keyframes inspect-sweep { from { background-position: 100% 100%; } to { background-position: 0 0; } }
 @keyframes inspect-sweep-hover { from { background-position: 100% 100%; } to { background-position: 0 0; } }
 </style>
