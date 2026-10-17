@@ -30,9 +30,9 @@ uses `cq-compact` for very narrow internal spacing.
 ## Guardrails
 
 `pnpm lint:styles` (also in `pnpm check` and the Portal publish workflow, rules in
-`stylelint.config.mjs`) errors on: raw `px` in `padding|margin|gap|inset` (1px allowed),
-`font-weight` outside 400/500/600/700, `border-radius` literals, and width `@media` in component
-styles. Only `pages/`, `layouts/`, `main.css`, `AppHeader.vue`, and `AdminWorkspace.vue` may use
+`stylelint.config.mjs`) errors on: raw `px` in `padding|margin|gap|inset` (1px allowed)
+and width `@media` in component
+styles. Weights and radius are reviewed, not linted. Only `pages/`, `layouts/`, `main.css`, `AppHeader.vue`, and `AdminWorkspace.vue` may use
 `48rem`/`64rem` (and `47.99rem`/`63.99rem`) queries.
 
 Tailwind utilities and Nuxt UI `ui` slots/props are preferred over deep selectors

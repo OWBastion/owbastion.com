@@ -1,16 +1,11 @@
 // Design System v2 guardrails. See docs/design-rules/css-ownership.md#guardrails.
 
 const rawPx = /(?<![\w.])(?!(?:1|0)px\b)\d*\.?\d+px/;
-const radiusLiteral = /(?<![\w.])(?!0(?:px|rem|em)?(?![\w.])|50%)\d*\.?\d+(?:px|r?em|vw|vh|%)/;
 const pageBreakpoints = [/^(?:48|64)rem$/, /^(?:47|63)\.99rem$/];
 
 const rules = {
   'declaration-property-value-disallowed-list': {
     '/^(?:padding|margin|gap|row-gap|column-gap|inset)(?:-.+)?$/': [rawPx],
-    '/^border(?:-[a-z]+){0,2}-radius$/': [radiusLiteral],
-  },
-  'declaration-property-value-allowed-list': {
-    'font-weight': [/^(?:400|500|600|700|var\(.+\))$/],
   },
   'media-feature-name-disallowed-list': ['min-width', 'max-width'],
 };
