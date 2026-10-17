@@ -22,4 +22,10 @@
     // Same-origin proxies forward to the API Worker; override locally via .dev.vars.
     "NUXT_PUBLIC_API_BASE_URL": "https://api.owbastion.com",
   },
+  // Required by `wrangler preview`; Worker Previews do not inherit top-level `vars`.
+  "previews": {
+    "vars": {
+      "NUXT_PUBLIC_API_BASE_URL": "https://api.owbastion.com",
+    },
+  },
 }
