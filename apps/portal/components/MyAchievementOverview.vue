@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import type { PublicAchievement } from "./AchievementCatalog.vue";
-import MapProgressOverview from "./player/MapProgressOverview.vue";
 import type { OwnedTitle } from "~/types/title";
 import type { PlayerChallengeProgress, PortalMap } from "~/composables/usePortalApi";
-import type { MapProgressChallenge } from "~/utils/map-progress";
+import { buildMapProgressRows, type MapProgressChallenge } from "~/utils/map-progress";
 
 type HistoricalTitleGroup = {
   name: string;
@@ -78,6 +77,11 @@ const progressByChallenge = computed(() => new Map(props.challengeProgress.map((
 const progressFor = (card: AchievementCard) => card.kind === "catalog" && card.challenge.progressRule ? progressByChallenge.value.get(card.challenge.challengeId) : undefined;
 const mapNameFor = (mapId: string) => props.maps.find((map) => map.mapId === mapId)?.mapName ?? mapId;
 
+const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, challenges: props.mapChallenges, titles: props.titles, profiles: [] }));
+const targetMapCount = computed(() => mapProgressRows.value.filter((row) => row.challenges.length).length);
+const totalChallengeCount = computed(() => mapProgressRows.value.reduce((count, row) => count + row.challenges.length, 0));
+const earnedChallengeCount = computed(() => mapProgressRows.value.reduce((count, row) => count + row.earnedChallenges.length, 0));
+
 const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(timestamp);
 </script>
 
@@ -119,7 +123,15 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
 
       <section class="map-achievement-section" aria-labelledby="map-achievements-title">
         <header class="achievement-type-heading"><h2 id="map-achievements-title">地图成就</h2></header>
-        <MapProgressOverview :maps="maps" :challenges="mapChallenges" :titles="titles" :show-mastery-facts="false" :show-targets="true" />
+        <div v-if="mapProgressRows.length" class="map-progress-overview">
+          <p v-if="targetMapCount" class="map-progress-summary" aria-live="polite">已获得 {{ earnedChallengeCount }} / {{ totalChallengeCount }} 个地图成就</p>
+          <ul class="map-progress-list directory-grid">
+            <li v-for="row in mapProgressRows" :key="row.map.mapId" class="map-progress-item">
+              <MapMasteryCard variant="progress" :map-name="row.map.mapName" :to="`/me/achievements/maps/${encodeURIComponent(row.map.mapId)}`" :challenges="row.challenges" :earned-challenges="row.earnedChallenges" />
+            </li>
+          </ul>
+        </div>
+        <UEmpty v-else title="暂无地图" variant="naked" />
       </section>
 
       <section v-if="mapTitleGroups.length" class="achievement-section map-title-collection" aria-labelledby="map-titles-title">
@@ -150,6 +162,10 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
 .achievement-main { display: grid; flex: 999 1 32rem; gap: var(--space-5); min-width: 0; }
 .general-achievement-section { display: grid; gap: var(--space-5); }
 .map-achievement-section { display: grid; gap: var(--space-4); }
+.map-progress-overview { display: grid; gap: var(--space-4); }
+.map-progress-summary { margin: 0; color: var(--muted); font-size: var(--type-caption-size); }
+.map-progress-list { margin: 0; padding: 0; list-style: none; }
+.map-progress-item { min-width: 0; }
 .achievement-type-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
 .achievement-type-heading h2 { margin: 0; color: var(--text); font-size: 1.15rem; }
 .equipped-count { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--muted); font-size: var(--type-caption-size); }

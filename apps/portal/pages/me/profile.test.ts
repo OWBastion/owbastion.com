@@ -190,7 +190,7 @@ describe("me profile page", () => {
     });
 
     const wrapper = await mountPage();
-    const records = wrapper.findAll(".map-record");
+    const records = wrapper.findAll(".mastery-card--record");
     expect(records).toHaveLength(1);
     expect(records[0]!.text()).toContain("地图一");
     expect(records[0]!.text()).toContain("1:04:05");

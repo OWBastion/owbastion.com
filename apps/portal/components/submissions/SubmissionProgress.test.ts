@@ -24,4 +24,14 @@ describe("SubmissionProgress", () => {
     expect(wrapper.get('[role="img"][aria-label="截图识别：需重新提交"]').exists()).toBe(true);
     expect(wrapper.text()).not.toContain("未通过");
   });
+
+  it("renders the static four-step flow without a status", async () => {
+    const wrapper = await mountSuspended(SubmissionProgress);
+
+    expect(wrapper.text()).toContain("获得称号流程");
+    expect(wrapper.findAll("li")).toHaveLength(4);
+    expect(wrapper.text()).toContain("上传截图");
+    expect(wrapper.find("[role='img']").exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("待处理");
+  });
 });

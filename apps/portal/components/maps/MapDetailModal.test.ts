@@ -48,7 +48,6 @@ function mountModal() {
         UModal: ModalStub,
         UDrawer: DrawerStub,
         UBadge: { props: ["label"], template: "<span>{{ label }}</span>" },
-        MapMasteryProfile: { template: "<div />" },
         PlayerReviewPanel: { template: "<div />" },
       },
     },

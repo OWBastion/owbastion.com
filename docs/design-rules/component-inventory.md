@@ -13,11 +13,11 @@ component; delete it when the component goes.
 | `StatusBadge` | Status chip with `default`, `info`, `success`, `warning`, `error` tones; always carries text. |
 | `SubmissionStatusBadge` | Maps a submission status to `StatusBadge` wording and tone. |
 | `FilterChip` | Pressable filter toggle with optional count. |
-| `PageSectionHeader` | Section title row with count and actions slot. |
+| `PageSectionHeader` | Section title row with count and actions slot; optional description and `size="card"` for card-level headings. |
 | `AppHeader` | Sticky site header: brand, main and admin navigation, theme menu, account menu or sign-in, collapsing menu on narrow screens. |
 | `AccountMenu` | Round avatar button opening the account dropdown (admin entry, sign out). |
 | `ThemeMenu` | Icon button opening the light, dark, or system theme menu. |
-| `PlayerBattleTag` | BattleTag name with `#ID`, inline or large identity form. |
+| `PlayerBattleTag` | BattleTag name with `#ID`, inline or large identity form (wrap in `UCard variant="subtle"` for the identity card). |
 | `EvidenceViewer` | Screenshot evidence viewer: fit, actual size, zoom, drag-pan, double-click toggle, fullscreen. |
 | `AchievementCatalog` | Public achievement catalog grouped by category: icon, title, condition, status. |
 | `MyAchievementOverview` | Signed-in player's achievements: general catalog with earned and equipped state, map progress, other map titles, recent gains. |
@@ -29,7 +29,7 @@ component; delete it when the component goes.
 | `MapDirectory` | Map card grid; opens the detail overlay and syncs `mapId` to the URL query. |
 | `MapCard` | Catalog card: cover, title row, rating summary, stats, tags. |
 | `MapDetailModal` | Map detail overlay (modal on desktop, bottom drawer on mobile): overview, challenges, special mechanics, player reviews. |
-| `MapMasteryProfile` | Mastery block on map detail: personal XP and clears, per-difficulty stats, embedded run history. |
+| `MapMasteryCard` | Per-map mastery card in `record`, `progress`, and `detail` variants; shell and stat rows implemented once. |
 | `MasteryRunHistory` | Paginated list of verified clears for a map. |
 
 ## Player
@@ -42,12 +42,8 @@ component; delete it when the component goes.
 | `TitleBadge` | Clickable title badge (`slot` and `tile` variants). |
 | `TitleShelf` | Titles grouped by series, collapsed beyond the first row. |
 | `TitleInspectDialog` | Title detail dialog with tilting gloss badge, acquisition info, link to manage equipping. |
-| `NextGoals` | Next-goal cards with segmented progress. |
-| `MapProgressOverview` | One progress card per map: map goals, count earned, optional mastery stats; header links to the map's achievement page. |
-| `MapRecords` | Mastery cards for the current default play version: fastest, fewest deaths, XP; sorted by XP. |
 | `PlayerRecentSubmissions` | Recent screenshot submissions with map, time, outcome, status badge; empty state points to submitting. |
 | `RunDayHeatmap` | Past-year daily clear heatmap (53 weeks by 7 days). |
-| `PlayerIdentityCard` | `UCard` wrapping `PlayerBattleTag` in identity form. |
 | `ProfileVisibilityCard` | Settings card with a switch for showing the profile on the leaderboard. |
 | `PasskeyManager` | Passkey list, add, and confirm-then-remove in settings. |
 
@@ -64,10 +60,8 @@ component; delete it when the component goes.
 
 | Component | Purpose |
 | --- | --- |
-| `SubmissionProcess` | Static card for the four-step title flow. |
-| `SubmissionProgress` | Vertical timeline of a submission: submitted, recognition, confirm results, title earned. |
+| `SubmissionProgress` | Vertical timeline of the four-step flow: upload, recognition, confirm results, title earned. With a `status` it tracks a submission; without one it is the static title-flow guide. |
 | `SubmissionRequirements` | Static list of what a screenshot must contain. |
-| `SubmissionSectionHeading` | `h2` plus optional description for submission page sections. |
 | `OcrFeedbackPanel` | Card where players mark OCR results accurate or wrong. |
 
 ## Events and leaderboard
@@ -175,11 +169,6 @@ The [design prototype](../design-prototype/README.md) merges components that car
 | Merged into | Replaces | Issue |
 | --- | --- | --- |
 | `StatusBadge` (adds `accent` rating tone) | `SubmissionStatusBadge`, `ReviewSummaryBadge` | #430 |
-| `MapMasteryCard` | `MapRecords`, `MapProgressOverview`, `MapMasteryProfile` | #431 |
-| `UCard` + `PlayerBattleTag` identity mode | `PlayerIdentityCard` | #431 |
-| `PageSectionHeader` | `SubmissionSectionHeading` | #431 |
-| `SubmissionProgress` | `SubmissionProcess` | #431 |
-| Delete (no importers) | `NextGoals` | #431 |
 | `AdminEventActionBar` | `AdminEventDraftBar`, `AdminEventSelectionBar` | #432 |
 | `BindingInvitePanel` (single / batch) | `BindingInviteBatchPanel` | #432 |
 

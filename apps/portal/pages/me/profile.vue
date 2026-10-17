@@ -31,6 +31,11 @@ const masteryRetrying = shallowRef(false);
 const equippedTitles = computed(() => titles.value.filter((title) => title.equipped));
 const mapNameById = computed(() => new Map(maps.value.map((map) => [map.mapId, map.mapName])));
 const currentProfiles = computed(() => profiles.value.filter((profile) => profile.gameplayRevisionLifecycle === "default"));
+// Current progress only: historical gameplay revisions belong to the map detail history.
+const recordProfiles = computed(() => currentProfiles.value
+  .filter((profile) => profile.verifiedRunCount > 0)
+  .sort((left, right) => right.totalXp - left.totalXp)
+  .slice(0, 6));
 const totalXp = computed(() => currentProfiles.value.reduce((sum, profile) => sum + profile.totalXp, 0));
 const yearRuns = computed(() => buildRunDayGrid(activityDays.value, Date.now()).totalRuns);
 const heroStats = computed(() => [
@@ -146,7 +151,11 @@ onMounted(() => {
 
       <section v-if="currentProfiles.length" class="section-block" aria-labelledby="records-title">
         <PageSectionHeader title="战绩" heading-id="records-title" count="每张地图的个人最佳" />
-        <PlayerMapRecords :profiles="profiles" :map-names="mapNameById" />
+        <ul v-if="recordProfiles.length" class="map-records">
+          <li v-for="profile in recordProfiles" :key="profile.mapId">
+            <MapMasteryCard variant="record" :map-name="mapNameById.get(profile.mapId) ?? '地图'" :profile="profile" :to="`/maps?mapId=${encodeURIComponent(profile.mapId)}`" />
+          </li>
+        </ul>
       </section>
 
       <div class="profile-grid">
@@ -235,6 +244,8 @@ onMounted(() => {
 <style scoped>
 .profile-page { padding-block: clamp(4rem, 9vh, 6.5rem) 4.5rem; }
 .profile-alert { margin-bottom: var(--space-5); }
+.map-records { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr)); gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.map-records > li { min-width: 0; }
 .section-block { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
 .profile-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 var(--space-8); align-items: start; }
 .profile-side { display: grid; min-width: 0; }
