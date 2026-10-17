@@ -10,9 +10,13 @@ const applyWeight = () => { const value = Number(weight.value); if (weight.value
 </script>
 
 <template>
-  <div v-if="selectedCount || draftCount" class="action-bar" :class="{ 'action-bar--draft': draftCount }" role="status">
+  <div v-if="selectedCount || draftCount" class="action-bar" :class="{ 'action-bar--draft': draftCount }">
+    <span class="action-bar__status" role="status">
+      <strong v-if="selectedCount">已选 {{ selectedCount }} 项</strong>
+      <strong v-if="draftCount">{{ draftCount }} 项未保存的修改</strong>
+      <span v-if="draftCount && summary" class="action-bar__summary">{{ summary }}</span>
+    </span>
     <template v-if="selectedCount">
-      <strong>已选 {{ selectedCount }} 项</strong>
       <select class="native-field" aria-label="设为状态" @change="pick($event, (value) => emit('patch', { releaseStatus: value as 'implemented' }))">
         <option value="">设为状态…</option><option value="implemented">已实装</option><option value="development">开发中</option><option value="removed">已移除</option>
       </select>
@@ -28,14 +32,9 @@ const applyWeight = () => { const value = Number(weight.value); if (weight.value
         <UButton label="应用" color="neutral" variant="outline" size="sm" @click="applyWeight" />
       </span>
     </template>
-    <template v-else>
-      <strong>{{ draftCount }} 项未保存的修改</strong>
-      <span v-if="summary" class="action-bar__summary">{{ summary }}</span>
-    </template>
     <span class="action-bar__spacer" />
     <UButton v-if="selectedCount && !draftCount" label="取消选择" color="neutral" variant="ghost" size="sm" @click="emit('clear')" />
     <template v-if="draftCount">
-      <span v-if="selectedCount" class="action-bar__summary">{{ draftCount }} 项未保存的修改</span>
       <UButton label="放弃" color="neutral" variant="ghost" size="sm" :disabled="saving" @click="emit('discard')" />
       <UButton label="保存全部" size="sm" :loading="saving" @click="emit('save')" />
     </template>
@@ -45,6 +44,7 @@ const applyWeight = () => { const value = Number(weight.value); if (weight.value
 <style scoped>
 .action-bar { position: sticky; z-index: 5; top: var(--space-2); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface-raised); }
 .action-bar--draft { border-color: color-mix(in oklch, var(--accent) 60%, var(--line)); background: color-mix(in oklch, var(--accent) 9%, var(--surface)); box-shadow: var(--elevation-2); }
+.action-bar__status { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); }
 .action-bar__summary { color: var(--muted); font-size: var(--type-label-sm-size); }
 .action-bar__spacer { flex: 1; }
 .selection-bar__weight { display: inline-flex; align-items: center; gap: var(--space-1); }

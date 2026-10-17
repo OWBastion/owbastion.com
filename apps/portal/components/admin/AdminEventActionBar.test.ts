@@ -34,6 +34,14 @@ describe("AdminEventActionBar", () => {
     expect(labels(wrapper)).not.toContain("取消选择");
   });
 
+  it("limits the live region to the count text, not the controls", async () => {
+    const wrapper = await mountBar(2, 3);
+    expect(wrapper.get(".action-bar").attributes("role")).toBeUndefined();
+    const status = wrapper.get('[role="status"]');
+    expect(status.text()).toContain("已选 2 项");
+    expect(status.find("button, select, input").exists()).toBe(false);
+  });
+
   it("renders nothing without a selection or drafts", async () => {
     const wrapper = await mountBar(0, 0);
     expect(wrapper.find(".action-bar").exists()).toBe(false);
