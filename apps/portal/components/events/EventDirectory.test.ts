@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import EventDirectory from "./EventDirectory.vue";
 
 const portalApi = vi.fn(async (path: string) => {
-  if (path.startsWith("/v1/public/reviews/summaries?")) return { contractVersion: "1" as const, targetType: "event" as const, items: [{ targetType: "event" as const, targetId: "event.alpha", averageRating: 4.5, reviewCount: 4, ratingDistribution: { 1: 0, 2: 0, 3: 1, 4: 1, 5: 2 }, sampleInsufficient: false }] };
+  if (path.startsWith("/v1/public/reviews/summaries?")) return { contractVersion: "1" as const, targetType: "event" as const, items: [{ targetType: "event" as const, targetId: "event.alpha", averageRating: 4.5, reviewCount: 4, ratingDistribution: { 1: 0, 2: 0, 3: 1, 4: 1, 5: 2 } }] };
   throw new Error(`Unexpected request: ${path}`);
 });
 
@@ -42,7 +42,6 @@ const global = {
     UDrawer: { template: '<div role="dialog" aria-label="事件详情"><slot name="description" /><slot name="body" /></div>' },
     UAccordion: { props: ["items"], template: "<div><template v-for=\"item in items\" :key=\"item.label\"><slot :name=\"item.slot || 'probability'\" :item=\"item\" /></template></div>" },
     PlayerReviewPanel: { template: "<div class=\"stub-review-panel\" />" },
-    ReviewSummaryBadge: { props: ["summary"], template: "<span class=\"review-summary-badge\">{{ summary?.averageRating ?? '暂无评分' }}</span>" },
   },
 };
 

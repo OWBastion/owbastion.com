@@ -16,7 +16,6 @@ const summary = {
     averageRating: 4.2,
     reviewCount: 3,
     ratingDistribution: { 1: 0, 2: 0, 3: 1, 4: 1, 5: 1 },
-    sampleInsufficient: false,
   },
 };
 const comments = {
@@ -98,7 +97,7 @@ describe("PlayerReviewPanel", () => {
 
   it("loads an empty state and anonymous editor for authenticated players", async () => {
     setupApi(true, {
-      "/v1/public/reviews/map/map.samoa/summary?gameplayRevisionId=revision%3Amap.samoa%3Ainitial": { ...summary, summary: { ...summary.summary, averageRating: null, reviewCount: 0, ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }, sampleInsufficient: true } },
+      "/v1/public/reviews/map/map.samoa/summary?gameplayRevisionId=revision%3Amap.samoa%3Ainitial": { ...summary, summary: { ...summary.summary, averageRating: null, reviewCount: 0, ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } } },
       "/v1/public/reviews/map/map.samoa/comments?page=1&pageSize=5&gameplayRevisionId=revision%3Amap.samoa%3Ainitial": { ...comments, items: [], total: 0 },
       "/v1/me/reviews/map/map.samoa?gameplayRevisionId=revision%3Amap.samoa%3Ainitial": { contractVersion: "1", review: null },
     });
@@ -106,10 +105,10 @@ describe("PlayerReviewPanel", () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain("暂无评分");
-    expect(wrapper.text()).toContain("样本不足");
+    expect(wrapper.find(".review-dot").exists()).toBe(false);
     expect(wrapper.text()).toContain("暂无文字评价");
     expect(wrapper.text()).toContain("匿名展示只对其他玩家隐藏身份");
-    expect(wrapper.get('button[aria-label="5 星"][aria-pressed="true"]').text()).toContain("5 星");
+    expect(wrapper.get('button[aria-label="5 星"][aria-pressed="true"]').text()).toBe("★");
   });
 
   it("preserves the editor flow for edit and anonymous save without duplicate writes", async () => {

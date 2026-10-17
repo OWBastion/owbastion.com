@@ -12,7 +12,7 @@ defineProps<{
   <div v-if="submissions.length" class="submission-list">
     <NuxtLink v-for="submission in submissions" :key="submission.submissionId" :to="`/me/submissions/${submission.submissionId}`" class="submission-row interactive-card pressable-soft">
       <div><strong>{{ submission.mapName }}</strong><span>{{ formatTime(submission.updatedAt) }}<template v-if="verifiedRunOutcomePresentation(submission.verifiedRunOutcome)"> · {{ verifiedRunOutcomePresentation(submission.verifiedRunOutcome)?.inline }}</template></span></div>
-      <SubmissionStatusBadge :status="submission.status" :resubmission-required="submission.resubmissionRequired" />
+      <StatusBadge :label="playerSubmissionStatusLabel(submission.status, submission.resubmissionRequired)" :tone="playerSubmissionStatusTone(submission.status, submission.resubmissionRequired)" />
     </NuxtLink>
   </div>
   <UEmpty v-else title="暂无提交记录" description="提交完成截图，开始记录你的地图精通进度。" variant="naked">

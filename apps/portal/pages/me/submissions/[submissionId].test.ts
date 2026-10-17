@@ -27,7 +27,6 @@ mockNuxtImport("usePortalApi", () => () => api);
 
 const stubs = {
   StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" },
-  SubmissionStatusBadge: { props: ["status"], template: "<span>{{ status }}</span>" },
   SubmissionProgress: { template: '<div class="progress-card">处理未通过</div>' },
   OcrFeedbackPanel: {
     props: ["submissionId", "feedback"],
@@ -97,7 +96,7 @@ describe("submission detail page", () => {
       evidenceUrl: "https://example.test/evidence.png",
     }));
     const waiting = await mountSubmission("/me/submissions/submission-waiting");
-    expect(waiting.text()).toContain("needs_review");
+    expect(waiting.text()).toContain("等待核对");
 
     api.mockImplementation(() => Promise.resolve({
       submissionId: "submission-ocr-review",
@@ -108,7 +107,7 @@ describe("submission detail page", () => {
       evidenceUrl: "https://example.test/evidence.png",
     }));
     const ocrReview = await mountSubmission("/me/submissions/submission-ocr-review");
-    expect(ocrReview.text()).toContain("needs_review");
+    expect(ocrReview.text()).toContain("等待核对");
   });
 
   it("hides manual review button when the API marks the submission ineligible", async () => {
@@ -252,7 +251,7 @@ describe("submission detail page", () => {
       evidenceUrl: "https://example.test/evidence.png",
     }));
     const wrapper = await mountSubmission("/me/submissions/submission-passed");
-    expect(wrapper.text()).toContain("completed");
+    expect(wrapper.text()).toContain("已完成");
     expect(wrapper.text()).not.toContain("已获得称号");
   });
 
@@ -271,11 +270,11 @@ describe("submission detail page", () => {
       });
     });
     const wrapper = await mountSubmission("/me/submissions/submission-refresh");
-    expect(wrapper.text()).toContain("processing");
+    expect(wrapper.text()).toContain("处理中");
     await wrapper.get('button[aria-label="刷新状态"]').trigger("click");
     await flushPromises();
     expect(wrapper.get('[aria-live="polite"]').text()).toContain("无法刷新状态");
-    expect(wrapper.text()).toContain("processing");
+    expect(wrapper.text()).toContain("处理中");
   });
 
   it("renders the OCR feedback panel when the submission has a current OCR result", async () => {
