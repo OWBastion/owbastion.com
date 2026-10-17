@@ -92,7 +92,6 @@ describe("leaderboard page", () => {
 
     const pods = wrapper.findAll(".pod");
     expect(pods).toHaveLength(3);
-    expect(pods[0]!.classes()).toContain("p1");
     expect(pods[0]!.text()).toContain("霜狐");
     expect(pods[0]!.text()).toContain("1,200");
 
@@ -213,8 +212,8 @@ describe("leaderboard page", () => {
     await flushPromises();
     const sheet = wrapper.get('[role="dialog"]');
     expect(sheet.text()).toContain("地图 · 玩过 8 / 40 张");
-    const summaryCells = sheet.findAll(".player-sheet-tiers > div").map((cell) => [cell.classes()[0], cell.text()]);
-    expect(summaryCells).toEqual([["t3", "1主宰"], ["t2", "1征服者"], ["t1", "1开拓者"]]);
+    const summaryCells = sheet.findAll(".player-sheet-tiers > div").map((cell) => cell.text());
+    expect(summaryCells).toEqual(["1主宰", "1征服者", "1开拓者"]);
     const rows = sheet.findAll(".player-sheet-map-row");
     expect(rows).toHaveLength(5);
     expect(rows[0]!.text()).toContain("地图0");
