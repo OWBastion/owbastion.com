@@ -44,6 +44,7 @@ export const playerAccounts = sqliteTable("player_accounts", {
   isAdmin: integer("is_admin").notNull().default(0),
   status: text("status").notNull().default("active"),
   publicProfile: integer("public_profile").notNull().default(1),
+  publicHandle: text("public_handle"),
   bannedAt: integer("banned_at"),
   bannedBy: text("banned_by"),
   banReason: text("ban_reason"),
@@ -51,6 +52,7 @@ export const playerAccounts = sqliteTable("player_accounts", {
   updatedAt: integer("updated_at").notNull(),
 }, (table) => ({
   battleTag: uniqueIndex("player_accounts_battletag_idx").on(table.normalizedPlayerName, table.playerId),
+  publicHandle: uniqueIndex("player_accounts_public_handle_idx").on(table.publicHandle),
 }));
 
 export const maps = sqliteTable("maps", {
