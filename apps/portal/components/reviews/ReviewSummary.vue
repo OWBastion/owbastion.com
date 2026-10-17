@@ -13,7 +13,7 @@ const props = defineProps<{
 const emit = defineEmits<{ page: [number] }>();
 const ratings: ReviewRating[] = [5, 4, 3, 2, 1];
 
-const averageLabel = computed(() => props.summary?.averageRating == null ? "暂无评分" : props.summary.averageRating.toFixed(1));
+const averageParts = computed(() => props.summary?.averageRating == null ? null : props.summary.averageRating.toFixed(1).split("."));
 const distributionMax = computed(() => Math.max(...ratings.map((rating) => props.summary?.ratingDistribution[rating] ?? 0), 1));
 const distributionWidth = (rating: ReviewRating) => Math.round(((props.summary?.ratingDistribution[rating] ?? 0) / distributionMax.value) * 100) + "%";
 const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "numeric", day: "numeric" }).format(new Date(timestamp));
@@ -24,7 +24,7 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { yea
     <div v-if="loading" class="review-loading" role="status">读取中…</div>
     <template v-else>
       <div class="review-summary-overview">
-        <div class="review-average"><strong>{{ averageLabel }}</strong><span>{{ summary?.reviewCount ?? 0 }} 条有效评价</span></div>
+        <div class="review-average"><strong :class="{ empty: !averageParts }"><template v-if="averageParts">{{ averageParts[0] }}<span class="review-dot" role="presentation"></span><span class="review-dot-sr">.</span>{{ averageParts[1] }}</template><template v-else>暂无评分</template></strong><span>{{ summary?.reviewCount ?? 0 }} 条有效评价</span></div>
         <div class="review-distribution" aria-label="评分分布">
           <div v-for="rating in ratings" :key="rating" class="review-distribution-row">
             <span>{{ rating }} 星</span>
@@ -33,7 +33,6 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { yea
           </div>
         </div>
       </div>
-      <p v-if="summary?.sampleInsufficient" class="review-sample-note">样本不足，评分仅供参考。</p>
       <div class="review-comments" aria-labelledby="review-comments-title">
         <div class="review-subsection-heading"><h4 id="review-comments-title">玩家评价</h4><span>{{ total }} 条</span></div>
         <p v-if="!comments.length" class="review-empty">暂无文字评价。</p>
@@ -58,13 +57,15 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { yea
 .review-loading, .review-empty { margin: 0; color: var(--quiet); font-size: .84rem; }
 .review-summary-overview { display: grid; grid-template-columns: minmax(94px, .7fr) minmax(0, 1.3fr); gap: var(--space-5); align-items: center; }
 .review-average { display: grid; gap: var(--space-1); }
-.review-average strong { color: var(--text); font-size: clamp(1.8rem, 5vw, 2.5rem); letter-spacing: -.06em; }
+.review-average strong { color: var(--text); font-size: clamp(1.8rem, 5vw, 2.5rem); letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.review-average strong.empty { font-size: 1.4rem; white-space: nowrap; }
+.review-average .review-dot { display: inline-block; width: .18em; height: .18em; margin-inline: .08em; font-size: inherit; border-radius: var(--radius-pill); background: currentColor; }
+.review-average .review-dot-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .review-average span, .review-subsection-heading > span, .review-comment-meta { color: var(--muted); font-size: .76rem; }
 .review-distribution { display: grid; gap: var(--space-2); }
 .review-distribution-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) 20px; gap: var(--space-2); align-items: center; color: var(--muted); font-size: .72rem; }
 .review-distribution-track { height: 7px; overflow: hidden; border-radius: var(--radius-pill); background: var(--surface-raised); }
 .review-distribution-track span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
-.review-sample-note { margin: 0; color: var(--quiet); font-size: .76rem; }
 .review-comments { display: grid; gap: var(--space-3); }
 .review-subsection-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
 .review-subsection-heading h4 { margin: 0; color: var(--text); font-size: .9rem; }

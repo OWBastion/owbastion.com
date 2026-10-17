@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { Map, MapChallenge } from "~/types/challenge";
 import type { ReviewSummary } from "~/composables/usePlayerReview";
-import ReviewSummaryBadge from "~/components/reviews/ReviewSummaryBadge.vue";
 
 const props = defineProps<{
   map: Map;
@@ -15,6 +14,7 @@ const emit = defineEmits<{ select: [] }>();
 
 const mapChallenges = computed(() => props.challenges.filter((challenge) => challenge.mapId === props.map.mapId));
 const mechanics = computed(() => props.map.mechanics ?? []);
+const reviewBadge = computed(() => reviewRatingChip(props.reviewSummary, props.reviewLoading, props.reviewError));
 const mapIndex = computed(() => props.map.mapId.split(".").at(-1)?.slice(0, 2).toUpperCase() ?? "地图");
 </script>
 
@@ -23,7 +23,7 @@ const mapIndex = computed(() => props.map.mapId.split(".").at(-1)?.slice(0, 2).t
     <div class="map-card-media" aria-hidden="true"><img v-if="map.coverUrl" :src="map.coverUrl" alt="" /><span v-else>{{ mapIndex }}</span></div>
     <div class="map-card-body">
       <div class="map-card-heading"><h2 class="type-card-title">{{ map.mapName }}</h2><span class="type-caption">{{ map.gameVersion }}</span></div>
-      <ReviewSummaryBadge :summary="reviewSummary" :loading="reviewLoading" :error="reviewError" />
+      <StatusBadge :label="reviewBadge.label" :tone="reviewBadge.tone" icon="★" />
       <dl class="map-card-stats">
         <div><dt class="type-label-sm">地图评级</dt><dd class="type-label" :class="{ quiet: map.difficultyRating == null }">{{ map.difficultyRating ?? "暂无记录" }}</dd></div>
         <div><dt class="type-label-sm">挑战</dt><dd class="type-label" :class="{ quiet: !mapChallenges.length }">{{ mapChallenges.length ? `${mapChallenges.length} 项` : "暂无记录" }}</dd></div>

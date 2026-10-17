@@ -42,7 +42,6 @@ const global = {
     UDrawer: { template: '<div role="dialog" aria-label="事件详情"><slot name="description" /><slot name="body" /></div>' },
     UAccordion: { props: ["items"], template: "<div><template v-for=\"item in items\" :key=\"item.label\"><slot :name=\"item.slot || 'probability'\" :item=\"item\" /></template></div>" },
     PlayerReviewPanel: { template: "<div class=\"stub-review-panel\" />" },
-    ReviewSummaryBadge: { props: ["summary"], template: "<span class=\"review-summary-badge\">{{ summary?.averageRating ?? '暂无评分' }}</span>" },
   },
 };
 

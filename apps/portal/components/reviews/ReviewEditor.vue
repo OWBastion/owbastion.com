@@ -26,8 +26,9 @@ const ratings: ReviewRating[] = [1, 2, 3, 4, 5];
     <div class="review-editor-heading"><div><h4>{{ currentReview ? "编辑评价" : "写下评价" }}</h4></div><span>{{ comment.length }}/500</span></div>
     <fieldset class="review-rating-fieldset" :disabled="saving">
       <legend>评分</legend>
-      <div class="review-rating-options">
-        <UButton v-for="value in ratings" :key="value" class="review-rating-option" :color="rating === value ? 'primary' : 'neutral'" :variant="rating === value ? 'soft' : 'outline'" type="button" :aria-label="value + ' 星'" :aria-pressed="rating === value" @click="emit('update:rating', value)"><span aria-hidden="true">★</span><span>{{ value }} 星</span></UButton>
+      <div class="review-rating-options" role="group">
+        <button v-for="value in ratings" :key="value" class="review-rating-option" :class="{ on: value <= rating }" type="button" :aria-label="value + ' 星'" :aria-pressed="rating === value" @click="emit('update:rating', value)">★</button>
+        <span class="review-rating-value">{{ rating }} / 5</span>
       </div>
     </fieldset>
     <label class="review-comment-field"><span>评价内容</span><textarea :value="comment" maxlength="500" rows="4" :disabled="saving" aria-describedby="review-anonymous-note" placeholder="分享你的实际体验" @input="emit('update:comment', ($event.target as HTMLTextAreaElement).value)"></textarea></label>
@@ -48,9 +49,12 @@ const ratings: ReviewRating[] = [1, 2, 3, 4, 5];
 .review-editor-heading p, .review-editor-heading > span, .review-anonymous-note { margin: var(--space-1) 0 0; color: var(--muted); font-size: .76rem; }
 .review-rating-fieldset { min-width: 0; padding: 0; margin: 0; border: 0; }
 .review-rating-fieldset legend, .review-comment-field > span { margin-bottom: var(--space-2); color: var(--text); font-size: .8rem; font-weight: 500; }
-.review-rating-options { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-1); }
-.review-rating-option { min-width: 0; flex-direction: column; gap: 1px; padding-inline: var(--space-1); font-size: .7rem; }
-.review-rating-option span:first-child { font-size: 1rem; line-height: 1; }
+.review-rating-options { display: flex; align-items: center; gap: var(--space-1); }
+.review-rating-option { display: grid; place-items: center; width: var(--control-md); height: var(--control-md); padding: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--line-strong); font-size: 1.75rem; line-height: 1; cursor: pointer; }
+.review-rating-option.on { color: var(--accent); }
+.review-rating-option:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.review-rating-option:disabled { cursor: not-allowed; opacity: .6; }
+.review-rating-value { margin-left: var(--space-2); color: var(--muted); font-size: .76rem; }
 .review-comment-field textarea:focus-visible, .review-anonymous-field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .review-comment-field { display: grid; }
 .review-comment-field textarea { width: 100%; min-height: 96px; padding: var(--space-2) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-control); resize: vertical; color: var(--text); background: var(--surface); font: inherit; font-size: .82rem; line-height: 1.5; }
@@ -58,8 +62,5 @@ const ratings: ReviewRating[] = [1, 2, 3, 4, 5];
 .review-anonymous-field { display: flex; min-height: 44px; align-items: center; gap: var(--space-2); color: var(--text); font-size: .8rem; }
 .review-anonymous-field input { width: 18px; height: 18px; accent-color: var(--accent); }
 .review-anonymous-note { margin: -0.25rem 0 0 var(--space-6); }
-@container (max-width: 23.99rem) {
-  .review-rating-option { padding-inline: 1px; font-size: .65rem; }
-}
 @media (prefers-contrast: more) { .review-comment-field textarea { border-color: var(--line-strong); } }
 </style>

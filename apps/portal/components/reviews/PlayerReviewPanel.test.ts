@@ -106,10 +106,10 @@ describe("PlayerReviewPanel", () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain("暂无评分");
-    expect(wrapper.text()).toContain("样本不足");
+    expect(wrapper.find(".review-dot").exists()).toBe(false);
     expect(wrapper.text()).toContain("暂无文字评价");
     expect(wrapper.text()).toContain("匿名展示只对其他玩家隐藏身份");
-    expect(wrapper.get('button[aria-label="5 星"][aria-pressed="true"]').text()).toContain("5 星");
+    expect(wrapper.get('button[aria-label="5 星"][aria-pressed="true"]').text()).toBe("★");
   });
 
   it("preserves the editor flow for edit and anonymous save without duplicate writes", async () => {

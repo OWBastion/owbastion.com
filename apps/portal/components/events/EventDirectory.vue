@@ -74,6 +74,7 @@ const visibleEffectChips = (event: RandomEvent) => {
 const reviewSummaries = useReviewSummaries("event", () => props.events.map((event) => event.eventId));
 const reviewLoading = computed(() => reviewSummaries.loading.value);
 const reviewError = computed(() => reviewSummaries.error.value);
+const eventRatingChip = (eventId: string) => reviewRatingChip(reviewSummaries.summaryFor(eventId), reviewLoading.value, reviewError.value);
 const refreshReviewSummaries = () => reviewSummaries.refresh();
 
 onMounted(() => { hydrated.value = true; });
@@ -145,7 +146,7 @@ onMounted(() => { hydrated.value = true; });
                 <UBadge v-for="tag in visibleEffectChips(event).rawTags" :key="`raw-${tag}`" :label="tag" color="neutral" variant="subtle" />
                 <span v-if="visibleEffectChips(event).overflow" class="effect-overflow type-caption">+{{ visibleEffectChips(event).overflow }}</span>
               </div>
-              <ReviewSummaryBadge :summary="reviewSummaries.summaryFor(event.eventId)" :loading="reviewLoading" :error="reviewError" />
+              <StatusBadge v-bind="eventRatingChip(event.eventId)" icon="★" />
             </div>
           </article>
         </div>

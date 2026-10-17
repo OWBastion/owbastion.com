@@ -38,7 +38,7 @@ const withdraw = async () => { if (await review.withdraw()) emit("review-changed
 
 <template>
   <section class="detail-section review-panel" :aria-labelledby="titleId">
-    <div class="section-title"><h3 :id="titleId">玩家评分</h3><UBadge v-if="loading" label="读取中" color="neutral" variant="subtle" /><UBadge v-else-if="unavailable" label="暂不可用" color="warning" variant="subtle" /><UBadge v-else label="公开结果" color="neutral" variant="subtle" /></div>
+    <div class="section-title"><h3 :id="titleId">玩家评分</h3><UBadge v-if="loading" label="读取中" color="neutral" variant="subtle" /><UBadge v-else-if="unavailable" label="暂不可用" color="warning" variant="subtle" /></div>
     <ReviewSummary :summary="summary" :comments="comments" :loading="loading" :page="reviewPage" :total="reviewTotal" :has-more="reviewHasMore" @page="review.changePage" />
     <UAlert v-if="unavailable" color="warning" variant="subtle" title="评价暂不可用" description="这项内容已无法读取评价。" />
     <template v-else>
