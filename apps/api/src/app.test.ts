@@ -112,7 +112,7 @@ const defaultServices: Partial<PlatformServices> = {
   verifyQqLogin: async () => ({ contractVersion: "1", status: "verified", environment: "test" }),
   getCurrentPlayer: async ({ sessionToken }) => sessionToken === "session-token" ? {
     contractVersion: "1",
-    player: { playerId: "1234", playerName: "Player", isAdmin: false, publicProfile: true },
+    player: { playerId: "1234", playerName: "Player", isAdmin: false, publicProfile: true, publicHandle: null },
     recentSubmissions: [{ submissionId: "00000000-0000-0000-0000-000000000003", status: "processing", mapName: "Test Map", createdAt: 2, updatedAt: 3 }],
   } : null,
   updateCurrentPlayerPublicHandle: async (input) => input.sessionToken === "session-token" ? { contractVersion: "1" as const, publicHandle: input.publicHandle } : (() => { throw new Error("UNAUTHENTICATED"); })(),
@@ -888,7 +888,7 @@ describe("API", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       contractVersion: "1",
-      player: { playerId: "1234", playerName: "Player", isAdmin: false, publicProfile: true },
+      player: { playerId: "1234", playerName: "Player", isAdmin: false, publicProfile: true, publicHandle: null },
       recentSubmissions: [{ submissionId: "00000000-0000-0000-0000-000000000003", status: "processing", mapName: "Test Map", createdAt: 2, updatedAt: 3 }],
     });
   });
