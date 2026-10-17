@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Map, MapChallenge } from "~/types/challenge";
+import type { OwnedTitle } from "~/types/title";
 import MapCard from "./MapCard.vue";
 import MapDetailModal from "./MapDetailModal.vue";
 import { useReviewSummaries } from "~/composables/useReviewSummaries";
@@ -8,6 +9,7 @@ const props = defineProps<{
   maps: Map[];
   challenges: MapChallenge[];
   authenticated: boolean;
+  titles?: OwnedTitle[];
   selectedMapId?: string;
 }>();
 
@@ -68,7 +70,7 @@ watch(modalOpen, (open) => {
   <section class="map-directory" aria-label="地图列表">
     <div v-if="props.maps.length" class="map-grid"><MapCard v-for="map in props.maps" :key="map.mapId" :map="map" :challenges="props.challenges" :review-summary="reviewSummaries.summaryFor(map.mapId, map.defaultGameplayRevisionId)" :review-loading="reviewLoading" :review-error="reviewError" @select="openMap(map)" /></div>
     <UEmpty v-else title="暂无地图" variant="naked" />
-    <MapDetailModal v-model:open="modalOpen" :map="selectedMap" :challenges="props.challenges" :authenticated="props.authenticated" @review-changed="refreshReviewSummaries" />
+    <MapDetailModal v-model:open="modalOpen" :map="selectedMap" :challenges="props.challenges" :authenticated="props.authenticated" :titles="props.titles" @review-changed="refreshReviewSummaries" />
   </section>
 </template>
 

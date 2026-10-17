@@ -32,17 +32,17 @@ const submit = () => emit("save", {
 
 <template>
   <form class="metadata-form" @submit.prevent="submit">
-    <UFormField label="地图名称" required hint="与游戏截图里的地图名保持一致，自动审核按它识别地图。"><UInput v-model="form.mapName" required maxlength="128" :disabled="saving" /></UFormField>
-    <UFormField label="地图难度评级" hint="地图综合评级，不等同于挑战难度。"><USelect v-model="form.difficultyRating" :items="difficultyItems" :disabled="saving" /></UFormField>
-    <UFormField label="特殊机制" hint="服务端负责最终数量和长度校验。"><UInputTags v-model="form.mechanics" :disabled="saving" placeholder="输入机制标签" /></UFormField>
-    <UFormField label="目录版本" required><UInput v-model="form.gameVersion" required :disabled="saving" /></UFormField>
-    <UFormField label="地图封面地址"><UInput v-model="form.coverUrl" type="url" placeholder="https://…" :disabled="saving" /></UFormField>
-    <UFormField label="地图背景地址"><UInput v-model="form.backgroundUrl" type="url" placeholder="https://…" :disabled="saving" /></UFormField>
+    <UFormField label="地图名称" required help="与游戏截图里的地图名保持一致，自动审核按它识别地图。"><UInput class="w-full" v-model="form.mapName" required maxlength="128" :disabled="saving" /></UFormField>
+    <UFormField label="地图难度评级" help="地图综合评级，不等同于挑战难度。"><USelect class="w-full" v-model="form.difficultyRating" :items="difficultyItems" :disabled="saving" /></UFormField>
+    <UFormField label="特殊机制" help="服务端负责最终数量和长度校验。"><UInputTags class="w-full" v-model="form.mechanics" :disabled="saving" placeholder="输入机制标签" /></UFormField>
+    <UFormField label="目录版本" required><UInput class="w-full" v-model="form.gameVersion" required :disabled="saving" /></UFormField>
+    <UFormField label="地图封面地址"><UInput class="w-full" v-model="form.coverUrl" type="url" placeholder="https://…" :disabled="saving" /></UFormField>
+    <UFormField label="地图背景地址"><UInput class="w-full" v-model="form.backgroundUrl" type="url" placeholder="https://…" :disabled="saving" /></UFormField>
     <UButton type="submit" class="pressable" label="保存地图资料" :loading="saving" :disabled="saving" />
   </form>
 </template>
 
 <style scoped>
-.metadata-form { display: grid; gap: 0.875rem; }
+.metadata-form { display: grid; gap: 0.875rem; max-width: 32.5rem; }
 .metadata-form :deep(button[type="submit"]) { justify-self: start; min-height: 2.75rem; }
 </style>

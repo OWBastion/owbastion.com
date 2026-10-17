@@ -36,6 +36,9 @@ const publicCatalogFetch = vi.fn(async (name: string) => {
 });
 
 mockNuxtImport("useCurrentPlayer", () => () => ({ player: currentPlayer, refresh: refreshPlayer }));
+const ownedTitles = ref<unknown[]>([]);
+const refreshTitles = vi.fn(async () => ownedTitles.value);
+mockNuxtImport("usePlayerTitles", () => () => ({ items: ownedTitles, allTitles: ref(false), refresh: refreshTitles }));
 mockNuxtImport("usePortalApi", () => () => portalApi);
 mockNuxtImport("usePublicCatalog", () => (name: string) => publicCatalogFetch(name));
 
@@ -110,6 +113,49 @@ describe("maps page", () => {
     expect(wrapper.text()).not.toContain("登录后可评价地图。");
     expect(portalApi.mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith("/v1/me/mastery"))).toEqual([]);
     wrapper.unmount();
+  });
+
+  it("passes a signed-in player's titles to map detail, and requests none when signed out", async () => {
+    publicCatalogFetch.mockImplementation(async (name: string) => {
+      if (name === "maps") return { items: (await defaultPortalApi("/v1/maps")).items };
+      if (name === "mapChallenges") return { items: [{ challengeId: "map.samoa.pioneer", family: "map", gameplayRevisionId: "revision:map.samoa:initial", type: "map_completion", kind: "pioneer", name: "开拓者", mapId: "map.samoa", mapName: "萨摩亚", titleKey: "SAMOA_PIONEER", status: "active" }] };
+      throw new Error(`Unexpected catalog request: ${name}`);
+    });
+    ownedTitles.value = [{ grantId: "g1", titleKey: "SAMOA_PIONEER", label: "开拓者", icon: "trophy", category: "地图", condition: "完成", scope: "map", mapId: "map.samoa", gameplayRevisionId: "revision:map.samoa:initial", grantedAt: 1, equipped: true }];
+
+    currentPlayer.value = null;
+    refreshTitles.mockClear();
+    const signedOut = await mountSuspended(MapsPage, { route: "/maps?mapId=map.samoa" });
+    await flushPromises();
+    expect(document.body.textContent).toContain("开拓者");
+    expect(document.body.textContent).not.toContain("已佩戴");
+    expect(refreshTitles).not.toHaveBeenCalled();
+    signedOut.unmount();
+
+    currentPlayer.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
+    const signedIn = await mountSuspended(MapsPage, { route: "/maps?mapId=map.samoa" });
+    await flushPromises();
+    expect(document.body.textContent).toContain("已佩戴");
+    signedIn.unmount();
+  });
+
+  it("renders the signed-out view when the player refresh fails, and keeps the player when only titles fail", async () => {
+    currentPlayer.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
+    refreshPlayer.mockRejectedValueOnce(new Error("offline"));
+    const failed = await mountSuspended(MapsPage);
+    await flushPromises();
+    expect(currentPlayer.value).toBeNull();
+    expect(failed.text()).toContain("登录后可评价地图。");
+    failed.unmount();
+
+    currentPlayer.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
+    refreshTitles.mockRejectedValueOnce(new Error("titles down"));
+    const titlesFailed = await mountSuspended(MapsPage, { route: "/maps?mapId=map.samoa" });
+    await flushPromises();
+    expect(currentPlayer.value).not.toBeNull();
+    expect(titlesFailed.text()).not.toContain("登录后可评价地图。");
+    expect(document.body.textContent).not.toContain("未获得");
+    titlesFailed.unmount();
   });
 
   it("shows the factual error state when either public catalog request fails", async () => {

@@ -43,7 +43,7 @@ describe("MyAchievementOverview", () => {
     const wrapper = await mountSuspended(MyAchievementOverview, { props: { challenges, titles: [] } });
     expect(wrapper.text()).toContain("已获得 0 / 1");
     expect(wrapper.text()).toContain("暂无称号");
-    expect(wrapper.find('[role="img"][aria-label="已获得"]').exists()).toBe(false);
+    expect(wrapper.get("article.achievement-card").text()).toContain("未获得");
   });
 
   it("does not show equipment actions for map-scoped catalog cards", async () => {
@@ -78,5 +78,25 @@ describe("MyAchievementOverview", () => {
     expect(wrapper.text()).toContain("帕拉伊苏");
     expect(wrapper.text()).toContain("已获得 0 / 1");
     expect(wrapper.text()).toContain("通用成就");
+  });
+
+  it("shows the same equipped, obtained and not-obtained wording as the other achievement surfaces", async () => {
+    const wrapper = await mountSuspended(MyAchievementOverview, {
+      props: {
+        challenges: [
+          challenges[0]!,
+          { ...challenges[0]!, challengeId: "title-2", titleKey: "OWNED", titleName: "获得称号" },
+          { ...challenges[0]!, challengeId: "title-3", titleKey: "NONE", titleName: "未得称号" },
+        ],
+        titles: [
+          { grantId: "g1", titleKey: "TEST", label: "测试称号", icon: "trophy", category: "测试", condition: "完成挑战", scope: "global", grantedAt: 2, equipped: true },
+          { grantId: "g2", titleKey: "OWNED", label: "获得称号", icon: "trophy", category: "测试", condition: "完成挑战", scope: "global", grantedAt: 1 },
+        ],
+      },
+    });
+    const cards = wrapper.findAll("article.achievement-card").map((card) => card.text());
+    expect(cards.find((text) => text.includes("测试称号"))).toContain("已佩戴");
+    expect(cards.find((text) => text.includes("获得称号"))).toContain("已获得");
+    expect(cards.find((text) => text.includes("未得称号"))).toContain("未获得");
   });
 });

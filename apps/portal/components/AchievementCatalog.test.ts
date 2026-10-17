@@ -36,4 +36,21 @@ describe("AchievementCatalog", () => {
     expect(wrapper.text()).toContain("测试称号");
     expect(wrapper.text()).not.toContain("历史成就");
   });
+
+  it("shows the same equipped, obtained and not-obtained wording when player titles are given", async () => {
+    const base = { family: "achievement", type: "title_achievement", kind: "title_achievement", icon: "trophy", iconUrl: null, category: "测试", condition: "完成挑战", evidenceRule: "完整截图", gameVersion: "26.0713.1", status: "active", submissionMode: "manual" } as const;
+    const wrapper = await mountSuspended(AchievementCatalog, {
+      props: {
+        challenges: [{ ...base, challengeId: "a", titleKey: "WORN", titleName: "佩戴称号" }, { ...base, challengeId: "b", titleKey: "OWNED", titleName: "获得称号" }, { ...base, challengeId: "c", titleKey: "NONE", titleName: "未得称号" }],
+        titles: [
+          { grantId: "g1", titleKey: "WORN", label: "佩戴称号", icon: "trophy", category: "测试", condition: "完成挑战", scope: "global", grantedAt: 1, equipped: true },
+          { grantId: "g2", titleKey: "OWNED", label: "获得称号", icon: "trophy", category: "测试", condition: "完成挑战", scope: "global", grantedAt: 1 },
+        ],
+      },
+    });
+    const cards = wrapper.findAll("article").map((card) => card.text());
+    expect(cards.find((text) => text.includes("佩戴称号"))).toContain("已佩戴");
+    expect(cards.find((text) => text.includes("获得称号"))).toContain("已获得");
+    expect(cards.find((text) => text.includes("未得称号"))).toContain("未获得");
+  });
 });

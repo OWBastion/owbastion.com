@@ -94,33 +94,33 @@ function submit() {
       <form id="achievement-create-form" class="admin-achievement-editor admin-achievement-editor--create" @submit.prevent="submit">
         <UFormField class="editor-field editor-field--wide" label="称号名称" required><UInput v-model="form.titleName" class="editor-control" :disabled="props.saving" required /></UFormField>
         <UFormField class="editor-field editor-field--wide" label="完成条件" required><UTextarea v-model="form.condition" class="editor-control" :disabled="props.saving" required maxlength="1024" /></UFormField>
-        <UFormField class="editor-field" label="完成规则" hint="集齐指定地图的进度型挑战以已验证通关为准，不走截图审核。"><USelect v-model="form.progressMode" class="editor-control" :disabled="props.saving" :items="progressModeItems" /></UFormField>
+        <UFormField class="editor-field" label="完成规则" help="集齐指定地图的进度型挑战以已验证通关为准，不走截图审核。"><USelect v-model="form.progressMode" class="editor-control" :disabled="props.saving" :items="progressModeItems" /></UFormField>
         <UFormField class="editor-field" label="状态"><USelect v-model="form.status" class="editor-control" :disabled="props.saving" :items="[{ label: '草稿', value: 'draft' }, { label: '已开放', value: 'active' }, { label: '已下线', value: 'archived' }]" /></UFormField>
         <template v-if="progressMode">
-          <UFormField class="editor-field" label="统计范围" hint="选择独立模式后自动跟随该模式的全部地图。"><USelect v-model="progressScope" class="editor-control" :items="scopeItems" :disabled="props.saving" /></UFormField>
+          <UFormField class="editor-field" label="统计范围" help="选择独立模式后自动跟随该模式的全部地图。"><USelect v-model="progressScope" class="editor-control" :items="scopeItems" :disabled="props.saving" /></UFormField>
           <UFormField class="editor-field" label="最低难度"><USelect v-model="form.progressDifficultyAtLeast" class="editor-control" :items="progressDifficultyItems" :disabled="props.saving" /></UFormField>
-          <UFormField v-if="!form.progressGameMode" class="editor-field editor-field--wide" label="要求地图" hint="玩家在活动时间内于每张地图各留下至少一条有效已验证通关即完成。"><USelect v-model="form.progressMapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
+          <UFormField v-if="!form.progressGameMode" class="editor-field editor-field--wide" label="要求地图" help="玩家在活动时间内于每张地图各留下至少一条有效已验证通关即完成。"><USelect v-model="form.progressMapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
         </template>
         <template v-if="form.status !== 'archived'"><UFormField class="editor-field" label="开始时间"><AdminDateTimePicker class="editor-control" :model-value="form.startsAt" :disabled="props.saving" @update:model-value="setScheduleTime('startsAt', $event)" /></UFormField><UFormField class="editor-field" label="结束时间"><AdminDateTimePicker class="editor-control" :model-value="form.endsAt" :disabled="props.saving" @update:model-value="setScheduleTime('endsAt', $event)" /></UFormField></template>
-        <UFormField v-if="form.status === 'active'" class="editor-field" label="计划下线版本" hint="已开放挑战宣布下线版本后展示为即将结束。"><UInput v-model="form.retiredVersion" class="editor-control" placeholder="例如 26.0801.1" :disabled="props.saving" /></UFormField>
+        <UFormField v-if="form.status === 'active'" class="editor-field" label="计划下线版本" help="已开放挑战宣布下线版本后展示为即将结束。"><UInput v-model="form.retiredVersion" class="editor-control" placeholder="例如 26.0801.1" :disabled="props.saving" /></UFormField>
         <details class="editor-field editor-field--wide more-settings">
           <summary>更多设置</summary>
           <div class="admin-achievement-editor more-settings-body">
-            <UFormField class="editor-field" label="唯一 key" hint="留空自动生成。"><UInput v-model="form.titleKey" class="editor-control" placeholder="例如 CLASSIC_RACETRACK" :disabled="props.saving" /></UFormField>
-            <UFormField class="editor-field" label="系列" hint="选择已有系列，或输入新的。"><UInputMenu v-model="form.category" :items="categories" create-item placeholder="选择或输入" class="editor-control" :disabled="props.saving" @create="form.category = $event.trim()" /></UFormField>
-            <UFormField class="editor-field" label="图标"><UInput v-model="form.icon" class="editor-control" placeholder="trophy" :disabled="props.saving" /></UFormField>
-            <UFormField class="editor-field" label="展示分类"><UInput v-model="form.categoryOverride" class="editor-control" placeholder="留空使用系列" :disabled="props.saving" /></UFormField>
-            <UFormField class="editor-field" label="游戏版本" hint="留空使用最新版本。格式 YY.MMDD.序号。"><UInput v-model="form.gameVersion" class="editor-control" placeholder="例如 26.1003.1" :disabled="props.saving" /></UFormField>
             <template v-if="!progressMode">
               <UFormField class="editor-field editor-field--wide" label="截图规则"><UTextarea v-model="form.evidenceRule" class="editor-control" :placeholder="defaultEvidenceRule" :disabled="props.saving" maxlength="2048" /></UFormField>
               <UFormField class="editor-field" label="提交方式"><USelect v-model="form.submissionMode" class="editor-control" :disabled="props.saving" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" /></UFormField>
               <UFormField class="editor-field" label="称号适用范围"><USelect v-model="form.scope" class="editor-control" :disabled="props.saving" :items="[{ label: '全部地图', value: 'global' }, { label: '指定地图', value: 'map' }]" /></UFormField>
               <template v-if="form.scope === 'map'">
-                <UFormField class="editor-field editor-field--wide" label="指定地图" hint="留空作用于全部有效地图。"><USelect v-model="form.mapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
+                <UFormField class="editor-field editor-field--wide" label="指定地图" help="留空作用于全部有效地图。"><USelect v-model="form.mapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
                 <UFormField class="editor-field" label="地图版本"><USelect v-model="form.mapVariant" class="editor-control" :items="[{ label: '标准版', value: undefined }, { label: '经典版', value: 'classic' }]" :disabled="props.saving" /></UFormField>
               </template>
             </template>
-            <UFormField class="editor-field editor-field--wide" label="自定义图标" hint="留空使用默认图标。">
+            <UFormField class="editor-field" label="游戏版本" help="留空使用最新版本。格式 YY.MMDD.序号。"><UInput v-model="form.gameVersion" class="editor-control" placeholder="例如 26.1003.1" :disabled="props.saving" /></UFormField>
+            <UFormField class="editor-field" label="展示分类"><UInput v-model="form.categoryOverride" class="editor-control" placeholder="留空使用系列" :disabled="props.saving" /></UFormField>
+            <UFormField class="editor-field" label="唯一 key" help="留空自动生成。"><UInput v-model="form.titleKey" class="editor-control" placeholder="例如 CLASSIC_RACETRACK" :disabled="props.saving" /></UFormField>
+            <UFormField class="editor-field" label="系列" help="选择已有系列，或输入新的。"><UInputMenu v-model="form.category" :items="categories" create-item placeholder="选择或输入" class="editor-control" :disabled="props.saving" @create="form.category = $event.trim()" /></UFormField>
+            <UFormField class="editor-field" label="图标"><UInput v-model="form.icon" class="editor-control" placeholder="trophy" :disabled="props.saving" /></UFormField>
+            <UFormField class="editor-field editor-field--wide" label="自定义图标" help="留空使用默认图标。">
               <div class="icon-upload">
                 <div v-if="form.iconUrl" class="admin-achievement-icon-preview"><img :src="form.iconUrl" alt="当前成就图标" /></div>
                 <UInput v-model="form.iconUrl" class="editor-control" type="url" placeholder="https://cdn.example.com/icon.webp" maxlength="2048" :disabled="props.saving" />

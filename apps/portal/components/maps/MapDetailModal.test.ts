@@ -67,4 +67,32 @@ describe("MapDetailModal", () => {
       wrapper.unmount();
     }
   });
+
+  it("shows the same equipped, obtained and not-obtained wording for the player's map titles", async () => {
+    media.desktop = true;
+    const challenge = { family: "map", type: "map_completion", kind: "map_title_achievement", mapId: "map.samoa", mapName: "萨摩亚", gameplayRevisionId: "rev.1", status: "active" } as const;
+    const title = { icon: "trophy", category: "地图", condition: "完成", scope: "map" as const, mapId: "map.samoa", gameplayRevisionId: "rev.1", grantedAt: 1 };
+    const wrapper = mount(MapDetailModal, {
+      props: {
+        open: true,
+        map,
+        challenges: [
+          { ...challenge, challengeId: "a", name: "佩戴挑战", titleKey: "WORN" },
+          { ...challenge, challengeId: "b", name: "获得挑战", titleKey: "OWNED" },
+          { ...challenge, challengeId: "c", name: "未得挑战", titleKey: "NONE" },
+        ] as never,
+        authenticated: true,
+        titles: [
+          { ...title, grantId: "g1", titleKey: "WORN", label: "佩戴", equipped: true },
+          { ...title, grantId: "g2", titleKey: "OWNED", label: "获得" },
+        ],
+      },
+      global: { stubs: { UModal: ModalStub, UDrawer: DrawerStub, UBadge: { props: ["label"], template: "<span>{{ label }}</span>" }, PlayerReviewPanel: { template: "<div />" } } },
+    });
+    await nextTick();
+    const rows = wrapper.findAll(".challenge-list li").map((row) => row.text());
+    expect(rows.find((text) => text.includes("佩戴挑战"))).toContain("已佩戴");
+    expect(rows.find((text) => text.includes("获得挑战"))).toContain("已获得");
+    expect(rows.find((text) => text.includes("未得挑战"))).toContain("未获得");
+  });
 });

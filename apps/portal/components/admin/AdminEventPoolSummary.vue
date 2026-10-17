@@ -10,11 +10,12 @@ const emit = defineEmits<{ toggle: [version: EventVersion, availability: EventVe
     <div class="pool-summary__fact"><b class="num">{{ poolSize }}</b><span>个已实装事件在候选池</span></div>
     <div class="pool-summary__fact"><b class="num">{{ Number(poolWeight.toFixed(2)) }}</b><span>权重合计</span></div>
     <ul class="pool-summary__versions" aria-label="版本可用性">
-      <li v-for="version in versions" :key="version.gameVersion">
-        <button type="button" class="pool-summary__version pressable-soft" :class="{ 'is-off': version.availability === 'suspended' }" :disabled="saving !== null" :aria-pressed="version.availability === 'available'" :aria-label="`${version.availability === 'available' ? '挂起' : '恢复'}版本 ${version.gameVersion}`" @click="emit('toggle', version, version.availability === 'available' ? 'suspended' : 'available')">
-          <i aria-hidden="true" />{{ version.gameVersion }}<span v-if="version.availability === 'suspended'" class="pool-summary__state">已挂起</span>
+      <li v-for="version in versions" :key="version.gameVersion" class="pool-summary__chip" :class="{ 'is-off': version.availability === 'suspended' }">
+        <button type="button" class="pool-summary__version pressable-soft" :disabled="saving !== null" :aria-pressed="version.availability === 'available'" :aria-label="`${version.availability === 'available' ? '挂起' : '恢复'}版本 ${version.gameVersion}`" @click="emit('toggle', version, version.availability === 'available' ? 'suspended' : 'available')">
+          <i aria-hidden="true" />{{ version.gameVersion }}
         </button>
-        <NuxtLink v-if="version.mode" to="/admin/modes" class="pool-summary__mode" :aria-label="`${version.gameVersion} 属于独立模式 ${version.mode}`">仅 {{ version.mode }}</NuxtLink>
+        <span v-if="version.availability === 'suspended'" class="pool-summary__seg pool-summary__seg--warn">已挂起</span>
+        <NuxtLink v-if="version.mode" to="/admin/modes" class="pool-summary__seg pool-summary__seg--link" :aria-label="`${version.gameVersion} 属于独立模式 ${version.mode}`">仅 {{ version.mode }}</NuxtLink>
       </li>
     </ul>
   </section>
@@ -25,13 +26,13 @@ const emit = defineEmits<{ toggle: [version: EventVersion, availability: EventVe
 .pool-summary__fact { display: flex; align-items: baseline; gap: var(--space-2); color: var(--muted); font-size: var(--type-label-sm-size); }
 .pool-summary__fact b { color: var(--text); font-size: var(--type-card-title-size, 1.125rem); }
 .pool-summary__versions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0 0 0 auto; padding: 0; list-style: none; }
-.pool-summary__version { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--control-sm, 2rem); padding: 0 var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-pill); background: none; color: var(--text); font: inherit; font-size: var(--type-label-sm-size); cursor: pointer; }
+.pool-summary__chip { display: inline-flex; align-items: stretch; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--surface); }
+.pool-summary__version { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--control-sm, 2rem); padding: 0 var(--space-3); border: 0; background: none; color: var(--text); font: inherit; font-size: var(--type-label-sm-size); cursor: pointer; }
 .pool-summary__version i { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--success); }
-.pool-summary__version.is-off { color: var(--quiet); }
-.pool-summary__version.is-off i { background: var(--warning); }
-.pool-summary__version.is-off { text-decoration: line-through; }
-.pool-summary__versions li { display: inline-flex; align-items: center; gap: var(--space-1); }
-.pool-summary__mode { color: var(--muted); font-size: var(--type-caption-size); }
-.pool-summary__state { margin-left: var(--space-1); text-decoration: none; display: inline-block; color: var(--warning); font-size: var(--type-caption-size); }
+.pool-summary__chip.is-off .pool-summary__version { color: var(--quiet); }
+.pool-summary__chip.is-off .pool-summary__version i { background: var(--warning); }
+.pool-summary__seg { display: inline-flex; align-items: center; padding: 0 var(--space-3); border-left: 1px solid var(--line); background: var(--surface-raised); color: var(--muted); font-size: var(--type-caption-size); font-weight: 600; text-decoration: none; }
+.pool-summary__seg--warn { color: var(--warning); background: color-mix(in oklch, var(--warning) 12%, var(--surface)); }
+.pool-summary__seg--link { color: var(--accent); }
 @container (max-width: 39.99rem) { .pool-summary__versions { margin-left: 0; } }
 </style>
