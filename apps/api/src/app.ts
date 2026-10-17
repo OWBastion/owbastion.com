@@ -23,6 +23,7 @@ import {
   ocrAccuracyFeedbackRequestSchema,
   playerEquippedTitlesRequestSchema, adminPlayerEquippedTitlesRequestSchema,
   playerProfileVisibilityRequestSchema,
+  playerPublicHandleRequestSchema,
 } from "@owbastion/contracts";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
 import { withPublicCache } from "./public-cache";
@@ -533,6 +534,26 @@ export const createApp = (dependencies: AppDependencies) => {
     try { return c.json(await servicesFor(c).replaceCurrentPlayerEquippedTitles({ ...parsed.data, sessionToken }, idempotencyKey)); }
     catch (error) {
       return respondToMappedError(c, error, { ...unauthenticatedErrors, ...equippedTitleErrors });
+    }
+  });
+
+  app.put("/v1/me/profile/handle", async (c) => {
+    allowPortal(c);
+    c.header("Cache-Control", "private, no-store");
+    const sessionToken = portalSessionToken(c.req.raw);
+    if (!sessionToken) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = playerPublicHandleRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_PUBLIC_HANDLE", "The public handle is invalid");
+    try { return c.json(await servicesFor(c).updateCurrentPlayerPublicHandle({ ...parsed.data, sessionToken }, idempotencyKey)); }
+    catch (error) {
+      return respondToMappedError(c, error, {
+        ...unauthenticatedErrors,
+        ...idempotencyErrors,
+        PUBLIC_HANDLE_TAKEN: { status: 409, message: "The public handle is already taken" },
+        INVALID_PUBLIC_HANDLE: { status: 422, message: "The public handle is invalid" },
+      });
     }
   });
 
