@@ -18,6 +18,28 @@ const createD1 = () => {
 };
 
 describe("player profile visibility", () => {
+  it("validates, normalizes public handles at the contract boundary, enforces unique ownership and protects private profiles", async () => {
+    const { sqlite, database } = createD1();
+    sqlite.exec("CREATE UNIQUE INDEX player_accounts_public_handle_idx ON player_accounts(public_handle)");
+    const now = Date.now();
+    for (const id of ["p1", "p2", "banned"]) {
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?, ?)").run(id, id, id, id, id === "banned" ? "banned" : "active", now, now);
+      sqlite.prepare("INSERT INTO portal_sessions VALUES (?, ?, ?, ?)").run(`session.${id}`, id, hash(`token.${id}`), now + 60_000);
+    }
+    const services = createPlatformServices(database);
+    await expect(services.updateCurrentPlayerPublicHandle({ sessionToken: "token.p1", publicHandle: "teakowa" }, "set")).resolves.toEqual({ contractVersion: "1", publicHandle: "teakowa" });
+    await expect(services.updateCurrentPlayerPublicHandle({ sessionToken: "token.p1", publicHandle: "teakowa" }, "set")).resolves.toEqual({ contractVersion: "1", publicHandle: "teakowa" });
+    await expect(services.updateCurrentPlayerPublicHandle({ sessionToken: "token.p1", publicHandle: "different" }, "set")).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+    await expect(services.updateCurrentPlayerPublicHandle({ sessionToken: "token.p2", publicHandle: "teakowa" }, "claim")).rejects.toThrow("PUBLIC_HANDLE_TAKEN");
+    await expect(services.updateCurrentPlayerPublicHandle({ sessionToken: "token.p2", publicHandle: "UPPERCASE" }, "invalid")).rejects.toThrow("INVALID_PUBLIC_HANDLE");
+    await expect(services.updateCurrentPlayerPublicHandle({ sessionToken: "token.banned", publicHandle: "banned" }, "banned")).rejects.toThrow("UNAUTHENTICATED");
+    expect((await services.getCurrentPlayer({ sessionToken: "token.p1" }))?.player.publicHandle).toBe("teakowa");
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'player.profile.handle.update'").get()).toEqual({ count: 1 });
+    await expect(services.updateCurrentPlayerPublicHandle({ sessionToken: "token.p1", publicHandle: "new-name" }, "rename")).resolves.toMatchObject({ publicHandle: "new-name" });
+    expect(sqlite.prepare("SELECT public_handle FROM player_accounts WHERE id = 'p1'").get()).toEqual({ public_handle: "new-name" });
+    await expect(services.updateCurrentPlayerPublicHandle({ sessionToken: "token.p2", publicHandle: "teakowa" }, "released")).resolves.toMatchObject({ publicHandle: "teakowa" });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'player.profile.handle.update'").get()).toEqual({ count: 3 });
+  });
   it("defaults to public, persists the owner update, audits it, and replays idempotently", async () => {
     const { sqlite, database } = createD1();
     const now = Date.now();
