@@ -1,0 +1,45 @@
+<!-- @dsCard group="提交与评价" height=440 -->
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><style>
+*{box-sizing:border-box}
+body{margin:0;padding:var(--space-4);font-family:var(--font-ui);color:var(--text);background:var(--page);font-size:1rem;line-height:1.6}
+.row{display:flex;flex-wrap:wrap;gap:var(--space-3);align-items:center}
+.col{display:grid;gap:var(--space-3)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);min-height:var(--control-md);padding:0 var(--space-4);border:1px solid transparent;border-radius:var(--radius-control);font:600 .875rem/1 var(--font-ui);color:var(--text);background:transparent}
+.btn-sm{min-height:var(--control-sm);padding:0 var(--space-3);font-size:.8125rem}
+.btn-primary{background:var(--accent);color:var(--on-accent)}
+.btn-outline{border-color:var(--line-strong)}
+.btn:disabled{opacity:.5}
+.btn svg,.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.num{font-variant-numeric:tabular-nums}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);box-shadow:var(--elevation-2);padding:var(--space-4)}
+.t-card-title{font-size:1.125rem;font-weight:600;line-height:1.35;margin:0}
+.t-label{font-size:.9375rem;font-weight:600;line-height:1.4}
+.t-label-sm{font-size:.8125rem;font-weight:500;color:var(--muted)}
+.t-caption{font-size:.75rem;font-weight:500;color:var(--quiet)}
+.t-body-sm{font-size:.875rem;line-height:1.55;color:var(--muted)}
+.cap{font-size:.75rem;color:var(--quiet);margin:0 0 var(--space-2)}
+.pill{display:inline-flex;align-items:center;min-height:24px;padding:0 var(--space-2);border:1px solid var(--line);border-radius:var(--radius-pill);font-size:.75rem;font-weight:600;color:var(--muted);background:var(--surface-raised);white-space:nowrap}
+.pill-acc{color:var(--accent);border-color:color-mix(in oklab,var(--accent) 45%,var(--line));background:var(--accent-surface)}
+.alert{padding:var(--space-3) var(--space-4);border:1px solid var(--line);border-radius:var(--radius-control);font-size:.875rem}
+.alert b{display:block;font-weight:600}
+.alert-ok{color:var(--success);border-color:color-mix(in oklab,var(--success) 48%,var(--line));background:var(--success-surface)}
+.alert-err{color:var(--danger);border-color:color-mix(in oklab,var(--danger) 48%,var(--line));background:color-mix(in oklab,var(--danger) 12%,var(--surface))}
+.alert-warn{color:var(--warning);border-color:color-mix(in oklab,var(--warning) 48%,var(--line));background:color-mix(in oklab,var(--warning) 12%,var(--surface))}
+.alert-neu{color:var(--muted);background:var(--surface-raised)}
+.pl{list-style:none;margin:0;padding:0}
+.pi{position:relative;display:grid;grid-template-columns:32px 1fr;gap:var(--space-3);min-height:68px}
+.pi:not(.last)::before{content:"";position:absolute;left:15px;top:32px;bottom:0;width:1px;background:var(--line)}
+.dot{display:grid;place-items:center;width:32px;height:32px;border-radius:var(--radius-pill);border:1px solid var(--line-strong);background:var(--surface-raised);color:var(--quiet);font-size:16px}
+.pt{display:flex;justify-content:space-between;gap:var(--space-2)}
+.pt strong{font-size:.86rem;font-weight:600}.ps{font-size:.75rem;color:var(--quiet)}
+.pi p{margin:0;font-size:.78rem;color:var(--muted)}
+.pi.done .dot{border-color:var(--accent);color:var(--accent);background:var(--accent-surface)}
+.pi.done .ps{color:var(--accent)}
+.pi.cur .dot{background:var(--accent);border-color:var(--accent);color:var(--on-accent);box-shadow:var(--elevation-2)}
+.pi.cur strong,.pi.cur .ps{color:var(--accent)}
+.pi.fail .dot,.pi.fail .ps{border-color:var(--warning);color:var(--warning)}
+.pi.fail strong{color:var(--warning)}
+</style></head><body>
+<div class="row" style="align-items:start;gap:var(--space-4)"><div style="flex:1 1 240px"><section class="card"><h2 class="t-card-title" style="margin-bottom:var(--space-3)">获得称号流程</h2><ol class="pl"><li class="pi"><span class="dot" role="img"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg></span><div><div class="pt"><strong>上传截图</strong></div><p>选择并上传游戏内完成截图</p></div></li><li class="pi"><span class="dot" role="img"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M4 12h16"/></svg></span><div><div class="pt"><strong>截图识别</strong></div><p>系统自动识别地图与通关信息</p></div></li><li class="pi"><span class="dot" role="img"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a4 4 0 100 8 4 4 0 000-8zM4 21c1-4 4-6 8-6s7 2 8 6"/></svg></span><div><div class="pt"><strong>核对结果</strong></div><p>确认挑战并等待平台核对</p></div></li><li class="pi last"><span class="dot" role="img"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 100 12 6 6 0 000-12zM8 14l-2 7 6-3 6 3-2-7"/></svg></span><div><div class="pt"><strong>获得称号</strong></div><p>核对通过后自动获得称号</p></div></li></ol></section></div><div style="flex:1 1 240px"><section class="card"><h2 class="t-card-title" style="margin-bottom:var(--space-3)">提交进度</h2><ol class="pl"><li class="pi done"><span class="dot" role="img"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg></span><div><div class="pt"><strong>上传截图</strong><span class="ps">已完成</span></div><p>选择并上传游戏内完成截图</p></div></li><li class="pi done"><span class="dot" role="img"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M4 12h16"/></svg></span><div><div class="pt"><strong>截图识别</strong><span class="ps">已完成</span></div><p>已完成</p></div></li><li class="pi cur"><span class="dot" role="img"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg></span><div><div class="pt"><strong>核对结果</strong><span class="ps">进行中</span></div><p>等待核对</p></div></li><li class="pi  last"><span class="dot" role="img"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="6"/><path d="M8 14l-2 7 6-3 6 3-2-7"/></svg></span><div><div class="pt"><strong>获得称号</strong><span class="ps">待处理</span></div><p>核对通过后获得称号</p></div></li></ol></section></div>
+<div style="flex:1 1 240px"><section class="card"><h2 class="t-card-title" style="margin-bottom:var(--space-3)">提交进度</h2><ol class="pl"><li class="pi done"><span class="dot" role="img"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg></span><div><div class="pt"><strong>上传截图</strong><span class="ps">已完成</span></div><p>选择并上传游戏内完成截图</p></div></li><li class="pi fail"><span class="dot" role="img"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></span><div><div class="pt"><strong>截图识别</strong><span class="ps">需重新提交</span></div><p>请重新提交截图</p></div></li><li class="pi "><span class="dot" role="img"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg></span><div><div class="pt"><strong>核对结果</strong><span class="ps">待处理</span></div><p>等待核对</p></div></li><li class="pi  last"><span class="dot" role="img"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="6"/><path d="M8 14l-2 7 6-3 6 3-2-7"/></svg></span><div><div class="pt"><strong>获得称号</strong><span class="ps">待处理</span></div><p>核对通过后获得称号</p></div></li></ol></section></div></div>
+</body></html>

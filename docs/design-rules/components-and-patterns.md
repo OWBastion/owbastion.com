@@ -77,7 +77,7 @@ no styled native `<button>`. The theme lives once in `app.config.ts`.
 - Directory cards share one anatomy at every width (`MapCard` reference): media (cover 16:9, 2:1
   below `cq-compact`, fallback two-letter index on `--accent-surface`, `aria-hidden`); title row
   (name `type-card-title`, version `type-caption` `--quiet`); summary line (accent star, score,
-  count or `样本不足`); at most three stats above a 1px line (gated values `暂无记录`/`登录后查看`/
+  count, or `暂无评分`); at most three stats above a 1px line (gated values `暂无记录`/`登录后查看`/
   `读取中…` in `--quiet` 500); neutral tag pills. The whole card is one `<button>` or link with an
   `aria-label` (`查看<地图>详情`, `aria-haspopup="dialog"` if it opens one); hover/focus is
   `--line-strong` plus `elevation-1`, press `pressable-soft`, no lift. Nothing restacks across
@@ -93,7 +93,9 @@ no styled native `<button>`. The theme lives once in `app.config.ts`.
 - `UForm` + `UFormField`; validation inline and actionable. Mark only required fields; never add
   `（可选）`/`optional` to labels or placeholders; optional controls must not block submit. Admin
   decisions never require an optional reason.
-- Status uses `StatusBadge`/`SubmissionStatusBadge` before ad-hoc chips, attached to its object.
+- Status uses `StatusBadge` before ad-hoc chips, attached to its object. Tones: `default`, `info`, `success`, `warning`, `error`, plus `accent` with `★` for a rating. Submission statuses map through `playerSubmissionStatusLabel`/`playerSubmissionStatusTone`, not a component.
+- Ratings are one 5-star row with the average beside it; the decimal point is a solid dot at the number's size. No rating shows `暂无评分`; there is no low-sample state.
+- A required `*` shares the label's line. A revoked grant is not undone in place; grant again manually.
 - Every data region handles: loading (structure-matched `USkeleton` or `读取中…`, `role="status"`),
   read failure (`UAlert`/`role="alert"` naming the object and next step), empty (`UEmpty`, current
   condition only), unavailable (`未开放`, no fake action), in progress (loading plus disabled peers).
