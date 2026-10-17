@@ -130,6 +130,10 @@ async function retryMastery() {
   }
 }
 
+function setPublicHandle(value: string) {
+  if (player.value) player.value.player.publicHandle = value;
+}
+
 function setPublicProfile(value: boolean) {
   if (player.value) player.value.player.publicProfile = value;
 }
@@ -198,6 +202,7 @@ onMounted(() => {
 
       <section class="section-block" aria-labelledby="visibility-title">
         <PageSectionHeader title="公开主页" heading-id="visibility-title" />
+        <PlayerPublicHandleCard :public-handle="player.player.publicHandle" :public-profile="player.player.publicProfile" @updated="setPublicHandle" />
         <PlayerProfileVisibilityCard :public-profile="player.player.publicProfile" @updated="setPublicProfile" />
       </section>
 
