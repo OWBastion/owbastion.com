@@ -66,7 +66,7 @@ describe("Portal API session authentication", () => {
     const me = await request("/v1/me", "player");
     expect(me.status).toBe(200);
     expect(me.headers.get("cache-control")).toBe("private, no-store");
-    expect(await me.json()).toEqual({ contractVersion: "1", player: { playerId: "player", playerName: "player", isAdmin: false, publicProfile: true }, recentSubmissions: [
+    expect(await me.json()).toEqual({ contractVersion: "1", player: { playerId: "player", playerName: "player", isAdmin: false, publicProfile: true, publicHandle: null }, recentSubmissions: [
       { submissionId: "submission.player", status: "processing", resubmissionRequired: false, mapName: "Test Map", createdAt: expect.any(Number), updatedAt: expect.any(Number) },
     ] });
     expect((await request("/v1/me/submissions/submission.admin", "player")).status).toBe(404);
