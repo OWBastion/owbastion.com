@@ -44,6 +44,30 @@ const fixture = () => {
 };
 
 describe("public leaderboard projections", () => {
+  it("resolves indexed public handles to the same safe projection and hides private accounts", async () => {
+    const { services, sqlite, addPlayer, addMap, addRevision, addRun } = fixture();
+    sqlite.exec("CREATE UNIQUE INDEX player_accounts_public_handle_idx ON player_accounts(public_handle)");
+    addPlayer("public", "Public");
+    addPlayer("private", "Private", 0);
+    addMap("map.a", "Map A");
+    addRevision("rev.a", "map.a", "default");
+    addRun("run.public", "public", "map.a", "rev.a", 350, 10);
+    addRun("run.private", "private", "map.a", "rev.a", 450, 10);
+    await services.updateCurrentPlayerPublicHandle({ sessionToken: "token.public", publicHandle: "teakowa" }, "public.handle");
+    await services.updateCurrentPlayerPublicHandle({ sessionToken: "token.private", publicHandle: "hidden" }, "private.handle");
+    const publicProfile = await services.getPublicProfileByHandle({ publicHandle: "teakowa" });
+    const byOpaqueKey = await services.getPublicLeaderboardPlayer({ playerKey: await leaderboardPlayerKey("public") });
+    expect(leaderboardPlayerSummarySchema.parse(publicProfile)).toEqual(byOpaqueKey);
+    expect(publicProfile).toMatchObject({ publicProfile: true, boards: { mastery: { score: 350 } } });
+    expect(await services.getPublicProfileByHandle({ publicHandle: "hidden" })).toBeNull();
+    expect(await services.getPublicProfileByHandle({ publicHandle: "absent" })).toBeNull();
+    const board = leaderboardResponseSchema.parse(await services.getPublicLeaderboard({ board: "mastery", page: 1, pageSize: 10 }));
+    expect(board.items.find((item) => item.player?.displayName === "Public")?.player?.publicHandle).toBe("teakowa");
+    expect(board.items.find((item) => item.score === 450)?.player).toBeNull();
+    await services.updateCurrentPlayerProfileVisibility({ sessionToken: "token.public", publicProfile: false }, "hide");
+    expect(await services.getPublicProfileByHandle({ publicHandle: "teakowa" })).toBeNull();
+  });
+
   it.each([
     { titleKey: "WILD_DEV", publicProfile: 1, titleVisibility: 1 },
     { titleKey: "ARCHITECT", publicProfile: 1, titleVisibility: 1 },
