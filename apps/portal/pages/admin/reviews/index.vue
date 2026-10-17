@@ -200,7 +200,7 @@ watch(() => route.fullPath, (path) => { queuePath.value = path; }, { immediate: 
       <template #updatedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.updatedAt) }}</span></template>
       <template #actions-cell="{ row }"><div class="table-actions"><UButton :to="`/admin/reviews/${encodeURIComponent(row.original.submissionId)}`" label="查看" size="sm" color="neutral" variant="outline" /></div></template>
     </AdminDataTable><UPagination v-if="total > 20" v-model:page="page" :total="total" :items-per-page="20" class="pagination" /></section>
-    <AdminResponsiveDialog v-model:open="reopenConfirmOpen" title="重新打开所选提交？" :description="`将撤销所选 ${reopenable.length} 条已通过提交产生的称号和 Verified Run（手动发放的称号不受影响），并回到待核对。之后需要逐条重新通过，系统会按截图证据重新判定。`" size="md" :dismissible="!bulkRunning">
+    <AdminResponsiveDialog v-model:open="reopenConfirmOpen" title="重新打开所选提交？" :description="`将撤销所选 ${reopenable.length} 条已通过提交产生的称号和通关记录（手动发放的称号不受影响），并回到待核对。之后需要逐条重新通过，系统会按截图重新判定。`" size="md" :dismissible="!bulkRunning">
       <template #footer>
         <UButton label="确认重新打开" :loading="bulkRunning" :disabled="bulkRunning" @click="runBulk('reopen')" />
         <UButton label="取消" color="neutral" variant="outline" :disabled="bulkRunning" @click="reopenConfirmOpen = false" />

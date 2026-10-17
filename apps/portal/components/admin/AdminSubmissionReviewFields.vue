@@ -205,7 +205,7 @@ const confirmField = (key: string) => toggleFieldConfirmation(key, true);
 
 <template>
   <div class="fields">
-    <AdminSignalPanel :kicker="modelVersion ? `OCRKit · ${modelVersion}` : 'OCRKit'" title="识别核对" title-id="check-title">
+    <AdminSignalPanel :kicker="modelVersion || undefined" title="识别核对" title-id="check-title">
       <template #aside>
         <StatusBadge :label="ocrStatusLabel(submission.ocrStatus ?? 'not_started')" :tone="ocrStatusTone(submission.ocrStatus ?? 'not_started')" />
       </template>
@@ -229,7 +229,7 @@ const confirmField = (key: string) => toggleFieldConfirmation(key, true);
           </button>
         </li>
         <li v-if="extraFieldCount">
-          <UButton type="button" size="sm" color="neutral" variant="ghost" :icon="showExtraFields ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" :label="showExtraFields ? '收起更多字段' : `更多字段（${extraFieldCount}）`" :aria-expanded="showExtraFields" @click="showExtraFields = !showExtraFields" />
+          <UButton type="button" size="sm" color="neutral" variant="ghost" :icon="showExtraFields ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" :label="showExtraFields ? '收起' : `更多字段（${extraFieldCount}）`" :aria-expanded="showExtraFields" @click="showExtraFields = !showExtraFields" />
         </li>
       </ul>
       <div v-if="openRow" :id="`check-editor-${openRow.key}`" class="check-editor" role="group" :aria-label="`${openRow.label}核对`">
@@ -249,14 +249,13 @@ const confirmField = (key: string) => toggleFieldConfirmation(key, true);
           <UButton v-if="!openRow.attested" type="button" icon="i-lucide-check" label="确认无误" size="sm" color="neutral" variant="outline" :aria-label="`核对${openRow.label}`" :disabled="disabled || (openRow.key !== 'achievement_titles' && !(correctionInputs[openRow.key] ?? '').trim())" @click="confirmField(openRow.key)" />
           <UButton v-else type="button" icon="i-lucide-undo-2" label="撤销核对" size="sm" color="neutral" variant="ghost" :aria-label="`撤销核对${openRow.label}`" :disabled="disabled" @click="toggleFieldConfirmation(openRow.key, false)" />
         </div>
-        <p class="check-editor__hint">核对后的值会随审核决定保存。</p>
       </div>
       <details v-if="ocrPayload" class="ocr-detail">
         <summary>识别详情</summary>
         <dl class="signal-meta">
           <div><dt>处理尝试</dt><dd>{{ submission.ocrAttempt ?? "暂无记录" }}</dd></div>
         </dl>
-        <dl v-if="runtimeEvidence.length || eventEvidence.length" class="detail-grid" aria-label="对局环境识别证据">
+        <dl v-if="runtimeEvidence.length || eventEvidence.length" class="detail-grid" aria-label="对局环境识别结果">
           <div v-for="field in [...runtimeEvidence, ...eventEvidence]" :key="field.key" class="detail-grid__row"><dt>{{ field.label }}</dt><dd>{{ field.value }}</dd></div>
         </dl>
         <details><summary>查看原始识别数据</summary><pre>{{ JSON.stringify(ocrPayload, null, 2) }}</pre></details>
@@ -381,11 +380,6 @@ const confirmField = (key: string) => toggleFieldConfirmation(key, true);
 .check-editor__control > :is(input, select, [role="combobox"]) {
   flex: 1 1 10rem;
   min-width: 0;
-}
-.check-editor__hint {
-  margin: 0;
-  color: var(--quiet);
-  font-size: var(--type-caption-size);
 }
 .signal-meta {
   display: grid;

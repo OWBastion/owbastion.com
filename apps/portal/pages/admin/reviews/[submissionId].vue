@@ -181,11 +181,11 @@ async function retryOcr() {
   ocrRetryError.value = "";
   try {
     await api(`/v1/submissions/${encodeURIComponent(submission.value.submissionId)}/ocr/retry`, { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1" } });
-    toast.add({ title: "已重新发送 OCRKit 识别请求", color: "success" });
+    toast.add({ title: "已重新发送识别请求", color: "success" });
     await load();
   } catch (error) {
-    const details = portalErrorDetails(error, "OCRKit 请求发送失败，请稍后重试。");
-    ocrRetryError.value = details.code ? `OCRKit 请求失败（${details.code}）：${details.description}` : details.description;
+    const details = portalErrorDetails(error, "识别请求发送失败，请稍后重试。");
+    ocrRetryError.value = details.code ? `识别请求失败（${details.code}）：${details.description}` : details.description;
   } finally { ocrRetryLoading.value = false; }
 }
 

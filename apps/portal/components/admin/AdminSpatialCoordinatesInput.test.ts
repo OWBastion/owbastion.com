@@ -61,7 +61,7 @@ Modify Global Variable(portalPosition, Append To Array, Vector(22, 23, 24));
 `;
 
 const expandDetails = async (wrapper: Awaited<ReturnType<typeof mountSuspended>>) => {
-  await wrapper.findAll("button").find((btn) => btn.text().includes("展开坐标明细"))?.trigger("click");
+  await wrapper.findAll("button").find((btn) => btn.text().includes("展开"))?.trigger("click");
 };
 
 describe("AdminSpatialCoordinatesInput", () => {
@@ -203,16 +203,16 @@ describe("AdminSpatialCoordinatesInput", () => {
     });
 
     expect(wrapper.text()).not.toContain("-121.979");
-    expect(wrapper.text()).toContain("展开坐标明细");
+    expect(wrapper.text()).toContain("展开");
     await expandDetails(wrapper);
     expect(wrapper.text()).toContain("-121.979");
-    const toggleButton = wrapper.findAll("button").find((btn) => btn.text().includes("收起坐标明细"));
+    const toggleButton = wrapper.findAll("button").find((btn) => btn.text().includes("收起"));
     expect(toggleButton).toBeDefined();
 
     await toggleButton?.trigger("click");
     expect(wrapper.text()).not.toContain("-121.979");
 
-    const expandButton = wrapper.findAll("button").find((btn) => btn.text().includes("展开坐标明细"));
+    const expandButton = wrapper.findAll("button").find((btn) => btn.text().includes("展开"));
     await expandButton?.trigger("click");
     expect(wrapper.text()).toContain("-121.979");
   });

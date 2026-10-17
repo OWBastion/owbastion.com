@@ -9,7 +9,7 @@ const emit = defineEmits<{ save: [playerName: string] }>();
 const open = defineModel<boolean>("open", { required: true });
 const draftName = shallowRef("");
 const trimmedName = computed(() => draftName.value.trim());
-const battleTagPreview = computed(() => `${trimmedName.value || props.player.playerName}#${props.player.playerId}`);
+const previewName = computed(() => trimmedName.value || props.player.playerName);
 const canSave = computed(() => Boolean(trimmedName.value) && trimmedName.value !== props.player.playerName && !props.loading);
 
 watch(() => open.value, (isOpen) => {
@@ -23,18 +23,18 @@ function save() {
 </script>
 
 <template>
-  <AdminResponsiveDialog v-model:open="open" title="编辑战网 ID" :description="`${player.playerName}#${player.playerId}`" size="sm" :dismissible="!loading">
+  <AdminResponsiveDialog v-model:open="open" title="编辑战网 ID" size="sm" :dismissible="!loading">
     <template #body>
       <form id="player-identity-editor" class="identity-editor" @submit.prevent="save">
         <UFormField label="玩家名称" required>
           <UInput v-model="draftName" maxlength="64" autocomplete="off" :disabled="loading" />
         </UFormField>
-        <UFormField label="玩家 ID" hint="数字 ID 保持不变。">
+        <UFormField label="玩家 ID">
           <UInput :model-value="player.playerId" readonly class="identity-editor__readonly" />
         </UFormField>
         <output class="identity-editor__preview" aria-live="polite">
           <span>预览</span>
-          <strong>{{ battleTagPreview }}</strong>
+          <strong><PlayerBattleTag :player-name="previewName" :player-id="player.playerId" /></strong>
         </output>
       </form>
     </template>

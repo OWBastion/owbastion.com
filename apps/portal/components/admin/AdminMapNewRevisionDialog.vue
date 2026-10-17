@@ -35,7 +35,7 @@ watch(open, (value) => {
           </button>
         </div>
         <UFormField label="游戏版本" required><UInput v-model="gameVersion" required :disabled="saving" /></UFormField>
-        <UFormField label="备注"><UTextarea v-model="reason" :rows="2" :disabled="saving" placeholder="可选，例如：2026 周年庆活动" /></UFormField>
+        <UFormField label="备注"><UTextarea v-model="reason" :rows="2" :disabled="saving" placeholder="例如：2026 周年庆活动" /></UFormField>
       </form>
     </template>
     <template #footer>

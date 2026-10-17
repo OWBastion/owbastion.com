@@ -34,7 +34,7 @@ function grantTitle() { tab.value = "titles"; void nextTick(() => titlesRef.valu
     <header class="player__head">
       <UButton to="/admin/players" class="player__back" icon="i-lucide-arrow-left" label="返回列表" color="neutral" variant="ghost" size="sm" />
       <div class="player__heading">
-        <h2>{{ player.playerName }}<small>#{{ player.playerId }}</small></h2>
+        <h2><PlayerBattleTag :player-name="player.playerName" :player-id="player.playerId" /></h2>
         <p>{{ activeTitleCount }} 个称号 · {{ player.bindingCount }} 个 QQ 绑定 · {{ player.progression.activeVerifiedRunCount }} 次已核验通关</p>
       </div>
       <div class="player__actions">
@@ -69,7 +69,7 @@ function grantTitle() { tab.value = "titles"; void nextTick(() => titlesRef.valu
 
     <section v-show="tab === 'account'" id="player-panel-account" role="tabpanel" aria-labelledby="player-tab-account" class="account">
       <dl class="account__ids">
-        <div><dt>战网 ID</dt><dd>{{ player.playerName }}#{{ player.playerId }}</dd></div>
+        <div><dt>战网 ID</dt><dd><PlayerBattleTag :player-name="player.playerName" :player-id="player.playerId" /></dd></div>
         <div><dt>最近更新</dt><dd>{{ formatTime(player.updatedAt) }}</dd></div>
       </dl>
       <h3>QQ 绑定</h3>

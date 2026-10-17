@@ -44,7 +44,7 @@ const searchOpen = ref(false);
 // With nothing proposed, searching is the only way forward, so it is open from the start.
 const searchVisible = computed(() => searchOpen.value || !listedCandidates.value.length);
 
-const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证据满足条件" : outcome === "review" ? "证据需人工确认" : outcome === "resubmit" ? "未匹配 Challenge" : "等待判定";
+const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "满足条件" : outcome === "review" ? "需人工确认" : outcome === "resubmit" ? "未匹配 Challenge" : "等待判定";
 </script>
 
 <template>
@@ -77,7 +77,7 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
       </ul>
       <p v-if="withdrawnConfirmations" class="signal-note" role="status">{{ withdrawnConfirmations }} 项人工确认已不适用于当前识别结果，已取消。</p>
       <p v-if="!listedCandidates.length && previewLoading && !preview" class="signal-empty">正在计算 Challenge…</p>
-      <p v-else-if="!listedCandidates.length && preview" class="signal-empty">当前证据没有匹配到 Challenge，可以搜索添加。已拥有或已被管理员撤销的称号不会出现在列表中。</p>
+      <p v-else-if="!listedCandidates.length && preview" class="signal-empty">当前截图没有匹配到 Challenge，可以搜索添加。已拥有或已被管理员撤销的称号不会出现在列表中。</p>
       <p v-else-if="!listedCandidates.length" class="signal-empty">暂无可判定的识别结果。</p>
       <div v-if="candidates.length" class="manual-add">
         <UButton v-if="!searchVisible" type="button" icon="i-lucide-plus" label="添加其他 Challenge" size="sm" color="neutral" variant="ghost" @click="searchOpen = true" />

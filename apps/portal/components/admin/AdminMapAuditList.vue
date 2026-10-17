@@ -25,7 +25,7 @@ const format = new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle
   <ol v-if="audit.length" class="audit-list">
     <li v-for="item in audit" :key="`${item.createdAt}:${item.operation}:${item.entityId}`">
       <div>
-        <strong>{{ labels[item.operation] ?? item.operation }}</strong>
+        <strong>{{ labels[item.operation] ?? "地图编辑" }}</strong>
         <p v-if="item.operation === 'admin.map.revision.update'" class="audit-lifecycle">状态：<StatusBadge v-bind="lifecycleBadge(item.payload.previousLifecycle)" /> → <StatusBadge v-bind="lifecycleBadge(item.payload.lifecycle)" />；未复制进度</p>
         <p v-else>{{ detail(item) }}</p>
       </div>

@@ -19,7 +19,7 @@ export const reviewCandidateScopeLabel = (candidate: AdminSubmissionReviewCandid
 export const reviewCandidateStatus = (candidate: AdminSubmissionReviewCandidate): { label: string; tone: "success" | "warning" | "default" } => {
   if (candidate.evidence === "matched") return { label: "满足条件", tone: "success" };
   if (candidate.selectedBy === "reviewer") return { label: "已人工确认", tone: "success" };
-  if (candidate.evidence === "needs_confirmation") return { label: candidate.missingFields.length ? `缺少${reviewFieldList(candidate.missingFields)}` : "证据不完整", tone: "warning" };
+  if (candidate.evidence === "needs_confirmation") return { label: candidate.missingFields.length ? `缺少${reviewFieldList(candidate.missingFields)}` : "识别结果不完整", tone: "warning" };
   if (candidate.evidence === "unsupported") return { label: "无法自动判定", tone: "warning" };
   return { label: "识别结果不满足", tone: "default" };
 };
@@ -39,7 +39,7 @@ const blockingMessages: Record<string, string> = {
   CHALLENGE_REWARD_NOT_CONFIGURED: "所选 Challenge 尚未配置可发放的称号。",
   CHALLENGE_NOT_FOUND: "所选 Challenge 的配置不存在。",
   TITLE_NOT_FOUND: "所选 Challenge 的称号不存在。",
-  SUBMISSION_NOT_REVIEWABLE: "该提交没有可核对的识别结果。可以重新发送 OCRKit 请求，或要求重新提交。",
+  SUBMISSION_NOT_REVIEWABLE: "该提交没有可核对的识别结果。可以重新识别，或要求重新提交。",
   SUBMISSION_CORRECTION_INVALID: "有字段值无法识别：通关用时、死亡次数、跳过次数需为整数。",
 };
 
@@ -47,22 +47,22 @@ export const knownReviewBlockingMessage = (code: string | null | undefined) => c
 export const reviewBlockingMessage = (code: string | null | undefined) => code ? knownReviewBlockingMessage(code) ?? `暂时无法通过（${code}）。` : "";
 
 const supersededFieldLabels: Record<string, string> = {
-  match_code: "通关码", map: "地图", gameplay_revision: "玩法修订", map_variant: "地图版本", difficulty: "难度",
+  match_code: "对局码", map: "地图", gameplay_revision: "版本修订", map_variant: "地图版本", difficulty: "难度",
   game_version: "游戏版本", completion_duration: "通关用时", deaths: "死亡次数", skips: "跳过次数", event_counters: "事件计数",
 };
 
 export const verifiedRunPreviewLabel = (verifiedRun: AdminSubmissionReviewPreview["verifiedRun"]) => verifiedRun.status === "recorded"
-  ? "已记录 Verified Run"
+  ? "已记录通关记录"
   : verifiedRun.status === "eligible"
     ? verifiedRun.supersededFields.length
-      ? `将按识别结果记录 Verified Run，并作废已有的同对局码记录（不一致：${verifiedRun.supersededFields.map((field) => supersededFieldLabels[field] ?? field).join("、")}）`
-      : "将按识别结果记录 Verified Run"
+      ? `将按识别结果记录通关记录，并作废已有的同对局码记录（不一致：${verifiedRun.supersededFields.map((field) => supersededFieldLabels[field] ?? "其他字段").join("、")}）`
+      : "将按识别结果记录通关记录"
     : null;
 
 const verifiedRunReasonLabels: Record<string, string> = {
-  mastery_rollout_disabled: "Verified Run 尚未开启（平台未配置最低游戏版本与 OCR 布局版本）",
+  mastery_rollout_disabled: "通关记录尚未开启（平台未配置最低游戏版本与 OCR 布局版本）",
   unsupported_schema_version: "识别结果的数据版本不受支持",
-  unsuccessful_response: "OCRKit 识别未成功",
+  unsuccessful_response: "识别未成功",
   unsupported_layout: "截图布局版本不受支持",
   unreliable_challenge_completed: "通关标记识别可信度不足",
   unreliable_map_name: "地图识别可信度不足",
@@ -74,7 +74,7 @@ const verifiedRunReasonLabels: Record<string, string> = {
   unreliable_map_variant: "地图版本识别可信度不足",
   gameplay_revision_not_found: "找不到该地图对应的玩法版本",
   submission_revision_mismatch: "地图玩法版本与提交记录不一致",
-  mastery_run_invalidated: "该对局码的 Verified Run 已被作废（如需记录，请先在 Verified Run 管理页恢复）",
+  mastery_run_invalidated: "该对局码的通关记录已被作废（如需记录，请先在通关记录管理页恢复）",
   same_player_run_code: "该玩家已有相同对局码的记录",
   completion_not_confirmed: "通关标记不是已完成",
   missing_map: "缺少地图",
@@ -94,7 +94,7 @@ const verifiedRunReasonLabels: Record<string, string> = {
 
 /** Why no Verified Run would be recorded; null when none is expected to explain (eligible/recorded, or nothing to report). */
 export const verifiedRunIneligibleLabel = (verifiedRun: AdminSubmissionReviewPreview["verifiedRun"]) => verifiedRun.status === "ineligible" && verifiedRun.reason
-  ? `不会记录 Verified Run：${verifiedRunReasonLabels[verifiedRun.reason] ?? verifiedRun.reason}`
+  ? `不会记录通关记录：${verifiedRunReasonLabels[verifiedRun.reason] ?? "不满足记录条件"}`
   : null;
 
 const reviewDecisionText: Record<NonNullable<AdminSubmission["review"]>["decision"], string> = {

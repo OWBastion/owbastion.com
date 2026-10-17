@@ -14,6 +14,22 @@ type PendingAction =
 type VerifiedRunActionResponse = AdminVerifiedRunStateResponse | AdminVerifiedRunConflictResolutionResponse;
 
 const api = useAdminApi();
+const catalogMaps = shallowRef<{ mapId: string; mapName: string }[]>([]);
+const catalogEvents = shallowRef<{ eventId: string; name: string }[]>([]);
+const mapNames = computed(() => Object.fromEntries(catalogMaps.value.map((map) => [map.mapId, map.mapName])));
+const eventNames = computed(() => Object.fromEntries(catalogEvents.value.map((event) => [event.eventId, event.name])));
+onMounted(async () => {
+  try {
+    const [mapResponse, eventResponse] = await Promise.all([
+      api<{ items: { mapId: string; mapName: string }[] }>("/v1/maps"),
+      api<{ items: { eventId: string; name: string }[] }>("/v1/events?archived=true"),
+    ]);
+    catalogMaps.value = mapResponse.items;
+    catalogEvents.value = eventResponse.items;
+  } catch {
+    // The page still works with raw run data; selectors fall back to the current values.
+  }
+});
 const toast = useToast();
 const route = useRoute();
 const runs = shallowRef<AdminVerifiedRun[]>([]);
@@ -23,7 +39,7 @@ const total = ref(0);
 const matchCode = ref("");
 const playerAccountId = ref(typeof route.query.playerAccountId === "string" ? route.query.playerAccountId : "");
 const unresolvedConflictsOnly = ref(route.query.unresolvedConflictsOnly === "true");
-const mapId = ref("");
+const mapId = ref("all");
 const difficulty = ref<"all" | AdminVerifiedRun["difficulty"]>("all");
 const runStatus = ref<"all" | AdminVerifiedRun["status"]>("all");
 const acceptanceSource = ref<"all" | AdminVerifiedRun["acceptanceSource"]>("all");
@@ -58,11 +74,12 @@ const actionColor = computed(() => (
 ) || (
   pendingAction.value?.kind === "conflict" && pendingAction.value.action === "invalidate_existing"
 ) ? "error" : "primary");
+const mapFilterItems = computed(() => [{ label: "全部地图", value: "all" }, ...catalogMaps.value.map((map) => ({ label: map.mapName, value: map.mapId }))]);
 const difficulties = ["简单", "一般", "困难", "专家", "传奇", "地狱"] as const;
 const columns: TableColumn<AdminVerifiedRun>[] = [
   { id: "map", accessorFn: (row) => row.mapName, header: "地图" },
   { accessorKey: "playerName", header: "玩家" },
-  { accessorKey: "matchCode", header: "通关码" },
+  { accessorKey: "matchCode", header: "对局码" },
   { accessorKey: "difficulty", header: "难度" },
   { accessorKey: "status", header: "状态" },
   { accessorKey: "acceptanceSource", header: "来源" },
@@ -81,7 +98,7 @@ const query = computed(() => {
   if (matchCode.value.trim()) params.set("matchCode", matchCode.value.trim());
   if (playerAccountId.value.trim()) params.set("playerAccountId", playerAccountId.value.trim());
   if (unresolvedConflictsOnly.value) params.set("unresolvedConflictsOnly", "true");
-  if (mapId.value.trim()) params.set("mapId", mapId.value.trim());
+  if (mapId.value !== "all") params.set("mapId", mapId.value);
   if (difficulty.value !== "all") params.set("difficulty", difficulty.value);
   if (runStatus.value !== "all") params.set("status", runStatus.value);
   if (acceptanceSource.value !== "all") params.set("acceptanceSource", acceptanceSource.value);
@@ -223,10 +240,10 @@ watch([matchCode, playerAccountId, unresolvedConflictsOnly, mapId, difficulty, r
       <AdminDataTable :data="runs" :columns="columns" :mobile-columns="[{ id: 'map', priority: 'primary', order: 0 }, { id: 'playerName', priority: 'primary', order: 1 }, { id: 'status', priority: 'detail', order: 2 }, { id: 'matchCode', priority: 'detail', order: 3 }, { id: 'conflictCount', priority: 'detail', order: 4 }]" row-key="runId" :mobile-row-action="(row) => openDetail(row.runId)" :loading="loading" empty="暂无匹配通关记录。" table-key="verified-runs" manual-filtering :reset-scroll-key="`${page}-${query}`">
         <template #filters>
           <div class="verified-run-filters">
-            <UInput v-model="matchCode" aria-label="按通关码筛选" placeholder="通关码" />
+            <UInput v-model="matchCode" aria-label="按对局码筛选" placeholder="对局码" />
             <UInput v-model="playerAccountId" aria-label="按玩家账号筛选" placeholder="玩家账号 ID" />
             <USelect v-model="unresolvedConflictsOnly" aria-label="筛选冲突状态" :items="[{ label: '全部通关记录', value: false }, { label: '待处理冲突', value: true }]" />
-            <UInput v-model="mapId" aria-label="按地图筛选" placeholder="地图 ID" />
+            <USelect v-model="mapId" aria-label="按地图筛选" :items="mapFilterItems" />
             <USelect v-model="difficulty" aria-label="筛选难度" :items="[{ label: '全部难度', value: 'all' }, ...difficulties.map((value) => ({ label: value, value }))]" />
             <USelect v-model="runStatus" aria-label="筛选记录状态" :items="[{ label: '全部记录状态', value: 'all' }, { label: '有效', value: 'active' }, { label: '已作废', value: 'invalidated' }]" />
             <USelect v-model="acceptanceSource" aria-label="筛选接受来源" :items="[{ label: '全部接受来源', value: 'all' }, { label: '自动通过', value: 'submission_automatic' }, { label: '人工核对', value: 'submission_review' }]" />
@@ -234,12 +251,12 @@ watch([matchCode, playerAccountId, unresolvedConflictsOnly, mapId, difficulty, r
             <UInput v-model="toDate" type="datetime-local" aria-label="接受时间结束" />
           </div>
         </template>
-        <template #mobile-primary><UInput v-model="matchCode" class="w-full" aria-label="按通关码筛选" placeholder="通关码" /></template>
+        <template #mobile-primary><UInput v-model="matchCode" class="w-full" aria-label="按对局码筛选" placeholder="对局码" /></template>
         <template #mobile-secondary>
           <div class="verified-run-filters">
             <UInput v-model="playerAccountId" aria-label="按玩家账号筛选" placeholder="玩家账号 ID" />
             <USelect v-model="unresolvedConflictsOnly" aria-label="筛选冲突状态" :items="[{ label: '全部通关记录', value: false }, { label: '待处理冲突', value: true }]" />
-            <UInput v-model="mapId" aria-label="按地图筛选" placeholder="地图 ID" />
+            <USelect v-model="mapId" aria-label="按地图筛选" :items="mapFilterItems" />
             <USelect v-model="difficulty" aria-label="筛选难度" :items="[{ label: '全部难度', value: 'all' }, ...difficulties.map((value) => ({ label: value, value }))]" />
             <USelect v-model="runStatus" aria-label="筛选记录状态" :items="[{ label: '全部记录状态', value: 'all' }, { label: '有效', value: 'active' }, { label: '已作废', value: 'invalidated' }]" />
             <USelect v-model="acceptanceSource" aria-label="筛选接受来源" :items="[{ label: '全部接受来源', value: 'all' }, { label: '自动通过', value: 'submission_automatic' }, { label: '人工核对', value: 'submission_review' }]" />
@@ -247,8 +264,8 @@ watch([matchCode, playerAccountId, unresolvedConflictsOnly, mapId, difficulty, r
             <UInput v-model="toDate" type="datetime-local" aria-label="接受时间结束" />
           </div>
         </template>
-        <template #map-cell="{ row }"><strong>{{ row.original.mapName }}</strong><span class="table-meta">{{ row.original.mapId }}</span></template>
-        <template #playerName-cell="{ row }"><NuxtLink class="accent-link" :to="`/admin/players/${encodeURIComponent(row.original.playerAccountId)}`">{{ row.original.playerName }}</NuxtLink><span class="table-meta">{{ row.original.playerId }}</span></template>
+        <template #map-cell="{ row }"><strong>{{ row.original.mapName }}</strong></template>
+        <template #playerName-cell="{ row }"><NuxtLink class="accent-link" :to="`/admin/players/${encodeURIComponent(row.original.playerAccountId)}`"><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></NuxtLink></template>
         <template #matchCode-cell="{ row }"><span class="run-code">{{ row.original.matchCode }}</span></template>
         <template #status-cell="{ row }"><StatusBadge :label="runStatusLabel(row.original.status)" :tone="row.original.status === 'active' ? 'success' : 'warning'" /></template>
         <template #acceptanceSource-cell="{ row }"><span class="table-meta">{{ acceptanceSourceLabel(row.original.acceptanceSource) }}</span></template>
@@ -264,8 +281,8 @@ watch([matchCode, playerAccountId, unresolvedConflictsOnly, mapId, difficulty, r
     <template #body>
       <div v-if="detailLoading" class="detail-loading" role="status" aria-label="读取中"><USkeleton v-for="index in 6" :key="index" class="h-12" /></div>
       <UAlert v-else-if="detailError" color="error" variant="subtle" :description="detailError" />
-      <AdminVerifiedRunCorrectionForm v-else-if="correctionMode && selectedDetail" :run="selectedDetail.run" :saving="saving" :error="correctionError" @submit="saveCorrection" @cancel="cancelCorrection" />
-      <AdminVerifiedRunDetail v-else-if="selectedDetail" :detail="selectedDetail" :action-loading="saving || Boolean(pendingAction)" @correct="beginCorrection" @state="beginStateAction" @conflict="beginConflictAction" />
+      <AdminVerifiedRunCorrectionForm v-else-if="correctionMode && selectedDetail" :run="selectedDetail.run" :maps="catalogMaps" :events="catalogEvents" :saving="saving" :error="correctionError" @submit="saveCorrection" @cancel="cancelCorrection" />
+      <AdminVerifiedRunDetail v-else-if="selectedDetail" :detail="selectedDetail" :map-names="mapNames" :event-names="eventNames" :action-loading="saving || Boolean(pendingAction)" @correct="beginCorrection" @state="beginStateAction" @conflict="beginConflictAction" />
       <div v-if="pendingAction" class="verified-run-confirmation">
         <p>{{ actionDescription }}</p>
         <UFormField label="操作理由"><UTextarea v-model="reason" aria-label="操作理由" :rows="3" :disabled="saving" /></UFormField>

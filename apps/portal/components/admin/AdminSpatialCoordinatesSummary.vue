@@ -105,7 +105,7 @@ async function copyCoordinate(pos: Vector) {
           variant="soft"
           class="pressable"
           :icon="showDetails ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
-          :label="showDetails ? '收起坐标明细' : '展开坐标明细'"
+          :label="showDetails ? '收起' : '展开'"
           @click="showDetails = !showDetails"
         />
       </div>
