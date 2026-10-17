@@ -4,7 +4,9 @@ import { titleTier, titleTierLabel } from "~/utils/title-tier";
 
 const props = defineProps<{ title: OwnedTitle | null }>();
 const open = defineModel<boolean>("open", { required: true });
-const { style, active, handlers } = useIconTilt(14);
+const sweeping = ref(false);
+watch(() => [open.value, props.title], () => { sweeping.value = open.value && props.title !== null; }, { immediate: true });
+const markImage = computed(() => (props.title?.iconUrl ? { "--mark-image": `url("${props.title.iconUrl}")` } : undefined));
 const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(timestamp);
 const facts = computed(() => {
   const title = props.title;
@@ -23,7 +25,7 @@ const facts = computed(() => {
   <UModal v-model:open="open" :title="title?.label ?? '称号'" :description="title?.equipped ? '已佩戴' : '未佩戴'">
     <template #body>
       <div v-if="title" class="inspect">
-        <span class="inspect__stage" :class="{ 'is-tilting': active }" :style="style" v-on="handlers"><PlayerTitleMark :title="title" /></span>
+        <span class="inspect__stage" :class="{ 'is-opening': sweeping }" :style="markImage" @animationend="sweeping = false"><PlayerTitleMark :title="title" /></span>
         <dl class="detail-grid inspect__facts">
           <div v-for="fact in facts" :key="fact.label" class="detail-grid__row"><dt>{{ fact.label }}</dt><dd>{{ fact.value }}</dd></div>
         </dl>
@@ -38,9 +40,16 @@ const facts = computed(() => {
 
 <style scoped>
 .inspect { display: grid; gap: var(--space-5); justify-items: center; }
-.inspect__stage { --mark-size: 7.5rem; position: relative; display: grid; border-radius: var(--radius-card); transform: perspective(40rem) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)); transition: transform .45s ease-out; }
-.inspect__stage.is-tilting { transition: transform .08s linear; }
-.inspect__stage::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: radial-gradient(circle at var(--glare-x, 50%) var(--glare-y, 30%), color-mix(in oklch, var(--text) 24%, transparent), transparent 58%); opacity: 0; transition: opacity .2s ease-out; }
-.inspect__stage.is-tilting::after { opacity: 1; }
+.inspect__stage { --mark-size: 10rem; --sweep: linear-gradient(135deg, transparent 38%, rgb(255 255 255 / .85) 50%, transparent 62%); position: relative; display: grid; max-width: 100%; }
+.inspect__stage :deep(.title-mark) { border: 0; border-radius: 0; background: transparent; box-shadow: none; overflow: visible; }
+.inspect__stage :deep(.title-mark__icon) { width: 100%; height: 100%; background-image: var(--sweep); background-size: 300% 300%; background-position: 100% 100%; }
+.inspect__stage[style]::after { content: ""; position: absolute; inset: 0; pointer-events: none; background-image: var(--sweep); background-size: 300% 300%; background-position: 100% 100%; mask: var(--mark-image) center / contain no-repeat; }
 .inspect__facts { width: 100%; }
+@media (prefers-reduced-motion: no-preference) {
+  .inspect__stage.is-opening :deep(.title-mark__icon), .inspect__stage.is-opening[style]::after { animation: inspect-sweep 1.2s ease-out; }
+  .inspect__stage:hover :deep(.title-mark__icon), .inspect__stage[style]:hover::after { animation: inspect-sweep-hover 1.2s ease-out; }
+}
+/* Two identical keyframes: switching animation-name on hover is what restarts the sweep. */
+@keyframes inspect-sweep { from { background-position: 100% 100%; } to { background-position: 0 0; } }
+@keyframes inspect-sweep-hover { from { background-position: 100% 100%; } to { background-position: 0 0; } }
 </style>
