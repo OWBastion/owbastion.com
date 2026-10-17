@@ -13,6 +13,8 @@ const { data: profile, error, status, refresh } = await useAsyncData(
 if (import.meta.server && error.value && (error.value as { statusCode?: number }).statusCode === 404) {
   throw createError({ statusCode: 404, statusMessage: "公开主页不存在或未公开" });
 }
+const missing = computed(() => error.value && portalErrorDetails(error.value).statusCode === 404);
+const errorMessage = computed(() => error.value ? portalErrorDetails(error.value, "读取失败，请稍后重试。").description : "该玩家不存在，或已关闭公开主页。");
 const name = computed(() => profile.value?.player?.displayName ?? "公开主页");
 useSeoMeta({ title: () => `${name.value} · 躲避堡垒 3`, description: "查看玩家公开的地图精通、排行榜成绩与称号。" });
 const mastery = computed(() => profile.value?.boards?.mastery);
@@ -29,8 +31,8 @@ const mapTitles = computed(() => profile.value?.titles?.map ?? []);
     </div>
     <section v-else-if="error || !profile?.player" class="public-player-state">
       <h1 class="page-title">公开主页不可用</h1>
-      <p class="body-copy">{{ error && (error as { statusCode?: number }).statusCode !== 404 ? portalErrorDetails(error, "读取失败，请稍后重试。").description : "该玩家不存在，或已关闭公开主页。" }}</p>
-      <UButton v-if="error && (error as { statusCode?: number }).statusCode !== 404" label="重试" variant="outline" color="neutral" @click="refresh()" />
+      <p class="body-copy">{{ missing ? "该玩家不存在，或已关闭公开主页。" : errorMessage }}</p>
+      <UButton v-if="error && !missing" label="重试" variant="outline" color="neutral" @click="refresh()" />
     </section>
     <template v-else>
       <section class="public-player-hero surface-card elevation-2">
