@@ -15,21 +15,24 @@ const toastAdd = vi.fn();
 mockNuxtImport("useAdminApi", () => () => adminApi);
 mockNuxtImport("useToast", () => () => ({ add: toastAdd }));
 
+const stubs = {
+  AdminResponsiveDialog: { props: ["open"], template: '<div v-if="open"><slot name="body" /><slot name="footer" /></div>' },
+  UCheckbox: { props: ["modelValue", "label", "description"], emits: ["update:modelValue"], template: '<label><input type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" />{{ label }}{{ description }}</label>' },
+};
+
 describe("admin grants page", () => {
   it("submits selected players and titles through one batch request", async () => {
     const wrapper = await mountSuspended(GrantsAdminPage, {
-      global: {
-        stubs: {
-          AdminResponsiveDialog: { props: ["open"], template: '<div v-if="open"><slot name="body" /><slot name="footer" /></div>' },
-          UCheckbox: { props: ["modelValue"], emits: ["update:modelValue"], template: '<label><input type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" /><slot /></label>' },
-        },
-      },
+      global: { stubs },
     });
     await flushPromises();
     expect(wrapper.text()).toContain("每个玩家与称号组合都会通过对应的手动挑战记录完成，再授予称号。");
+    await wrapper.get('button[aria-label="展开通用称号"]').trigger("click");
     const checkboxes = wrapper.findAll('input[type="checkbox"]');
     await checkboxes[0]!.setValue(true);
     await checkboxes[2]!.setValue(true);
+    expect(wrapper.text()).toContain("玩家一#1001");
+    expect(wrapper.text()).toContain("全局称号");
     expect(wrapper.get('button[aria-label="取消选择 玩家一#1001"]').exists()).toBe(true);
     await wrapper.findAll("button").find((button) => button.text() === "检查授予计划")!.trigger("click");
     await flushPromises();
@@ -41,12 +44,7 @@ describe("admin grants page", () => {
 
   it("keeps selected players when the current page no longer lists them", async () => {
     const wrapper = await mountSuspended(GrantsAdminPage, {
-      global: {
-        stubs: {
-          AdminResponsiveDialog: { props: ["open"], template: '<div v-if="open"><slot name="body" /><slot name="footer" /></div>' },
-          UCheckbox: { props: ["modelValue"], emits: ["update:modelValue"], template: '<label><input type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" /><slot /></label>' },
-        },
-      },
+      global: { stubs },
     });
     await flushPromises();
     await wrapper.findAll('input[type="checkbox"]')[0]!.setValue(true);
@@ -57,12 +55,7 @@ describe("admin grants page", () => {
 
   it("selects a whole page of players and a whole title group in one action", async () => {
     const wrapper = await mountSuspended(GrantsAdminPage, {
-      global: {
-        stubs: {
-          AdminResponsiveDialog: { props: ["open"], template: '<div v-if="open"><slot name="body" /><slot name="footer" /></div>' },
-          UCheckbox: { props: ["modelValue"], emits: ["update:modelValue"], template: '<label><input type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" /><slot /></label>' },
-        },
-      },
+      global: { stubs },
     });
     await flushPromises();
     await wrapper.findAll("button").find((button) => button.text() === "选择本页")!.trigger("click");
