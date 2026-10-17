@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { PlayerPublicHandleResponse } from "@owbastion/contracts";
+import { publicHandleSchema, type PlayerPublicHandleResponse } from "@owbastion/contracts";
 import { createRequestId } from "~/utils/request-id";
 import { portalErrorDetails } from "~/utils/portal-error";
 
@@ -17,8 +17,8 @@ async function save() {
   error.value = "";
   saved.value = false;
   const publicHandle = draft.value.trim().toLowerCase();
-  if (!/^[a-z][a-z0-9_-]{2,23}$/.test(publicHandle)) {
-    error.value = "ID 需为 3–24 位，以字母开头，只能使用小写字母、数字、下划线和连字符。";
+  if (!publicHandleSchema.safeParse(publicHandle).success) {
+    error.value = "无效的平台 ID。请输入 3–24 位，以字母开头，仅使用小写字母、数字、下划线和连字符；部分名称保留给平台使用。";
     return;
   }
   saving.value = true;
