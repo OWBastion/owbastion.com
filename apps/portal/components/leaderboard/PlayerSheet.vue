@@ -89,8 +89,8 @@ watch(open, (isOpen) => { if (isOpen) void load(); });
             <UButton label="重试" color="neutral" variant="outline" size="sm" @click="load" />
           </template>
         </UAlert>
-        <NuxtLink v-if="entry.player?.publicHandle" class="public-profile-link" :to="`/u/${entry.player.publicHandle}`">查看公开主页 <UIcon name="i-lucide-arrow-up-right" aria-hidden="true" /></NuxtLink>
         <template v-else>
+          <NuxtLink v-if="entry.player?.publicHandle" class="public-profile-link" :to="`/u/${entry.player.publicHandle}`">查看公开主页 <UIcon name="i-lucide-arrow-up-right" aria-hidden="true" /></NuxtLink>
           <div v-if="!entry.player" class="player-sheet-stats num">
             <div class="player-sheet-stat-cell">
               <b>{{ entry.boards?.mastery ? `#${entry.boards.mastery.rank}` : "—" }}</b>
@@ -152,6 +152,7 @@ watch(open, (isOpen) => { if (isOpen) void load(); });
 </template>
 
 <style scoped>
+.public-profile-link { display: inline-flex; gap: var(--space-1); color: var(--accent); margin-bottom: var(--space-4); }
 .player-sheet-head { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-5); }
 .player-sheet-avatar { display: grid; flex: none; place-items: center; width: 3.5rem; height: 3.5rem; border: 2px solid var(--accent); border-radius: 50%; background: var(--accent-surface); color: var(--accent); font-size: 1.4rem; font-weight: 700; }
 .player-sheet-head--anonymous .player-sheet-avatar { border-color: var(--line-strong); background: var(--surface-raised); color: var(--quiet); }
