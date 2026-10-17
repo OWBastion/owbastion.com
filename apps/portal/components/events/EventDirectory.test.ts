@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import EventDirectory from "./EventDirectory.vue";
 
 const portalApi = vi.fn(async (path: string) => {
-  if (path.startsWith("/v1/public/reviews/summaries?")) return { contractVersion: "1" as const, targetType: "event" as const, items: [{ targetType: "event" as const, targetId: "event.alpha", averageRating: 4.5, reviewCount: 4, ratingDistribution: { 1: 0, 2: 0, 3: 1, 4: 1, 5: 2 } }] };
+  if (path.startsWith("/v1/public/reviews/summaries?")) return { contractVersion: "1" as const, targetType: "event" as const, items: [{ targetType: "event" as const, targetId: "event.alpha", averageRating: 4.5, reviewCount: 4, ratingDistribution: { 1: 0, 2: 0, 3: 1, 4: 1, 5: 2 }, sampleInsufficient: false }] };
   throw new Error(`Unexpected request: ${path}`);
 });
 
