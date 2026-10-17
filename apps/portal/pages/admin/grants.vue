@@ -29,6 +29,7 @@ const saving = shallowRef(false);
 const confirmOpen = shallowRef(false);
 const errorMessage = shallowRef("");
 const result = shallowRef<BatchResult | null>(null);
+const openGroups = shallowRef<Set<string>>(new Set<string>());
 
 const selectedPlayerIds = computed(() => new Set(selectedPlayers.value.map((player) => player.playerAccountId)));
 const selectedTitleSet = computed(() => new Set(selectedTitleValues.value));
@@ -85,6 +86,18 @@ function togglePagePlayers() {
   selectedPlayers.value = pagePlayersSelected.value
     ? selectedPlayers.value.filter((player) => !pageIds.has(player.playerAccountId))
     : [...selectedPlayers.value.filter((player) => !pageIds.has(player.playerAccountId)), ...players.value];
+}
+function groupOpen(key: string) {
+  return titleQuery.value.trim() !== "" || openGroups.value.has(key);
+}
+function setGroupOpen(key: string, open: boolean) {
+  const next = new Set(openGroups.value);
+  if (open) next.add(key);
+  else next.delete(key);
+  openGroups.value = next;
+}
+function groupSelectedCount(items: AdminTitleOption[]) {
+  return items.filter((title) => selectedTitleSet.value.has(title.value)).length;
 }
 function groupSelected(items: AdminTitleOption[]) {
   return items.every((title) => selectedTitleSet.value.has(title.value));
@@ -159,6 +172,9 @@ watchDebounced(playerQuery, () => {
 
 <template>
   <AdminWorkspace title="批量授予称号" :count="requestedCount ? `${requestedCount} 个授予` : '未选择'">
+    <template #actions>
+      <UButton label="检查授予计划" :disabled="!canConfirm" @click="openConfirm" />
+    </template>
     <template #messages>
       <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
       <UAlert v-if="result" color="success" variant="subtle" :title="`批次已完成：${result.createdCount} 个新授予，${result.alreadyOwnedCount} 个已拥有`" :description="`共处理 ${result.requestedCount} 个授予单元。`" />
@@ -172,13 +188,10 @@ watchDebounced(playerQuery, () => {
           <UButton size="sm" color="neutral" variant="soft" :label="pagePlayersSelected ? '取消选择本页' : '选择本页'" :disabled="saving || loadingPlayers || !players.length" @click="togglePagePlayers" />
           <UButton size="sm" color="neutral" variant="ghost" label="清空" :disabled="saving || !selectedPlayers.length" @click="selectedPlayers = []" />
         </div>
-        <div v-if="selectedPlayerList.length" class="selection-chips" aria-live="polite">
-          <UButton v-for="player in selectedPlayerList" :key="player.playerAccountId" size="xs" color="primary" variant="subtle" :label="`${player.playerName}#${player.playerId}`" trailing-icon="i-lucide-x" :aria-label="`取消选择 ${player.playerName}#${player.playerId}`" :disabled="saving" @click="togglePlayer(player, false)" />
-        </div>
         <div v-if="loadingPlayers" class="selector-state" role="status">读取中…</div>
         <div v-else-if="!players.length" class="selector-state">暂无匹配玩家。</div>
         <div v-else class="selector-list" role="group" aria-label="玩家结果">
-          <UCheckbox v-for="player in players" :key="player.playerAccountId" class="selector-option" :model-value="selectedPlayerIds.has(player.playerAccountId)" :disabled="saving" @update:model-value="(value) => togglePlayer(player, value === true)"><span class="selector-copy content-stack"><strong>{{ player.playerName }}#{{ player.playerId }}</strong><small>{{ player.playerAccountId }}</small></span></UCheckbox>
+          <UCheckbox v-for="player in players" :key="player.playerAccountId" variant="card" :label="`${player.playerName}#${player.playerId}`" :description="player.playerAccountId" :model-value="selectedPlayerIds.has(player.playerAccountId)" :disabled="saving" @update:model-value="(value) => togglePlayer(player, value === true)" />
         </div>
         <UPagination v-if="playerTotal > playerPageSize" v-model:page="playerPage" :total="playerTotal" :items-per-page="playerPageSize" :disabled="saving || searchingPlayers" class="selector-pagination" />
       </div>
@@ -188,28 +201,45 @@ watchDebounced(playerQuery, () => {
         <div class="panel-actions">
           <UButton size="sm" color="neutral" variant="ghost" label="清空" :disabled="saving || !selectedTitles.length" @click="selectedTitleValues = []" />
         </div>
-        <div v-if="selectedTitles.length" class="selection-chips" aria-live="polite">
-          <UButton v-for="title in selectedTitles" :key="title.value" size="xs" color="primary" variant="subtle" :label="titleDescription(title)" trailing-icon="i-lucide-x" :aria-label="`取消选择 ${titleDescription(title)}`" :disabled="saving" @click="toggleTitle(title, false)" />
-        </div>
         <div v-if="loadingTitles" class="selector-state" role="status">读取中…</div>
         <div v-else-if="!filteredTitles.length" class="selector-state">暂无匹配称号。</div>
-        <div v-else class="selector-list" role="group" aria-label="称号结果">
-          <template v-for="group in titleGroups" :key="group.key">
-            <div class="selector-group">
-              <h3>{{ group.label }}</h3>
-              <UButton size="xs" color="neutral" variant="ghost" :label="groupSelected(group.items) ? '取消本组' : '选择本组'" :aria-label="`${groupSelected(group.items) ? '取消选择' : '选择'}${group.label}的全部称号`" :disabled="saving" @click="toggleGroup(group.items)" />
+        <div v-else class="selector-groups" role="group" aria-label="称号结果">
+          <UCollapsible v-for="group in titleGroups" :key="group.key" :open="groupOpen(group.key)" @update:open="(open) => setGroupOpen(group.key, open)">
+            <div class="selector-group__head">
+              <UButton class="selector-group__toggle" color="neutral" variant="ghost" :label="group.label" :trailing-icon="groupOpen(group.key) ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" :aria-label="`${groupOpen(group.key) ? '收起' : '展开'}${group.label}`" />
+              <span class="selector-group__count">{{ groupSelectedCount(group.items) }} / {{ group.items.length }}</span>
+              <UButton size="xs" color="neutral" variant="soft" :label="groupSelected(group.items) ? '取消本组' : '选择本组'" :aria-label="`${groupSelected(group.items) ? '取消选择' : '选择'}${group.label}的全部称号`" :disabled="saving" @click="toggleGroup(group.items)" />
             </div>
-            <UCheckbox v-for="title in group.items" :key="title.value" class="selector-option" :model-value="selectedTitleSet.has(title.value)" :disabled="saving" @update:model-value="(value) => toggleTitle(title, value === true)"><span class="selector-copy content-stack"><strong>{{ titleDescription(title) }}</strong><small>{{ title.category }} · {{ title.scope === 'map' ? '地图称号' : '全局称号' }}</small></span></UCheckbox>
-          </template>
+            <template #content>
+              <div class="selector-list">
+                <UCheckbox v-for="title in group.items" :key="title.value" variant="card" :label="titleLabel(title)" :description="`${title.category} · ${title.scope === 'map' ? '地图称号' : '全局称号'}`" :model-value="selectedTitleSet.has(title.value)" :disabled="saving" @update:model-value="(value) => toggleTitle(title, value === true)" />
+              </div>
+            </template>
+          </UCollapsible>
         </div>
       </div>
     </section>
     <section class="grant-summary surface-card" aria-labelledby="grant-summary-title">
-      <div class="panel-heading"><h2 id="grant-summary-title">3. 授予计划</h2><span>{{ selectedPlayers.length }} × {{ selectedTitles.length }}</span></div>
+      <div class="panel-heading"><h2 id="grant-summary-title">3. 授予计划</h2></div>
       <p class="grant-count" aria-live="polite">{{ selectedPlayers.length }} 玩家 × {{ selectedTitles.length }} 称号 = <strong>{{ requestedCount }} 个授予</strong></p>
+      <dl class="detail-grid">
+        <div class="detail-grid__row">
+          <dt>玩家</dt>
+          <dd>
+            <span v-if="!selectedPlayerList.length" class="grant-empty">尚未选择</span>
+            <span v-else class="selection-chips"><UButton v-for="player in selectedPlayerList" :key="player.playerAccountId" size="xs" color="neutral" variant="soft" :label="`${player.playerName}#${player.playerId}`" trailing-icon="i-lucide-x" :aria-label="`取消选择 ${player.playerName}#${player.playerId}`" :disabled="saving" @click="togglePlayer(player, false)" /></span>
+          </dd>
+        </div>
+        <div class="detail-grid__row">
+          <dt>称号</dt>
+          <dd>
+            <span v-if="!selectedTitles.length" class="grant-empty">尚未选择</span>
+            <span v-else class="selection-chips"><UButton v-for="title in selectedTitles" :key="title.value" size="xs" color="neutral" variant="soft" :label="titleDescription(title)" trailing-icon="i-lucide-x" :aria-label="`取消选择 ${titleDescription(title)}`" :disabled="saving" @click="toggleTitle(title, false)" /></span>
+          </dd>
+        </div>
+      </dl>
       <UAlert v-if="tooLarge" color="warning" variant="subtle" title="批次超过上限" description="一次最多处理 500 个授予单元，请减少玩家或称号选择。" />
-      <p v-else-if="!selectedPlayers.length || !selectedTitles.length" class="grant-hint">请先选择{{ selectedPlayers.length ? "" : "玩家" }}{{ !selectedPlayers.length && !selectedTitles.length ? "和" : "" }}{{ selectedTitles.length ? "" : "称号" }}。</p>
-      <UFormField label="发放原因"><UTextarea v-model="reason" maxlength="512" placeholder="漏发、申诉纠正或特殊人工奖励" :disabled="saving" /></UFormField>
+      <UFormField label="发放原因"><UTextarea v-model="reason" class="w-full" maxlength="512" placeholder="漏发、申诉纠正或特殊人工奖励" :disabled="saving" /></UFormField>
       <UButton block label="检查授予计划" :disabled="!canConfirm" @click="openConfirm" />
     </section>
     <AdminResponsiveDialog v-model:open="confirmOpen" title="确认批量授予" size="sm" :dismissible="!saving">
@@ -226,25 +256,22 @@ watchDebounced(playerQuery, () => {
 </template>
 
 <style scoped>
-.grant-workspace { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(var(--space-4), 2.4vw, var(--space-6)); }
+.grant-workspace { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(var(--space-4), 2.4vw, var(--space-6)); align-items: start; }
 .grant-workflow-note { margin: 0; color: var(--quiet); font-size: var(--type-caption-size); }
 .grant-panel, .grant-summary { display: grid; gap: var(--space-4); padding: clamp(var(--space-4), 2.5vw, var(--space-6)); }
-.grant-summary { gap: var(--space-4); }
 .panel-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
 .panel-heading h2 { margin: 0; font-size: var(--type-body-size); letter-spacing: -0.02em; }
 .panel-heading > span { color: var(--quiet); font-size: var(--type-caption-size); }
-.selector-list { display: grid; gap: var(--space-1); max-height: 22rem; overflow-y: auto; }
-.selector-option { display: flex; align-items: start; gap: var(--space-3); min-width: 0; min-height: 2.75rem; padding: var(--space-3) var(--space-2); border-radius: var(--radius-control); cursor: pointer; }
 .panel-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.selector-group { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); position: sticky; top: 0; z-index: 1; padding: var(--space-1) var(--space-2); background: var(--surface); border-bottom: 1px solid var(--line); }
-.selector-group h3 { margin: 0; color: var(--muted); font-size: var(--type-caption-size); font-weight: 600; }
-.grant-hint { margin: 0; color: var(--quiet); font-size: var(--type-caption-size); }
-.selector-option:hover { background: var(--accent-surface); }
-.selector-option strong { overflow-wrap: anywhere; }
-.selector-option small { color: var(--quiet); overflow-wrap: anywhere; }
+.selector-list, .selector-groups { display: grid; gap: var(--space-2); min-width: 0; }
+.selector-groups { gap: var(--space-3); }
+.selector-group__head { display: flex; align-items: center; gap: var(--space-3); padding-bottom: var(--space-2); border-bottom: 1px solid var(--line); }
+.selector-group__toggle { flex: 1 1 auto; justify-content: space-between; min-width: 0; font-weight: 600; }
+.selector-group__count { color: var(--quiet); font-size: var(--type-caption-size); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .selector-state { min-height: 5rem; display: grid; place-items: center; color: var(--quiet); font-size: var(--type-label-sm-size); }
-.selection-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); max-height: 5.5rem; overflow-y: auto; }
 .selector-pagination { display: flex; justify-content: center; }
+.selection-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.grant-empty { color: var(--quiet); }
 .grant-count { margin: 0; color: var(--muted); }
 .grant-count strong { color: var(--text); }
 .confirm-body { display: grid; gap: var(--space-4); }
