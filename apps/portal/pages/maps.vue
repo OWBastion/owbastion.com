@@ -24,10 +24,11 @@ const selectedMapId = computed(() => typeof route.query.mapId === "string" ? rou
 
 
 onMounted(async () => {
-  try {
-    await refresh();
-    if (player.value) { await refreshTitles(); titlesLoaded.value = true; }
-  } catch { titlesLoaded.value = false; }
+  try { await refresh(); }
+  catch { player.value = null; }
+  if (!player.value) return;
+  try { await refreshTitles(); titlesLoaded.value = true; }
+  catch { titlesLoaded.value = false; }
 });
 </script>
 

@@ -139,6 +139,25 @@ describe("maps page", () => {
     signedIn.unmount();
   });
 
+  it("renders the signed-out view when the player refresh fails, and keeps the player when only titles fail", async () => {
+    currentPlayer.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
+    refreshPlayer.mockRejectedValueOnce(new Error("offline"));
+    const failed = await mountSuspended(MapsPage);
+    await flushPromises();
+    expect(currentPlayer.value).toBeNull();
+    expect(failed.text()).toContain("登录后可评价地图。");
+    failed.unmount();
+
+    currentPlayer.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
+    refreshTitles.mockRejectedValueOnce(new Error("titles down"));
+    const titlesFailed = await mountSuspended(MapsPage, { route: "/maps?mapId=map.samoa" });
+    await flushPromises();
+    expect(currentPlayer.value).not.toBeNull();
+    expect(titlesFailed.text()).not.toContain("登录后可评价地图。");
+    expect(document.body.textContent).not.toContain("未获得");
+    titlesFailed.unmount();
+  });
+
   it("shows the factual error state when either public catalog request fails", async () => {
     portalApi.mockImplementation(async (path: string) => {
       if (path.startsWith("/v1/public/reviews/summaries?")) return { contractVersion: "1", targetType: "map", items: [] };
