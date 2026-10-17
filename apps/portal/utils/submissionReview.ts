@@ -52,15 +52,15 @@ const supersededFieldLabels: Record<string, string> = {
 };
 
 export const verifiedRunPreviewLabel = (verifiedRun: AdminSubmissionReviewPreview["verifiedRun"]) => verifiedRun.status === "recorded"
-  ? "已记录 通关记录"
+  ? "已记录通关记录"
   : verifiedRun.status === "eligible"
     ? verifiedRun.supersededFields.length
-      ? `将按识别结果记录 通关记录，并作废已有的同对局码记录（不一致：${verifiedRun.supersededFields.map((field) => supersededFieldLabels[field] ?? field).join("、")}）`
-      : "将按识别结果记录 通关记录"
+      ? `将按识别结果记录通关记录，并作废已有的同对局码记录（不一致：${verifiedRun.supersededFields.map((field) => supersededFieldLabels[field] ?? "其他字段").join("、")}）`
+      : "将按识别结果记录通关记录"
     : null;
 
 const verifiedRunReasonLabels: Record<string, string> = {
-  mastery_rollout_disabled: "通关记录 尚未开启（平台未配置最低游戏版本与 OCR 布局版本）",
+  mastery_rollout_disabled: "通关记录尚未开启（平台未配置最低游戏版本与 OCR 布局版本）",
   unsupported_schema_version: "识别结果的数据版本不受支持",
   unsuccessful_response: "识别未成功",
   unsupported_layout: "截图布局版本不受支持",
@@ -74,7 +74,7 @@ const verifiedRunReasonLabels: Record<string, string> = {
   unreliable_map_variant: "地图版本识别可信度不足",
   gameplay_revision_not_found: "找不到该地图对应的玩法版本",
   submission_revision_mismatch: "地图玩法版本与提交记录不一致",
-  mastery_run_invalidated: "该对局码的 通关记录 已被作废（如需记录，请先在 通关记录 管理页恢复）",
+  mastery_run_invalidated: "该对局码的通关记录已被作废（如需记录，请先在通关记录管理页恢复）",
   same_player_run_code: "该玩家已有相同对局码的记录",
   completion_not_confirmed: "通关标记不是已完成",
   missing_map: "缺少地图",
@@ -92,9 +92,9 @@ const verifiedRunReasonLabels: Record<string, string> = {
   conflicting_run_code_evidence: "与已有的同对局码记录冲突",
 };
 
-/** Why no 通关记录 would be recorded; null when none is expected to explain (eligible/recorded, or nothing to report). */
+/** Why no Verified Run would be recorded; null when none is expected to explain (eligible/recorded, or nothing to report). */
 export const verifiedRunIneligibleLabel = (verifiedRun: AdminSubmissionReviewPreview["verifiedRun"]) => verifiedRun.status === "ineligible" && verifiedRun.reason
-  ? `不会记录 通关记录：${verifiedRunReasonLabels[verifiedRun.reason] ?? verifiedRun.reason}`
+  ? `不会记录通关记录：${verifiedRunReasonLabels[verifiedRun.reason] ?? "不满足记录条件"}`
   : null;
 
 const reviewDecisionText: Record<NonNullable<AdminSubmission["review"]>["decision"], string> = {

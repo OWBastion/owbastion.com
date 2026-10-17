@@ -17,6 +17,7 @@ const emit = defineEmits<{
   conflict: [input: { submissionId: string; action: ConflictAction }];
 }>();
 
+const actorLabel = (actorType: "service" | "user") => actorType === "service" ? "系统" : "维护人员";
 const NONE = "暂无记录";
 const deathsSkips = (deaths: number | null | undefined, skips: number | null | undefined) => deaths == null && skips == null ? NONE : `${deaths ?? NONE} / ${skips ?? NONE}`;
 const formatDuration = (seconds: number) => `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`;
@@ -36,7 +37,7 @@ const conflictFieldLabel: Record<AdminVerifiedRunConflict["conflictFields"][numb
   event_counters: "事件计数",
 };
 const eventCounters = computed(() => Object.entries(props.detail.run.eventCounters).sort(([left], [right]) => left.localeCompare(right)));
-const sourceStatusLabel = computed(() => submissionStatusText[props.detail.sourceSubmission.status] ?? props.detail.sourceSubmission.status);
+const sourceStatusLabel = computed(() => submissionStatusText[props.detail.sourceSubmission.status] ?? "其他状态");
 const sourceStatusTone = computed(() => submissionStatusTone(props.detail.sourceSubmission.status));
 
 function sourcePath(submissionId: string) {
@@ -128,10 +129,10 @@ function sourcePath(submissionId: string) {
       </div>
       <ol class="verified-run-detail__history">
         <li v-for="correction in detail.corrections" :key="correction.correctionId">
-          <div class="card-heading"><strong>{{ formatTime(correction.createdAt) }}</strong><span class="verified-run-detail__quiet">{{ correction.actorId }}</span></div>
+          <div class="card-heading"><strong>{{ formatTime(correction.createdAt) }}</strong><span class="verified-run-detail__quiet">{{ actorLabel(correction.actorType) }}</span></div>
           <p v-if="correction.reason" class="verified-run-detail__quiet">{{ correction.reason }}</p>
-          <p>{{ mapNames[correction.before.mapId] ?? "未知地图" }} → {{ mapNames[correction.after.mapId] ?? "未知地图" }}</p>
-          <p>{{ correction.before.difficulty }} · {{ correction.before.matchCode }} · {{ correction.before.awardedXp }} XP → {{ correction.after.difficulty }} · {{ correction.after.matchCode }} · {{ correction.after.awardedXp }} XP ({{ correction.after.xpRuleVersion }})</p>
+          <p>{{ mapNames[correction.before.mapId] ?? "未知地图" }} · {{ correction.before.gameVersion }} → {{ mapNames[correction.after.mapId] ?? "未知地图" }} · {{ correction.after.gameVersion }}</p>
+          <p>{{ correction.before.difficulty }} · {{ correction.before.matchCode }} · {{ correction.before.awardedXp }} XP → {{ correction.after.difficulty }} · {{ correction.after.matchCode }} · {{ correction.after.awardedXp }} XP</p>
         </li>
       </ol>
     </section>
@@ -146,7 +147,7 @@ function sourcePath(submissionId: string) {
         <article v-for="conflict in detail.conflicts" :key="conflict.submissionId" class="verified-run-detail__conflict">
           <header class="verified-run-detail__conflict-header">
             <strong>{{ conflict.playerName }}</strong>
-            <StatusBadge :label="submissionStatusText[conflict.submissionStatus] ?? conflict.submissionStatus" :tone="submissionStatusTone(conflict.submissionStatus)" />
+            <StatusBadge :label="submissionStatusText[conflict.submissionStatus] ?? '其他状态'" :tone="submissionStatusTone(conflict.submissionStatus)" />
           </header>
           <dl class="detail-grid verified-run-detail__facts">
             <div class="detail-grid__row"><dt>差异字段</dt><dd>{{ conflict.conflictFields.map((field) => conflictFieldLabel[field]).join('、') }}</dd></div>
@@ -158,7 +159,7 @@ function sourcePath(submissionId: string) {
           </dl>
           <dl v-if="conflict.resolution" class="detail-grid verified-run-detail__resolution">
             <div class="detail-grid__row"><dt>处理结果</dt><dd>{{ conflict.resolution.action === 'keep_existing' ? '保留原记录' : '已作废原记录' }}</dd></div>
-            <div class="detail-grid__row"><dt>处理者</dt><dd>{{ conflict.resolution.actorId }}</dd></div>
+            <div class="detail-grid__row"><dt>处理者</dt><dd>{{ actorLabel(conflict.resolution.actorType) }}</dd></div>
             <div class="detail-grid__row"><dt>处理时间</dt><dd>{{ formatTime(conflict.resolution.resolvedAt) }}</dd></div>
             <div class="detail-grid__row"><dt>理由</dt><dd :class="{ 'detail-grid__empty': conflict.resolution.reason == null }">{{ conflict.resolution.reason ?? NONE }}</dd></div>
           </dl>
@@ -177,7 +178,7 @@ function sourcePath(submissionId: string) {
         <li v-for="event in detail.lifecycle" :key="`${event.transition}:${event.createdAt}:${event.actorId}`">
           <strong>{{ lifecycleLabel(event.transition) }}</strong>
           <span>{{ formatTime(event.createdAt) }}</span>
-          <span>{{ event.actorId }}</span>
+          <span>{{ actorLabel(event.actorType) }}</span>
           <span v-if="event.reason">{{ event.reason }}</span>
         </li>
       </ol>

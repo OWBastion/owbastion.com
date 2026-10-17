@@ -135,7 +135,7 @@ const reviewedLabel = (key: string) => {
   const choice = fieldChoices(key).find((item) => typeof item === "object" && item.value === value);
   return typeof choice === "object" ? choice.label : value;
 };
-// A readout no 通关记录 can use (a dropped digit in the version or run code) reads as needing a check even when OCR was confident.
+// A readout no Verified Run can use (a dropped digit in the version or run code) reads as needing a check even when OCR was confident.
 const unusableReadout = (key: string, raw: unknown) => {
   if (raw === null || raw === undefined || raw === "") return false;
   if (key === "version") return !/^\d{2}\.\d{4}\.\d+$/u.test(String(raw).trim());

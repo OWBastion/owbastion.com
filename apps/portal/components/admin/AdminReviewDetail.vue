@@ -13,7 +13,7 @@ const commentStatusLabel = (value: AdminReviewDetail["review"]["commentStatus"])
     <section class="review-detail__section" aria-labelledby="review-context-heading">
       <h2 id="review-context-heading">评价内容</h2>
       <dl class="review-detail__facts">
-        <div><dt>目标</dt><dd class="content-stack"><strong>{{ detail.review.targetName }}</strong><span class="table-meta">{{ targetTypeLabel(detail.review.targetType) }} · {{ detail.review.targetId }}</span></dd></div>
+        <div><dt>目标</dt><dd class="content-stack"><strong>{{ detail.review.targetName }}</strong><span class="table-meta">{{ targetTypeLabel(detail.review.targetType) }}</span></dd></div>
         <div><dt>评分</dt><dd class="content-stack" aria-label="评分">{{ "★".repeat(detail.review.rating) }}<span class="table-meta">{{ detail.review.rating }} / 5</span></dd></div>
         <div><dt>评价状态</dt><dd class="content-stack"><StatusBadge :label="statusLabel(detail.review.status)" :tone="detail.review.status === 'active' ? 'success' : detail.review.status === 'invalidated' ? 'warning' : 'default'" /></dd></div>
         <div><dt>评论状态</dt><dd class="content-stack"><StatusBadge :label="commentStatusLabel(detail.review.commentStatus)" :tone="detail.review.commentStatus === 'visible' ? 'success' : 'warning'" /></dd></div>
@@ -28,7 +28,6 @@ const commentStatusLabel = (value: AdminReviewDetail["review"]["commentStatus"])
       <h2 id="review-player-heading">提交玩家</h2>
       <dl class="review-detail__facts review-detail__facts--player">
         <div><dt>玩家</dt><dd class="content-stack"><strong><PlayerBattleTag :player-name="detail.review.playerName" :player-id="detail.review.playerId" /></strong></dd></div>
-        <div><dt>账号记录</dt><dd class="content-stack review-detail__id">{{ detail.review.playerAccountId }}</dd></div>
       </dl>
     </section>
 
@@ -63,7 +62,6 @@ const commentStatusLabel = (value: AdminReviewDetail["review"]["commentStatus"])
 .table-meta { display: block; color: var(--quiet); font-size: var(--type-caption-size); }
 .review-detail__comment { margin: 0; padding: var(--space-4); border-inline-start: 3px solid var(--accent); border-radius: 0 var(--radius-control) var(--radius-control) 0; background: var(--accent-surface); white-space: pre-wrap; overflow-wrap: anywhere; }
 .review-detail__muted { margin: 0; color: var(--quiet); }
-.review-detail__id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--type-caption-size); }
 .review-detail__audit li { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); overflow-wrap: anywhere; }
 .review-detail__audit li > div { display: grid; gap: var(--space-1); }
 .review-detail__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); padding-top: var(--space-1); }

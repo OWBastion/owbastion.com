@@ -278,7 +278,7 @@ describe("admin review detail page", () => {
       ocrVersion = "26.1003";
       const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
       await flushPromises();
-      // A dropped digit blocks the 通关记录, so it must not read as "一致" just because OCR was confident.
+      // A dropped digit blocks the Verified Run, so it must not read as "一致" just because OCR was confident.
       expect(chip(wrapper, "游戏版本").attributes("aria-label")).toContain("无法识别");
     });
 
@@ -405,7 +405,7 @@ describe("admin review detail page", () => {
     await wrapper.findAll('[role="group"][aria-label="审核决定"] button').find((button) => button.text().includes("驳回"))!.trigger("click");
     await flushPromises();
     const dialog = wrapper.get('[role="dialog"][aria-label="驳回提交"]').text();
-    expect(dialog).toContain("此操作不会撤销已发放的称号（守望先锋）和已记录的 通关记录");
+    expect(dialog).toContain("此操作不会撤销已发放的称号（守望先锋）和已记录的通关记录");
     expect(dialog).not.toContain("不会产生称号");
   });
 

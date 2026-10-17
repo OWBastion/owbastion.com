@@ -34,7 +34,7 @@ const adminNavigationItems = computed(() => {
       { label: "截图审核", description: "待审核的提交", icon: "i-lucide-scan-eye", to: "/admin/reviews", active: adminPathActive("/admin/reviews") },
       { label: "截图集", description: "OCR 样本与标注", icon: "i-lucide-images", to: "/admin/screenshot-sets", active: adminPathActive("/admin/screenshot-sets") },
       { label: "评价审核", description: "玩家评价处理", icon: "i-lucide-message-square-quote", to: "/admin/player-reviews", active: adminPathActive("/admin/player-reviews") },
-      { label: "通关记录", description: "通关记录 查询与冲突处理", icon: "i-lucide-trophy", to: "/admin/verified-runs", active: adminPathActive("/admin/verified-runs") },
+      { label: "通关记录", description: "查询与冲突处理", icon: "i-lucide-trophy", to: "/admin/verified-runs", active: adminPathActive("/admin/verified-runs") },
     ]),
     group("玩家", "i-lucide-users", [
       { label: "玩家列表", description: "身份、称号与进度", icon: "i-lucide-user-round", to: "/admin/players", active: adminPathActive("/admin/players") },

@@ -57,6 +57,7 @@ const mark = async (accuracy: AccuracyMark) => {
         <UButton
           label="识别准确"
           icon="i-lucide-check"
+          :aria-pressed="feedback.accuracy === 'accurate'"
           :color="feedback.accuracy === 'accurate' ? 'primary' : 'neutral'"
           :variant="feedback.accuracy === 'accurate' ? 'solid' : 'outline'"
           size="sm"
@@ -67,6 +68,7 @@ const mark = async (accuracy: AccuracyMark) => {
         <UButton
           label="识别有误"
           icon="i-lucide-flag"
+          :aria-pressed="feedback.accuracy === 'inaccurate'"
           :color="feedback.accuracy === 'inaccurate' ? 'primary' : 'neutral'"
           :variant="feedback.accuracy === 'inaccurate' ? 'solid' : 'outline'"
           size="sm"

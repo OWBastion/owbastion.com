@@ -38,14 +38,18 @@ const revisionItems = computed(() => {
   return items.some((item) => item.value === draft.gameplayRevisionId) ? items : [{ label: draft.mapId === props.run.mapId ? revisionLabel({ lifecycle: props.run.gameplayRevisionLifecycle, gameVersion: props.run.gameVersion, mapVariant: props.run.mapVariant }) : "请选择版本修订", value: draft.gameplayRevisionId }, ...items];
 });
 const addableEvents = computed(() => props.events.filter((event) => !draft.eventCounters.some((row) => row.eventId === event.eventId)).map((event) => ({ label: event.name, value: event.eventId })));
+const removeEvent = (eventId: string) => { draft.eventCounters = draft.eventCounters.filter((row) => row.eventId !== eventId); };
 const addEvent = (eventId: string) => { if (eventId) draft.eventCounters.push({ eventId, count: "1" }); };
 watch(() => draft.mapId, async (mapId, previous) => {
   if (previous !== undefined && previous !== mapId) draft.gameplayRevisionId = "";
+  let loaded: AdminMapEditor["revisions"] = [];
   try {
-    revisions.value = (await api<AdminMapEditor>(`/v1/maps/${encodeURIComponent(mapId)}/editor`)).revisions;
+    loaded = (await api<AdminMapEditor>(`/v1/maps/${encodeURIComponent(mapId)}/editor`)).revisions;
   } catch {
-    revisions.value = [];
+    loaded = [];
   }
+  if (draft.mapId !== mapId) return;
+  revisions.value = loaded;
   if (!draft.gameplayRevisionId) draft.gameplayRevisionId = revisions.value.find((revision) => revision.lifecycle === "default")?.revisionId ?? revisions.value[0]?.revisionId ?? "";
 }, { immediate: true });
 const difficulties = ["简单", "一般", "困难", "专家", "传奇", "地狱"] as const;
@@ -94,9 +98,9 @@ function submit() {
     <UAlert v-if="validationError" color="error" variant="subtle" :description="validationError" />
 
     <div class="verified-run-correction__grid">
-      <UFormField label="地图" required><USelect v-model="draft.mapId" :items="mapItems.map((map) => ({ label: map.mapName, value: map.mapId }))" :disabled="saving" /></UFormField>
-      <UFormField label="版本修订" required><USelect v-model="draft.gameplayRevisionId" :items="revisionItems" :disabled="saving" /></UFormField>
-      <UFormField label="难度" required><USelect v-model="draft.difficulty" :items="difficulties.map((value) => ({ label: value, value }))" :disabled="saving" /></UFormField>
+      <UFormField label="地图" required><USelect v-model="draft.mapId" :items="mapItems.map((map) => ({ label: map.mapName, value: map.mapId }))" :disabled="saving" class="w-full" /></UFormField>
+      <UFormField label="版本修订" required><USelect v-model="draft.gameplayRevisionId" :items="revisionItems" :disabled="saving" class="w-full" /></UFormField>
+      <UFormField label="难度" required><USelect v-model="draft.difficulty" :items="difficulties.map((value) => ({ label: value, value }))" :disabled="saving" class="w-full" /></UFormField>
       <UFormField label="游戏版本" required><UInput v-model="draft.gameVersion" required :disabled="saving" /></UFormField>
       <UFormField label="对局码" required><UInput v-model="draft.matchCode" required :disabled="saving" /></UFormField>
       <UFormField label="通关用时（秒）" required><UInput v-model="draft.completionDurationSeconds" type="number" min="1" step="1" required :disabled="saving" /></UFormField>
@@ -105,7 +109,7 @@ function submit() {
     </div>
     <fieldset class="verified-run-correction__events">
       <legend>事件次数</legend>
-      <UFormField v-for="row in draft.eventCounters" :key="row.eventId" :label="eventName(row.eventId)"><UInput v-model="row.count" type="number" min="0" step="1" :disabled="saving" /></UFormField>
+      <UFormField v-for="row in draft.eventCounters" :key="row.eventId" :label="eventName(row.eventId)"><div class="verified-run-correction__event-row"><UInput v-model="row.count" type="number" min="0" step="1" :disabled="saving" /><UButton label="移除" color="neutral" variant="ghost" size="sm" :disabled="saving" @click="removeEvent(row.eventId)" /></div></UFormField>
       <USelect v-if="addableEvents.length" model-value="" :items="addableEvents" placeholder="添加事件" :disabled="saving" aria-label="添加事件" @update:model-value="addEvent($event as string)" />
     </fieldset>
     <UFormField label="更正理由和依据"><UTextarea v-model="draft.reason" :rows="3" :disabled="saving" placeholder="核对依据和本次修正内容" /></UFormField>
@@ -120,6 +124,7 @@ function submit() {
 .verified-run-correction { display: grid; gap: 1rem; min-width: 0; }
 .verified-run-correction__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); gap: .75rem; }
 .verified-run-correction__events { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); gap: .75rem; min-width: 0; padding: 0; border: 0; }
+.verified-run-correction__event-row { display: flex; align-items: center; gap: .5rem; }
 .verified-run-correction__events legend { margin-bottom: .5rem; font-size: var(--type-label-sm-size); font-weight: 500; }
 .verified-run-correction__actions { display: flex; flex-wrap: wrap; justify-content: end; gap: .5rem; }
 </style>

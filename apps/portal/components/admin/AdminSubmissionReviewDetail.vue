@@ -63,15 +63,15 @@ const confirmCopy = computed(() => {
     const titles = props.submission.activeTitleGrants?.map(({ titleName }) => titleName) ?? [];
     const run = props.submission.verifiedRunOutcome?.status === "created" || props.submission.verifiedRunOutcome?.status === "reused";
     const withdrawn = [...(titles.length ? [`称号（${titles.join("、")}）`] : []), ...(run ? ["通关记录"] : [])];
-    return { title: "重新打开核对", description: `${withdrawn.length ? `将撤销该提交产生的${withdrawn.join("和")}` : "该提交没有已发放的称号或 通关记录"}，并回到待核对。在「更多字段」修正后重新通过，会按截图重新判定并发放；手动发放的称号不受影响。`, reasonLabel: "原因", confirmLabel: "确认重新打开" };
+    return { title: "重新打开核对", description: `${withdrawn.length ? `将撤销该提交产生的${withdrawn.join("和")}` : "该提交没有已发放的称号或通关记录"}，并回到待核对。在「更多字段」修正后重新通过，会按截图重新判定并发放；手动发放的称号不受影响。`, reasonLabel: "内部备注", confirmLabel: "确认重新打开" };
   }
-  if (target.kind === "spot-check") return { title: "撤销自动获得的称号", description: "撤销后玩家将失去本次自动判定获得的称号，由该提交产生的 通关记录 也会失效。", reasonLabel: "撤销原因", confirmLabel: "确认撤销" };
-  // A later decision changes only the Submission; Titles and 通关记录s it already produced are managed separately.
+  if (target.kind === "spot-check") return { title: "撤销自动获得的称号", description: "撤销后玩家将失去本次自动判定获得的称号，由该提交产生的通关记录也会失效。", reasonLabel: "内部备注", confirmLabel: "确认撤销" };
+  // A later decision changes only the Submission; Titles and Verified Runs it already produced are managed separately.
   const retainedTitles = props.submission.activeTitleGrants?.map(({ titleName }) => titleName) ?? [];
   const retainedRun = props.submission.verifiedRunOutcome?.status === "created" || props.submission.verifiedRunOutcome?.status === "reused";
-  const retainedItems = [...(retainedTitles.length ? [`已发放的称号（${retainedTitles.join("、")}）`] : []), ...(retainedRun ? ["已记录的 通关记录"] : [])];
+  const retainedItems = [...(retainedTitles.length ? [`已发放的称号（${retainedTitles.join("、")}）`] : []), ...(retainedRun ? ["已记录的通关记录"] : [])];
   const retained = retainedItems.length ? `此操作不会撤销${retainedItems.join("和")}${retainedTitles.length ? "；撤销称号请在玩家称号中处理" : ""}。` : "";
-  if (target.decision === "rejected") return { title: "驳回提交", description: `玩家会看到“未通过”。${retained || "本次提交不会产生称号或 通关记录。"}`, reasonLabel: "给玩家的说明", confirmLabel: "确认驳回" };
+  if (target.decision === "rejected") return { title: "驳回提交", description: `玩家会看到“未通过”。${retained || "本次提交不会产生称号或通关记录。"}`, reasonLabel: "给玩家的说明", confirmLabel: "确认驳回" };
   return { title: "要求重新提交", description: `玩家会看到“需重新提交”，并可以上传新的截图。${retained}`, reasonLabel: "给玩家的说明", confirmLabel: "确认要求重新提交" };
 });
 
@@ -100,7 +100,7 @@ function submitConfirm() {
 const verifiedRunLabel = computed(() => props.preview ? verifiedRunPreviewLabel(props.preview.verifiedRun) : null);
 const verifiedRunIneligible = computed(() => props.preview ? verifiedRunIneligibleLabel(props.preview.verifiedRun) : null);
 const satisfiedCompletions = computed(() => props.preview?.completions.filter((completion) => completion.basis === "satisfies") ?? []);
-// One caption for the side effects of approving: linked completions and what happens to the 通关记录.
+// One caption for the side effects of approving: linked completions and what happens to the Verified Run.
 const outcomeNote = computed(() => [satisfiedCompletions.value.length ? `联动完成：${satisfiedCompletions.value.map((completion) => completion.titleName).join("、")}` : null, verifiedRunLabel.value ?? verifiedRunIneligible.value].filter(Boolean).join(" · "));
 
 watch(
@@ -194,7 +194,7 @@ function spotCheckLoading(decision: SpotCheckDecision) {
                 <span v-if="title.mapName" class="claim-meta">{{ title.mapName }}</span>
               </li>
             </ul>
-            <p v-else-if="!verifiedRunLabel" class="claim-empty">不会产生称号或 通关记录。</p>
+            <p v-else-if="!verifiedRunLabel" class="claim-empty">不会产生称号或通关记录。</p>
             <p v-if="outcomeNote" class="claim-meta">{{ outcomeNote }}</p>
           </template>
           <p v-else-if="ocrPending" class="claim-empty" role="status">正在重新识别截图，完成后自动刷新。</p>
