@@ -2,7 +2,7 @@
 import type { PublicAchievement } from "./AchievementCatalog.vue";
 import type { OwnedTitle } from "~/types/title";
 import type { PlayerChallengeProgress, PortalMap } from "~/composables/usePortalApi";
-import { achievementState } from "~/utils/achievement-status";
+import { achievementState, findOwnedTitle } from "~/utils/achievement-status";
 import { buildMapProgressRows, type MapProgressChallenge } from "~/utils/map-progress";
 
 type HistoricalTitleGroup = {
@@ -61,7 +61,7 @@ const isAchievementCardEarned = (card: AchievementCard) => card.kind === "retire
 const ownedGlobalTitleForCard = (card: AchievementCard) => card.kind === "retired"
   ? card.title
   : props.titles.find((title) => title.titleKey === card.challenge.titleKey && title.scope === "global");
-const stateForCard = (card: AchievementCard) => achievementState(card.kind === "retired" ? card.title : props.titles.find((title) => title.titleKey === card.challenge.titleKey));
+const stateForCard = (card: AchievementCard) => achievementState(card.kind === "retired" ? card.title : findOwnedTitle(props.titles, { titleKey: card.challenge.titleKey }));
 const groups = computed(() => {
   const grouped = new Map<string, AchievementCard[]>();
   for (const challenge of props.challenges) grouped.set(challenge.category, [...(grouped.get(challenge.category) ?? []), { kind: "catalog", challenge }]);

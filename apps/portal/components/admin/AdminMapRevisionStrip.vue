@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AdminMapEditorRevision } from "~/composables/useAdminMapEditor";
+import { lifecycleLabels, lifecycleTone } from "~/utils/map-lifecycle";
 
 defineProps<{
   revisions: AdminMapEditorRevision[];
@@ -9,8 +10,6 @@ defineProps<{
 }>();
 const emit = defineEmits<{ select: [revisionId: string]; create: [] }>();
 
-const lifecycleLabels: Record<AdminMapEditorRevision["lifecycle"], string> = { preparing: "准备中", default: "正式", selectable: "可选", historical: "历史" };
-const lifecycleTone = (lifecycle: AdminMapEditorRevision["lifecycle"]) => lifecycle === "default" ? "success" : lifecycle === "selectable" ? "info" : lifecycle === "historical" ? "default" : "warning";
 const revisionName = (revision: AdminMapEditorRevision) => revision.mode ?? (revision.mapVariant === "classic" ? "经典版" : "标准版");
 const honorCount = (revision: AdminMapEditorRevision) => revision.challengeAssignments.filter((assignment) => assignment.enabled).length;
 </script>

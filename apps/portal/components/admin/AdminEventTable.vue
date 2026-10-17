@@ -99,7 +99,6 @@ table { width: 100%; border-collapse: collapse; }
 th { position: sticky; top: 0; z-index: 1; padding: var(--space-2) var(--space-3); background: var(--surface-raised); border-bottom: 1px solid var(--line); color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 600; text-align: left; white-space: nowrap; }
 td { padding: var(--space-1) var(--space-3); border-bottom: 1px solid var(--line); vertical-align: middle; }
 tbody tr:hover td { background: color-mix(in oklch, var(--surface-raised) 60%, transparent); }
-tbody tr.is-changed td { background: var(--accent-surface); }
 tbody tr.is-changed td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 tbody tr.is-selected td { background: var(--accent-surface); }
 tbody tr.is-dim td:not(.event-table__check) { opacity: 0.6; }

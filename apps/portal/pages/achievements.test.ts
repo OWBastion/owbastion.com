@@ -32,20 +32,20 @@ describe("achievements page", () => {
     await flushPromises();
     expect(wrapper.text()).toContain("测试称号");
     expect(wrapper.text()).not.toContain("已获得");
+    expect(wrapper.text()).not.toContain("未获得");
     expect(refreshTitles).not.toHaveBeenCalled();
   });
 
-  it("renders the same public catalog for a signed-in player without loading personal data", async () => {
+  it("shows a signed-in player's equipped, obtained and not-obtained states", async () => {
     currentPlayer.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
-    ownedTitles.value = [{ grantId: "grant-1", titleKey: "TEST", label: "测试称号", icon: "trophy", category: "测试", condition: "完成挑战", scope: "global", grantedAt: 2 }];
+    ownedTitles.value = [{ grantId: "grant-1", titleKey: "TEST", label: "测试称号", icon: "trophy", category: "测试", condition: "完成挑战", scope: "global", grantedAt: 2, equipped: true }];
     refreshTitles.mockClear();
-    refreshChallengeProgress.mockClear();
     const wrapper = await mountSuspended(AchievementsPage);
     await flushPromises();
     expect(wrapper.text()).toContain("测试称号");
+    expect(wrapper.text()).toContain("已佩戴");
     expect(wrapper.text()).not.toContain("我的成就");
-    expect(wrapper.text()).not.toContain("已获得");
-    expect(refreshTitles).not.toHaveBeenCalled();
+    expect(refreshTitles).toHaveBeenCalled();
     expect(refreshChallengeProgress).not.toHaveBeenCalled();
   });
 });

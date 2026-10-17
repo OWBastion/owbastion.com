@@ -17,12 +17,17 @@ const { data: catalog, pending: loading, error: catalogError } = await useAsyncD
 const maps = computed(() => catalog.value?.maps ?? []);
 const challenges = computed(() => catalog.value?.challenges ?? []);
 const error = computed(() => catalogError.value ? portalErrorDetails(catalogError.value, "请稍后重试。").description : "");
+const { items: ownedTitles, refresh: refreshTitles } = usePlayerTitles();
+const titlesLoaded = shallowRef(false);
+const titles = computed(() => player.value && titlesLoaded.value ? ownedTitles.value : undefined);
 const selectedMapId = computed(() => typeof route.query.mapId === "string" ? route.query.mapId : undefined);
 
 
 onMounted(async () => {
-  try { await refresh(); }
-  catch { player.value = null; }
+  try {
+    await refresh();
+    if (player.value) { await refreshTitles(); titlesLoaded.value = true; }
+  } catch { titlesLoaded.value = false; }
 });
 </script>
 
@@ -44,7 +49,7 @@ onMounted(async () => {
         </div>
       </div>
       <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取地图" :description="error" />
-      <MapDirectory v-else :maps="maps" :challenges="challenges" :authenticated="Boolean(player)" :selected-map-id="selectedMapId" />
+      <MapDirectory v-else :maps="maps" :challenges="challenges" :authenticated="Boolean(player)" :titles="titles" :selected-map-id="selectedMapId" />
     </section>
   </main>
 </template>

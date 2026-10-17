@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AdminMapEditorAudit } from "~/composables/useAdminMapEditor";
+import { lifecycleLabels, lifecycleTone } from "~/utils/map-lifecycle";
 
 defineProps<{ audit: AdminMapEditorAudit[] }>();
 
@@ -8,9 +9,10 @@ const labels: Record<string, string> = {
   "admin.map.revision.create": "创建版本修订",
   "admin.map.revision.update": "保存版本修订",
 };
-const lifecycleLabels: Record<string, string> = { preparing: "准备中", default: "正式", selectable: "可选", historical: "历史" };
-const lifecycleTone = (lifecycle: unknown) => lifecycle === "default" ? "success" : lifecycle === "selectable" ? "info" : lifecycle === "historical" ? "default" : "warning";
-const lifecycleBadge = (lifecycle: unknown) => ({ label: lifecycleLabels[String(lifecycle)] ?? "—", tone: lifecycleTone(lifecycle) as "success" | "info" | "default" | "warning" });
+const lifecycleBadge = (lifecycle: unknown) => {
+  const known = lifecycle as keyof typeof lifecycleLabels;
+  return known in lifecycleLabels ? { label: lifecycleLabels[known], tone: lifecycleTone(known) } : { label: "—", tone: "default" as const };
+};
 const detail = (item: AdminMapEditorAudit) => {
   const payload = item.payload;
   if (item.operation === "admin.map.revision.create") return payload.progressCopied === false ? "复制配置；未复制进度" : "创建版本修订";

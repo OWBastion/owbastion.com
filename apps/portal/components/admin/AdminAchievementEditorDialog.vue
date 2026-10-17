@@ -23,6 +23,12 @@ const emit = defineEmits<{
   "upload-icon": [];
 }>();
 
+// A required field inside the collapsed 更多设置 would otherwise block submit while hidden.
+const moreSettings = useTemplateRef<HTMLDetailsElement>("moreSettings");
+const revealInvalidField = (event: Event) => {
+  if (moreSettings.value?.contains(event.target as Node)) moreSettings.value.open = true;
+};
+
 const dialogOpen = computed({
   get: () => props.open,
   set: (open: boolean) => emit("update:open", open),
@@ -143,7 +149,7 @@ function onIconFile(value: File | null | undefined) {
 <template>
   <AdminResponsiveDialog v-model:open="dialogOpen" :title="title" :description="description" size="lg">
     <template #body>
-      <form v-if="item" id="achievement-editor" class="admin-achievement-editor admin-achievement-editor--edit" @submit.prevent="emit('save')">
+      <form v-if="item" id="achievement-editor" class="admin-achievement-editor admin-achievement-editor--edit" @submit.prevent="emit('save')" @invalid.capture="revealInvalidField">
         <template v-if="asCatalog(item)">
           <UFormField class="editor-field" label="称号标签" required>
             <UInput class="editor-control" v-model="asCatalog(item)!.titleName" required maxlength="256" :disabled="saving" />
@@ -219,7 +225,7 @@ function onIconFile(value: File | null | undefined) {
           <UInput class="editor-control" :model-value="(item as TitleAchievement | MapAchievement).retiredVersion ?? ''" placeholder="例如 26.0713.1" :disabled="saving" @update:model-value="setRetiredVersion" />
         </UFormField>
 
-        <details v-if="!asCatalog(item)" class="editor-field editor-field--wide more-settings">
+        <details v-if="!asCatalog(item)" ref="moreSettings" class="editor-field editor-field--wide more-settings">
           <summary>更多设置</summary>
           <div class="more-settings-body">
             <UFormField v-if="!asChallenge(item)?.progressRule" class="editor-field editor-field--wide" label="截图规则" required>
