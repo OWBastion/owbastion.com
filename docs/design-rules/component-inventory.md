@@ -41,7 +41,7 @@ component; delete it when the component goes.
 | `TitleMark` | Title icon square; border intensity states the slot. |
 | `TitleBadge` | Clickable title badge (`slot` and `tile` variants). |
 | `TitleShelf` | Titles grouped by series, collapsed beyond the first row. |
-| `TitleInspectDialog` | Title detail dialog with tilting gloss badge, acquisition info, link to manage equipping. |
+| `TitleInspectDialog` | Title detail dialog with frameless large badge and diagonal sweep, acquisition info, link to manage equipping. |
 | `PlayerRecentSubmissions` | Recent screenshot submissions with map, time, outcome, status badge; empty state points to submitting. |
 | `RunDayHeatmap` | Past-year daily clear heatmap (53 weeks by 7 days). |
 | `ProfileVisibilityCard` | Settings card with a switch for showing the profile on the leaderboard. |
