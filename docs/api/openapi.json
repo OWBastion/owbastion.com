@@ -355,6 +355,31 @@
     }
    }
   },
+  "/v1/me/profile/handle": {
+   "put": {
+    "operationId": "updateCurrentPlayerPublicHandle",
+    "description": "Authenticated Player sets a globally unique canonical lowercase public handle (3–24 characters, letter first). Handle is not an account, login, QQ or BattleTag identifier. Changing it releases the old URL without redirect. Writes require Idempotency-Key and are audited. Returns 409 if taken.",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/idempotencyKey"
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     },
+     "409": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
   "/v1/me/profile/visibility": {
    "put": {
     "operationId": "updateCurrentPlayerProfileVisibility",
@@ -508,6 +533,31 @@
     "description": "Seasons players can pick on the mastery board: published, public, and already started, newest first, with the derived phase running or ended. Draft, hidden, and scheduled Seasons are never listed.",
     "responses": {
      "200": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/public/profiles/{publicHandle}": {
+   "get": {
+    "operationId": "getPublicProfileByHandle",
+    "description": "Shareable privacy-safe public player summary, reusing leaderboard projection. Missing, banned and private profiles all return 404. Private /me fields, QQ identifiers, evidence and audit are not included.",
+    "parameters": [
+     {
+      "name": "publicHandle",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[a-z][a-z0-9_-]{2,23}$"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "404": {
       "$ref": "#/components/responses/Json"
      }
     }
