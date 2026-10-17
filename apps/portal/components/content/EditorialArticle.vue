@@ -82,7 +82,7 @@ const showToc = computed(() => props.toc.length >= 3);
 .editorial-article-body :deep(h2) { padding-top: 1.4em; border-top: 1px solid var(--line); font-size: 1.375rem; font-weight: 700; letter-spacing: -0.01em; }
 .editorial-article-body :deep(h2:first-child) { margin-top: 0; padding-top: 0; border-top: 0; }
 /* h2 section → h3 group (accent bar) → h4 item (small, muted): each level reads as a step down. */
-.editorial-article-body :deep(h3) { padding-left: .7rem; border-left: 3px solid var(--accent); font-size: 1.1875rem; font-weight: 650; }
+.editorial-article-body :deep(h3) { padding-left: .7rem; border-left: 3px solid var(--accent); font-size: 1.1875rem; font-weight: 600; }
 .editorial-article-body :deep(h4) { color: var(--muted); font-size: .9375rem; font-weight: 600; letter-spacing: .01em; }
 .editorial-article-body :deep(:where(h2:first-child, h3:first-child, h4:first-child)) { margin-top: 0; }
 .editorial-article-body :deep(p) { margin: 0 0 1.25em; }
