@@ -501,7 +501,7 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
     repeating-linear-gradient(115deg, transparent 0 3px, color-mix(in oklch, white 45%, transparent) 3px 4px, transparent 4px 7px),
     linear-gradient(115deg, oklch(84% .12 90), var(--accent) 30%, oklch(80% .12 65) 50%, oklch(86% .1 75) 70%, var(--accent));
   background-size: 100% 100%, 300% 300%; background-position: 0 0, calc(var(--mx) * 1.2) calc(var(--my) * 1.2);
-  -webkit-mask: radial-gradient(48% 58% at var(--mx) var(--my), #000, transparent 100%); mask: radial-gradient(48% 58% at var(--mx) var(--my), #000, transparent 100%);
+  -webkit-mask: radial-gradient(48% 58% at var(--mx) var(--my), black, transparent 100%); mask: radial-gradient(48% 58% at var(--mx) var(--my), black, transparent 100%);
   opacity: .7; }
 .pod.p1::after { background: radial-gradient(38% 46% at var(--mx) var(--my), color-mix(in oklch, white 38%, transparent), transparent 70%); mix-blend-mode: soft-light; opacity: 1; }
 :global(html.dark .pod.p1::after) { mix-blend-mode: screen; opacity: .5; }

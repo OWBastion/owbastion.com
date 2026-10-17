@@ -27,6 +27,12 @@ literals; button styling outside `UButton`. Components respond through container
 never viewport queries. Exception: `AppHeader` (viewport-pinned chrome) collapses at `48rem` and
 uses `cq-compact` for very narrow internal spacing.
 
+## Guardrails
+
+`pnpm lint:styles` (in `pnpm check` and the Portal workflow, rules in `stylelint.config.mjs`) errors on
+hex colors and `border-radius` literals. Keep it limited to values the tokens own; do not grow it
+into a style linter.
+
 ## Review-only rules
 
 Raw `px` in `padding|margin|gap|inset` (1px allowed), width `@media` in component styles, weights
