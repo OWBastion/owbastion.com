@@ -184,7 +184,7 @@ const fieldRows = computed(() => annotatableFields.map((field) => {
     status: ocr?.status,
     shown: attested ? reviewedLabel(field.key) || text : text,
     stateLabel: { invalid: "无法识别", corrected: "已校正", reviewed: "已核对", attention: "待确认", ok: "一致" }[state],
-    icon: { invalid: "i-lucide-circle-alert", corrected: "i-lucide-pencil", reviewed: "i-lucide-check-check", attention: "i-lucide-circle-help", ok: "i-lucide-check" }[state],
+    icon: { invalid: "i-lucide-circle-alert", corrected: "i-lucide-pencil", reviewed: "i-lucide-check", attention: "i-lucide-circle-help", ok: "i-lucide-check" }[state],
   };
 }));
 const visibleFieldRows = computed(() => fieldRows.value.filter((row) => row.primary || showExtraFields.value || row.attested || row.needed || row.unusable || row.state === "invalid"));

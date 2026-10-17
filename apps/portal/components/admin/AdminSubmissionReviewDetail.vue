@@ -162,10 +162,9 @@ function spotCheckLoading(decision: SpotCheckDecision) {
     <UAlert v-if="reviewError" color="error" variant="subtle" :description="reviewError" role="alert" />
 
     <!--
-      Desktop: evidence and the field check under it | rail (claim → decide → Challenge match → meta)
-      Narrow: single column claim → decide → evidence → field check → Challenge match → meta
-      Decisions stay in document flow (sticky), never fixed — fixed docks
-      overflow when spot-check / OCR retry expand the control surface.
+      Desktop: evidence (sticky, full height) | rail (claim → decide → field check → Challenge match → meta)
+      Narrow: single column claim → decide → evidence (sticky, so the field check scrolls beside it) → field check → Challenge match → meta
+      Nothing is position:fixed — fixed docks overflow when spot-check / OCR retry expand the control surface.
     -->
     <div class="review-layout">
       <div class="evidence-col">
@@ -178,14 +177,6 @@ function spotCheckLoading(decision: SpotCheckDecision) {
           <EvidenceViewer v-if="evidenceSrc && !evidenceError" :src="evidenceSrc" alt="玩家提交的挑战截图" @error="emit('evidence-error')" />
           <p v-else class="evidence-message" role="status">暂无截图。</p>
         </UCard>
-        <div class="flow-fields">
-          <AdminSubmissionReviewFields
-            :submission="submission"
-            :preview="preview"
-            :disabled="actionsLoading"
-            @field-corrections="updateFieldCorrections"
-          />
-        </div>
       </div>
 
       <div class="review-rail">
@@ -324,6 +315,15 @@ function spotCheckLoading(decision: SpotCheckDecision) {
         </details>
       </section>
 
+      <div class="flow-fields">
+        <AdminSubmissionReviewFields
+          :submission="submission"
+          :preview="preview"
+          :disabled="actionsLoading"
+          @field-corrections="updateFieldCorrections"
+        />
+      </div>
+
       <!-- Challenge match: what approval would grant -->
       <div class="flow-signals">
         <AdminSubmissionReviewChallenges
@@ -448,7 +448,7 @@ function spotCheckLoading(decision: SpotCheckDecision) {
 .flow-fields { order: 3; }
 .flow-signals { order: 4; }
 .flow-meta { order: 5; }
-/* The screenshot and the check on it get the larger column; the decision rail stays beside them, with the decision pinned in view. */
+/* The screenshot gets the larger column and stays pinned while the rail (decision, then the field check) scrolls beside it. */
 @container (min-width: 56rem) {
   .review-layout { grid-template-columns: minmax(0, 3fr) minmax(20rem, 2fr); }
   .evidence-col,
@@ -463,14 +463,19 @@ function spotCheckLoading(decision: SpotCheckDecision) {
   .flow-fields,
   .flow-signals,
   .flow-meta { order: 0; }
-  /* Sticky decisions stay in flow — never position:fixed */
-  .flow-actions {
-    position: sticky;
-    top: var(--review-sticky-top);
-    z-index: 5;
-  }
+  /* The column spans the row, which is the room the sticky screenshot slides along. */
+  .evidence-col { align-self: stretch; }
+  .flow-evidence { --evidence-viewport-max: calc(100dvh - 11rem); }
 }
 
+/* Pinned in view so the field check can be filled in against the screenshot (never position:fixed). */
+.flow-evidence {
+  --evidence-viewport-max: 36dvh;
+
+  position: sticky;
+  top: var(--review-sticky-top);
+  z-index: 5;
+}
 .evidence-card {
   display: block;
   width: 100%;

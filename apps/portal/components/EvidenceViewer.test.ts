@@ -68,6 +68,26 @@ describe("EvidenceViewer", () => {
     expect(zoomLabel(wrapper)).toBe("50%");
   });
 
+  it("lets the screenshot be dragged partly out of the frame, but never entirely", async () => {
+    sizeViewport(800, 450);
+    const wrapper = await mountSuspended(EvidenceViewer, { props: { src: "a.png", alt: "截图" } });
+    await loadImage(wrapper, 1600, 900);
+    const viewer = wrapper.get('[role="group"][aria-label^="截图。"]');
+    const translate = () => wrapper.get("img").attributes("style")!.match(/translate\((-?[\d.]+)px, (-?[\d.]+)px\)/)!.slice(1).map(Number);
+    Object.defineProperty(viewer.element, "setPointerCapture", { configurable: true, value: () => undefined });
+    await viewer.trigger("pointerdown", { button: 0, clientX: 0, clientY: 0 });
+    await viewer.trigger("pointermove", { clientX: 700, clientY: 0 });
+    const [x] = translate();
+    expect(x).toBeGreaterThan(0);
+    await viewer.trigger("pointermove", { clientX: 5000, clientY: 0 });
+    expect(translate()[0]).toBeLessThan(800);
+  });
+
+  it("offers no fullscreen, which would hide the fields being checked", async () => {
+    const wrapper = await mountSuspended(EvidenceViewer, { props: { src: "a.png", alt: "截图" } });
+    expect(wrapper.find('button[aria-label*="全屏"]').exists()).toBe(false);
+  });
+
   it("reports a screenshot that cannot be loaded", async () => {
     const wrapper = await mountSuspended(EvidenceViewer, { props: { src: "missing.png", alt: "截图" } });
     await wrapper.get("img").trigger("error");
