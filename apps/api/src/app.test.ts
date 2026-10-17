@@ -115,8 +115,10 @@ const defaultServices: Partial<PlatformServices> = {
     player: { playerId: "1234", playerName: "Player", isAdmin: false, publicProfile: true },
     recentSubmissions: [{ submissionId: "00000000-0000-0000-0000-000000000003", status: "processing", mapName: "Test Map", createdAt: 2, updatedAt: 3 }],
   } : null,
+  updateCurrentPlayerPublicHandle: async (input) => input.sessionToken === "session-token" ? { contractVersion: "1" as const, publicHandle: input.publicHandle } : (() => { throw new Error("UNAUTHENTICATED"); })(),
   updateCurrentPlayerProfileVisibility: async (input) => input.sessionToken === "session-token" ? { contractVersion: "1" as const, publicProfile: input.publicProfile } : (() => { throw new Error("UNAUTHENTICATED"); })(),
   getPublicLeaderboard: async ({ board, mapId }) => mapId === "missing-map" ? null : { contractVersion: "1" as const, board, ...(mapId ? { mapId } : {}), ruleVersion: "leaderboard.v1", items: [{ rank: 1, score: 500, reachedAt: 100, player: { playerKey: "key-alpha", displayName: "Alpha", equippedTitle: null } }], page: 1, pageSize: 20, total: 1, hasMore: false },
+  getPublicProfileByHandle: async ({ publicHandle }) => publicHandle === "teakowa" ? { contractVersion: "1" as const, publicProfile: true, player: { displayName: "Player", equippedTitle: null }, boards: { mastery: null, achievement: null }, perMapXp: [], mapCount: 0, titles: { map: [], general: [] } } : null,
   getPublicLeaderboardPlayer: async ({ playerKey }) => playerKey === "key-alpha" ? { contractVersion: "1" as const, publicProfile: true, player: { displayName: "Alpha", equippedTitle: null }, boards: { mastery: { rank: 1, score: 500 }, achievement: null }, perMapXp: [], mapCount: 0, titles: { map: [], general: [] } } : null,
   getCurrentPlayerLeaderboardRank: async ({ sessionToken, board, mapId }) => sessionToken !== "session-token" ? null : (() => { if (mapId === "missing-map") throw new Error("MAP_NOT_FOUND"); return { contractVersion: "1" as const, board, ...(mapId ? { mapId } : {}), ruleVersion: "leaderboard.v1", rank: 2, score: 300, reachedAt: 90, gapToNextRank: 200 }; })(),
   createPasskeyLoginOptions: async () => ({ contractVersion: "1", challengeId: "00000000-0000-4000-8000-000000000011", options: { challenge: "challenge" } }),
@@ -900,6 +902,27 @@ describe("API", () => {
     expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(await response.json()).toEqual({ contractVersion: "1", publicProfile: false });
     expect((await app.request("http://localhost/v1/me/profile/visibility", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=other-token", "idempotency-key": "vis-other" }, body: JSON.stringify({ contractVersion: "1", publicProfile: false }) }, env)).status).toBe(401);
+  });
+
+  it("validates public profile handles, enforces session and idempotency headers, and serves only existing public details", async () => {
+    const path = "http://localhost/v1/me/profile/handle";
+    const body = JSON.stringify({ contractVersion: "1", publicHandle: "teakowa" });
+    const headers = { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "handle.1" };
+    expect((await app.request(path, { method: "PUT", headers: { ...headers, cookie: "" }, body }, env)).status).toBe(401);
+    expect((await app.request(path, { method: "PUT", headers: { ...headers, "idempotency-key": "" }, body }, env)).status).toBe(422);
+    expect((await app.request(path, { method: "PUT", headers, body: JSON.stringify({ contractVersion: "1", publicHandle: "Bad!" }) }, env)).status).toBe(422);
+    const saved = await app.request(path, { method: "PUT", headers, body }, env);
+    expect(saved.status).toBe(200);
+    expect(saved.headers.get("cache-control")).toBe("private, no-store");
+    expect(await saved.json()).toEqual({ contractVersion: "1", publicHandle: "teakowa" });
+    const profile = await app.request("http://localhost/v1/public/profiles/teakowa", {}, env);
+    expect(profile.status).toBe(200);
+    expect(profile.headers.get("cache-control")).toBe("private, no-store");
+    const publicBody = await profile.json() as Record<string, unknown>;
+    expect(publicBody).toMatchObject({ publicProfile: true, player: { displayName: "Player" } });
+    expect(JSON.stringify(publicBody)).not.toMatch(/playerAccountId|playerId|qq|submission|risk|audit/i);
+    expect((await app.request("http://localhost/v1/public/profiles/BAD", {}, env)).status).toBe(404);
+    expect((await app.request("http://localhost/v1/public/profiles/nobody", {}, env)).status).toBe(404);
   });
 
   it("serves paginated public leaderboard boards with privacy headers", async () => {
