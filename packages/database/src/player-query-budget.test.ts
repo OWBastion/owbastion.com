@@ -8,7 +8,7 @@ const fixture = () => {
     CREATE TABLE player_accounts (
       id TEXT PRIMARY KEY, player_id TEXT NOT NULL, player_name TEXT NOT NULL,
       normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0,
-      status TEXT NOT NULL, public_profile INTEGER NOT NULL DEFAULT 1,
+      status TEXT NOT NULL, public_profile INTEGER NOT NULL DEFAULT 1, public_handle TEXT,
       banned_at INTEGER, banned_by TEXT, ban_reason TEXT,
       created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
     );
