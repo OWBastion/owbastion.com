@@ -49,7 +49,7 @@ const labels = computed(() => props.kind === "blog" ? { list: "/blog", back: "è¿
 
 <style scoped>
 .editorial-detail-page { container-type: inline-size; }
-.editorial-frame { display: grid; grid-template-columns: minmax(0, 44rem); justify-content: center; padding-block: clamp(1.75rem, 6vh, 4.5rem) 3rem; }
+.editorial-frame { display: grid; grid-template-columns: minmax(0, 46rem); justify-content: center; padding-block: clamp(1.75rem, 6vh, 4.5rem) 3rem; }
 .editorial-frame > * { grid-column: 1; min-width: 0; }
 .editorial-detail-nav { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); margin-bottom: var(--space-6); }
 .editorial-back-link { display: inline-flex; min-height: 44px; align-items: center; gap: var(--space-2); color: var(--muted); font-size: var(--type-caption-size); font-weight: 500; text-decoration: none; }
@@ -60,7 +60,7 @@ const labels = computed(() => props.kind === "blog" ? { list: "/blog", back: "è¿
 .editorial-aside { display: none; }
 /* The contents list takes the right gutter once the frame is wide enough for both columns. */
 @container (min-width: 62rem) {
-  .editorial-frame.has-toc { grid-template-columns: minmax(0, 44rem) 13rem; column-gap: var(--space-12); }
+  .editorial-frame.has-toc { grid-template-columns: minmax(0, 46rem) 12rem; column-gap: var(--space-12); }
   .editorial-aside { display: block; grid-column: 2; grid-row: 1 / span 3; }
   .editorial-aside :deep(.editorial-toc) { position: sticky; top: calc(var(--sticky-chrome-top) + var(--space-4)); max-height: calc(100dvh - var(--sticky-chrome-top) - var(--space-8)); overflow-y: auto; }
 }
