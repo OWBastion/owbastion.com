@@ -48,6 +48,17 @@ const filteredTitles = computed(() => {
   return [...items].sort(compareTitles);
 });
 const selectedTitles = computed(() => titles.value.filter((title) => selectedTitleSet.value.has(title.value)).sort(compareTitles));
+const titleGroups = computed(() => {
+  const groups: Array<{ key: string; label: string; items: AdminTitleOption[] }> = [];
+  for (const title of filteredTitles.value) {
+    const key = title.mapId ?? "";
+    const last = groups.at(-1);
+    if (last?.key === key) last.items.push(title);
+    else groups.push({ key, label: title.mapName ?? "通用称号", items: [title] });
+  }
+  return groups;
+});
+const pagePlayersSelected = computed(() => players.value.length > 0 && players.value.every((player) => selectedPlayerIds.value.has(player.playerAccountId)));
 const selectedPlayerList = computed(() => [...selectedPlayers.value].sort((left, right) => left.playerName.localeCompare(right.playerName, "zh-CN") || left.playerId.localeCompare(right.playerId)));
 const requestedCount = computed(() => selectedPlayers.value.length * selectedTitles.value.length);
 const tooLarge = computed(() => requestedCount.value > 500);
@@ -68,6 +79,21 @@ function toggleTitle(title: AdminTitleOption, checked: boolean) {
   selectedTitleValues.value = checked
     ? [...new Set([...selectedTitleValues.value, title.value])]
     : selectedTitleValues.value.filter((value) => value !== title.value);
+}
+function togglePagePlayers() {
+  const pageIds = new Set(players.value.map((player) => player.playerAccountId));
+  selectedPlayers.value = pagePlayersSelected.value
+    ? selectedPlayers.value.filter((player) => !pageIds.has(player.playerAccountId))
+    : [...selectedPlayers.value.filter((player) => !pageIds.has(player.playerAccountId)), ...players.value];
+}
+function groupSelected(items: AdminTitleOption[]) {
+  return items.every((title) => selectedTitleSet.value.has(title.value));
+}
+function toggleGroup(items: AdminTitleOption[]) {
+  const values = new Set(items.map((title) => title.value));
+  selectedTitleValues.value = groupSelected(items)
+    ? selectedTitleValues.value.filter((value) => !values.has(value))
+    : [...new Set([...selectedTitleValues.value, ...values])];
 }
 function resetResult() {
   result.value = null;
@@ -140,8 +166,12 @@ watchDebounced(playerQuery, () => {
     <p class="grant-workflow-note">每个玩家与称号组合都会通过对应的手动挑战记录完成，再授予称号。</p>
     <section class="grant-workspace" aria-label="批量授予称号工作区">
       <div class="grant-panel surface-card">
-        <div class="panel-heading"><h2>选择玩家</h2><span>{{ selectedPlayers.length }} 人</span></div>
-        <UInput v-model="playerQuery" aria-label="搜索玩家" placeholder="搜索战网 ID" :disabled="saving" :loading="searchingPlayers" />
+        <div class="panel-heading"><h2>1. 选择玩家</h2><span>已选 {{ selectedPlayers.length }} 人</span></div>
+        <UInput v-model="playerQuery" aria-label="搜索玩家" placeholder="搜索战网 ID" icon="i-lucide-search" :disabled="saving" :loading="searchingPlayers" />
+        <div class="panel-actions">
+          <UButton size="sm" color="neutral" variant="soft" :label="pagePlayersSelected ? '取消选择本页' : '选择本页'" :disabled="saving || loadingPlayers || !players.length" @click="togglePagePlayers" />
+          <UButton size="sm" color="neutral" variant="ghost" label="清空" :disabled="saving || !selectedPlayers.length" @click="selectedPlayers = []" />
+        </div>
         <div v-if="selectedPlayerList.length" class="selection-chips" aria-live="polite">
           <UButton v-for="player in selectedPlayerList" :key="player.playerAccountId" size="xs" color="primary" variant="subtle" :label="`${player.playerName}#${player.playerId}`" trailing-icon="i-lucide-x" :aria-label="`取消选择 ${player.playerName}#${player.playerId}`" :disabled="saving" @click="togglePlayer(player, false)" />
         </div>
@@ -153,22 +183,32 @@ watchDebounced(playerQuery, () => {
         <UPagination v-if="playerTotal > playerPageSize" v-model:page="playerPage" :total="playerTotal" :items-per-page="playerPageSize" :disabled="saving || searchingPlayers" class="selector-pagination" />
       </div>
       <div class="grant-panel surface-card">
-        <div class="panel-heading"><h2>选择称号</h2><span>{{ selectedTitles.length }} 项</span></div>
-        <UInput v-model="titleQuery" aria-label="搜索称号" placeholder="搜索称号、地图或系列" :disabled="saving" />
+        <div class="panel-heading"><h2>2. 选择称号</h2><span>已选 {{ selectedTitles.length }} 项</span></div>
+        <UInput v-model="titleQuery" aria-label="搜索称号" placeholder="搜索称号、地图或系列" icon="i-lucide-search" :disabled="saving" />
+        <div class="panel-actions">
+          <UButton size="sm" color="neutral" variant="ghost" label="清空" :disabled="saving || !selectedTitles.length" @click="selectedTitleValues = []" />
+        </div>
         <div v-if="selectedTitles.length" class="selection-chips" aria-live="polite">
           <UButton v-for="title in selectedTitles" :key="title.value" size="xs" color="primary" variant="subtle" :label="titleDescription(title)" trailing-icon="i-lucide-x" :aria-label="`取消选择 ${titleDescription(title)}`" :disabled="saving" @click="toggleTitle(title, false)" />
         </div>
         <div v-if="loadingTitles" class="selector-state" role="status">读取中…</div>
         <div v-else-if="!filteredTitles.length" class="selector-state">暂无匹配称号。</div>
         <div v-else class="selector-list" role="group" aria-label="称号结果">
-          <UCheckbox v-for="title in filteredTitles" :key="title.value" class="selector-option" :model-value="selectedTitleSet.has(title.value)" :disabled="saving" @update:model-value="(value) => toggleTitle(title, value === true)"><span class="selector-copy content-stack"><strong>{{ titleDescription(title) }}</strong><small>{{ title.category }} · {{ title.scope === 'map' ? '地图称号' : '全局称号' }}</small></span></UCheckbox>
+          <template v-for="group in titleGroups" :key="group.key">
+            <div class="selector-group">
+              <h3>{{ group.label }}</h3>
+              <UButton size="xs" color="neutral" variant="ghost" :label="groupSelected(group.items) ? '取消本组' : '选择本组'" :aria-label="`${groupSelected(group.items) ? '取消选择' : '选择'}${group.label}的全部称号`" :disabled="saving" @click="toggleGroup(group.items)" />
+            </div>
+            <UCheckbox v-for="title in group.items" :key="title.value" class="selector-option" :model-value="selectedTitleSet.has(title.value)" :disabled="saving" @update:model-value="(value) => toggleTitle(title, value === true)"><span class="selector-copy content-stack"><strong>{{ titleDescription(title) }}</strong><small>{{ title.category }} · {{ title.scope === 'map' ? '地图称号' : '全局称号' }}</small></span></UCheckbox>
+          </template>
         </div>
       </div>
     </section>
     <section class="grant-summary surface-card" aria-labelledby="grant-summary-title">
-      <div class="panel-heading"><h2 id="grant-summary-title">授予计划</h2><span>{{ selectedPlayers.length }} × {{ selectedTitles.length }}</span></div>
+      <div class="panel-heading"><h2 id="grant-summary-title">3. 授予计划</h2><span>{{ selectedPlayers.length }} × {{ selectedTitles.length }}</span></div>
       <p class="grant-count" aria-live="polite">{{ selectedPlayers.length }} 玩家 × {{ selectedTitles.length }} 称号 = <strong>{{ requestedCount }} 个授予</strong></p>
       <UAlert v-if="tooLarge" color="warning" variant="subtle" title="批次超过上限" description="一次最多处理 500 个授予单元，请减少玩家或称号选择。" />
+      <p v-else-if="!selectedPlayers.length || !selectedTitles.length" class="grant-hint">请先选择{{ selectedPlayers.length ? "" : "玩家" }}{{ !selectedPlayers.length && !selectedTitles.length ? "和" : "" }}{{ selectedTitles.length ? "" : "称号" }}。</p>
       <UFormField label="发放原因"><UTextarea v-model="reason" maxlength="512" placeholder="漏发、申诉纠正或特殊人工奖励" :disabled="saving" /></UFormField>
       <UButton block label="检查授予计划" :disabled="!canConfirm" @click="openConfirm" />
     </section>
@@ -177,7 +217,7 @@ watchDebounced(playerQuery, () => {
         <div class="confirm-body">
           <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
           <p>将为 {{ selectedPlayerList.length }} 名玩家处理 {{ selectedTitles.length }} 个称号，共 {{ requestedCount }} 个授予单元。</p>
-          <div class="confirm-list"><strong>玩家</strong><span>{{ selectedPlayerList.map((player) => `${player.playerName}#${player.playerId}`).join("、") }}</span><strong>称号</strong><span>{{ selectedTitles.map(titleDescription).join("、") }}</span></div>
+          <div class="confirm-list"><strong>玩家</strong><span>{{ selectedPlayerList.map((player) => `${player.playerName}#${player.playerId}`).join("、") }}</span><strong>称号</strong><span>{{ selectedTitles.map(titleDescription).join("、") }}</span><template v-if="reason.trim()"><strong>原因</strong><span>{{ reason.trim() }}</span></template></div>
         </div>
       </template>
       <template #footer><UButton label="确认授予" :loading="saving" @click="grant" /><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="closeConfirm()" /></template>
@@ -195,6 +235,10 @@ watchDebounced(playerQuery, () => {
 .panel-heading > span { color: var(--quiet); font-size: var(--type-caption-size); }
 .selector-list { display: grid; gap: var(--space-1); max-height: 22rem; overflow-y: auto; }
 .selector-option { display: flex; align-items: start; gap: var(--space-3); min-width: 0; min-height: 2.75rem; padding: var(--space-3) var(--space-2); border-radius: var(--radius-control); cursor: pointer; }
+.panel-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.selector-group { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); position: sticky; top: 0; z-index: 1; padding: var(--space-1) var(--space-2); background: var(--surface); border-bottom: 1px solid var(--line); }
+.selector-group h3 { margin: 0; color: var(--muted); font-size: var(--type-caption-size); font-weight: 600; }
+.grant-hint { margin: 0; color: var(--quiet); font-size: var(--type-caption-size); }
 .selector-option:hover { background: var(--accent-surface); }
 .selector-option strong { overflow-wrap: anywhere; }
 .selector-option small { color: var(--quiet); overflow-wrap: anywhere; }

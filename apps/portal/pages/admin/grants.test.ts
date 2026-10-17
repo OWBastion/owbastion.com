@@ -54,4 +54,19 @@ describe("admin grants page", () => {
     await flushPromises();
     expect(wrapper.find('button[aria-label="取消选择 玩家一#1001"]').exists()).toBe(false);
   });
+
+  it("selects a whole page of players and a whole title group in one action", async () => {
+    const wrapper = await mountSuspended(GrantsAdminPage, {
+      global: {
+        stubs: {
+          AdminResponsiveDialog: { props: ["open"], template: '<div v-if="open"><slot name="body" /><slot name="footer" /></div>' },
+          UCheckbox: { props: ["modelValue"], emits: ["update:modelValue"], template: '<label><input type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" /><slot /></label>' },
+        },
+      },
+    });
+    await flushPromises();
+    await wrapper.findAll("button").find((button) => button.text() === "选择本页")!.trigger("click");
+    await wrapper.findAll("button").find((button) => button.text() === "选择本组")!.trigger("click");
+    expect(wrapper.text()).toContain("2 玩家 × 1 称号 = 2 个授予");
+  });
 });
