@@ -74,14 +74,14 @@ describe("admin review detail page", () => {
     expect(wrapper.text()).toContain("守望先锋");
     expect(wrapper.text()).toContain("地图挑战");
     expect(wrapper.text()).toContain("通过");
-    expect(wrapper.text()).toContain("OCRKit · v1");
+    expect(wrapper.text()).toContain("v1");
     expect(wrapper.text()).not.toContain("识别字段与原始证据");
     expect(wrapper.text()).toContain("帕拉伊苏");
     expect(wrapper.text()).toContain("左侧成就面板");
     expect(wrapper.text()).toContain("无");
     expect(wrapper.text()).not.toContain("98% · ok");
     expect(wrapper.text()).toContain("查看原始识别数据");
-    const runtimeEvidence = wrapper.get('dl[aria-label="对局环境识别证据"]');
+    const runtimeEvidence = wrapper.get('dl[aria-label="对局环境识别结果"]');
     const evidenceValues = Object.fromEntries(runtimeEvidence.findAll(".detail-grid__row").map((row) => [row.get("dt").text(), row.get("dd").text()]));
     expect(evidenceValues).toEqual({
       "AI 标记": "未检测到", "模式": "随机事件5.0", "重启倒计时（秒）": "0", "运行时间（秒）": "120", "服务器负载": "未识别",
@@ -89,7 +89,7 @@ describe("admin review detail page", () => {
     });
     expect(runtimeEvidence.find("input, button, select").exists()).toBe(false);
     expect(wrapper.text()).toContain("提交信息");
-    for (const label of ["通过", "要求重新提交", "驳回", "重新发送 OCRKit 请求", "识别准确", "识别有误"]) {
+    for (const label of ["通过", "要求重新提交", "驳回", "重新识别", "识别准确", "识别有误"]) {
       expect(wrapper.text()).toContain(label);
     }
     expect(wrapper.get(".evidence-image").attributes("src")).toBe("https://evidence.owbastion.codes/uploads/submissions/test/high-entropy-key.png");
@@ -145,10 +145,10 @@ describe("admin review detail page", () => {
     expect(wrapper.text()).toContain("驳回");
   });
 
-  it("can resend the OCRKit request", async () => {
+  it("can resend the recognition request", async () => {
     const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
     await flushPromises();
-    await wrapper.findAll("button").find((button) => button.text().includes("重新发送 OCRKit 请求"))!.trigger("click");
+    await wrapper.findAll("button").find((button) => button.text().includes("重新识别"))!.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-1/ocr/retry", expect.objectContaining({ method: "POST" }));
   });
@@ -278,7 +278,7 @@ describe("admin review detail page", () => {
       ocrVersion = "26.1003";
       const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
       await flushPromises();
-      // A dropped digit blocks the Verified Run, so it must not read as "一致" just because OCR was confident.
+      // A dropped digit blocks the 通关记录, so it must not read as "一致" just because OCR was confident.
       expect(chip(wrapper, "游戏版本").attributes("aria-label")).toContain("无法识别");
     });
 
@@ -389,7 +389,7 @@ describe("admin review detail page", () => {
     await flushPromises();
     expect(adminApi).not.toHaveBeenCalledWith("/v1/submissions/submission-1/review", expect.anything());
     const dialog = wrapper.get('[role="dialog"][aria-label="驳回提交"]');
-    expect(dialog.text()).toContain("给玩家的说明（可选）");
+    expect(dialog.text()).toContain("给玩家的说明");
     await dialog.get("textarea").setValue("  截图被裁剪，看不到通关标记  ");
     await dialog.get("form").trigger("submit");
     await flushPromises();
@@ -405,7 +405,7 @@ describe("admin review detail page", () => {
     await wrapper.findAll('[role="group"][aria-label="审核决定"] button').find((button) => button.text().includes("驳回"))!.trigger("click");
     await flushPromises();
     const dialog = wrapper.get('[role="dialog"][aria-label="驳回提交"]').text();
-    expect(dialog).toContain("此操作不会撤销已发放的称号（守望先锋）和已记录的 Verified Run");
+    expect(dialog).toContain("此操作不会撤销已发放的称号（守望先锋）和已记录的 通关记录");
     expect(dialog).not.toContain("不会产生称号");
   });
 
@@ -413,14 +413,14 @@ describe("admin review detail page", () => {
     const wrapper = await mountPage({ route: "/admin/reviews/submission-7" });
     await flushPromises();
     expect(wrapper.text()).not.toContain("正在重新识别截图");
-    const retry = wrapper.findAll("button").find((button) => button.text().includes("重新发送 OCRKit 请求"));
+    const retry = wrapper.findAll("button").find((button) => button.text().includes("重新识别"));
     expect(retry?.attributes("disabled")).toBeUndefined();
   });
 
   it("offers an OCR retry for a pending Submission whose queue send failed", async () => {
     const wrapper = await mountPage({ route: "/admin/reviews/submission-8" });
     await flushPromises();
-    const retry = wrapper.findAll("button").find((button) => button.text().includes("重新发送 OCRKit 请求"));
+    const retry = wrapper.findAll("button").find((button) => button.text().includes("重新识别"));
     expect(retry?.attributes("disabled")).toBeUndefined();
     await retry!.trigger("click");
     await flushPromises();
@@ -440,6 +440,6 @@ describe("admin review detail page", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     await flushPromises();
     expect(wrapper.text()).not.toContain("正在重新识别截图");
-    expect(wrapper.text()).toContain("重新发送 OCRKit 请求");
+    expect(wrapper.text()).toContain("重新识别");
   }, 10_000);
 });

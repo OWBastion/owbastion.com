@@ -53,7 +53,6 @@ const summaryText = computed(() => (grid.value.totalRuns
       </div>
     </div>
     <div class="run-heatmap-footer">
-      <p class="run-heatmap-note">按通关日期统计，同一次通关只计一次，不代表游玩时长。</p>
       <div class="run-heatmap-legend" aria-hidden="true"><span>少</span><i class="level-0"></i><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><i class="level-4"></i><span>多</span></div>
     </div>
   </div>
@@ -79,7 +78,6 @@ const summaryText = computed(() => (grid.value.totalRuns
 .level-3 { background: color-mix(in oklch, var(--accent) 75%, var(--surface)); }
 .level-4 { background: var(--accent); }
 .run-heatmap-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); }
-.run-heatmap-note { margin: 0; color: var(--quiet); font-size: .72rem; }
 .run-heatmap-legend { display: flex; align-items: center; gap: var(--space-1); color: var(--quiet); font-size: .72rem; }
 .run-heatmap-legend i { width: 0.75rem; height: 0.75rem; box-shadow: inset 0 0 0 1px var(--line); }
 </style>

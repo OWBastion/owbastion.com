@@ -50,10 +50,9 @@ const mark = async (accuracy: AccuracyMark) => {
       <template #header>
         <div class="card-heading">
           <h2>识别是否准确</h2>
-          <span v-if="feedback.accuracy">当前标记：{{ feedback.accuracy === "accurate" ? "识别准确" : "识别有误" }}</span>
         </div>
       </template>
-      <p class="feedback-hint">请对照截图判断识别结果整体是否正确。标记仅用于改进识别质量，不会改变本次提交的处理结果。</p>
+      <p class="feedback-hint">只用于改进识别，不影响审核结果。</p>
       <div class="feedback-actions">
         <UButton
           label="识别准确"

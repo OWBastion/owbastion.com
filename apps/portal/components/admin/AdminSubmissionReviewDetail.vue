@@ -62,17 +62,17 @@ const confirmCopy = computed(() => {
   if (target.kind === "reopen") {
     const titles = props.submission.activeTitleGrants?.map(({ titleName }) => titleName) ?? [];
     const run = props.submission.verifiedRunOutcome?.status === "created" || props.submission.verifiedRunOutcome?.status === "reused";
-    const withdrawn = [...(titles.length ? [`称号（${titles.join("、")}）`] : []), ...(run ? ["Verified Run"] : [])];
-    return { title: "重新打开核对", description: `${withdrawn.length ? `将撤销该提交产生的${withdrawn.join("和")}` : "该提交没有已发放的称号或 Verified Run"}，并回到待核对。在「更多字段」修正后重新通过，会按截图证据重新判定并发放；手动发放的称号不受影响。`, reasonLabel: "原因（可选，仅内部记录）", confirmLabel: "确认重新打开" };
+    const withdrawn = [...(titles.length ? [`称号（${titles.join("、")}）`] : []), ...(run ? ["通关记录"] : [])];
+    return { title: "重新打开核对", description: `${withdrawn.length ? `将撤销该提交产生的${withdrawn.join("和")}` : "该提交没有已发放的称号或 通关记录"}，并回到待核对。在「更多字段」修正后重新通过，会按截图重新判定并发放；手动发放的称号不受影响。`, reasonLabel: "原因", confirmLabel: "确认重新打开" };
   }
-  if (target.kind === "spot-check") return { title: "撤销自动获得的称号", description: "撤销后玩家将失去本次自动判定获得的称号，由该提交产生的 Verified Run 也会失效。", reasonLabel: "撤销原因（可选，仅内部记录）", confirmLabel: "确认撤销" };
-  // A later decision changes only the Submission; Titles and Verified Runs it already produced are managed separately.
+  if (target.kind === "spot-check") return { title: "撤销自动获得的称号", description: "撤销后玩家将失去本次自动判定获得的称号，由该提交产生的 通关记录 也会失效。", reasonLabel: "撤销原因", confirmLabel: "确认撤销" };
+  // A later decision changes only the Submission; Titles and 通关记录s it already produced are managed separately.
   const retainedTitles = props.submission.activeTitleGrants?.map(({ titleName }) => titleName) ?? [];
   const retainedRun = props.submission.verifiedRunOutcome?.status === "created" || props.submission.verifiedRunOutcome?.status === "reused";
-  const retainedItems = [...(retainedTitles.length ? [`已发放的称号（${retainedTitles.join("、")}）`] : []), ...(retainedRun ? ["已记录的 Verified Run"] : [])];
+  const retainedItems = [...(retainedTitles.length ? [`已发放的称号（${retainedTitles.join("、")}）`] : []), ...(retainedRun ? ["已记录的 通关记录"] : [])];
   const retained = retainedItems.length ? `此操作不会撤销${retainedItems.join("和")}${retainedTitles.length ? "；撤销称号请在玩家称号中处理" : ""}。` : "";
-  if (target.decision === "rejected") return { title: "驳回提交", description: `玩家会看到“未通过”。${retained || "本次提交不会产生称号或 Verified Run。"}`, reasonLabel: "给玩家的说明（可选）", confirmLabel: "确认驳回" };
-  return { title: "要求重新提交", description: `玩家会看到“需重新提交”，并可以上传新的截图。${retained}`, reasonLabel: "给玩家的说明（可选）", confirmLabel: "确认要求重新提交" };
+  if (target.decision === "rejected") return { title: "驳回提交", description: `玩家会看到“未通过”。${retained || "本次提交不会产生称号或 通关记录。"}`, reasonLabel: "给玩家的说明", confirmLabel: "确认驳回" };
+  return { title: "要求重新提交", description: `玩家会看到“需重新提交”，并可以上传新的截图。${retained}`, reasonLabel: "给玩家的说明", confirmLabel: "确认要求重新提交" };
 });
 
 function openConfirm(target: ConfirmTarget) {
@@ -100,7 +100,7 @@ function submitConfirm() {
 const verifiedRunLabel = computed(() => props.preview ? verifiedRunPreviewLabel(props.preview.verifiedRun) : null);
 const verifiedRunIneligible = computed(() => props.preview ? verifiedRunIneligibleLabel(props.preview.verifiedRun) : null);
 const satisfiedCompletions = computed(() => props.preview?.completions.filter((completion) => completion.basis === "satisfies") ?? []);
-// One caption for the side effects of approving: linked completions and what happens to the Verified Run.
+// One caption for the side effects of approving: linked completions and what happens to the 通关记录.
 const outcomeNote = computed(() => [satisfiedCompletions.value.length ? `联动完成：${satisfiedCompletions.value.map((completion) => completion.titleName).join("、")}` : null, verifiedRunLabel.value ?? verifiedRunIneligible.value].filter(Boolean).join(" · "));
 
 watch(
@@ -194,11 +194,11 @@ function spotCheckLoading(decision: SpotCheckDecision) {
                 <span v-if="title.mapName" class="claim-meta">{{ title.mapName }}</span>
               </li>
             </ul>
-            <p v-else-if="!verifiedRunLabel" class="claim-empty">不会产生称号或 Verified Run。</p>
+            <p v-else-if="!verifiedRunLabel" class="claim-empty">不会产生称号或 通关记录。</p>
             <p v-if="outcomeNote" class="claim-meta">{{ outcomeNote }}</p>
           </template>
           <p v-else-if="ocrPending" class="claim-empty" role="status">正在重新识别截图，完成后自动刷新。</p>
-          <p v-else-if="!previewLoading && !previewError" class="claim-empty">没有可核对的识别结果，无法通过。可以手动填写截图中的字段，重新发送 OCRKit 请求，或要求重新提交。</p>
+          <p v-else-if="!previewLoading && !previewError" class="claim-empty">没有可核对的识别结果，无法通过。可以手动填写截图中的字段，重新识别，或要求重新提交。</p>
           <p v-if="approvalHint" id="approval-hint" class="claim-hint" :class="{ 'claim-hint--error': !previewLoading && previewCurrent !== false && Boolean(previewError || preview?.blockingCode) }" role="status">{{ approvalHint }}</p>
           <UButton v-if="previewError && !previewLoading" type="button" label="重新计算" icon="i-lucide-refresh-cw" size="sm" color="neutral" variant="ghost" @click="emit('retry-preview')" />
         </div>
@@ -276,7 +276,7 @@ function spotCheckLoading(decision: SpotCheckDecision) {
             <UButton
               type="button"
               icon="i-lucide-refresh-cw"
-              :label="ocrPending && !ocrQueueSendFailed ? '识别中…' : '重新发送 OCRKit 请求'"
+              :label="ocrPending && !ocrQueueSendFailed ? '识别中…' : '重新识别'"
               color="neutral"
               variant="ghost"
               :loading="ocrRetryLoading || (ocrPending && !ocrQueueSendFailed)"

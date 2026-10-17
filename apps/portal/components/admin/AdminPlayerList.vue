@@ -49,7 +49,7 @@ watch(revision, () => { void refresh(); });
     <ul v-if="players.length" class="player-list__rows" @keydown="moveFocus">
       <li v-for="player in players" :key="player.playerAccountId">
         <NuxtLink :to="`/admin/players/${player.playerAccountId}`" class="player-row" :aria-current="player.playerAccountId === selectedId ? 'page' : undefined">
-          <span class="player-row__name"><strong>{{ player.playerName }}</strong><small>#{{ player.playerId }}</small></span>
+          <span class="player-row__name"><strong><PlayerBattleTag :player-name="player.playerName" :player-id="player.playerId" /></strong></span>
           <span class="player-row__tags">
             <span v-if="player.pendingSubmissionCount" class="tag tag--attention">待审 {{ player.pendingSubmissionCount }}</span>
             <span v-if="player.status === 'banned'" class="tag tag--warning">已封禁</span>

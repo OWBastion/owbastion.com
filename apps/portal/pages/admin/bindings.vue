@@ -307,7 +307,7 @@ async function retryHistoricalMigration(invitation: AdminBindingInvitation) {
               <dt>该 QQ 当前绑定的战网账号</dt>
               <dd>
                 <template v-if="detailTarget.qqBoundAccounts && detailTarget.qqBoundAccounts.length > 0">
-                  <span v-for="acc in detailTarget.qqBoundAccounts" :key="acc.playerAccountId" class="qq-bound-item">{{ acc.playerName }}#{{ acc.playerId }}</span>
+                  <span v-for="acc in detailTarget.qqBoundAccounts" :key="acc.playerAccountId" class="qq-bound-item"><PlayerBattleTag :player-name="acc.playerName" :player-id="acc.playerId" /></span>
                 </template>
                 <template v-else>无</template>
               </dd>
@@ -337,7 +337,7 @@ async function retryHistoricalMigration(invitation: AdminBindingInvitation) {
               <dt>该 QQ 当前绑定的战网账号</dt>
               <dd>
                 <template v-if="conflictTarget.qqBoundAccounts && conflictTarget.qqBoundAccounts.length > 0">
-                  <span v-for="acc in conflictTarget.qqBoundAccounts" :key="acc.playerAccountId" class="qq-bound-item">{{ acc.playerName }}#{{ acc.playerId }}</span>
+                  <span v-for="acc in conflictTarget.qqBoundAccounts" :key="acc.playerAccountId" class="qq-bound-item"><PlayerBattleTag :player-name="acc.playerName" :player-id="acc.playerId" /></span>
                 </template>
                 <template v-else>无</template>
               </dd>

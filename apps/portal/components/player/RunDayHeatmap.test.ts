@@ -18,7 +18,7 @@ describe("RunDayHeatmap", () => {
     expect(wrapper.get('td[aria-label="10月6日 · 无记录"]').exists()).toBe(true);
     // 2026-10-07 is a Wednesday: the remaining four cells this week are unlabeled future days.
     expect(wrapper.findAll("td.is-future")).toHaveLength(4);
-    expect(wrapper.text()).toContain("同一次通关只计一次，不代表游玩时长");
+    expect(wrapper.text()).not.toContain("同一次通关只计一次");
     expect(wrapper.findAll(".run-heatmap-legend i")).toHaveLength(5);
   });
 

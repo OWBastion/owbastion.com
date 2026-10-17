@@ -45,7 +45,7 @@ const mapGroups = computed(() => {
   }
   return [...groups.entries()].map(([mapName, grants]) => ({ mapName, grants }));
 });
-const grantMeta = (grant: AdminPlayerDetail["titleGrants"][number]) => [...(statusOf(grant) === "revoked" ? ["已回收"] : []), grant.slot ? slotLabels[grant.slot] : grant.category, sourceLabels[grant.sourceType], formatTime(grant.grantedAt)].join(" · ");
+const grantMeta = (grant: AdminPlayerDetail["titleGrants"][number]) => [grant.slot ? slotLabels[grant.slot] : grant.category, sourceLabels[grant.sourceType], formatTime(grant.grantedAt)].join(" · ");
 const equipableGrants = computed(() => props.titleGrants.filter((grant) => grant.equipable === true));
 const recoverySelectionError = computed(() => recoveryGrantIds.value.length > 10 ? "最多选择 10 个称号。" : "");
 
@@ -154,7 +154,7 @@ defineExpose({ openGrant: () => { grantOpen.value = true; }, openEquip: openReco
         <li v-for="grant in globalGrants" :key="grant.grantId" class="title-card" :class="{ 'title-card--revoked': statusOf(grant) === 'revoked' }">
           <div class="title-card__main"><strong>{{ grant.label }}<span v-if="grant.equipped" class="title-card__star" title="已佩戴"> ★</span></strong><small>{{ grantMeta(grant) }}</small></div>
           <UButton v-if="statusOf(grant) === 'active'" label="回收" size="sm" color="error" variant="ghost" @click="revoke(grant)" />
-          <UButton v-else-if="grant.revocationType === 'administrator' || optimistic[grant.grantId]" label="撤销回收" size="sm" color="neutral" variant="outline" @click="restore(grant)" />
+          <UBadge v-else label="已回收" color="error" variant="subtle" />
         </li>
       </ul>
       <p v-else class="title-empty">暂无全局称号。</p>
@@ -165,7 +165,7 @@ defineExpose({ openGrant: () => { grantOpen.value = true; }, openEquip: openReco
         <li v-for="grant in group.grants" :key="grant.grantId" class="title-card" :class="{ 'title-card--revoked': statusOf(grant) === 'revoked' }">
           <div class="title-card__main"><strong>{{ grant.label }}<span v-if="grant.equipped" class="title-card__star" title="已佩戴"> ★</span></strong><small>{{ grantMeta(grant) }}</small></div>
           <UButton v-if="statusOf(grant) === 'active'" label="回收" size="sm" color="error" variant="ghost" @click="revoke(grant)" />
-          <UButton v-else-if="grant.revocationType === 'administrator' || optimistic[grant.grantId]" label="撤销回收" size="sm" color="neutral" variant="outline" @click="restore(grant)" />
+          <UBadge v-else label="已回收" color="error" variant="subtle" />
         </li>
       </ul>
     </section>
@@ -174,7 +174,6 @@ defineExpose({ openGrant: () => { grantOpen.value = true; }, openEquip: openReco
       <template #body>
         <form id="manual-title-grant" class="grant-form" @submit.prevent="grant">
           <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
-          <p class="recovery-note">系统会通过对应的手动挑战记录完成，再授予称号。</p>
           <div class="grant-section">
             <div class="grant-section__heading"><strong>全局称号</strong></div>
             <UInputMenu v-model="selectedGlobalValues" multiple :items="globalTitleItems" placeholder="选择全局称号" :loading="loadingOptions" :disabled="loadingOptions || saving" />
@@ -196,7 +195,7 @@ defineExpose({ openGrant: () => { grantOpen.value = true; }, openEquip: openReco
       <template #body>
         <form id="recover-player-titles" class="recovery-form" @submit.prevent="recover">
           <UAlert v-if="recoveryError" color="error" variant="subtle" :description="recoveryError" />
-          <p class="recovery-note">选择 0–10 个称号。修复只更新佩戴选择，不会回收或删除其他称号。</p>
+          <p class="recovery-note">修复只更新佩戴选择，不会回收或删除其他称号。</p>
           <fieldset class="recovery-list">
             <legend>可佩戴称号（已选择 {{ recoveryGrantIds.length }} / 10）</legend>
             <label v-for="grant in equipableGrants" :key="grant.grantId" class="recovery-item">

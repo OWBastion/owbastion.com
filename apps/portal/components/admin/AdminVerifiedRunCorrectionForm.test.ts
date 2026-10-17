@@ -8,7 +8,7 @@ const run = createAdminVerifiedRun({ performanceBonus: 0.05, conflictCount: 0 })
 describe("AdminVerifiedRunCorrectionForm", () => {
   it("submits normalized facts without requiring a justification and preserves nullable settlement values", async () => {
     const wrapper = await mountSuspended(AdminVerifiedRunCorrectionForm, {
-      props: { run },
+      props: { run, maps: [{ mapId: "map.test", mapName: "测试地图" }], events: [{ eventId: "event.alpha", name: "测试事件" }] },
       global: {
         stubs: {
           UAlert: true,
@@ -21,8 +21,7 @@ describe("AdminVerifiedRunCorrectionForm", () => {
       },
     });
 
-    const textareas = wrapper.findAll("textarea");
-    await textareas[0]!.setValue('{"event.alpha":3}');
+    await wrapper.findAll("label").find((label) => label.text().includes("测试事件"))!.get("input").setValue("3");
     await wrapper.find("form").trigger("submit");
 
     expect(wrapper.emitted("submit")).toEqual([[

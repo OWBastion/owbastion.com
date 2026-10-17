@@ -7,6 +7,8 @@ type ConflictAction = "keep_existing" | "invalidate_existing";
 
 const props = defineProps<{
   detail: AdminVerifiedRunDetail;
+  mapNames: Record<string, string>;
+  eventNames: Record<string, string>;
   actionLoading?: boolean;
 }>();
 const emit = defineEmits<{
@@ -22,9 +24,9 @@ const runStatusLabel = (value: "active" | "invalidated") => value === "active" ?
 const acceptanceSourceLabel = (value: "submission_automatic" | "submission_review") => value === "submission_automatic" ? "自动通过" : "人工核对";
 const lifecycleLabel = (value: "accepted" | "invalidated" | "restored") => ({ accepted: "已接受", invalidated: "已作废", restored: "已恢复" })[value];
 const conflictFieldLabel: Record<AdminVerifiedRunConflict["conflictFields"][number], string> = {
-  match_code: "通关码",
+  match_code: "对局码",
   map: "地图",
-  gameplay_revision: "玩法修订",
+  gameplay_revision: "版本修订",
   map_variant: "地图版本",
   difficulty: "难度",
   game_version: "游戏版本",
@@ -50,10 +52,10 @@ function sourcePath(submissionId: string) {
         <StatusBadge :label="runStatusLabel(detail.run.status)" :tone="detail.run.status === 'active' ? 'success' : 'warning'" />
       </div>
       <dl class="detail-grid verified-run-detail__facts">
-        <div class="detail-grid__row"><dt>玩家</dt><dd><NuxtLink class="accent-link" :to="`/admin/players/${encodeURIComponent(detail.run.playerAccountId)}`">{{ detail.run.playerName }}</NuxtLink><span class="verified-run-detail__quiet">{{ detail.run.playerId }}</span></dd></div>
-        <div class="detail-grid__row"><dt>地图</dt><dd>{{ detail.run.mapName }}<span class="verified-run-detail__quiet">{{ detail.run.mapId }}</span></dd></div>
+        <div class="detail-grid__row"><dt>玩家</dt><dd><NuxtLink class="accent-link" :to="`/admin/players/${encodeURIComponent(detail.run.playerAccountId)}`"><PlayerBattleTag :player-name="detail.run.playerName" :player-id="detail.run.playerId" /></NuxtLink></dd></div>
+        <div class="detail-grid__row"><dt>地图</dt><dd>{{ detail.run.mapName }}</dd></div>
         <div class="detail-grid__row"><dt>难度</dt><dd>{{ detail.run.difficulty }}</dd></div>
-        <div class="detail-grid__row"><dt>通关码</dt><dd class="verified-run-detail__code">{{ detail.run.matchCode }}</dd></div>
+        <div class="detail-grid__row"><dt>对局码</dt><dd class="verified-run-detail__code">{{ detail.run.matchCode }}</dd></div>
         <div class="detail-grid__row"><dt>通关用时</dt><dd>{{ formatDuration(detail.run.completionDurationSeconds) }}</dd></div>
         <div class="detail-grid__row"><dt>死亡 / 跳过</dt><dd :class="{ 'detail-grid__empty': detail.run.deaths == null && detail.run.skips == null }">{{ deathsSkips(detail.run.deaths, detail.run.skips) }}</dd></div>
         <div class="detail-grid__row"><dt>接受来源</dt><dd>{{ acceptanceSourceLabel(detail.run.acceptanceSource) }}</dd></div>
@@ -79,7 +81,6 @@ function sourcePath(submissionId: string) {
         <StatusBadge :label="sourceStatusLabel" :tone="sourceStatusTone" />
       </div>
       <dl class="detail-grid verified-run-detail__facts">
-        <div class="detail-grid__row"><dt>提交编号</dt><dd class="verified-run-detail__code">{{ detail.sourceSubmission.submissionId }}</dd></div>
         <div class="detail-grid__row"><dt>识别状态</dt><dd><StatusBadge :label="ocrStatusLabel(detail.sourceSubmission.ocrStatus ?? 'not_started')" :tone="ocrStatusTone(detail.sourceSubmission.ocrStatus ?? 'not_started')" /></dd></div>
         <div class="detail-grid__row"><dt>识别次数</dt><dd :class="{ 'detail-grid__empty': detail.sourceSubmission.ocrAttempt == null }">{{ detail.sourceSubmission.ocrAttempt ?? NONE }}</dd></div>
       </dl>
@@ -116,7 +117,7 @@ function sourcePath(submissionId: string) {
         </dl>
       </div>
       <dl v-if="eventCounters.length" class="detail-grid verified-run-detail__event-counters">
-        <div v-for="[eventId, count] in eventCounters" :key="eventId" class="detail-grid__row"><dt>{{ eventId }}</dt><dd>{{ count }}</dd></div>
+        <div v-for="[eventId, count] in eventCounters" :key="eventId" class="detail-grid__row"><dt>{{ eventNames[eventId] ?? "未知事件" }}</dt><dd>{{ count }}</dd></div>
       </dl>
     </section>
 
@@ -129,7 +130,7 @@ function sourcePath(submissionId: string) {
         <li v-for="correction in detail.corrections" :key="correction.correctionId">
           <div class="card-heading"><strong>{{ formatTime(correction.createdAt) }}</strong><span class="verified-run-detail__quiet">{{ correction.actorId }}</span></div>
           <p v-if="correction.reason" class="verified-run-detail__quiet">{{ correction.reason }}</p>
-          <p>{{ correction.before.mapId }} / {{ correction.before.gameplayRevisionId }} → {{ correction.after.mapId }} / {{ correction.after.gameplayRevisionId }}</p>
+          <p>{{ mapNames[correction.before.mapId] ?? "未知地图" }} → {{ mapNames[correction.after.mapId] ?? "未知地图" }}</p>
           <p>{{ correction.before.difficulty }} · {{ correction.before.matchCode }} · {{ correction.before.awardedXp }} XP → {{ correction.after.difficulty }} · {{ correction.after.matchCode }} · {{ correction.after.awardedXp }} XP ({{ correction.after.xpRuleVersion }})</p>
         </li>
       </ol>
@@ -137,14 +138,14 @@ function sourcePath(submissionId: string) {
 
     <section class="verified-run-detail__section" aria-labelledby="verified-run-conflicts-title">
       <div class="card-heading">
-        <h3 id="verified-run-conflicts-title">通关码冲突</h3>
+        <h3 id="verified-run-conflicts-title">对局码冲突</h3>
         <span class="verified-run-detail__quiet">{{ detail.conflicts.length }} 条</span>
       </div>
       <UEmpty v-if="!detail.conflicts.length" title="暂无冲突记录" />
       <div v-else class="verified-run-detail__conflicts">
         <article v-for="conflict in detail.conflicts" :key="conflict.submissionId" class="verified-run-detail__conflict">
           <header class="verified-run-detail__conflict-header">
-            <div><strong>{{ conflict.playerName }}</strong><span class="verified-run-detail__quiet">{{ conflict.submissionId }}</span></div>
+            <strong>{{ conflict.playerName }}</strong>
             <StatusBadge :label="submissionStatusText[conflict.submissionStatus] ?? conflict.submissionStatus" :tone="submissionStatusTone(conflict.submissionStatus)" />
           </header>
           <dl class="detail-grid verified-run-detail__facts">

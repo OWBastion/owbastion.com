@@ -46,6 +46,8 @@ const route = reactive({ query: {} as Record<string, string> });
 const adminApi = vi.fn((path: string) => {
   if (path.startsWith("/v1/verified-runs?")) return Promise.resolve({ items: [run], total: 1 });
   if (path === `/v1/verified-runs/${run.runId}`) return Promise.resolve(detail);
+  if (path === "/v1/maps") return Promise.resolve({ items: [{ mapId: run.mapId, mapName: run.mapName }] });
+  if (path === "/v1/events?archived=true") return Promise.resolve({ items: [{ eventId: "event.alpha", name: "测试事件" }] });
   throw new Error(`Unexpected request: ${path}`);
 });
 mockNuxtImport("useRoute", () => () => route);
@@ -71,11 +73,11 @@ describe("admin verified runs page", () => {
     await flushPromises();
 
     expect(adminApi).toHaveBeenCalledWith("/v1/verified-runs?page=1&pageSize=20");
-    expect(wrapper.find('input[aria-label="按通关码筛选"]').exists()).toBe(true);
+    expect(wrapper.find('input[aria-label="按对局码筛选"]').exists()).toBe(true);
     expect(wrapper.text()).toContain("测试地图");
     expect(wrapper.text()).toContain("1234-5678-9012");
 
-    await wrapper.find('input[aria-label="按通关码筛选"]').setValue("1234-5678-9012");
+    await wrapper.find('input[aria-label="按对局码筛选"]').setValue("1234-5678-9012");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/verified-runs?page=1&pageSize=20&matchCode=1234-5678-9012");
 

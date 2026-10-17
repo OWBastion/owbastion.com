@@ -11,7 +11,6 @@ component; delete it when the component goes.
 | Component | Purpose |
 | --- | --- |
 | `StatusBadge` | Status chip with `default`, `info`, `success`, `warning`, `error` tones; always carries text. |
-| `SubmissionStatusBadge` | Maps a submission status to `StatusBadge` wording and tone. |
 | `FilterChip` | Pressable filter toggle with optional count. |
 | `PageSectionHeader` | Section title row with count and actions slot; optional description and `size="card"` for card-level headings. |
 | `AppHeader` | Sticky site header: brand, main and admin navigation, theme menu, account menu or sign-in, collapsing menu on narrow screens. |
@@ -51,7 +50,6 @@ component; delete it when the component goes.
 
 | Component | Purpose |
 | --- | --- |
-| `ReviewSummaryBadge` | Map rating capsule with sample-size and unavailable states. |
 | `ReviewSummary` | Average score, 1 to 5 star distribution, and paginated written reviews. |
 | `ReviewEditor` | Form to write, edit, or withdraw a review: stars, text, anonymous. |
 | `PlayerReviewPanel` | Player-rating block in detail views: summary, sign-in prompt or editor, feedback message. |
@@ -106,7 +104,7 @@ Admin components follow [page-archetypes.md](page-archetypes.md) and share the s
 | `AdminPlayerList` | Account list with search, status filter, pagination, rows linking to detail. |
 | `AdminPlayerDetail` | Player detail: header actions, warnings, titles, activity, and account tabs. |
 | `AdminPlayerIdentityEditor` | Dialog to edit the player name (numeric ID fixed) with BattleTag preview. |
-| `AdminPlayerTitles` | Global and map titles with revoke, undo revoke, manual grant, and equip repair. |
+| `AdminPlayerTitles` | Global and map titles with revoke, manual grant, and equip repair. |
 | `AdminPlayerRecovery` | Dialog issuing a one-time Passkey recovery link after identity check. |
 | `BindingInvitePanel` | Generates QQ binding invites. 单个 mode takes one BattleTag and optionally authorizes one unlinked historical title holder; 批量 mode takes one BattleTag per line with per-line validation and no historical authorization. Copy per result row. |
 
@@ -162,11 +160,7 @@ Admin components follow [page-archetypes.md](page-archetypes.md) and share the s
 
 ## Pending consolidation
 
-The [design prototype](../design-prototype/README.md) merges components that carry the same content. The tables above describe the code as it is; delete a row here and above when its Issue lands.
-
-| Merged into | Replaces | Issue |
-| --- | --- | --- |
-| `StatusBadge` (adds `accent` rating tone) | `SubmissionStatusBadge`, `ReviewSummaryBadge` | #430 |
+The [design prototype](../design-prototype/README.md) merges components that carry the same content. The tables above describe the code as it is; when an Issue lands, delete the merged-away rows here and above.
 
 ## Nuxt UI roles
 
