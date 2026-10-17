@@ -1549,9 +1549,15 @@ export const currentPlayerResponseSchema = z.object({
     playerName: z.string().trim().min(1).max(64),
     isAdmin: z.boolean().default(false),
     publicProfile: z.boolean().default(true),
+    publicHandle: z.string().nullable().default(null),
   }),
   recentSubmissions: z.array(submissionStatusResponseSchema.omit({ contractVersion: true })).max(5),
 });
+// Public URL identity is separate from the internal Player Account and BattleTag.
+// Only canonical lowercase ASCII handles are stored and publicly resolved.
+export const publicHandleSchema = z.string().regex(/^[a-z][a-z0-9_-]{2,23}$/).refine((handle) => !["admin", "api", "auth", "bastion", "login", "me", "null", "owbastion", "profile", "root", "settings", "support", "system"].includes(handle));
+export const playerPublicHandleRequestSchema = z.object({ contractVersion, publicHandle: publicHandleSchema }).strict();
+export const playerPublicHandleResponseSchema = z.object({ contractVersion, publicHandle: publicHandleSchema }).strict();
 export const playerProfileVisibilityRequestSchema = z.object({ contractVersion, publicProfile: z.boolean() }).strict();
 export const playerProfileVisibilityResponseSchema = z.object({ contractVersion, publicProfile: z.boolean() }).strict();
 
@@ -1569,6 +1575,7 @@ export const leaderboardEntryPlayerSchema = z.object({
   // Opaque per-Player key: resolves the public leaderboard summary without
   // exposing the BattleTag id pair or the internal account id.
   playerKey: z.string().trim().min(1).max(64),
+  publicHandle: publicHandleSchema.optional(),
   displayName: z.string().trim().min(1).max(64),
   equippedTitle: leaderboardEntryTitleSchema.nullable(),
 }).strict();
@@ -1852,6 +1859,8 @@ export type AdminScreenshotSetExclusion = z.infer<typeof adminScreenshotSetExclu
 export type AdminScreenshotSetDetailResponse = z.infer<typeof adminScreenshotSetDetailResponseSchema>;
 export type OcrkitScreenshotSetResponse = z.infer<typeof ocrkitScreenshotSetResponseSchema>;
 export type CurrentPlayerResponse = z.infer<typeof currentPlayerResponseSchema>;
+export type PlayerPublicHandleRequest = z.infer<typeof playerPublicHandleRequestSchema>;
+export type PlayerPublicHandleResponse = z.infer<typeof playerPublicHandleResponseSchema>;
 export type PlayerProfileVisibilityRequest = z.infer<typeof playerProfileVisibilityRequestSchema>;
 export type PlayerProfileVisibilityResponse = z.infer<typeof playerProfileVisibilityResponseSchema>;
 export type LeaderboardEntryTitle = z.infer<typeof leaderboardEntryTitleSchema>;
