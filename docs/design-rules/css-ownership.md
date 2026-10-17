@@ -27,13 +27,11 @@ literals; button styling outside `UButton`. Components respond through container
 never viewport queries. Exception: `AppHeader` (viewport-pinned chrome) collapses at `48rem` and
 uses `cq-compact` for very narrow internal spacing.
 
-## Guardrails
+## Review-only rules
 
-`pnpm lint:styles` (also in `pnpm check` and the Portal publish workflow, rules in
-`stylelint.config.mjs`) errors on: raw `px` in `padding|margin|gap|inset` (1px allowed)
-and width `@media` in component
-styles. Weights and radius are reviewed, not linted. Only `pages/`, `layouts/`, `main.css`, `AppHeader.vue`, and `AdminWorkspace.vue` may use
-`48rem`/`64rem` (and `47.99rem`/`63.99rem`) queries.
+Raw `px` in `padding|margin|gap|inset` (1px allowed), width `@media` in component styles, weights
+and radius are checked in review. Only `pages/`, `layouts/`, `main.css`, `AppHeader.vue`, and
+`AdminWorkspace.vue` may use `48rem`/`64rem` (and `47.99rem`/`63.99rem`) queries.
 
 Tailwind utilities and Nuxt UI `ui` slots/props are preferred over deep selectors
 ([components-and-patterns.md](components-and-patterns.md)).
