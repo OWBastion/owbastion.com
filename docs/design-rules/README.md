@@ -10,7 +10,7 @@ Read this index, then only the documents your change touches.
 | Grid, spacing, breakpoints, sticky/fixed, overflow | [layout-and-spacing.md](layout-and-spacing.md) |
 | New component, Nuxt UI, Tailwind, buttons, cards, admin patterns | [components-and-patterns.md](components-and-patterns.md) |
 | Page structure, admin tables, workbench, review | [page-archetypes.md](page-archetypes.md) |
-| Scoped CSS, `main.css`, stylelint | [css-ownership.md](css-ownership.md) |
+| Scoped CSS, `main.css` | [css-ownership.md](css-ownership.md) |
 | Press, motion, toasts, loading | [motion-and-feedback.md](motion-and-feedback.md) |
 | Responsive behavior, a11y, admin lists | [interaction-accessibility.md](interaction-accessibility.md) |
 | Copy, states, explanatory text | [portal-copy-guidelines.md](portal-copy-guidelines.md) |

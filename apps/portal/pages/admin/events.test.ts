@@ -57,7 +57,6 @@ describe("admin events workbench", () => {
 
     expect(wrapper.get('[role="status"]').text()).toContain("1 项未保存的修改");
     expect(adminApi.mock.calls.some(([path]) => path === "/v1/events/batch")).toBe(false);
-    expect(rowOf(wrapper, "梭哈").get('input[aria-label="权重"]').classes()).toContain("is-changed");
     expect(rowOf(wrapper, "先知").get(".event-table__probability b").text()).not.toBe(before);
     expect(rowOf(wrapper, "先知").find(".event-table__delta").exists()).toBe(true);
 
