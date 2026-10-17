@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import MapMasteryProfile from "~/components/maps/MapMasteryProfile.vue";
+import MasteryRunHistory from "~/components/maps/MasteryRunHistory.vue";
 import type { PortalMap } from "~/composables/usePortalApi";
 import { buildMapProgressRows, type MapProgressChallenge } from "~/utils/map-progress";
 import { portalErrorDetails } from "~/utils/portal-error";
@@ -27,6 +27,7 @@ const row = computed(() => map.value
   : null);
 const profile = computed(() => profiles.value.find((item) => item.mapId === mapId.value) ?? null);
 const historyForMap = computed(() => historyMapId.value === mapId.value ? history.value : null);
+const hasHistory = computed(() => Boolean(historyForMap.value?.total) || historyLoading.value || Boolean(historyError.value));
 const error = computed(() => catalogError.value ? portalErrorDetails(catalogError.value, "无法读取地图成就，请稍后重试。").description : playerError.value);
 const earnedIds = computed(() => new Set(row.value?.earnedChallenges.map((challenge) => challenge.challengeId) ?? []));
 useSeoMeta({ title: () => `${map.value?.mapName ?? "地图成就"} · 我的成就 · 躲避堡垒 3` });
@@ -70,19 +71,16 @@ watch(mapId, () => { void loadPlayerData(); });
       </section>
 
       <section class="map-achievement-section surface-card">
-        <MapMasteryProfile
-          :map-name="map.mapName"
+        <MapMasteryCard
+          variant="detail"
           :authenticated="Boolean(player)"
           :profile="profile"
           :loading="overviewLoading"
-          :error="overviewError"
-          :history="historyForMap"
-          :history-loading="historyLoading"
-          :history-error="historyError"
+          :error="overviewError && !historyForMap ? overviewError : ''"
           @retry="refreshOverview"
-          @history-page="changeHistoryPage"
-          @retry-history="() => loadHistory({ mapId })"
-        />
+        >
+          <MasteryRunHistory v-if="profile || hasHistory" :map-name="map.mapName" :history="historyForMap" :loading="historyLoading" :error="historyError" @change-page="changeHistoryPage" @retry="() => loadHistory({ mapId })" />
+        </MapMasteryCard>
       </section>
 
       <p class="body-copy"><NuxtLink :to="`/maps?mapId=${encodeURIComponent(map.mapId)}`">查看地图介绍与评价</NuxtLink></p>

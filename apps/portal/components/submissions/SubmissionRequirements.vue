@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import SubmissionSectionHeading from "~/components/submissions/SubmissionSectionHeading.vue";
-
 const requirements = [
   { title: "游戏 ID", description: "左下角显示的玩家名称" },
   { title: "地图名称", description: "游戏右上角显示的地图名称" },
@@ -12,7 +10,7 @@ const requirements = [
 
 <template>
   <section class="requirements" aria-labelledby="requirements-title">
-    <SubmissionSectionHeading title="截图要求" heading-id="requirements-title" />
+    <PageSectionHeader title="截图要求" heading-id="requirements-title" size="card" />
     <dl class="requirement-list">
       <div v-for="item in requirements" :key="item.title" class="requirement-item">
         <dt>{{ item.title }}</dt>

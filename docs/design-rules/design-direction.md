@@ -45,7 +45,6 @@ glow class per page; no atmospheric blobs, stacked gradients, raw colors, or loo
 | Focal card | `surface-card elevation-2`, one accent radial gradient, accent-ringed avatar | `PlayerProfileHero` |
 | Overview row | 3-4 large numbers, labels below, 1px dividers | `PlayerStatSheet` |
 | Intensity ladder | accent mixed on `--surface-raised` 7%, 14%, 24%; glow only at top; always with text | `PlayerTitleMark` |
-| Segmented progress | equal segments, reached `--accent`, rest `--line` | `PlayerNextGoals` |
 | Series shelf | card per series, one row of icons, overflow folded with total | `PlayerTitleShelf` |
 | Detail overlay | Nuxt UI overlay with large image and conditions | `PlayerTitleInspectDialog` |
 | Pointer tilt | `useIconTilt`; fine, hovering pointers only; off under reduced motion | `PlayerTitleBadge` |

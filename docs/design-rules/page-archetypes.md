@@ -48,8 +48,7 @@ content switch inside one `surface-card` region with `UEmpty` for no results.
 ## Player center and profile
 
 - **Center** answers "what next": greeting and the primary upload action; a warning only when a
-  submission needs the player; one summary row (`PlayerStatSheet`); unfinished goals
-  (`PlayerNextGoals`); recent submissions; recent titles; map progress. One column on narrow screens,
+  submission needs the player; one summary row (`PlayerStatSheet`); recent submissions; recent titles; map progress. One column on narrow screens,
   primary action leading, secondary links on one row. Use `PageSectionHeader`, `UEmpty` (`暂无称号`,
   `暂无记录`), `未开放` for unbuilt content.
 - **Profile** may use game style on tokens: profile card (avatar, 战网 ID, equipped titles as

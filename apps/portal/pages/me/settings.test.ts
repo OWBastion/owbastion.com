@@ -9,7 +9,7 @@ const refresh = vi.fn(async () => player.value);
 mockNuxtImport("useCurrentPlayer", () => () => ({ player, status: ref("authenticated"), refresh }));
 
 const stubs = {
-  PlayerIdentityCard: { props: ["playerName", "playerId"], template: "<div>{{ playerName }}#{{ playerId }}</div>" },
+  PlayerBattleTag: { props: ["playerName", "playerId", "mode"], template: "<div>{{ playerName }}#{{ playerId }}</div>" },
   PlayerPasskeyManager: { template: "<div>Passkey 管理</div>" },
   USkeleton: true,
 };

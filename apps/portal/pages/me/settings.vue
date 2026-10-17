@@ -15,7 +15,7 @@ onMounted(() => { void refresh(); });
     <template v-if="player">
       <section class="settings-section" aria-labelledby="account-title">
         <h2 id="account-title" class="section-title">帐号</h2>
-        <PlayerIdentityCard :player-name="player.player.playerName" :player-id="player.player.playerId" />
+        <UCard variant="subtle"><PlayerBattleTag :player-name="player.player.playerName" :player-id="player.player.playerId" mode="identity" /></UCard>
       </section>
 
       <section class="settings-section" aria-labelledby="login-title">

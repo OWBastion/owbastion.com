@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import type { FormSubmitEvent } from "@nuxt/ui";
-import SubmissionProcess from "~/components/submissions/SubmissionProcess.vue";
+import SubmissionProgress from "~/components/submissions/SubmissionProgress.vue";
 import SubmissionRequirements from "~/components/submissions/SubmissionRequirements.vue";
-import SubmissionSectionHeading from "~/components/submissions/SubmissionSectionHeading.vue";
 
 definePageMeta({ middleware: "auth" });
 useSeoMeta({ title: "提交挑战 · 躲避堡垒 3" });
@@ -62,7 +61,7 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
     <UCard class="submission-card elevation-2" variant="subtle">
       <div class="submission-columns">
         <section class="upload-section" aria-labelledby="upload-title">
-          <SubmissionSectionHeading title="上传截图" heading-id="upload-title" />
+          <PageSectionHeader title="上传截图" heading-id="upload-title" size="card" />
           <UForm :state="state" :disabled="loading" aria-labelledby="upload-title" @submit="send">
             <UFormField name="screenshot" :error="fileError">
               <UFileUpload
@@ -106,7 +105,7 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
         <SubmissionRequirements />
       </div>
     </UCard>
-    <SubmissionProcess />
+    <SubmissionProgress />
   </main>
 </template>
 

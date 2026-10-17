@@ -1,14 +1,15 @@
 <script setup lang="ts">
 type StepState = "complete" | "current" | "upcoming" | "failed";
-type ProgressStep = { key: string; title: string; icon: string; detail: string };
+type ProgressStep = { key: string; title: string; icon: string; detail: string; intro: string };
 
-const props = defineProps<{ status: string; updatedAt: number; resubmissionRequired?: boolean }>();
+// Without a status this is the static pre-submission flow; with one it tracks a submission.
+const props = defineProps<{ status?: string; updatedAt?: number; resubmissionRequired?: boolean }>();
 
 const steps: ProgressStep[] = [
-  { key: "submitted", title: "已提交", icon: "i-lucide-check", detail: "截图已提交" },
-  { key: "ocr", title: "截图识别", icon: "i-lucide-scan-line", detail: "等待识别" },
-  { key: "review", title: "核对结果", icon: "i-lucide-user-round-check", detail: "等待核对" },
-  { key: "grant", title: "获得称号", icon: "i-lucide-award", detail: "核对通过后获得称号" },
+  { key: "upload", title: "上传截图", icon: "i-lucide-check", detail: "截图已提交", intro: "选择并上传游戏内完成截图" },
+  { key: "ocr", title: "截图识别", icon: "i-lucide-scan-line", detail: "等待识别", intro: "系统自动识别地图与通关信息" },
+  { key: "review", title: "核对结果", icon: "i-lucide-user-round-check", detail: "等待核对", intro: "确认挑战并等待平台核对" },
+  { key: "grant", title: "获得称号", icon: "i-lucide-award", detail: "核对通过后获得称号", intro: "核对通过后自动获得称号" },
 ];
 
 const stepStates = computed<StepState[]>(() => {
@@ -46,6 +47,7 @@ const stateLabel: Record<StepState, string> = {
 
 const stepIcon = (step: ProgressStep, state: StepState) => state === "complete" ? "i-lucide-check" : state === "failed" ? "i-lucide-x" : step.icon;
 const progressItems = computed(() => steps.map((step, index) => {
+  if (props.status === undefined) return { ...step, state: "upcoming" as StepState, detail: step.intro, stateLabel: "", icon: step.icon };
   const state = stepStates.value[index] ?? "upcoming";
   const label = state === "failed" && props.resubmissionRequired ? "需重新提交" : stateLabel[state];
   return { ...step, state, detail: stepDetails.value[index] ?? step.detail, stateLabel: label, icon: stepIcon(step, state) };
@@ -54,11 +56,12 @@ const progressItems = computed(() => steps.map((step, index) => {
 
 <template>
   <UCard class="progress-card elevation-2" aria-labelledby="submission-progress-title">
-    <template #header><div class="card-heading"><h2 id="submission-progress-title">提交进度</h2></div></template>
+    <template #header><div class="card-heading"><h2 id="submission-progress-title">{{ status === undefined ? "获得称号流程" : "提交进度" }}</h2></div></template>
     <ol class="progress-list">
-      <li v-for="step in progressItems" :key="step.key" class="progress-item" :class="`progress-item--${step.state}`">
-        <div class="progress-marker" role="img" :aria-label="`${step.title}：${step.stateLabel}`"><UIcon :name="step.icon" aria-hidden="true" /></div>
-        <div class="progress-copy"><div class="progress-title"><strong>{{ step.title }}</strong><span>{{ step.stateLabel }}</span></div><p>{{ step.detail }}</p></div>
+      <li v-for="(step, index) in progressItems" :key="step.key" class="progress-item" :class="`progress-item--${step.state}`">
+        <div v-if="status === undefined" class="progress-marker" aria-hidden="true">{{ index + 1 }}</div>
+        <div v-else class="progress-marker" role="img" :aria-label="`${step.title}：${step.stateLabel}`"><UIcon :name="step.icon" aria-hidden="true" /></div>
+        <div class="progress-copy"><div class="progress-title"><strong>{{ step.title }}</strong><span v-if="status !== undefined">{{ step.stateLabel }}</span></div><p>{{ step.detail }}</p></div>
       </li>
     </ol>
   </UCard>
