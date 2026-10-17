@@ -89,6 +89,7 @@ watch(open, (isOpen) => { if (isOpen) void load(); });
             <UButton label="重试" color="neutral" variant="outline" size="sm" @click="load" />
           </template>
         </UAlert>
+        <NuxtLink v-if="entry.player?.publicHandle" class="public-profile-link" :to="`/u/${entry.player.publicHandle}`">查看公开主页 <UIcon name="i-lucide-arrow-up-right" aria-hidden="true" /></NuxtLink>
         <template v-else>
           <div v-if="!entry.player" class="player-sheet-stats num">
             <div class="player-sheet-stat-cell">
