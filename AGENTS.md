@@ -1,6 +1,6 @@
 # OWBastion Web Platform: Agent Work Entry
 
-[OWBastion organization routing](../.github/AGENTS.md) owns repository ownership, shared policy routing, and global invariants; this file specializes platform ownership, risk routing, authorization boundaries, and validation. Mutable feature status lives in Issues, PRs, CI, and Git history, not here.
+This is the repository-specific agent entrypoint shared by coding agents. [OWBastion organization routing](https://github.com/OWBastion/.github/blob/main/AGENTS.md) owns repository ownership, shared policy routing, and global invariants; this file specializes platform ownership, risk routing, authorization boundaries, and validation. Keep tool-specific entry files limited to tool behavior, and keep mutable feature status out of durable docs and agent guidance; it lives in Issues, PRs, CI, and Git history.
 
 ## Repository role
 
@@ -16,13 +16,15 @@ For cross-repository work, change the authoritative contract at its owner and in
 
 Serves the [organization product goal](../.github/docs/product-goal.md) by recording what players have done in Bastion (challenges, titles, map results), verifying it with light friction, and, as creation grows, providing the structured creation, review, and publishing path for events, challenges, and titles. Official game quality takes priority over creation-platform work, and general Workshop or agent capability belongs in Wright, not here.
 
-## Working an Issue
+## Work from intent, not repeated setup
 
-Follow the organization [preflight](../.github/docs/issue-readiness.md#preflight). Trace behavior through its authoritative owner, persistence, API/adapters, and consumers, and surface material Issue/contract/code mismatches instead of deciding them. Verify the narrowest decisive surface first, then the broader gates the risk requires. Verify the actual repository remote before repository-scoped GitHub commands.
+A short request such as `implement #123`, `fix #123`, or `review #123` is sufficient. Follow the [organization preflight](https://github.com/OWBastion/.github/blob/main/docs/issue-readiness.md#preflight): inspect the worktree, linked Issue, source, tests, and evidence before claiming current behavior; route through the indexes below and load only the smallest relevant rule set; trace behavior through its authoritative owner, persistence, API/adapters, and consumers; surface material Issue/contract/code mismatches instead of deciding them.
+
+Verify the narrowest decisive surface first, then the broader gates the risk requires. For issue work, verify the actual repository remote before repository-scoped GitHub commands. Use `Fixes #<number>` only when the change completely resolves the issue; otherwise use `Refs`.
 
 ## Repository delivery constraints
 
-Follow the organization [PR delivery policy](../.github/docs/pr-delivery.md). Merge, releases, deployment, production data mutation, permission/authorization changes, external publication, destructive operations, secrets changes, and material scope expansion remain separate authorization boundaries.
+Follow [organization PR delivery policy](https://github.com/OWBastion/.github/blob/main/docs/pr-delivery.md). Merge, releases, deployment, production data mutation, permission/authorization changes, external publication, destructive operations, secrets changes, and material scope expansion remain separate authorization boundaries.
 
 ## Rule routing
 
@@ -53,9 +55,9 @@ Root `AGENTS.md` is a router and invariant source. Module-specific rules belong 
 
 ## Verification, quality, and entropy
 
-Apply the organization [testing](../.github/docs/testing-policy.md), [verification](../.github/docs/verification-and-acceptance.md), [engineering quality](../.github/docs/engineering-quality.md), and [entropy](../.github/docs/entropy-policy.md) policies. Platform-specific independent bases for expected results: accepted business/API contract, migration invariant, representative regression, or observable UI behavior. Material state-machine, grants/review, migration, security, public-contract, privacy, or cross-service changes need an independent falsification pass (`.agents/skills/owbastion-verify-change/SKILL.md` when reviewing another author's change). Rendered Portal behavior keeps a separate evidence boundary from component and SSR checks; see the [testing and change policy](docs/dev-rules/testing-and-change-policy.md).
+Apply the organization [testing](https://github.com/OWBastion/.github/blob/main/docs/testing-policy.md), [verification](https://github.com/OWBastion/.github/blob/main/docs/verification-and-acceptance.md), [engineering quality](https://github.com/OWBastion/.github/blob/main/docs/engineering-quality.md), and [entropy](https://github.com/OWBastion/.github/blob/main/docs/entropy-policy.md) policies. Platform-specific independent bases for expected results: accepted business/API contract, migration invariant, representative regression, or observable UI behavior. Material state-machine, grants/review, migration, security, public-contract, privacy, or cross-service changes need an independent falsification pass (`.agents/skills/owbastion-verify-change/SKILL.md` when reviewing another author's change). Rendered Portal behavior keeps a separate evidence boundary from component and SSR checks; see the [testing and change policy](docs/dev-rules/testing-and-change-policy.md).
 
-Platform entropy work targets duplicate business truth or ownerless projections, obsolete adapters and compatibility paths after completed migrations, duplicated lifecycle state, stale execution/status material in durable docs, and wrappers that no longer protect a real boundary. It must not remove authorization, auditability, idempotency, migration compatibility, privacy boundaries, or failure visibility that remain part of the platform contract. Test access alone never widens production architecture.
+Before adding a service, state field, adapter, compatibility path, queue/state representation, cache, configuration surface, or cross-repository contract, identify the present requirement the existing mechanism cannot satisfy; test access alone never widens production architecture. Platform entropy work targets duplicate business truth or ownerless projections, obsolete adapters and compatibility paths after completed migrations, duplicated lifecycle state, stale execution/status material in durable docs, and wrappers that no longer protect a real boundary — without removing authorization, auditability, idempotency, migration compatibility, privacy boundaries, or failure visibility that remain part of the platform contract.
 
 ## High-risk stop conditions
 
