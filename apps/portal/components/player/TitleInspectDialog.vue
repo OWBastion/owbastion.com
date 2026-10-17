@@ -42,7 +42,7 @@ const facts = computed(() => {
 .inspect { display: grid; gap: var(--space-5); justify-items: center; }
 .inspect__stage { --mark-size: 10rem; --sweep: linear-gradient(135deg, transparent 38%, rgb(255 255 255 / .85) 50%, transparent 62%); position: relative; display: grid; max-width: 100%; }
 .inspect__stage :deep(.title-mark) { border: 0; border-radius: 0; background: transparent; box-shadow: none; overflow: visible; }
-.inspect__stage :deep(.title-mark__icon) { background-image: var(--sweep); background-size: 300% 300%; background-position: 100% 100%; }
+.inspect__stage :deep(.title-mark__icon) { width: 100%; height: 100%; background-image: var(--sweep); background-size: 300% 300%; background-position: 100% 100%; }
 .inspect__stage[style]::after { content: ""; position: absolute; inset: 0; pointer-events: none; background-image: var(--sweep); background-size: 300% 300%; background-position: 100% 100%; mask: var(--mark-image) center / contain no-repeat; }
 .inspect__facts { width: 100%; }
 @media (prefers-reduced-motion: no-preference) {
