@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import type { Challenge } from "@owbastion/contracts";
+import type { OwnedTitle } from "~/types/title";
+import { achievementState, findOwnedTitle } from "~/utils/achievement-status";
 
 export type PublicAchievement = Extract<Challenge, { family: "achievement" }>;
 
-const props = defineProps<{ challenges: PublicAchievement[] }>();
+const props = defineProps<{ challenges: PublicAchievement[]; titles?: OwnedTitle[] }>();
 const groups = computed(() => {
   const grouped = new Map<string, PublicAchievement[]>();
   for (const challenge of props.challenges) grouped.set(challenge.category, [...(grouped.get(challenge.category) ?? []), challenge]);
@@ -23,7 +25,7 @@ const groups = computed(() => {
       <div class="directory-grid">
         <article v-for="challenge in group.challenges" :key="challenge.challengeId" class="achievement-card">
           <div class="achievement-icon" aria-hidden="true"><img v-if="challenge.iconUrl" :src="challenge.iconUrl" alt="" /><UIcon v-else :name="`i-lucide-${challenge.icon}`" /></div>
-          <div class="achievement-card-copy"><strong class="type-card-title">{{ challenge.titleName }}</strong><span class="type-label-sm">{{ challenge.condition }}</span><span v-if="challenge.status === 'scheduled'" class="type-label-sm scheduled">未开放</span><span v-else-if="challenge.status === 'sunsetting'" class="sunsetting-row"><StatusBadge label="即将结束" tone="warning" /><small class="type-caption">{{ challenge.retiredVersion }}</small></span></div>
+          <div class="achievement-card-copy"><strong class="type-card-title">{{ challenge.titleName }}</strong><AchievementStatus v-if="titles" class="achievement-state" :state="achievementState(findOwnedTitle(titles, challenge))" /><span class="type-label-sm">{{ challenge.condition }}</span><span v-if="challenge.status === 'scheduled'" class="type-label-sm scheduled">未开放</span><span v-else-if="challenge.status === 'sunsetting'" class="sunsetting-row"><StatusBadge label="即将结束" tone="warning" /><small class="type-caption">{{ challenge.retiredVersion }}</small></span></div>
         </article>
       </div>
     </section>
@@ -42,7 +44,7 @@ const groups = computed(() => {
 .achievement-icon img { width: 60%; height: 60%; object-fit: contain; }
 .achievement-card-copy { display: grid; gap: var(--space-2); min-width: 0; }
 .achievement-card strong { overflow-wrap: anywhere; color: var(--text); }
-.achievement-card-copy > span:not(.sunsetting-row) { color: var(--muted); }
+.achievement-card-copy > span:not(.sunsetting-row):not(.status-badge) { color: var(--muted); }
 .sunsetting-row { display: inline-flex; width: fit-content; align-items: center; gap: var(--space-2); }
 @container (max-width: 23.99rem) { .achievement-icon { width: 2.5rem; height: 2.5rem; font-size: 1.125rem; } }
 </style>

@@ -420,6 +420,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .admin-achievement-editor {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: var(--space-5);
 }
 .admin-achievement-editor--create { padding: var(--space-6); }

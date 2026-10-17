@@ -10,7 +10,7 @@ const versions = [
 describe("AdminEventPoolSummary", () => {
   it("marks only the pools a standalone mode owns and links to that mode's setup", async () => {
     const wrapper = await mountSuspended(AdminEventPoolSummary, { props: { poolSize: 16, poolWeight: 62.7, versions, saving: null } });
-    const modeLinks = wrapper.findAll(".pool-summary__mode");
+    const modeLinks = wrapper.findAll(".pool-summary__seg--link");
     expect(modeLinks.map((link) => link.text())).toEqual(["仅 2026镜中回响"]);
     expect(modeLinks[0]!.attributes("href")).toBe("/admin/modes");
   });

@@ -2,6 +2,7 @@
 import type { PublicAchievement } from "./AchievementCatalog.vue";
 import type { OwnedTitle } from "~/types/title";
 import type { PlayerChallengeProgress, PortalMap } from "~/composables/usePortalApi";
+import { achievementState } from "~/utils/achievement-status";
 import { buildMapProgressRows, type MapProgressChallenge } from "~/utils/map-progress";
 
 type HistoricalTitleGroup = {
@@ -60,6 +61,7 @@ const isAchievementCardEarned = (card: AchievementCard) => card.kind === "retire
 const ownedGlobalTitleForCard = (card: AchievementCard) => card.kind === "retired"
   ? card.title
   : props.titles.find((title) => title.titleKey === card.challenge.titleKey && title.scope === "global");
+const stateForCard = (card: AchievementCard) => achievementState(card.kind === "retired" ? card.title : props.titles.find((title) => title.titleKey === card.challenge.titleKey));
 const groups = computed(() => {
   const grouped = new Map<string, AchievementCard[]>();
   for (const challenge of props.challenges) grouped.set(challenge.category, [...(grouped.get(challenge.category) ?? []), { kind: "catalog", challenge }]);
@@ -102,6 +104,7 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
                   <strong class="type-card-title">{{ card.kind === 'catalog' ? card.challenge.titleName : card.title.label }}</strong>
                   <StatusBadge v-if="card.kind === 'retired'" class="retired-status" label="不再发放" />
                 </div>
+                <AchievementStatus class="achievement-state" :state="stateForCard(card)" />
                 <span class="type-label-sm">{{ card.kind === 'catalog' ? card.challenge.condition : card.title.condition }}</span>
                 <div v-if="progressFor(card)" class="progress-block">
                   <span class="progress-count">已完成 {{ progressFor(card)!.completedMaps }} / {{ progressFor(card)!.maps.length }}</span>
@@ -114,7 +117,6 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
                 <span v-if="card.kind === 'catalog' && card.challenge.status === 'scheduled'" class="type-caption status">未开放</span>
                 <span v-else-if="card.kind === 'catalog' && card.challenge.status === 'sunsetting'" class="type-caption status">即将结束</span>
               </div>
-              <span v-if="isAchievementCardEarned(card)" class="earned-status-icon" role="img" aria-label="已获得"><UIcon name="i-lucide-circle-check" /></span>
               <UButton v-if="ownedGlobalTitleForCard(card)" class="equip-action" size="xs" :disabled="savingEquip || !canEquip(ownedGlobalTitleForCard(card)!)" :aria-label="ownedGlobalTitleForCard(card)!.equipped ? `取消佩戴 ${ownedGlobalTitleForCard(card)!.label}` : `佩戴 ${ownedGlobalTitleForCard(card)!.label}`" @click="emit('toggleEquipped', ownedGlobalTitleForCard(card)!.grantId)">{{ ownedGlobalTitleForCard(card)!.equipped ? "取消佩戴" : "佩戴" }}</UButton>
             </article>
           </div>
@@ -141,8 +143,7 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
             <div class="directory-grid">
               <article v-for="title in group.titles" :key="title.grantId" class="achievement-card earned">
                 <div class="achievement-icon" :class="{ 'has-image': title.iconUrl }" aria-hidden="true"><img v-if="title.iconUrl" :src="title.iconUrl" alt="" /><UIcon v-else :name="`i-lucide-${title.icon}`" /></div>
-                <div class="achievement-copy"><div class="achievement-title-row"><strong class="type-card-title">{{ title.label }}</strong><StatusBadge v-if="title.mapId && title.gameplayRevisionId && !props.maps.some((map) => map.mapId === title.mapId && map.defaultGameplayRevisionId === title.gameplayRevisionId)" class="retired-status" label="历史版本" /></div><span class="type-label-sm">{{ title.condition }}</span></div>
-                <span class="earned-status-icon" role="img" aria-label="已获得"><UIcon name="i-lucide-circle-check" /></span>
+                <div class="achievement-copy"><div class="achievement-title-row"><strong class="type-card-title">{{ title.label }}</strong><StatusBadge v-if="title.mapId && title.gameplayRevisionId && !props.maps.some((map) => map.mapId === title.mapId && map.defaultGameplayRevisionId === title.gameplayRevisionId)" class="retired-status" label="历史版本" /></div><AchievementStatus class="achievement-state" :state="achievementState(title)" /><span class="type-label-sm">{{ title.condition }}</span></div>
               </article>
             </div>
           </section>
@@ -181,7 +182,7 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
 .map-title-collection { display: grid; gap: var(--space-4); }
 .map-title-group { display: grid; gap: var(--space-3); }
 .map-title-group + .map-title-group { padding-top: var(--space-4); border-top: 1px solid var(--line); }
-.achievement-card { container-type: inline-size; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: var(--space-4); min-width: 0; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: color-mix(in oklch, var(--surface-raised) 64%, var(--surface)); transition: border-color 160ms ease, background 160ms ease; }
+.achievement-card { container-type: inline-size; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: var(--space-4); min-width: 0; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: color-mix(in oklch, var(--surface-raised) 64%, var(--surface)); transition: border-color 160ms ease, background 160ms ease; }
 .achievement-card.earned { border-color: color-mix(in oklch, var(--success) 44%, var(--line)); background: color-mix(in oklch, var(--success-surface) 16%, var(--surface)); }
 .achievement-icon, .recent-icon { display: grid; place-items: center; border: 1px dashed var(--line-strong); border-radius: 50%; color: var(--quiet); background: var(--surface); }
 .achievement-icon.has-image, .recent-icon.has-image { border-color: transparent; background: transparent; }
@@ -192,8 +193,7 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
 .achievement-copy { display: grid; align-content: start; gap: var(--space-2); min-width: 0; }
 .achievement-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
 .achievement-copy strong, .recent-item strong { overflow-wrap: anywhere; color: var(--text); }
-.achievement-copy > span:not(.earned-status-icon):not(.status), .recent-item span { color: var(--muted); }
-.earned-status-icon { display: inline-grid; width: fit-content; place-items: center; color: var(--success); font-size: 1rem; }
+.achievement-copy > span:not(.status):not(.status-badge), .recent-item span { color: var(--muted); }
 .progress-block { display: grid; gap: var(--space-2); margin-top: var(--space-1); }
 .progress-count { color: var(--muted); font-size: var(--type-caption-size); font-weight: 600; }
 .progress-maps { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); margin: 0; padding: 0; list-style: none; }

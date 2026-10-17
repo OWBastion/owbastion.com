@@ -180,24 +180,14 @@ function onIconFile(value: File | null | undefined) {
           <UFormField class="editor-field editor-field--wide" label="完成条件" required>
             <UTextarea class="editor-control" v-model="(item as TitleAchievement | MapAchievement).condition" required maxlength="1024" :disabled="saving" />
           </UFormField>
-          <UFormField v-if="!asChallenge(item)?.progressRule" class="editor-field editor-field--wide" label="截图规则" required>
-            <UTextarea class="editor-control" :model-value="(item as TitleAchievement | MapAchievement).evidenceRule ?? DEFAULT_EVIDENCE_RULE" required maxlength="2048" :disabled="saving" @update:model-value="setEvidenceRule" />
-          </UFormField>
-          <UFormField v-if="!asChallenge(item)?.progressRule" class="editor-field" label="提交方式">
-            <USelect class="editor-control" :model-value="(item as TitleAchievement | MapAchievement).submissionMode ?? 'manual'" :disabled="saving || Boolean(asChallenge(item)?.progressRule)" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" :ui="{ base: 'w-full' }" @update:model-value="setSubmissionMode($event as 'manual' | 'automatic')" />
-          </UFormField>
         </template>
 
-        <UFormField v-if="!asCatalog(item)" class="editor-field" label="状态">
-          <USelect class="editor-control" v-model="(item as TitleAchievement | MapAchievement).status" :disabled="saving" :items="statusItems" :ui="{ base: 'w-full' }" />
-        </UFormField>
-
         <template v-if="asChallenge(item)">
-          <UFormField class="editor-field" label="完成规则" hint="集齐指定地图的进度型挑战以已验证通关为准，不走截图审核，必须保持全部地图与手动提交。">
+          <UFormField class="editor-field" label="完成规则" help="集齐指定地图的进度型挑战以已验证通关为准，不走截图审核，必须保持全部地图与手动提交。">
             <USelect class="editor-control" :model-value="asChallenge(item)!.progressRule ? 'required_maps_completed' : 'none'" :items="progressModeItems" :disabled="saving" @update:model-value="setProgressMode($event as 'none' | 'required_maps_completed')" />
           </UFormField>
           <template v-if="asChallenge(item)!.progressRule">
-            <UFormField class="editor-field" label="统计范围" hint="选择独立模式后自动跟随该模式的全部地图，不用再逐张勾选。">
+            <UFormField class="editor-field" label="统计范围" help="选择独立模式后自动跟随该模式的全部地图，不用再逐张勾选。">
               <USelect class="editor-control" :model-value="progressMode ?? regularScope" :items="scopeItems" :disabled="saving" @update:model-value="setProgressScope($event as string)" />
             </UFormField>
             <UFormField class="editor-field" label="最低难度">
@@ -206,20 +196,15 @@ function onIconFile(value: File | null | undefined) {
             <UFormField v-if="progressMode" class="editor-field editor-field--wide">
               <p class="editor-note">自动跟随「{{ progressMode }}」的 {{ followedMapCount }} 张地图。</p>
             </UFormField>
-            <UFormField v-else class="editor-field editor-field--wide" label="要求地图" hint="玩家在活动时间内于每张地图各留下至少一条有效已验证通关即完成。">
+            <UFormField v-else class="editor-field editor-field--wide" label="要求地图" help="玩家在活动时间内于每张地图各留下至少一条有效已验证通关即完成。">
               <USelect class="editor-control" :model-value="asChallenge(item)!.progressRule!.mapIds ?? []" multiple :items="maps.map((map) => ({ label: map.mapName, value: map.mapId }))" :disabled="saving" @update:model-value="setProgressMapIds($event as string[])" />
             </UFormField>
           </template>
-          <UFormField v-if="!asChallenge(item)?.progressRule" class="editor-field" label="称号适用范围">
-            <USelect class="editor-control" :model-value="asChallenge(item)!.scope ?? 'global'" :disabled="saving || Boolean(asChallenge(item)!.progressRule)" :items="[{ label: '全部地图', value: 'global' }, { label: '指定地图', value: 'map' }]" @update:model-value="setScope($event as 'global' | 'map')" />
-          </UFormField>
-          <UFormField v-if="asChallenge(item)!.scope === 'map'" class="editor-field editor-field--wide" label="指定地图">
-            <USelect class="editor-control" :model-value="asChallenge(item)!.mapIds ?? []" multiple :items="[{ label: '全部有效地图', value: '' }, ...maps.map((map) => ({ label: map.mapName, value: map.mapId }))]" :disabled="saving" @update:model-value="setMapIds(($event as string[]).filter(Boolean))" />
-          </UFormField>
-          <UFormField v-if="asChallenge(item)!.scope === 'map'" class="editor-field" label="地图版本">
-            <USelect class="editor-control" :model-value="asChallenge(item)!.mapVariant" :items="[{ label: '标准版', value: undefined }, { label: '经典版', value: 'classic' }]" :disabled="saving" @update:model-value="setMapVariant($event as 'classic' | undefined)" />
-          </UFormField>
         </template>
+
+        <UFormField v-if="!asCatalog(item)" class="editor-field" label="状态">
+          <USelect class="editor-control" v-model="(item as TitleAchievement | MapAchievement).status" :disabled="saving" :items="statusItems" :ui="{ base: 'w-full' }" />
+        </UFormField>
 
         <template v-if="asChallenge(item) && asChallenge(item)!.status !== 'archived'">
           <UFormField class="editor-field" label="开始时间">
@@ -230,19 +215,36 @@ function onIconFile(value: File | null | undefined) {
           </UFormField>
         </template>
 
-        <details v-if="!asCatalog(item)" class="editor-field editor-field--wide more-settings" :open="Boolean((item as TitleAchievement | MapAchievement).retiredVersion)">
-          <summary>更多设置</summary>
-          <div class="more-settings-body">
-        <UFormField v-if="(item as TitleAchievement | MapAchievement).status === 'active'" class="editor-field" label="计划下线版本" hint="已开放挑战宣布下线版本后展示为即将结束。">
+        <UFormField v-if="(item as TitleAchievement | MapAchievement).status === 'active'" class="editor-field" label="计划下线版本" help="已开放挑战宣布下线版本后展示为即将结束。">
           <UInput class="editor-control" :model-value="(item as TitleAchievement | MapAchievement).retiredVersion ?? ''" placeholder="例如 26.0713.1" :disabled="saving" @update:model-value="setRetiredVersion" />
         </UFormField>
 
+        <details v-if="!asCatalog(item)" class="editor-field editor-field--wide more-settings">
+          <summary>更多设置</summary>
+          <div class="more-settings-body">
+            <UFormField v-if="!asChallenge(item)?.progressRule" class="editor-field editor-field--wide" label="截图规则" required>
+              <UTextarea class="editor-control" :model-value="(item as TitleAchievement | MapAchievement).evidenceRule ?? DEFAULT_EVIDENCE_RULE" required maxlength="2048" :disabled="saving" @update:model-value="setEvidenceRule" />
+            </UFormField>
+            <UFormField v-if="!asChallenge(item)?.progressRule" class="editor-field" label="提交方式">
+              <USelect class="editor-control" :model-value="(item as TitleAchievement | MapAchievement).submissionMode ?? 'manual'" :disabled="saving || Boolean(asChallenge(item)?.progressRule)" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" :ui="{ base: 'w-full' }" @update:model-value="setSubmissionMode($event as 'manual' | 'automatic')" />
+            </UFormField>
+        <template v-if="asChallenge(item)">
+          <UFormField v-if="!asChallenge(item)?.progressRule" class="editor-field" label="称号适用范围">
+            <USelect class="editor-control" :model-value="asChallenge(item)!.scope ?? 'global'" :disabled="saving || Boolean(asChallenge(item)!.progressRule)" :items="[{ label: '全部地图', value: 'global' }, { label: '指定地图', value: 'map' }]" @update:model-value="setScope($event as 'global' | 'map')" />
+          </UFormField>
+          <UFormField v-if="asChallenge(item)!.scope === 'map'" class="editor-field editor-field--wide" label="指定地图">
+            <USelect class="editor-control" :model-value="asChallenge(item)!.mapIds ?? []" multiple :items="[{ label: '全部有效地图', value: '' }, ...maps.map((map) => ({ label: map.mapName, value: map.mapId }))]" :disabled="saving" @update:model-value="setMapIds(($event as string[]).filter(Boolean))" />
+          </UFormField>
+          <UFormField v-if="asChallenge(item)!.scope === 'map'" class="editor-field" label="地图版本">
+            <USelect class="editor-control" :model-value="asChallenge(item)!.mapVariant" :items="[{ label: '标准版', value: undefined }, { label: '经典版', value: 'classic' }]" :disabled="saving" @update:model-value="setMapVariant($event as 'classic' | undefined)" />
+          </UFormField>
         <UFormField v-if="asChallenge(item)" class="editor-field" label="游戏版本">
           <UInput class="editor-control" :model-value="asChallenge(item)!.gameVersion ?? ''" placeholder="留空使用最新版本，格式 YY.MMDD.序号" :disabled="saving" @update:model-value="setGameVersion" />
         </UFormField>
-
-        <template v-if="asChallenge(item)">
-          <UFormField class="editor-field editor-field--wide" label="自定义图标" hint="留空使用默认图标。">
+          <UFormField class="editor-field" label="展示分类" :help="`留空则使用 Bastion 系列“${asChallenge(item)!.category}”`">
+            <UInput class="editor-control" :model-value="asChallenge(item)!.categoryOverride ?? ''" :disabled="saving" :placeholder="asChallenge(item)!.category" maxlength="128" @update:model-value="setCategoryOverride" />
+          </UFormField>
+          <UFormField class="editor-field editor-field--wide" label="自定义图标" help="留空使用默认图标。">
             <div class="icon-upload">
               <div v-if="asTitle(item)!.iconUrl" class="admin-achievement-icon-preview">
                 <img :src="asTitle(item)!.iconUrl!" alt="当前成就图标" />
@@ -257,9 +259,6 @@ function onIconFile(value: File | null | undefined) {
                 </div>
               </details>
             </div>
-          </UFormField>
-          <UFormField class="editor-field" label="展示分类" :hint="`留空则使用 Bastion 系列“${asChallenge(item)!.category}”`">
-            <UInput class="editor-control" :model-value="asChallenge(item)!.categoryOverride ?? ''" :disabled="saving" :placeholder="asChallenge(item)!.category" maxlength="128" @update:model-value="setCategoryOverride" />
           </UFormField>
         </template>
           </div>
@@ -276,6 +275,6 @@ function onIconFile(value: File | null | undefined) {
 <style scoped>
 .more-settings { border-top: 1px solid var(--line); color: var(--muted); }
 .more-settings summary { padding: var(--space-3) 0; cursor: pointer; }
-.more-settings-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5); padding-top: var(--space-2); }
+.more-settings-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--space-5); padding-top: var(--space-2); }
 .editor-note { margin: 0; color: var(--muted); font-size: var(--type-caption-size); }
 </style>

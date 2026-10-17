@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { createReusableTemplate, useMediaQuery, usePreferredReducedMotion } from "@vueuse/core";
 import type { Map, MapChallenge } from "~/types/challenge";
+import type { OwnedTitle } from "~/types/title";
+import { achievementState, findOwnedTitle } from "~/utils/achievement-status";
 import PlayerReviewPanel from "../reviews/PlayerReviewPanel.vue";
 
 const props = defineProps<{
   map: Map | null;
   challenges: MapChallenge[];
   authenticated: boolean;
+  titles?: OwnedTitle[];
 }>();
 
 const open = defineModel<boolean>("open", { required: true });
@@ -45,13 +48,17 @@ onMounted(() => { hydrated.value = true; });
             <div><dt>地图评级</dt><dd>{{ map.difficultyRating ?? "暂无记录" }}</dd></div>
             <div><dt>挑战难度</dt><dd>{{ difficultyLabel }}</dd></div>
           </dl>
-          <ul v-if="mapChallenges.length" class="challenge-list stacked-list">
+          <div v-if="map.mechanics?.length" class="mechanics-row"><span>特殊机制</span><div class="mechanics"><UBadge v-for="mechanic in map.mechanics" :key="mechanic" :label="mechanic" color="neutral" variant="subtle" /></div></div>
+        </section>
+        <section v-if="mapChallenges.length" class="detail-section" aria-labelledby="map-challenges-title">
+          <div class="section-title"><h3 id="map-challenges-title">挑战</h3></div>
+          <ul class="challenge-list stacked-list">
             <li v-for="challenge in mapChallenges" :key="challenge.challengeId">
               <strong>{{ challenge.name }}</strong>
+              <AchievementStatus v-if="titles && challenge.titleKey" :state="achievementState(findOwnedTitle(titles, { titleKey: challenge.titleKey, mapId: challenge.mapId, gameplayRevisionId: challenge.gameplayRevisionId }))" />
               <span>{{ [challenge.difficulty, challengeStatusLabel(challenge.status)].filter(Boolean).join(" · ") || "—" }}</span>
             </li>
           </ul>
-          <div v-if="map.mechanics?.length" class="mechanics-row"><span>特殊机制</span><div class="mechanics"><UBadge v-for="mechanic in map.mechanics" :key="mechanic" :label="mechanic" color="neutral" variant="subtle" /></div></div>
         </section>
         <PlayerReviewPanel v-if="map" target-type="map" :target-id="map.mapId" :gameplay-revision-id="map.defaultGameplayRevisionId ?? null" :authenticated="authenticated" @review-changed="emit('review-changed')" />
       </div>
@@ -104,18 +111,19 @@ onMounted(() => { hydrated.value = true; });
 .section-title > span { color: var(--quiet); font-size: .75rem; }
 .detail-facts { display: grid; gap: var(--space-2); margin: 0; }
 .detail-facts > div { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
-.detail-facts > div { padding-bottom: var(--space-2); border-bottom: 1px solid var(--line); }
 .detail-facts dt { color: var(--muted); font-size: .8rem; }
 .detail-facts dd { margin: 0; color: var(--text); font-size: .84rem; font-weight: 600; }
-.challenge-list li { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
-.challenge-list strong { min-width: 0; overflow-wrap: anywhere; color: var(--text); font-size: .84rem; }
-.challenge-list span { flex: 0 0 auto; color: var(--quiet); font-size: .76rem; }
+.challenge-list { gap: 0; }
+.challenge-list li + li { border-top: 1px solid var(--line); }
+.challenge-list li { display: flex; align-items: center; padding-block: var(--space-2); justify-content: space-between; gap: var(--space-3); }
+.challenge-list strong { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; color: var(--text); font-size: .84rem; }
+.challenge-list span:not(.status-badge) { flex: 0 0 auto; color: var(--quiet); font-size: .76rem; }
 @container (max-width: 23.99rem) {
   .detail-content { padding-inline: max(var(--space-4), env(safe-area-inset-left)) max(var(--space-4), env(safe-area-inset-right)); }
   .detail-section { gap: var(--space-3); padding: var(--space-4) 0; }
   .detail-section:first-child { padding-top: var(--space-4); }
   .detail-facts { gap: var(--space-2); }
-  .detail-facts > div { gap: var(--space-2); padding-bottom: var(--space-2); }
+  .detail-facts > div { gap: var(--space-2); }
   .detail-facts dt { font-size: .76rem; }
   .detail-facts dd { max-width: 64%; overflow-wrap: anywhere; text-align: right; }
 }

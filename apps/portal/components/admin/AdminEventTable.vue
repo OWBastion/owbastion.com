@@ -53,12 +53,12 @@ const stageNumber = (event: RandomEvent, raw: string) => emit("stage", event.eve
         </tr>
       </thead>
       <tbody>
-        <tr v-for="event in events" :key="event.eventId" :class="{ 'is-selected': selected.includes(event.eventId), 'is-dim': event.releaseStatus !== 'implemented' || suspended.has(event.gameVersion) }">
+        <tr v-for="event in events" :key="event.eventId" :class="{ 'is-selected': selected.includes(event.eventId), 'is-changed': draftedFields(draft, event.eventId).size > 0, 'is-dim': event.releaseStatus !== 'implemented' || suspended.has(event.gameVersion) }">
           <td class="event-table__check"><input type="checkbox" :checked="selected.includes(event.eventId)" :aria-label="`选择 ${event.name}`" @change="toggleOne(event.eventId, ($event.target as HTMLInputElement).checked)"></td>
           <td>
             <div class="event-table__name">
               <button type="button" class="event-table__open" @click="emit('open', event.eventId)">{{ event.name }}</button>
-              <UBadge v-if="draftedFields(draft, event.eventId).has('name')" label="已改" color="primary" variant="subtle" size="sm" />
+              <span v-if="draftedFields(draft, event.eventId).size" class="sr-only">（已修改，未保存）</span>
             </div>
           </td>
           <td class="event-table__secondary">
@@ -99,6 +99,8 @@ table { width: 100%; border-collapse: collapse; }
 th { position: sticky; top: 0; z-index: 1; padding: var(--space-2) var(--space-3); background: var(--surface-raised); border-bottom: 1px solid var(--line); color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 600; text-align: left; white-space: nowrap; }
 td { padding: var(--space-1) var(--space-3); border-bottom: 1px solid var(--line); vertical-align: middle; }
 tbody tr:hover td { background: color-mix(in oklch, var(--surface-raised) 60%, transparent); }
+tbody tr.is-changed td { background: var(--accent-surface); }
+tbody tr.is-changed td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 tbody tr.is-selected td { background: var(--accent-surface); }
 tbody tr.is-dim td:not(.event-table__check) { opacity: 0.6; }
 .event-table__check { width: 2.5rem; }

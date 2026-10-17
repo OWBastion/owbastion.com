@@ -43,7 +43,7 @@ describe("/me/achievements", () => {
     expect(wrapper.text()).toContain("我的成就");
     expect(wrapper.text()).toContain("已获得 1 / 1");
     expect(wrapper.text()).toContain("最近获得");
-    expect(wrapper.findAll('[role="img"][aria-label="已获得"]')).toHaveLength(2);
+    expect(wrapper.findAll(".status-badge").filter((badge) => badge.text() === "已获得")).toHaveLength(2);
     expect(wrapper.text()).toContain("历史称号");
     expect(wrapper.text()).toContain("已完成 1 / 2");
     expect(refreshTitles).toHaveBeenCalled();
