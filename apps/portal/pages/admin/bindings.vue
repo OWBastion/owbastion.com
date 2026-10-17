@@ -3,7 +3,6 @@ import type { TabsItem } from "@nuxt/ui";
 import type { SortingState } from "@tanstack/vue-table";
 import type { AdminBindingClaim, AdminBindingInvitation } from "~/composables/useAdminApi";
 import BindingInvitePanel from "~/components/admin/BindingInvitePanel.vue";
-import BindingInviteBatchPanel from "~/components/admin/BindingInviteBatchPanel.vue";
 import { bindingInviteCopyText } from "~/utils/binding-invite";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
@@ -43,7 +42,7 @@ function flashRow(id: string, updatedIds: Set<string>) {
   window.setTimeout(() => updatedIds.delete(id), 420);
 }
 
-const bindingTabValues = ["claims", "invitations", "create", "batch"] as const;
+const bindingTabValues = ["claims", "invitations", "create"] as const;
 type BindingTab = (typeof bindingTabValues)[number];
 const tabFromRoute = (value: unknown): BindingTab => typeof value === "string" && bindingTabValues.includes(value as BindingTab) ? value as BindingTab : "claims";
 const activeTab = shallowRef(tabFromRoute(route.query.tab));
@@ -68,7 +67,6 @@ const bindingTabs = [
   { label: "绑定例外", value: "claims", slot: "claims" as const },
   { label: "邀请与迁移", value: "invitations", slot: "invitations" as const },
   { label: "定向邀请", value: "create", slot: "create" as const },
-  { label: "批量生成", value: "batch", slot: "batch" as const },
 ] satisfies TabsItem[];
 
 const defaultClaimSorting: SortingState = [{ id: "createdAt", desc: true }];
@@ -295,9 +293,6 @@ async function retryHistoricalMigration(invitation: AdminBindingInvitation) {
         </template>
         <template #create>
           <BindingInvitePanel @created="load" />
-        </template>
-        <template #batch>
-          <BindingInviteBatchPanel @created="load" />
         </template>
       </UTabs>
     </section>

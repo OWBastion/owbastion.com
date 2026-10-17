@@ -281,8 +281,7 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", warnBeforeUnloa
       <FilterChip label="包含已归档" :pressed="showArchived" @toggle="showArchived = !showArchived" />
     </div>
 
-    <AdminEventDraftBar :count="draft.size" :summary="draftSummary" :saving="saving" @save="saveDraft" @discard="discardDraft" />
-    <AdminEventSelectionBar :count="selected.length" :versions="versionNames" :groups="groups" @patch="stageMany(selected, $event)" @weight="stageWeight" @clear="selected = []" />
+    <AdminEventActionBar :selected-count="selected.length" :draft-count="draft.size" :summary="draftSummary" :saving="saving" :versions="versionNames" :groups="groups" @patch="stageMany(selected, $event)" @weight="stageWeight" @clear="selected = []" @save="saveDraft" @discard="discardDraft" />
 
     <div v-if="loading && !events.length" class="events-state" role="status" aria-label="读取中…"><USkeleton v-for="row in 6" :key="row" class="events-state__row" /></div>
     <p v-else-if="!visible.length" class="events-state events-state--empty">没有符合条件的事件</p>
