@@ -86,7 +86,11 @@ const showToc = computed(() => props.toc.length >= 3);
 .editorial-article-body :deep(:where(h2:first-child, h3:first-child, h4:first-child)) { margin-top: 0; }
 .editorial-article-body :deep(p) { margin: 0 0 1.25em; }
 .editorial-article-body :deep(ul), .editorial-article-body :deep(ol) { margin: 0 0 1.25em; padding-inline-start: 1.4em; }
+.editorial-article-body :deep(ul) { list-style: disc; }
+.editorial-article-body :deep(ol) { list-style: decimal; }
+.editorial-article-body :deep(ul ul) { list-style: circle; }
 .editorial-article-body :deep(li) { margin: 0 0 .45em; }
+.editorial-article-body :deep(li)::marker { color: var(--quiet); }
 .editorial-article-body :deep(a) { color: var(--info); text-decoration: underline; text-decoration-thickness: .08em; text-underline-offset: .16em; }
 .editorial-article-body :deep(a:hover) { color: color-mix(in oklch, var(--info) 80%, var(--text)); }
 /* MDC wraps heading text in an anchor link; headings keep their own color and weight instead of looking like underlined links. */
@@ -112,10 +116,11 @@ const showToc = computed(() => props.toc.length >= 3);
 /* A release note is dense and scanned: tighter than an essay, but with the same section rhythm. */
 .editorial-article--changelog .editorial-article-body { line-height: 1.75; }
 .editorial-article--changelog .editorial-article-body :deep(h2) { font-size: var(--type-headline-size); font-weight: 600; letter-spacing: var(--type-headline-tracking); line-height: var(--type-headline-leading); }
-.editorial-article--changelog .editorial-article-body :deep(h3) { margin: 1.5rem 0 .5rem; font-size: var(--type-body-size); font-weight: 600; }
-.editorial-article--changelog .editorial-article-body :deep(h4) { margin: 1.1rem 0 .35rem; letter-spacing: 0; line-height: 1.4; }
+/* h2 section → h3 group (accent bar) → h4 item (small, muted), so each level reads as a step down. */
+.editorial-article--changelog .editorial-article-body :deep(h3) { margin: 1.75rem 0 .6rem; padding-left: .7rem; border-left: 3px solid var(--accent); font-size: 1.1875rem; font-weight: 650; line-height: 1.35; }
+.editorial-article--changelog .editorial-article-body :deep(h4) { margin: 1.25rem 0 .35rem; color: var(--muted); font-size: .9375rem; font-weight: 600; letter-spacing: .01em; line-height: 1.4; }
 .editorial-article--changelog .editorial-article-body :deep(p) { margin: 0 0 .85em; }
-.editorial-article--changelog .editorial-article-body :deep(ul), .editorial-article--changelog .editorial-article-body :deep(ol) { margin: 0 0 1em; padding-inline-start: 1.15rem; }
+.editorial-article--changelog .editorial-article-body :deep(ul), .editorial-article--changelog .editorial-article-body :deep(ol) { margin: 0 0 1em; padding-inline-start: 1.4rem; }
 .editorial-article--changelog .editorial-article-body :deep(li) { margin: 0 0 .5em; line-height: 1.7; }
 .editorial-article--changelog .editorial-article-body :deep(li:last-child) { margin-bottom: 0; }
 .editorial-article--changelog .editorial-article-body :deep(li ul), .editorial-article--changelog .editorial-article-body :deep(li ol) { margin: .4em 0 .15em; }
