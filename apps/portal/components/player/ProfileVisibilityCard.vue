@@ -38,7 +38,7 @@ async function toggle(value: boolean) {
     <div class="visibility-row">
       <div class="visibility-copy">
         <strong>公开主页</strong>
-        <p>在排行榜公开显示你的昵称与称号。关闭后名次与分数照常保留，但昵称、头像、称号和地图明细不再公开，你会显示为匿名玩家。</p>
+        <p>允许其他人访问你的公开主页，并在排行榜展示昵称与称号。关闭后主页将不可访问，排行榜保留名次与分数，但以匿名玩家显示。</p>
         <p v-if="error" class="visibility-error" role="alert">{{ error }}</p>
       </div>
       <USwitch :model-value="draft" :disabled="saving" aria-label="公开主页" @update:model-value="toggle" />
