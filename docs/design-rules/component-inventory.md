@@ -108,8 +108,7 @@ Admin components follow [page-archetypes.md](page-archetypes.md) and share the s
 | `AdminPlayerIdentityEditor` | Dialog to edit the player name (numeric ID fixed) with BattleTag preview. |
 | `AdminPlayerTitles` | Global and map titles with revoke, undo revoke, manual grant, and equip repair. |
 | `AdminPlayerRecovery` | Dialog issuing a one-time Passkey recovery link after identity check. |
-| `BindingInvitePanel` | Generates a QQ binding invite for a BattleTag, optionally authorizing one unlinked historical title holder. |
-| `BindingInviteBatchPanel` | Paste many BattleTags, generate invites, copy each. |
+| `BindingInvitePanel` | Generates QQ binding invites. 单个 mode takes one BattleTag and optionally authorizes one unlinked historical title holder; 批量 mode takes one BattleTag per line with per-line validation and no historical authorization. Copy per result row. |
 
 ### Reviews and verified runs
 
@@ -158,8 +157,7 @@ Admin components follow [page-archetypes.md](page-archetypes.md) and share the s
 | `AdminEventTable` | Event table with multi-select, sort, inline staged edits, probability change visual. |
 | `AdminEventFields` | Event field form; every change is emitted as a patch. |
 | `AdminEventSheet` | Right-side sheet to view or edit one event, or create one, with previous and next and archive. |
-| `AdminEventDraftBar` | Sticky unsaved-drafts bar: discard or save all. |
-| `AdminEventSelectionBar` | Bulk actions for selected events: status, version, group, weight set, add, or multiply. |
+| `AdminEventActionBar` | Sticky bar driven by `selectedCount` and `draftCount`: bulk actions for selected events (status, version, group, weight set, add, or multiply), unsaved-draft summary with discard / save all, or both with one discard / save-all pair; renders nothing when neither. |
 | `AdminEventPoolSummary` | Candidate pool overview: implemented count, total weight, suspend or resume by version. |
 
 ## Pending consolidation
@@ -169,8 +167,6 @@ The [design prototype](../design-prototype/README.md) merges components that car
 | Merged into | Replaces | Issue |
 | --- | --- | --- |
 | `StatusBadge` (adds `accent` rating tone) | `SubmissionStatusBadge`, `ReviewSummaryBadge` | #430 |
-| `AdminEventActionBar` | `AdminEventDraftBar`, `AdminEventSelectionBar` | #432 |
-| `BindingInvitePanel` (single / batch) | `BindingInviteBatchPanel` | #432 |
 
 ## Nuxt UI roles
 

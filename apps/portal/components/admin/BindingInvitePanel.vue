@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useDebounceFn } from "@vueuse/core";
-import type { AdminBindingInviteResponse } from "@owbastion/contracts";
-import { bindingInviteCopyText, parseBattleTag } from "~/utils/binding-invite";
+import type { AdminBindingInviteBatchResponse, AdminBindingInviteResponse } from "@owbastion/contracts";
+import { type ParsedBattleTag, bindingInviteCopyText, parseBattleTag } from "~/utils/binding-invite";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
 
@@ -13,6 +13,8 @@ type Invitation = AdminBindingInviteResponse;
 const emit = defineEmits<{ created: [] }>();
 const api = useAdminApi();
 const toast = useToast();
+const mode = shallowRef<"single" | "batch">("single");
+const batchInput = shallowRef("");
 const battleTag = shallowRef("");
 const query = shallowRef("");
 const holders = shallowRef<HolderSummary[]>([]);
@@ -28,6 +30,32 @@ const copiedInviteId = shallowRef<string | null>(null);
 const selectedHolder = computed(() => selectedHolderDetail.value?.holderName === selectedHolderName.value ? selectedHolderDetail.value : null);
 const selectedGrantIds = computed(() => selectedHolder.value?.grants.map((grant) => grant.grantId) ?? []);
 const parsedPlayer = computed(() => parseBattleTag(battleTag.value));
+const batch = computed(() => {
+  const players: ParsedBattleTag[] = [];
+  const errors: string[] = [];
+  const seen = new Set<string>();
+  batchInput.value.split(/\r?\n/).forEach((rawLine, index) => {
+    const line = rawLine.trim();
+    if (!line) return;
+    const player = parseBattleTag(line);
+    if (!player) { errors.push(`第 ${index + 1} 行格式无效`); return; }
+    const key = `${player.playerName.toLocaleLowerCase()}#${player.playerId}`;
+    if (seen.has(key)) { errors.push(`第 ${index + 1} 行重复`); return; }
+    seen.add(key);
+    players.push(player);
+  });
+  if (players.length > 100) errors.push("一次最多生成 100 个邀请码");
+  return { players, errors };
+});
+const canSubmitBatch = computed(() => batch.value.players.length > 0 && !batch.value.errors.length && !submitting.value);
+const batchCountLabel = computed(() => batch.value.players.length ? `${batch.value.players.length} 位玩家` : "每行一位玩家");
+function setMode(next: "single" | "batch") {
+  if (mode.value === next) return;
+  mode.value = next;
+  invitations.value = [];
+  errorMessage.value = "";
+  copiedInviteId.value = null;
+}
 const canSubmit = computed(() => Boolean(parsedPlayer.value) && !submitting.value && !detailLoading.value && (!selectedHolderName.value || Boolean(selectedHolder.value)));
 
 async function loadHolderDetail(holderName: string) {
@@ -99,6 +127,28 @@ async function createInvitation() {
   }
 }
 
+async function createBatch() {
+  if (!canSubmitBatch.value) return;
+  submitting.value = true;
+  errorMessage.value = "";
+  copiedInviteId.value = null;
+  try {
+    const response = await api<AdminBindingInviteBatchResponse>("/v1/binding-invites/batch", {
+      method: "POST",
+      headers: { "Idempotency-Key": createRequestId() },
+      body: { contractVersion: "1", invitations: batch.value.players },
+    });
+    invitations.value = response.items;
+    batchInput.value = "";
+    toast.add({ title: `已生成 ${response.items.length} 个邀请码`, color: "success" });
+    emit("created");
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法生成邀请码，请稍后重试。").description;
+  } finally {
+    submitting.value = false;
+  }
+}
+
 async function copyInvitation(invitation: Invitation) {
   try {
     await navigator.clipboard.writeText(bindingInviteCopyText(invitation.code, window.location.origin));
@@ -114,8 +164,16 @@ onMounted(() => { void loadCandidates(); });
 
 <template>
   <section class="invite-panel surface-card" aria-labelledby="invite-panel-title">
-    <header class="invite-panel__header"><div><h2 id="invite-panel-title">生成绑定邀请码</h2></div><span class="invite-panel__count glass-chip">管理员授权</span></header>
-    <form class="invite-panel__form" @submit.prevent="createInvitation">
+    <header class="invite-panel__header"><div><h2 id="invite-panel-title">生成绑定邀请码</h2></div><span class="invite-panel__count glass-chip">{{ mode === "batch" ? batchCountLabel : "管理员授权" }}</span></header>
+    <div class="invite-panel__modes" role="group" aria-label="生成方式">
+      <button v-for="[value, label] in ([['single', '单个'], ['batch', '批量']] as const)" :key="value" type="button" class="glass-chip invite-panel__mode" :aria-pressed="mode === value" @click="setMode(value)">{{ label }}</button>
+    </div>
+    <form v-if="mode === 'batch'" class="invite-panel__form" @submit.prevent="createBatch">
+      <UTextarea v-model="batchInput" :rows="7" aria-label="BattleTag 列表" placeholder="玩家名称#1234&#10;另一位玩家#5678" />
+      <p v-if="batch.errors.length" class="invite-panel__validation" role="alert">{{ batch.errors.join("；") }}</p>
+      <div class="invite-panel__actions"><p class="invite-panel__hint">每行一个 BattleTag</p><UButton type="submit" label="生成邀请码" :loading="submitting" :disabled="!canSubmitBatch" /></div>
+    </form>
+    <form v-else class="invite-panel__form" @submit.prevent="createInvitation">
       <UInput v-model="battleTag" label="目标 BattleTag" placeholder="玩家名称#1234" aria-label="目标 BattleTag" />
       <p v-if="battleTag.trim() && !parsedPlayer" class="invite-panel__validation" role="alert">请输入完整 BattleTag，例如玩家名称#1234。</p>
       <section class="historical-section" aria-labelledby="historical-section-title">
@@ -132,11 +190,14 @@ onMounted(() => { void loadCandidates(); });
       <div class="invite-panel__actions"><p class="invite-panel__hint">创建后，历史称号授权会在绑定成功后执行。</p><UButton type="submit" label="生成邀请码" :loading="submitting" :disabled="!canSubmit" /></div>
     </form>
     <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
-    <div v-if="invitations.length" class="invite-results" aria-label="本次生成的邀请码"><article v-for="invitation in invitations" :key="invitation.inviteId" class="invite-result"><div class="invite-result__identity content-stack"><strong>{{ invitation.playerName }}#{{ invitation.playerId }}</strong><code>{{ invitation.code }}</code></div><UButton :label="copiedInviteId === invitation.inviteId ? '已复制' : '复制口令'" :icon="copiedInviteId === invitation.inviteId ? 'i-lucide-check' : 'i-lucide-copy'" color="neutral" variant="outline" size="sm" @click="copyInvitation(invitation)" /></article></div>
+    <div v-if="invitations.length" class="invite-results" aria-label="本次生成的邀请码"><article v-for="invitation in invitations" :key="invitation.inviteId" class="invite-result"><div class="invite-result__identity content-stack"><strong>{{ invitation.playerName }}#{{ invitation.playerId }}</strong><code>{{ invitation.code }}</code></div><UButton :label="copiedInviteId === invitation.inviteId ? '已复制' : '复制口令'" :icon="copiedInviteId === invitation.inviteId ? 'i-lucide-check' : 'i-lucide-copy'" color="neutral" variant="outline" size="sm" :aria-label="`复制 ${invitation.playerName} 的绑定口令`" @click="copyInvitation(invitation)" /></article></div>
   </section>
 </template>
 
 <style scoped>
+.invite-panel__modes { display: flex; gap: var(--space-2); }
+.invite-panel__mode { cursor: pointer; }
+.invite-panel__mode[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-surface); color: var(--accent); font-weight: 600; }
 .invite-panel__form { display: grid; gap: var(--space-4); }
 .invite-panel__validation { margin: calc(-1 * var(--space-2)) 0 0; color: var(--danger); font-size: var(--type-label-sm-size); line-height: 1.5; }
 .historical-section { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-control); background: color-mix(in oklch, var(--surface-raised) 62%, transparent); }

@@ -29,6 +29,7 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record
       stats: { pendingHolderCount: 1, unclaimedGrantCount: 1, migratedGrantCount: 0 },
     });
   }
+  if (path === "/v1/binding-invites/batch") return Promise.resolve({ items: [{ inviteId: "00000000-0000-0000-0000-000000000001", code: "ABCDEFGHIJKL", playerName: "Player", playerId: "1234", expiresAt: 1 }] });
   if (path === "/v1/binding-invites" && options?.method === "POST") {
     return Promise.resolve({
       inviteId: "invite-1",
@@ -90,5 +91,48 @@ describe("BindingInvitePanel", () => {
     });
     await flushPromises();
     expect(wrapper.get('button[type="submit"]').attributes("disabled")).toBeUndefined();
+  });
+
+  describe("batch mode", () => {
+    const openBatch = async () => {
+      const wrapper = await mountSuspended(BindingInvitePanel);
+      await flushPromises();
+      await wrapper.findAll("button").find((button) => button.text() === "批量")!.trigger("click");
+      return wrapper;
+    };
+
+    it("switches modes with aria-pressed chips and hides historical title authorization in batch", async () => {
+      const wrapper = await openBatch();
+      const chips = wrapper.findAll(".invite-panel__mode");
+      expect(chips.map((chip) => chip.attributes("aria-pressed"))).toEqual(["false", "true"]);
+      expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+      expect(wrapper.text()).not.toContain("历史称号");
+    });
+
+    it("generates one invitation per valid BattleTag and exposes its copy action", async () => {
+      adminApi.mockClear();
+      const wrapper = await openBatch();
+      await wrapper.find("textarea").setValue("Player#1234\nAnother#5678");
+      await wrapper.find("form").trigger("submit");
+      await flushPromises();
+
+      expect(adminApi).toHaveBeenCalledWith("/v1/binding-invites/batch", expect.objectContaining({
+        method: "POST",
+        body: { contractVersion: "1", invitations: [{ playerName: "Player", playerId: "1234" }, { playerName: "Another", playerId: "5678" }] },
+      }));
+      expect(wrapper.text()).toContain("Player#1234");
+      expect(wrapper.get('button[aria-label="复制 Player 的绑定口令"]').text()).toContain("复制口令");
+      expect(wrapper.emitted("created")).toHaveLength(1);
+    });
+
+    it("blocks malformed and duplicate BattleTags before requesting invitations", async () => {
+      adminApi.mockClear();
+      const wrapper = await openBatch();
+      await wrapper.find("textarea").setValue("Player#1234\nplayer#1234\ninvalid");
+
+      expect(wrapper.text()).toContain("第 2 行重复");
+      expect(wrapper.text()).toContain("第 3 行格式无效");
+      expect(wrapper.get("button[type='submit']").attributes("disabled")).toBeDefined();
+    });
   });
 });
