@@ -98,17 +98,20 @@ const archivedChallenge = {
   status: "archived",
 };
 const draftChallenge = { ...activeChallenge, challengeId: "ch-3", titleKey: "LIGHT_LOADOUT", status: "draft" };
+const sunsettingChallenge = { ...activeChallenge, challengeId: "ch-sun", retiredVersion: "26.1101.1" };
 
 const map = { challengeId: "map-1", family: "map", gameplayRevisionId: "revision:map.kings-row:initial", type: "map_completion", name: "国王大道挑战", mapId: "map.kings-row", mapName: "国王大道", difficulty: "困难", condition: "完成国王大道挑战。", evidenceRule: "完整截图", submissionMode: "manual", status: "active", gameVersion: "3.0.0", introducedVersion: "3.0.0", retiredVersion: null };
 const mapRule = { ruleId: "rule.conqueror", titleKey: "CONQUEROR", titleName: "征服者", kind: "conqueror", condition: "完成地图", evidenceRule: "完整截图", submissionMode: "manual", displayKind: "map_name_suffix", slot: "conqueror", defaultScope: "all_active", status: "active", introducedVersion: "3.1.0", retiredVersion: null };
 const mapInheritance = { mapId: "map.kings-row", rule: mapRule, projected: true, source: "map_title_rule", effective: { condition: "完成地图", evidenceRule: "完整截图", submissionMode: "manual", slot: "conqueror" }, exception: null };
 
-const challengeLists: Record<string, unknown[]> = {
+const challengeLists: Record<string, unknown[]> = {};
+const defaultChallengeLists: Record<string, unknown[]> = {
   FLAWLESS: [activeChallenge, archivedChallenge],
   LIGHT_LOADOUT: [draftChallenge],
   CONQUEROR: [],
   LUCKY: [],
 };
+Object.assign(challengeLists, defaultChallengeLists);
 
 const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
   if (path === "/v1/title-summaries") {
@@ -143,6 +146,7 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record
   }
   if (path === "/v1/achievements/ch-1" && options?.method === "PUT") return Promise.resolve({ ...activeChallenge, ...options.body });
   if (path === "/v1/achievements/ch-2" && options?.method === "PUT") return Promise.resolve({ ...archivedChallenge, ...options.body });
+  if (path === "/v1/achievements/ch-sun" && options?.method === "PUT") return Promise.resolve({ ...sunsettingChallenge, ...options.body });
   if (path === "/v1/achievements/map-1" && options?.method === "PUT") return Promise.resolve({ ...map, ...options.body });
   const titleMatch = path.match(/^\/v1\/titles\/([^/]+)$/);
   if (titleMatch && options?.method === "PUT") {
@@ -212,6 +216,8 @@ afterEach(() => {
   listError = false;
   stateCache.clear();
   asyncDataCache.clear();
+  for (const key of Object.keys(challengeLists)) delete challengeLists[key];
+  Object.assign(challengeLists, defaultChallengeLists);
 });
 
 async function expand(wrapper: VueWrapper, label: string) {
@@ -426,6 +432,21 @@ describe("achievement admin pages", () => {
     await flushPromises();
     const call = adminApi.mock.calls.find(([path, options]) => path === "/v1/achievements/ch-1" && options?.method === "PUT");
     expect(call?.[1]?.body).toEqual(expect.objectContaining({ saveMode: "in_place" }));
+  });
+
+  it("keeps the announced sunset version when editing a sunsetting challenge", async () => {
+    challengeLists.FLAWLESS = [sunsettingChallenge];
+    const wrapper = await mountPage("titles");
+    await expand(wrapper, "守望先锋");
+    await wrapper.get('button[aria-label="编辑守望先锋的挑战"]').trigger("click");
+    await flushPromises();
+    const form = wrapper.get("form#admin-challenge-form");
+    await form.findAll("textarea")[0]!.setValue("完成条件（措辞修订）");
+    await flushPromises();
+    await form.trigger("submit");
+    await flushPromises();
+    const call = adminApi.mock.calls.find(([path, options]) => path === "/v1/achievements/ch-sun" && options?.method === "PUT");
+    expect(call?.[1]?.body).toEqual(expect.objectContaining({ saveMode: "in_place", retiredVersion: "26.1101.1" }));
   });
 
   it("creates a draft title and reports TITLE_KEY_CONFLICT on the key field", async () => {

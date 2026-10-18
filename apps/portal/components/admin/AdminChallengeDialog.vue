@@ -185,6 +185,9 @@ function submit() {
     ...(isMapTitle.value ? { mapIds: [...form.mapIds] } : { mapIds: [] }),
     ...(isMapTitle.value ? { mapVariant: form.mapVariant } : {}),
     progressRule: rule,
+    // The dialog never edits the announced sunset version; echo the stored one
+    // so an in-place or replacement save does not silently clear a planned sunset.
+    ...(challenge.status === "active" ? { retiredVersion: challenge.retiredVersion } : {}),
     ...(form.gameVersion.trim() ? { gameVersion: form.gameVersion.trim() } : { gameVersion: null }),
     startsAt: form.startsAt,
     endsAt: form.endsAt,
