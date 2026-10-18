@@ -21,7 +21,7 @@ const error = computed(() => catalogError.value ? portalErrorDetails(catalogErro
 <template>
   <main class="achievements-page directory-page page-shell">
     <section class="page-intro" aria-labelledby="achievements-title"><h1 id="achievements-title" class="page-title">成就</h1></section>
-    <section v-if="loading" class="achievement-directory surface-card" aria-label="读取中…" role="status">
+    <section v-if="loading" class="achievement-directory" aria-label="读取中…" role="status">
       <div class="achievement-skeleton-groups" aria-hidden="true">
         <section v-for="group in 2" :key="group" class="achievement-skeleton-section">
           <div class="achievement-skeleton-heading"><USkeleton class="achievement-skeleton-heading-title" /><USkeleton class="achievement-skeleton-heading-count" /></div>
@@ -37,7 +37,7 @@ const error = computed(() => catalogError.value ? portalErrorDetails(catalogErro
       </div>
     </section>
     <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取成就" :description="error" />
-    <section v-else class="achievement-directory surface-card" aria-label="成就列表">
+    <section v-else class="achievement-directory" aria-label="成就列表">
       <AchievementCatalog :challenges="challenges" :titles="titles" />
     </section>
   </main>
@@ -45,7 +45,7 @@ const error = computed(() => catalogError.value ? portalErrorDetails(catalogErro
 
 <style scoped>
 .page-intro { margin-bottom: var(--space-8); }
-.achievement-directory { padding: clamp(var(--space-5), 4vw, var(--space-8)); }
+.achievement-directory { padding: 0; }
 .achievement-skeleton-groups, .achievement-skeleton-section { display: grid; gap: var(--space-4); }
 .achievement-skeleton-section + .achievement-skeleton-section { margin-top: var(--space-8); }
 .achievement-skeleton-heading { display: flex; align-items: end; justify-content: space-between; gap: var(--space-4); }
@@ -62,7 +62,6 @@ const error = computed(() => catalogError.value ? portalErrorDetails(catalogErro
 .achievement-skeleton-condition-short { width: 76%; }
 @media (max-width: 47.99rem) {
   .page-intro { margin-bottom: var(--space-5); }
-  .achievement-directory { padding: var(--space-4); }
   .achievement-skeleton-heading { align-items: flex-start; flex-direction: column; gap: var(--space-2); }
   .achievement-skeleton-heading-title { width: 46%; }
 }

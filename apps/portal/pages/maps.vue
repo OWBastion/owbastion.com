@@ -38,7 +38,7 @@ onMounted(async () => {
       <h1 id="maps-title" class="page-title">地图</h1>
       <p v-if="!loading && !player" class="body-copy">登录后可评价地图。</p>
     </section>
-    <section class="map-directory-panel surface-card" aria-label="地图列表">
+    <section class="map-directory-panel" aria-label="地图列表">
       <div v-if="loading" class="map-skeleton-grid directory-grid" role="status" aria-label="读取中…">
         <div v-for="index in 6" :key="index" class="map-skeleton-card interactive-card interactive-card--static" aria-hidden="true">
           <USkeleton class="map-skeleton-visual" />
@@ -58,7 +58,7 @@ onMounted(async () => {
 <style scoped>
 .page-intro { margin-bottom: var(--space-8); }
 .page-intro .body-copy { margin: var(--space-2) 0 0; }
-.map-directory-panel { padding: clamp(var(--space-4), 4vw, var(--space-8)); }
+.map-directory-panel { padding: 0; }
 .map-skeleton-card { container-type: inline-size; display: grid; min-width: 0; overflow: hidden; border-radius: var(--radius-card); }
 .map-skeleton-visual { min-height: 138px; border-radius: 0; }
 .map-skeleton-body { display: grid; gap: var(--space-4); padding: var(--space-4) var(--space-4) var(--space-4); }
@@ -74,7 +74,6 @@ onMounted(async () => {
 .map-skeleton-tag-short { width: 42px; }
 @media (max-width: 47.99rem) {
   .page-intro { margin-bottom: var(--space-5); }
-  .map-directory-panel { padding: var(--space-3); }
 }
 @container (max-width: 23.99rem) {
   .map-skeleton-visual { min-height: 108px; }
