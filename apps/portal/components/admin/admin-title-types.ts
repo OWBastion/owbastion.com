@@ -45,6 +45,7 @@ export type AdminTitleChallenge = {
   condition: string;
   evidenceRule: string;
   submissionMode: "manual" | "automatic";
+  categoryOverride: string | null;
   status: "draft" | "active" | "archived";
   startsAt: number | null;
   endsAt: number | null;
