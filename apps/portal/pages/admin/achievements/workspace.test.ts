@@ -6,6 +6,7 @@ import ChallengesPage from "./challenges.vue";
 import MapChallengesPage from "./map-challenges.vue";
 import TitlesPage from "./titles.vue";
 import LegacyIndexPage from "./index.vue";
+import { adminChallengeUpdateRequestSchema } from "@owbastion/contracts";
 import { DEFAULT_EVIDENCE_RULE } from "~/components/admin/admin-achievement-types";
 
 const titleSummary = {
@@ -84,6 +85,7 @@ const activeChallenge = {
   condition: "传奇及以上难度，通关时间 < 1 小时 30 分钟。",
   evidenceRule: "完整截图",
   submissionMode: "manual",
+  categoryOverride: null,
   status: "active",
   startsAt: null,
   endsAt: null,
@@ -402,6 +404,7 @@ describe("achievement admin pages", () => {
     await flushPromises();
     const call = adminApi.mock.calls.find(([path, options]) => path === "/v1/achievements/ch-1" && options?.method === "PUT");
     expect(call?.[1]?.body).toEqual(expect.objectContaining({ saveMode: "new_challenge" }));
+    expect(adminChallengeUpdateRequestSchema.safeParse(call?.[1]?.body).success).toBe(true);
   });
 
   it("offers the save-mode choice for text-only changes", async () => {
@@ -433,6 +436,7 @@ describe("achievement admin pages", () => {
     await flushPromises();
     const call = adminApi.mock.calls.find(([path, options]) => path === "/v1/achievements/ch-1" && options?.method === "PUT");
     expect(call?.[1]?.body).toEqual(expect.objectContaining({ saveMode: "in_place" }));
+    expect(adminChallengeUpdateRequestSchema.safeParse(call?.[1]?.body).success).toBe(true);
   });
 
   it("keeps the announced sunset version when editing a sunsetting challenge", async () => {

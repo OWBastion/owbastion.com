@@ -177,7 +177,10 @@ function submit() {
   const saveMode = qualificationChanged.value ? "new_challenge" : textChanged.value ? form.saveMode : "in_place";
   emit("submit", {
     contractVersion: "1",
+    family: "achievement",
     saveMode,
+    // The dialog never edits the display category; echo it so a save keeps the override.
+    categoryOverride: challenge.categoryOverride ?? null,
     condition: form.condition.trim(),
     evidenceRule: form.evidenceRule.trim() || DEFAULT_EVIDENCE_RULE,
     submissionMode: form.submissionMode,
@@ -188,7 +191,7 @@ function submit() {
     // The dialog never edits the announced sunset version; echo the stored one
     // so an in-place or replacement save does not silently clear a planned sunset.
     ...(challenge.status === "active" ? { retiredVersion: challenge.retiredVersion } : {}),
-    ...(form.gameVersion.trim() ? { gameVersion: form.gameVersion.trim() } : { gameVersion: null }),
+    ...(form.gameVersion.trim() ? { gameVersion: form.gameVersion.trim() } : challenge.status === "draft" ? { gameVersion: null } : {}),
     startsAt: form.startsAt,
     endsAt: form.endsAt,
   });
