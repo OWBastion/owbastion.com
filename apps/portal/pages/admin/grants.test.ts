@@ -6,8 +6,8 @@ import GrantsAdminPage from "./grants.vue";
 const adminApi = vi.fn((path: string, options?: { method?: string }) => {
   if (path.startsWith("/v1/player-accounts?")) return Promise.resolve({ items: [{ playerAccountId: "player-1", playerId: "1001", playerName: "玩家一", status: "active" }, { playerAccountId: "player-2", playerId: "1002", playerName: "玩家二", status: "active" }], total: 2 });
   if (path === "/v1/maps") return Promise.resolve({ items: [{ mapId: "map.samoa", mapName: "萨摩亚" }] });
-  if (path === "/v1/titles") return Promise.resolve({ items: [{ titleKey: "GLOBAL", label: "全局称号", category: "测试", scope: "global" }] });
-  if (path === "/v1/titles?mapId=map.samoa") return Promise.resolve({ items: [{ titleKey: "MAP_TITLE", label: "地图称号", category: "地图", scope: "map", mapId: "map.samoa" }] });
+  if (path === "/v1/titles") return Promise.resolve({ items: [{ titleKey: "GLOBAL", label: "全局称号", category: "测试", availability: "active", scope: "global" }] });
+  if (path === "/v1/titles?mapId=map.samoa") return Promise.resolve({ items: [{ titleKey: "MAP_TITLE", label: "地图称号", category: "地图", availability: "retired", scope: "map", mapId: "map.samoa" }] });
   if (path === "/v1/title-grants/manual/batch" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", batchId: "batch-1", playerCount: 1, targetCount: 1, requestedCount: 1, createdCount: 1, alreadyOwnedCount: 0, items: [] });
   throw new Error(`Unexpected request: ${path}`);
 });

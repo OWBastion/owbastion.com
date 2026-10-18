@@ -26,7 +26,7 @@ const recoveryOpen = shallowRef(false);
 const recoveryGrantIds = ref<string[]>([]);
 const recovering = shallowRef(false);
 const recoveryError = shallowRef("");
-const titleLabel = (title: AdminTitleOption) => title.label;
+const titleLabel = (title: AdminTitleOption) => `${title.label}${title.availability === "retired" ? "（不再发放）" : ""}`;
 const selectedTitleLabel = (title: AdminTitleOption) => `${title.label}${title.mapName ? ` · ${title.mapName}` : ""}`;
 const globalTitleItems = computed(() => titles.value.filter((title) => title.scope === "global").map((title) => ({ label: titleLabel(title), value: title.value })));
 const mapTitleItems = computed(() => titles.value.filter((title) => title.scope === "map").map((title) => ({ label: `${title.mapName ?? "未知地图"} · ${titleLabel(title)}`, value: title.value })));

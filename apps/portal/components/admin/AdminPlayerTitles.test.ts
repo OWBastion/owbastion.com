@@ -5,8 +5,8 @@ import AdminPlayerTitles from "./AdminPlayerTitles.vue";
 
 const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
   if (path === "/v1/maps") return Promise.resolve({ items: [{ mapId: "map.samoa", mapName: "萨摩亚" }] });
-  if (path === "/v1/titles") return Promise.resolve({ items: [{ titleKey: "GLOBAL", label: "全局称号", category: "测试", condition: "测试", scope: "global" }, { titleKey: "GLOBAL_2", label: "第二个全局称号", category: "测试", condition: "测试", scope: "global" }] });
-  if (path === "/v1/titles?mapId=map.samoa") return Promise.resolve({ items: [{ titleKey: "GLOBAL", label: "全局称号", category: "测试", condition: "测试", scope: "global" }, { titleKey: "OLD_MAP", label: "旧地图称号", category: "历史", condition: "测试", scope: "map", mapId: "map.samoa", slot: "conqueror" }] });
+  if (path === "/v1/titles") return Promise.resolve({ items: [{ titleKey: "GLOBAL", label: "全局称号", category: "测试", condition: "测试", availability: "active", scope: "global" }, { titleKey: "GLOBAL_2", label: "第二个全局称号", category: "测试", condition: "测试", availability: "active", scope: "global" }] });
+  if (path === "/v1/titles?mapId=map.samoa") return Promise.resolve({ items: [{ titleKey: "GLOBAL", label: "全局称号", category: "测试", condition: "测试", availability: "active", scope: "global" }, { titleKey: "OLD_MAP", label: "旧地图称号", category: "历史", condition: "测试", availability: "retired", scope: "map", mapId: "map.samoa", slot: "conqueror" }] });
   if (path === "/v1/title-grants/manual/batch" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", batchId: "batch-1", playerCount: 1, targetCount: 2, requestedCount: 2, createdCount: 2, alreadyOwnedCount: 0, items: [] });
   if (path === "/v1/title-grants/grant-1/revoke" && options?.method === "POST") return Promise.resolve();
   if (path === "/v1/title-grants/grant-1/restore" && options?.method === "POST") return Promise.resolve();
@@ -39,7 +39,7 @@ describe("AdminPlayerTitles", () => {
     expect(wrapper.get('[aria-label="萨摩亚称号"]').text()).toContain("旧地图称号");
     (wrapper.vm as unknown as { openGrant: () => void }).openGrant();
     await flushPromises();
-    expect(wrapper.findAll("label").some((label) => label.text().includes("旧地图称号"))).toBe(true);
+    expect(wrapper.findAll("label").some((label) => label.text().includes("旧地图称号（不再发放）"))).toBe(true);
     const choices = wrapper.findAll("input");
     await choices[0]!.setValue(true);
     await choices[2]!.setValue(true);

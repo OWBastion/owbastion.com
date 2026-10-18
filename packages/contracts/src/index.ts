@@ -672,6 +672,7 @@ export const titleSchema = z.object({
   ...titleDisplayFields,
   lifecycle: z.enum(["draft", "active"]),
   publicVisibility: z.boolean().optional(),
+  availability: z.enum(["active", "retired"]),
   scope: z.enum(["global", "map"]),
   displayKind: z.enum(["fixed", "map_pioneer", "map_name_suffix"]),
   mapId: externalId.optional(),

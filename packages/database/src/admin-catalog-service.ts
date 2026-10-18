@@ -228,7 +228,7 @@ export const createAdminCatalogServices = ({
         }
         const timestamp = now();
         items.push(...[...catalogTitles.values()].map(({ title, paths }): AdminChallenge => {
-          const { label: titleName, ...titleFields } = toAgentTitle(title);
+          const { label: titleName, availability: _storedAvailability, ...titleFields } = toAgentTitle(title);
           return {
             ...titleFields,
             challengeId: `title.${title.key}`,

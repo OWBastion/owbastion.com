@@ -165,6 +165,8 @@ const titleCatalogView = (row: typeof titleCatalog.$inferSelect): Omit<Title, "s
   condition: row.condition,
   lifecycle: row.lifecycle as Title["lifecycle"],
   publicVisibility: row.publicVisibility === 1,
+  // No stored retired state: whether a title is still obtainable is derived per path.
+  availability: "active",
   displayKind: row.displayKind as Title["displayKind"],
   color: titleColor(row.colorJson),
 });
