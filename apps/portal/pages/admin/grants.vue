@@ -121,9 +121,18 @@ const playerData = useAdminAsyncData("manual-grants-players", () => api<{ items:
 });
 const loadingPlayers = playerData.loading;
 const searchingPlayers = computed(() => playerData.pending.value && !loadingPlayers.value);
+const route = useRoute();
 const titleData = useAdminAsyncData("manual-grants-titles", async () => loadAdminTitleOptions(api), {
     onStart: () => { errorMessage.value = ""; },
-    onData: (response) => { titles.value = response; },
+    onData: (response) => {
+      titles.value = response;
+      // /admin/grants?titleKey=X preselects a title (称号页的“发放”入口).
+      const preselect = typeof route.query.titleKey === "string" ? route.query.titleKey : "";
+      if (preselect && !selectedTitleValues.value.length) {
+        const matched = response.filter((title) => title.titleKey === preselect).map((title) => title.value);
+        if (matched.length) selectedTitleValues.value = matched;
+      }
+    },
     onError: (error) => { errorMessage.value = portalErrorDetails(error, "无法读取称号目录，请稍后重试。").description; },
   });
 const loadingTitles = titleData.loading;
