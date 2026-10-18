@@ -4,16 +4,16 @@
 
 :root {
   color-scheme: light;
-  --page: oklch(96% 0.012 90);
-  --surface: oklch(99% 0.006 90);
-  --surface-raised: oklch(94% 0.014 82);
-  --text: oklch(22% 0.025 55);
-  --muted: oklch(46% 0.022 55);
-  --quiet: oklch(52% 0.018 55);
-  --line: oklch(24% 0.025 55 / 14%);
-  --line-strong: oklch(24% 0.025 55 / 25%);
-  --accent: oklch(55% 0.16 48);
-  --accent-surface: oklch(91% 0.045 70);
+  --page: oklch(97% 0.006 130);
+  --surface: oklch(99.5% 0.003 130);
+  --surface-raised: oklch(94.5% 0.01 130);
+  --text: oklch(20% 0.02 150);
+  --muted: oklch(44% 0.02 150);
+  --quiet: oklch(51% 0.016 150);
+  --line: oklch(22% 0.02 150 / 13%);
+  --line-strong: oklch(22% 0.02 150 / 24%);
+  --accent: oklch(49% 0.13 138);
+  --accent-surface: oklch(93% 0.055 125);
   --info: oklch(48% 0.14 235);
   --info-surface: oklch(92% 0.035 235);
   --success: oklch(48% 0.14 145);
@@ -22,10 +22,14 @@
   --warning: oklch(55% 0.15 75);
   --disabled-text: var(--quiet);
   --disabled-surface: var(--surface-raised);
-  --on-accent: oklch(99% 0.006 90);
-  --header-surface: oklch(99% 0.006 90 / 86%);
-  --menu-surface: oklch(98% 0.008 90 / 96%);
-  --shadow: oklch(20% 0.02 55 / 28%);
+  --on-accent: oklch(99% 0.004 130);
+  --header-surface: oklch(99% 0.004 130 / 80%);
+  --menu-surface: oklch(99% 0.004 130 / 96%);
+  --shadow: oklch(20% 0.03 150 / 24%);
+  --signal: oklch(64% 0.16 62);
+  --signal-surface: oklch(94% 0.05 80);
+  --grid-line: oklch(22% 0.02 150 / 5%);
+  --font-display: "Chakra Petch", var(--font-ui);
   --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Noto Sans CJK SC", "Segoe UI", sans-serif;
 
   /* Design v2 — spacing ladder (4px base at 16px root) */
@@ -45,9 +49,9 @@
   --control-lg: 2.75rem;
 
   /* Design v2 — radius by role */
-  --radius-control: 0.625rem;
-  --radius-card: 1rem;
-  --radius-sheet: 1.25rem;
+  --radius-control: 0.375rem;
+  --radius-card: 0.5rem;
+  --radius-sheet: 0.75rem;
   --radius-pill: 999px;
 
   /* G-01 press feedback */
@@ -80,11 +84,11 @@
   --text-on-glass-secondary: color-mix(in oklch, var(--text) 82%, var(--muted));
   --text-on-glass-quiet: color-mix(in oklch, var(--text) 58%, var(--quiet));
 
-  /* S-01 sticky page chrome clears the floating app header (AppHeader.vue):
-     top 0.875rem + min-height 3.375rem, plus a 0.5rem gap; below 48rem:
-     max(0.5rem, safe-area-inset-top) + 3.25rem, plus a 0.25rem gap.
-     Keep in sync with AppHeader.vue. */
-  --sticky-chrome-top: calc(0.875rem + 3.375rem + 0.5rem);
+  /* S-01 app chrome (AppHeader.vue): a left sidebar on desktop leaves no top chrome;
+     below 64rem a 3.5rem top bar plus a 0.5rem gap. Keep in sync with AppHeader.vue. */
+  --sidebar-width: 15rem;
+  --sticky-chrome-top: 1rem;
+  --tab-bar-height: 0rem;
 
   /* G-05 / Design v2 type scale (size + tracking + leading as a set) */
   --type-display-size: clamp(3.2rem, 8vw, 6.5rem);
@@ -129,35 +133,42 @@
   --ui-radius: calc(var(--radius-control) / 1.5);
 }
 
-/* Tied to AppHeader.vue's collapse; keep both on the same page breakpoint. */
-@media (max-width: 47.99rem) {
+/* Tied to AppHeader.vue's collapse; keep both on the same page breakpoints. */
+@media (max-width: 63.99rem) {
   :root {
-    --sticky-chrome-top: calc(max(0.5rem, env(safe-area-inset-top)) + 3.25rem + 0.25rem);
+    --sidebar-width: 0rem;
+    --sticky-chrome-top: calc(env(safe-area-inset-top) + 3.5rem + 0.5rem);
   }
+}
+@media (max-width: 47.99rem) {
+  :root { --tab-bar-height: calc(4.25rem + env(safe-area-inset-bottom)); }
 }
 
 html.dark {
   color-scheme: dark;
-  --page: oklch(16% 0.012 48);
-  --surface: oklch(20% 0.014 48);
-  --surface-raised: oklch(24% 0.018 48);
-  --text: oklch(93% 0.01 100);
-  --muted: oklch(69% 0.016 48);
-  --quiet: oklch(62% 0.014 48);
-  --line: oklch(92% 0.01 100 / 13%);
-  --line-strong: oklch(92% 0.01 100 / 21%);
-  --accent: oklch(74% 0.14 55);
-  --accent-surface: oklch(30% 0.07 50);
+  --page: oklch(15% 0.012 165);
+  --surface: oklch(18.5% 0.014 165);
+  --surface-raised: oklch(22.5% 0.016 165);
+  --text: oklch(94% 0.012 120);
+  --muted: oklch(72% 0.016 140);
+  --quiet: oklch(64% 0.014 140);
+  --line: oklch(92% 0.03 130 / 10%);
+  --line-strong: oklch(92% 0.03 130 / 19%);
+  --accent: oklch(85% 0.17 128);
+  --accent-surface: oklch(28% 0.06 132);
   --info: oklch(76% 0.12 230);
   --info-surface: oklch(28% 0.06 230);
   --success: oklch(76% 0.13 145);
   --success-surface: oklch(28% 0.06 145);
   --danger: oklch(68% 0.16 25);
   --warning: oklch(82% 0.12 85);
+  --signal: oklch(82% 0.15 75);
+  --signal-surface: oklch(30% 0.06 70);
+  --grid-line: oklch(92% 0.03 130 / 4.5%);
   --disabled-text: var(--quiet);
   --disabled-surface: var(--surface-raised);
-  --on-accent: oklch(19% 0.026 50);
-  --header-surface: oklch(18% 0.013 48 / 82%);
+  --on-accent: oklch(17% 0.03 145);
+  --header-surface: oklch(15% 0.012 165 / 76%);
   --menu-surface: color-mix(in oklch, var(--surface-raised) 94%, black);
   --shadow: oklch(0% 0 0 / 80%);
   --glass-bg-heavy: color-mix(in oklch, var(--surface) 86%, transparent);
@@ -213,6 +224,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 /* -------------------------------------------------------------------------- */
 .type-display {
   margin: 0;
+  font-family: var(--font-display);
   font-size: var(--type-display-size);
   font-weight: 700;
   letter-spacing: var(--type-display-tracking);
@@ -221,6 +233,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .type-title,
 .page-title {
   margin: 0;
+  font-family: var(--font-display);
   font-size: var(--type-title-size);
   font-weight: 700;
   letter-spacing: var(--type-title-tracking);
@@ -228,6 +241,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .type-headline {
   margin: 0;
+  font-family: var(--font-display);
   font-size: var(--type-headline-size);
   font-weight: 600;
   letter-spacing: var(--type-headline-tracking);
@@ -272,7 +286,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .eyebrow {
   margin: 0 0 .45rem;
-  color: var(--quiet);
+  color: var(--accent);
+  font-family: var(--font-display);
+  text-transform: uppercase;
   font-size: var(--type-kicker-size);
   font-weight: 500;
   letter-spacing: 0.04em;
@@ -353,8 +369,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .interactive-card:hover,
 .interactive-card:focus-visible {
-  border-color: var(--line-strong);
-  box-shadow: var(--elevation-1);
+  border-color: color-mix(in oklch, var(--accent) 55%, var(--line-strong));
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--accent) 18%, transparent), var(--elevation-1);
 }
 .interactive-card--static {
   cursor: default;
@@ -883,3 +899,17 @@ a[data-slot="base"]:active:not([aria-disabled="true"]) {
 .native-field { min-height: var(--control-md); padding: 0 var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); color: var(--text); font: inherit; font-size: var(--type-body-sm-size); }
 .native-field:hover { border-color: var(--line-strong); }
 .native-field:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* -------------------------------------------------------------------------- */
+/* Concept: tactical terminal backdrop and numerals                           */
+/* -------------------------------------------------------------------------- */
+body {
+  background-image:
+    radial-gradient(60rem 32rem at 85% -10%, color-mix(in oklch, var(--accent) 9%, transparent), transparent 70%),
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: auto, 3rem 3rem, 3rem 3rem;
+  background-attachment: fixed;
+}
+.num, .font-display { font-family: var(--font-display); font-variant-numeric: tabular-nums; }
+::selection { color: var(--on-accent); background: var(--accent); }

@@ -36,9 +36,9 @@ const mapIndex = computed(() => props.map.mapId.split(".").at(-1)?.slice(0, 2).t
 <style scoped>
 .map-card { container-type: inline-size; display: grid; grid-template-rows: auto 1fr; min-width: 0; padding: 0; overflow: hidden; border-radius: var(--radius-card); font: inherit; text-align: left; }
 .map-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.map-card-media { display: grid; place-items: center; aspect-ratio: 16 / 9; overflow: hidden; color: var(--accent); background: var(--accent-surface); }
+.map-card-media { display: grid; place-items: center; aspect-ratio: 16 / 9; overflow: hidden; color: var(--accent); background: repeating-linear-gradient(135deg, transparent 0 10px, color-mix(in oklch, var(--accent) 7%, transparent) 10px 11px), radial-gradient(80% 90% at 50% 100%, color-mix(in oklch, var(--accent) 18%, transparent), transparent 70%), var(--surface-raised); border-bottom: 1px solid var(--line); }
 .map-card-media img { width: 100%; height: 100%; object-fit: cover; }
-.map-card-media span { font-size: var(--type-label-size); font-weight: 600; letter-spacing: 0.14em; }
+.map-card-media span { font-family: var(--font-display); font-size: clamp(2rem, 14cqi, 3rem); font-weight: 700; letter-spacing: 0.08em; opacity: .85; }
 .map-card-body { display: grid; align-content: start; gap: var(--space-3); padding: var(--space-4); }
 .map-card-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
 .map-card-heading h2 { min-width: 0; overflow-wrap: anywhere; color: var(--text); }
