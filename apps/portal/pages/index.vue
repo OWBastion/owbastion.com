@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { formatEditorialDate } from "~/utils/editorial";
+
+const { data: releases } = await useAsyncData("home-latest-changelog", () => queryEditorialSummaries("changelog"), { default: () => [] });
+// Summaries are generated newest first.
+const latest = computed(() => releases.value[0] ?? null);
+
 useSeoMeta({
   title: "躲避堡垒 3 · 玩家社区",
   description: "事件、成就、地图与版本更新。",
@@ -18,6 +24,20 @@ useSeoMeta({
       <p>轮换挑战未开放</p>
     </section>
 
+    <section v-if="latest" class="content-section latest-update" aria-labelledby="latest-title">
+      <div class="latest-head">
+        <h2 id="latest-title" class="type-title">最新版本</h2>
+        <NuxtLink to="/changelog" class="latest-all">全部版本更新</NuxtLink>
+      </div>
+      <NuxtLink :to="latest.path" class="content-card content-card--link interactive-card pressable-soft">
+        <span class="latest-meta">
+          <span class="latest-version num"><span class="sr-only">版本 </span>{{ latest.version }}</span>
+          <time class="latest-date" :datetime="latest.releasedAt">{{ formatEditorialDate(latest.releasedAt) }}</time>
+        </span>
+        <h3 class="type-headline">{{ latest.title }}</h3>
+      </NuxtLink>
+    </section>
+
     <section class="content-section" aria-labelledby="content-title">
       <h2 id="content-title" class="type-title">目录</h2>
       <div class="content-grid directory-grid">
@@ -29,6 +49,9 @@ useSeoMeta({
         </NuxtLink>
         <NuxtLink id="achievements" to="/achievements" class="content-card content-card--link interactive-card pressable-soft">
           <h3 class="type-headline">成就</h3>
+        </NuxtLink>
+        <NuxtLink to="/leaderboard" class="content-card content-card--link interactive-card pressable-soft">
+          <h3 class="type-headline">排行榜</h3>
         </NuxtLink>
         <NuxtLink to="/changelog" class="content-card content-card--link interactive-card pressable-soft">
           <h3 class="type-headline">版本更新</h3>
@@ -55,6 +78,13 @@ useSeoMeta({
 .rotation-status p { margin: 0; }
 .content-section { margin-bottom: var(--space-8); }
 .content-section > .type-title { margin-bottom: var(--space-5); }
+.latest-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-5); }
+.latest-head .type-title { margin: 0; }
+.latest-all { color: var(--accent); font-size: var(--type-label-sm-size); font-weight: 600; text-decoration: none; }
+.latest-all:hover, .latest-all:focus-visible { text-decoration: underline; }
+.latest-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); color: var(--quiet); font-size: var(--type-caption-size); }
+.latest-update .content-card .type-headline { max-width: 36ch; }
+.latest-version { padding: 0 var(--space-3); border: 1px solid color-mix(in oklch, var(--accent) 42%, var(--line)); border-radius: var(--radius-pill); background: var(--accent-surface); color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.8; }
 .content-card { display: grid; min-height: 0; align-content: start; padding: var(--space-6); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); color: inherit; text-decoration: none; }
 .content-card .type-headline { max-width: 18ch; margin: 0; }
 .content-card--link.interactive-card:hover,
