@@ -122,6 +122,19 @@ because a material rule change creates a new Challenge.
   never resets or copies Mastery; seasonal boards filter the same Runs by window. A versioned
   ranking rule is introduced only if special scoring is needed.
 
+## Player ID
+
+- An optional public handle (custom ID) on a Player Account, used for `/u/{id}` public profiles.
+  Rules live in `packages/domain/src/player-handle.ts`: ASCII letters, digits, and CJK; 2–9
+  characters; not all digits; compared after NFKC and ASCII lowercase; reserved terms by
+  containment.
+- Every claim and change is a maintainer-reviewed request. One pending request per Player;
+  it reserves its normalized ID and does not change the current ID. Approve/reject need no
+  reason. An approved change releases the old ID at once (no alias or history); a maintainer
+  can clear an active ID. Uniqueness is database-enforced; writes are audited and idempotent.
+- The public lookup returns the same 404 for unknown, pending-only, cleared, and
+  `publicProfile`-off IDs, and exposes only the existing public leaderboard projection.
+
 ## Gameplay Revision
 
 The version boundary for map gameplay whose qualification, mastery, reviews, or competitive

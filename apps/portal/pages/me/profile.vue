@@ -208,6 +208,7 @@ onMounted(() => {
       <section class="section-block" aria-labelledby="visibility-title">
         <PageSectionHeader title="公开主页" heading-id="visibility-title" />
         <PlayerProfileVisibilityCard :public-profile="player.player.publicProfile" @updated="setPublicProfile" />
+        <PlayerHandleCard :public-profile="player.player.publicProfile" />
       </section>
 
       <PlayerTitleInspectDialog v-model:open="inspectOpen" :title="inspected" />

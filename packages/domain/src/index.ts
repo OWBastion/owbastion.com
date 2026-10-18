@@ -26,6 +26,9 @@ import type {
   PlayerProfileVisibilityResponse,
   LeaderboardBoard,
   LeaderboardPlayerSummary,
+  PlayerHandleStateResponse,
+  AdminPlayerHandleListResponse,
+  PublicPlayerProfile,
   LeaderboardResponse,
   CurrentPlayerLeaderboardRank,
   CurrentPlayerTitlesResponse,
@@ -85,6 +88,7 @@ export * from "./challenge-conditions";
 export * from "./random-event";
 export * from "./leaderboard";
 export * from "./season";
+export * from "./player-handle";
 
 export type LocalDevAccount = {
   accountId: string;
@@ -327,6 +331,14 @@ export type PlatformServices = {
   updateCurrentPlayerProfileVisibility(input: { sessionToken: string; publicProfile: boolean }, idempotencyKey: string): Promise<PlayerProfileVisibilityResponse>;
   getPublicLeaderboard(input: { board: LeaderboardBoard; mapId?: string; seasonId?: string; page: number; pageSize: number }): Promise<LeaderboardResponse | null>;
   getPublicLeaderboardPlayer(input: { playerKey: string }): Promise<LeaderboardPlayerSummary | null>;
+  getCurrentPlayerHandle(input: { sessionToken: string }): Promise<PlayerHandleStateResponse | null>;
+  requestCurrentPlayerHandle(input: { sessionToken: string; handle: string }, idempotencyKey: string): Promise<PlayerHandleStateResponse>;
+  withdrawCurrentPlayerHandleRequest(input: { sessionToken: string }, idempotencyKey: string): Promise<PlayerHandleStateResponse>;
+  listAdminPlayerHandles(input: { status: "pending" | "active"; page: number; pageSize: number }, auth: AuthContext): Promise<AdminPlayerHandleListResponse>;
+  approveAdminPlayerHandleRequest(input: { handleId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
+  rejectAdminPlayerHandleRequest(input: { handleId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
+  clearAdminPlayerHandle(input: { playerAccountId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
+  getPublicPlayerByHandle(input: { handle: string }): Promise<PublicPlayerProfile | null>;
   getCurrentPlayerLeaderboardRank(input: { sessionToken: string; board: LeaderboardBoard; mapId?: string; seasonId?: string }): Promise<CurrentPlayerLeaderboardRank | null>;
   createQqLoginAttempt(input: QqLoginAttemptRequest): Promise<QqLoginAttemptResponse>;
   getQqLoginStatus(input: { attemptId: string; attemptToken: string }): Promise<QqLoginStatusResponse>;
