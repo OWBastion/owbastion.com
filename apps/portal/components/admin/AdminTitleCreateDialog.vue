@@ -151,17 +151,17 @@ function submitEdit() {
       <form id="admin-title-form" class="title-dialog-form" @submit.prevent="mode === 'edit' ? submitEdit() : submitCreate('only')">
         <UAlert v-if="errorMessage" class="title-dialog-form__wide" color="error" variant="subtle" :title="mode === 'create' ? '无法创建称号' : '无法保存称号'" :description="errorMessage" />
         <UFormField class="title-dialog-form__wide" label="称号名称" required>
-          <UInput v-model="form.label" required maxlength="256" :disabled="saving" />
+          <UInput v-model="form.label" class="w-full" required maxlength="256" :disabled="saving" />
         </UFormField>
         <UFormField label="系列" required help="选择已有系列，或输入新的。">
-          <UInput v-model="form.category" list="admin-title-category-options" placeholder="选择或输入" :disabled="saving" />
+          <UInput v-model="form.category" class="w-full" list="admin-title-category-options" placeholder="选择或输入" :disabled="saving" />
           <datalist id="admin-title-category-options"><option v-for="category in categories" :key="category" :value="category" /></datalist>
         </UFormField>
         <UFormField label="称号范围" :help="scopeHint">
-          <USelect v-model="form.scope" :items="[{ label: '全局称号', value: 'global' }, { label: '地图称号', value: 'map' }]" :disabled="saving" />
+          <USelect v-model="form.scope" class="w-full" :items="[{ label: '全局称号', value: 'global' }, { label: '地图称号', value: 'map' }]" :disabled="saving" />
         </UFormField>
         <UFormField label="展示方式">
-          <USelect v-model="form.displayKind" :items="[{ label: '固定称号', value: 'fixed' }, { label: '地图名 + 开拓者', value: 'map_pioneer' }, { label: '地图名 + 后缀称号', value: 'map_name_suffix' }]" :disabled="saving" />
+          <USelect v-model="form.displayKind" class="w-full" :items="[{ label: '固定称号', value: 'fixed' }, { label: '地图名 + 开拓者', value: 'map_pioneer' }, { label: '地图名 + 后缀称号', value: 'map_name_suffix' }]" :disabled="saving" />
         </UFormField>
         <fieldset class="title-dialog-form__wide appearance">
           <legend>外观</legend>
@@ -211,7 +211,7 @@ function submitEdit() {
                 <UButton v-if="customImage" type="button" color="neutral" variant="ghost" icon="i-lucide-x" label="移除" :disabled="saving" @click="clearCustomImage" />
                 <span v-if="iconFile" class="image-source__file">{{ iconFile.name }}</span>
               </div>
-              <UInput v-model="form.iconUrl" type="url" placeholder="或粘贴 CDN 链接 https://…" maxlength="2048" :disabled="saving" @update:model-value="onIconUrlInput" />
+              <UInput v-model="form.iconUrl" class="w-full" type="url" placeholder="或粘贴 CDN 链接 https://…" maxlength="2048" :disabled="saving" @update:model-value="onIconUrlInput" />
               <p class="image-source__hint">PNG、JPEG 或 WebP。设置后优先于上方图标。</p>
             </div>
           </div>
@@ -224,10 +224,10 @@ function submitEdit() {
           <summary>更多设置</summary>
           <div class="more-settings-body">
             <UFormField v-if="mode === 'create'" label="唯一 key" help="留空自动生成，创建后不能修改。" :error="keyConflict !== null ? `已被「${conflictingLabel}」使用` : undefined">
-              <UInput v-model="form.titleKey" placeholder="例如 LIGHT_LOADOUT" :disabled="saving" :aria-invalid="keyConflict !== null || undefined" />
+              <UInput v-model="form.titleKey" class="w-full" placeholder="例如 LIGHT_LOADOUT" :disabled="saving" :aria-invalid="keyConflict !== null || undefined" />
             </UFormField>
             <UFormField label="游戏版本" help="留空使用最新版本。">
-              <UInput v-model="form.gameVersion" placeholder="例如 26.1003.1" :disabled="saving" />
+              <UInput v-model="form.gameVersion" class="w-full" placeholder="例如 26.1003.1" :disabled="saving" />
             </UFormField>
           </div>
         </details>
