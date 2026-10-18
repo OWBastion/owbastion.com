@@ -250,7 +250,7 @@ onMounted(() => { hydrated.value = true; });
 </template>
 
 <style scoped>
-.event-directory { container-type: inline-size; display: grid; gap: var(--space-5); }
+.event-directory { display: grid; gap: var(--space-5); }
 .filters { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 .filters > * { flex: 1 1 10rem; min-width: 0; }
 .filters__search { flex-grow: 3; flex-basis: 16rem; }
@@ -350,6 +350,19 @@ onMounted(() => { hydrated.value = true; });
 }
 @media (prefers-reduced-transparency: reduce) {
   .event-card { background: var(--surface-raised); }
+}
+/* Wide panels: filters become a sticky side rail so results stay in view while refining. */
+@container (min-width: 60rem) {
+  .event-directory { grid-template-columns: 16.5rem minmax(0, 1fr); grid-template-rows: auto 1fr; align-items: start; gap: var(--space-4) var(--space-8); }
+  .event-directory > :not(.filters) { grid-column: 2; }
+  .filters { position: sticky; top: var(--sticky-chrome-top); grid-row: 1 / span 2; flex-direction: column; flex-wrap: nowrap; max-height: calc(100dvh - var(--sticky-chrome-top) - var(--space-4)); padding-right: var(--space-2); overflow-y: auto; scrollbar-width: thin; }
+  .filters > *, .filters__search { flex: none; }
+  .filter-panel > .quick-filters, .filter-panel > .refine-filters { flex: none; }
+  .quick-filters { gap: var(--space-5); padding: var(--space-4) 0; border-width: 1px 0; border-radius: 0; background: none; }
+  .quick-filters .chip-row__label { flex: 1 1 100%; }
+  .refine-filters { flex-direction: column; align-items: stretch; gap: var(--space-3); }
+  .refine-filters > :deep([data-slot="base"]) { min-width: 0; }
+  .result-summary { padding-top: 0; border-top: 0; }
 }
 </style>
 

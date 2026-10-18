@@ -15,7 +15,7 @@ onMounted(async () => {
 <template>
   <main class="events-page directory-page page-shell">
     <section class="page-intro" aria-labelledby="events-title"><h1 id="events-title" class="page-title">随机事件</h1></section>
-    <section class="events-panel surface-card" aria-label="随机事件列表">
+    <section class="events-panel" aria-label="随机事件列表">
       <div v-if="loading" class="event-skeleton-grid directory-grid" role="status" aria-label="读取中…">
         <div v-for="index in 6" :key="index" class="event-skeleton-card interactive-card interactive-card--static" aria-hidden="true">
           <div class="event-skeleton-top"><USkeleton class="event-skeleton-badge" /><USkeleton class="event-skeleton-status" /></div>
@@ -31,7 +31,7 @@ onMounted(async () => {
 </template>
 <style scoped>
 .page-intro { margin-bottom: var(--space-8); }
-.events-panel { padding: clamp(var(--space-4), 4vw, var(--space-8)); }
+.events-panel { container-type: inline-size; }
 .event-skeleton-card { display: grid; min-height: 210px; align-content: start; gap: var(--space-3); padding: var(--space-4); border-radius: var(--radius-card); }
 .event-skeleton-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .event-skeleton-badge { width: 52px; height: 22px; border-radius: var(--radius-pill); }
@@ -45,6 +45,5 @@ onMounted(async () => {
 .event-skeleton-tag-short { width: 36px; }
 @media (max-width: 47.99rem) {
   .page-intro { margin-bottom: var(--space-5); }
-  .events-panel { padding: var(--space-3); }
 }
 </style>
