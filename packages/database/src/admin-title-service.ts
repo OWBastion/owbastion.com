@@ -116,11 +116,11 @@ export const createAdminTitleServices = ({ database, evidenceBucket, db, now, re
       if (replay) return replay;
       const titleKey = input.titleKey ?? `TITLE_${crypto.randomUUID().replaceAll("-", "").toUpperCase()}`;
       if (await db.select({ key: titleCatalog.key }).from(titleCatalog).where(eq(titleCatalog.key, titleKey)).get()) throw new Error("TITLE_KEY_CONFLICT");
-      const title: Title = { key: titleKey, label: input.label, icon: input.icon, iconUrl: null, iconObjectKey: null, category: input.category, condition: "", lifecycle: "draft", publicVisibility: input.publicVisibility ? 1 : 0, scope: input.scope, displayKind: input.displayKind, colorJson: JSON.stringify(input.color ?? null), gameVersion: input.gameVersion ?? null };
+      const title: Title = { key: titleKey, label: input.label, icon: input.icon, iconUrl: input.iconUrl ?? null, iconObjectKey: null, category: input.category, condition: "", lifecycle: "draft", publicVisibility: input.publicVisibility ? 1 : 0, scope: input.scope, displayKind: input.displayKind, colorJson: JSON.stringify(input.color ?? null), gameVersion: input.gameVersion ?? null };
       const response = { contractVersion: "1" as const, ...summary(title, []) };
       try {
         await database.batch([
-          database.prepare("INSERT INTO title_catalog (key,label,icon,category,condition,lifecycle,public_visibility,scope,display_kind,color_json,game_version) VALUES (?,?,?,?,?,'draft',?,?,?,?,?)").bind(title.key, title.label, title.icon, title.category, title.condition, title.publicVisibility, title.scope, title.displayKind, title.colorJson, title.gameVersion),
+          database.prepare("INSERT INTO title_catalog (key,label,icon,icon_url,category,condition,lifecycle,public_visibility,scope,display_kind,color_json,game_version) VALUES (?,?,?,?,?,?,'draft',?,?,?,?,?)").bind(title.key, title.label, title.icon, title.iconUrl, title.category, title.condition, title.publicVisibility, title.scope, title.displayKind, title.colorJson, title.gameVersion),
           ...await mutationRecords(operation, input, response, auth, key, "title_catalog", title.key),
         ]);
       } catch (error) {
@@ -228,17 +228,18 @@ export const createAdminTitleServices = ({ database, evidenceBucket, db, now, re
       }
       const retiring = lifecycle === "retired" && title.lifecycle !== "retired";
       const cascaded: AdminTitleCascade = { challenges: retiring ? rows.filter(row => row.status !== "archived").map(row => ({ challengeId: row.id, ...previousState(row) })) : [], mapTitleRules: retiring ? rules.filter(rule => rule.status !== "archived").map(rule => ({ ruleId: rule.id, status: rule.status as "draft" | "active", retiredVersion: rule.retiredVersion })) : [] };
-      const next = { ...title, lifecycle, publicVisibility: input.publicVisibility === undefined ? title.publicVisibility : Number(input.publicVisibility), label: input.label ?? title.label, icon: input.icon ?? title.icon, category: input.category ?? title.category, scope: input.scope ?? title.scope, displayKind: input.displayKind ?? title.displayKind, colorJson: input.color === undefined ? title.colorJson : JSON.stringify(input.color) };
+      const next = { ...title, lifecycle, publicVisibility: input.publicVisibility === undefined ? title.publicVisibility : Number(input.publicVisibility), label: input.label ?? title.label, icon: input.icon ?? title.icon, iconUrl: input.iconUrl === undefined ? title.iconUrl : input.iconUrl, iconObjectKey: input.iconUrl === undefined || input.iconUrl === title.iconUrl ? title.iconObjectKey : null, category: input.category ?? title.category, scope: input.scope ?? title.scope, displayKind: input.displayKind ?? title.displayKind, colorJson: input.color === undefined ? title.colorJson : JSON.stringify(input.color) };
       const nextRows = rows.map(row => retiring && row.status !== "archived" ? { ...row, status: "archived", retiredVersion: null, startsAt: null, endsAt: null } : { ...row, ...input.restore?.challenges.find(state => state.challengeId === row.id) });
       const nextRules = rules.map(rule => retiring && rule.status !== "archived" ? { ...rule, status: "archived", retiredVersion: null } : { ...rule, ...input.restore?.mapTitleRules.find(state => state.ruleId === rule.id) });
       const response: AdminCatalogTitleUpdateResponse = { contractVersion: "1", title: await titleSummary(next, nextRows, nextRules), previousLifecycle: title.lifecycle as AdminTitleSummary["lifecycle"], cascaded };
       await database.batch([
-        database.prepare("UPDATE title_catalog SET lifecycle=?,public_visibility=?,label=?,icon=?,category=?,scope=?,display_kind=?,color_json=? WHERE key=?").bind(next.lifecycle, next.publicVisibility, next.label, next.icon, next.category, next.scope, next.displayKind, next.colorJson, title.key),
+        database.prepare("UPDATE title_catalog SET lifecycle=?,public_visibility=?,label=?,icon=?,icon_url=?,icon_object_key=?,category=?,scope=?,display_kind=?,color_json=? WHERE key=?").bind(next.lifecycle, next.publicVisibility, next.label, next.icon, next.iconUrl, next.iconObjectKey, next.category, next.scope, next.displayKind, next.colorJson, title.key),
         ...(retiring ? [database.prepare("UPDATE title_challenges SET status='archived',retired_version=NULL,starts_at=NULL,ends_at=NULL,updated_at=? WHERE title_key=? AND status!='archived'").bind(now(), title.key), database.prepare("UPDATE map_title_rules SET status='archived',retired_version=NULL,updated_at=? WHERE title_key=? AND status!='archived'").bind(now(), title.key)] : []),
         ...(input.restore?.challenges ?? []).map(row => database.prepare("UPDATE title_challenges SET status=?,retired_version=?,starts_at=?,ends_at=?,updated_at=? WHERE id=? AND title_key=?").bind(row.status, row.retiredVersion, row.startsAt, row.endsAt, now(), row.challengeId, title.key)),
         ...(input.restore?.mapTitleRules ?? []).map(rule => database.prepare("UPDATE map_title_rules SET status=?,retired_version=?,updated_at=? WHERE id=? AND title_key=?").bind(rule.status, rule.retiredVersion, now(), rule.ruleId, title.key)),
         ...await mutationRecords(operation, input, response, auth, key, "title_catalog", title.key, { ...input, previousLifecycle: title.lifecycle, cascaded, previousPublicVisibility: title.publicVisibility === 1 }),
       ]);
+      if (title.iconObjectKey && next.iconObjectKey !== title.iconObjectKey && evidenceBucket) await evidenceBucket.delete(title.iconObjectKey);
       if (lifecycle === "active") for (const row of nextRows) if (row.progressRule && row.status === "active") await reconcile(row.id, auth);
       return response;
     },

@@ -36,6 +36,18 @@ describe("title-centric admin acquisition contract", () => {
     await expect(services.createAdminTitle({ ...titleInput, label: "不同" }, auth, "title")).rejects.toThrow("IDEMPOTENCY_CONFLICT");
   });
 
+  it("stores a CDN icon URL on create and replaces or clears it on update", async () => {
+    const { services } = setup();
+    const created = await services.createAdminTitle({ ...titleInput, iconUrl: "https://cdn.example.com/a.webp" }, auth, "title");
+    expect(created.iconUrl).toBe("https://cdn.example.com/a.webp");
+    const replaced = await services.updateAdminCatalogTitle({ contractVersion: "1", titleKey: "MULTI", iconUrl: "https://cdn.example.com/b.webp" }, auth, "replace");
+    expect(replaced.title.iconUrl).toBe("https://cdn.example.com/b.webp");
+    const untouched = await services.updateAdminCatalogTitle({ contractVersion: "1", titleKey: "MULTI", label: "改名" }, auth, "rename");
+    expect(untouched.title.iconUrl).toBe("https://cdn.example.com/b.webp");
+    const cleared = await services.updateAdminCatalogTitle({ contractVersion: "1", titleKey: "MULTI", iconUrl: null }, auth, "clear");
+    expect(cleared.title.iconUrl).toBeNull();
+  });
+
   it("adds independent challenges, enables the title atomically and exposes both publicly", async () => {
     const { services, sqlite, database } = setup();
     await services.createAdminTitle(titleInput, auth, "title");

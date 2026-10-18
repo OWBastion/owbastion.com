@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { AdminTitleSummary } from "./admin-title-types";
+import type { AdminTitleColor, AdminTitleSummary } from "./admin-title-types";
+import { TITLE_PALETTE_NAMES, titleColorBackground, titleColorLabel } from "./admin-title-types";
 
 const props = defineProps<{
   open: boolean;
@@ -22,14 +23,30 @@ const dialogOpen = computed({
   set: (open: boolean) => emit("update:open", open),
 });
 
+const ICON_CHOICES = [
+  "trophy", "award", "medal", "crown", "star", "sparkles", "flame", "zap", "shield", "swords", "sword", "target",
+  "crosshair", "skull", "ghost", "heart", "gem", "rocket", "flag", "map", "compass", "mountain", "timer", "clock",
+  "bomb", "wrench", "hammer", "key", "eye", "feather", "anchor", "bird", "cat", "dog", "fish", "leaf",
+  "moon", "sun", "snowflake", "gamepad-2", "puzzle", "flask-conical", "users", "user-round",
+];
+
 const iconFile = shallowRef<File | null>(null);
+const iconPreviewUrl = shallowRef("");
+watch(iconFile, (file) => {
+  if (iconPreviewUrl.value) URL.revokeObjectURL(iconPreviewUrl.value);
+  iconPreviewUrl.value = file ? URL.createObjectURL(file) : "";
+});
+onBeforeUnmount(() => { if (iconPreviewUrl.value) URL.revokeObjectURL(iconPreviewUrl.value); });
+const fileInput = useTemplateRef<HTMLInputElement>("fileInput");
+const iconPickerOpen = shallowRef(false);
 const form = reactive({
   label: "",
   category: "",
   scope: "global" as "global" | "map",
   displayKind: "fixed" as AdminTitleSummary["displayKind"],
-  colorChoice: "none" as string,
+  color: null as AdminTitleColor,
   icon: "trophy",
+  iconUrl: "",
   publicVisibility: true,
   titleKey: "",
   gameVersion: "",
@@ -45,14 +62,15 @@ watch(() => props.open, (open) => {
     category: title.category,
     scope: title.scope,
     displayKind: title.displayKind,
-    colorChoice: title.color?.kind === "palette" ? title.color.name : "none",
+    color: title.color,
     icon: title.icon,
+    iconUrl: title.iconUrl ?? "",
     publicVisibility: title.publicVisibility,
     titleKey: title.titleKey,
     gameVersion: title.gameVersion ?? "",
   } : {
     label: "", category: "", scope: "global", displayKind: "fixed",
-    colorChoice: "none", icon: "trophy", publicVisibility: true, titleKey: "", gameVersion: "",
+    color: null, icon: "trophy", iconUrl: "", publicVisibility: true, titleKey: "", gameVersion: "",
   });
 });
 
@@ -66,8 +84,30 @@ const canSubmit = computed(() => Boolean(form.label.trim() && form.category.trim
 const scopeHint = computed(() => form.scope === "map" ? "只在指定地图获得和佩戴。" : "玩家在任意地图都能获得和佩戴。");
 const dialogTitle = computed(() => props.mode === "edit" ? "编辑称号" : "新建称号");
 
-function colorPayload() {
-  return form.colorChoice === "none" ? null : { kind: "palette" as const, name: form.colorChoice as "orange" | "red" | "purple" | "gold" | "blue" };
+// A title colored in-game by hero color or RGB cannot be built from the swatches; keep it selectable so saving does not erase it.
+const legacyColor = computed(() => props.title?.color && props.title.color.kind !== "palette" ? props.title.color : null);
+const isColor = (color: AdminTitleColor) => JSON.stringify(color) === JSON.stringify(form.color);
+const iconChoices = computed(() => ICON_CHOICES.includes(form.icon) ? ICON_CHOICES : [form.icon, ...ICON_CHOICES]);
+const trimmedIconUrl = computed(() => form.iconUrl.trim());
+const customImage = computed(() => iconPreviewUrl.value || trimmedIconUrl.value);
+const previewColor = computed(() => titleColorBackground(form.color));
+
+function pickIcon(name: string) {
+  form.icon = name;
+  iconPickerOpen.value = false;
+}
+function onFileChosen(event: Event) {
+  const input = event.target as HTMLInputElement;
+  iconFile.value = input.files?.[0] ?? null;
+  if (iconFile.value) form.iconUrl = "";
+  input.value = "";
+}
+function onIconUrlInput() {
+  if (form.iconUrl) iconFile.value = null;
+}
+function clearCustomImage() {
+  iconFile.value = null;
+  form.iconUrl = "";
 }
 
 function submitCreate(intent: "only" | "with_challenge") {
@@ -79,8 +119,9 @@ function submitCreate(intent: "only" | "with_challenge") {
     category: form.category.trim(),
     scope: form.scope,
     displayKind: form.displayKind,
-    color: colorPayload(),
-    icon: form.icon.trim() || "trophy",
+    color: form.color,
+    icon: form.icon,
+    ...(trimmedIconUrl.value ? { iconUrl: trimmedIconUrl.value } : {}),
     publicVisibility: form.publicVisibility,
     ...(form.gameVersion.trim() ? { gameVersion: form.gameVersion.trim() } : {}),
   }, iconFile.value, intent);
@@ -94,8 +135,10 @@ function submitEdit() {
     category: form.category.trim(),
     scope: form.scope,
     displayKind: form.displayKind,
-    color: colorPayload(),
-    icon: form.icon.trim() || "trophy",
+    color: form.color,
+    icon: form.icon,
+    // An uploaded file sets iconUrl itself after saving; otherwise the field is the source of truth.
+    ...(iconFile.value || trimmedIconUrl.value === (props.title?.iconUrl ?? "") ? {} : { iconUrl: trimmedIconUrl.value || null }),
     publicVisibility: form.publicVisibility,
     gameVersion: form.gameVersion.trim() || null,
   }, iconFile.value);
@@ -120,18 +163,59 @@ function submitEdit() {
         <UFormField label="展示方式">
           <USelect v-model="form.displayKind" :items="[{ label: '固定称号', value: 'fixed' }, { label: '地图名 + 开拓者', value: 'map_pioneer' }, { label: '地图名 + 后缀称号', value: 'map_name_suffix' }]" :disabled="saving" />
         </UFormField>
-        <UFormField label="颜色">
-          <USelect v-model="form.colorChoice" :items="[{ label: '未设置', value: 'none' }, { label: '橙色', value: 'orange' }, { label: '红色', value: 'red' }, { label: '紫色', value: 'purple' }, { label: '金色', value: 'gold' }, { label: '蓝色', value: 'blue' }]" :disabled="saving" />
-        </UFormField>
-        <UFormField label="图标" help="也可以在下方上传自定义图标。">
-          <UInput v-model="form.icon" placeholder="trophy" maxlength="64" :disabled="saving" />
-        </UFormField>
-        <UFormField label="自定义图标" help="PNG、JPEG 或 WebP，留空使用默认图标。">
-          <div class="title-icon-upload">
-            <div v-if="title?.iconUrl" class="title-icon-preview"><img :src="title.iconUrl" alt="当前称号图标" /></div>
-            <UFileUpload v-model="iconFile" accept="image/png,image/jpeg,image/webp" :multiple="false" label="选择文件" :disabled="saving" />
+        <fieldset class="title-dialog-form__wide appearance">
+          <legend>外观</legend>
+          <div class="appearance-preview" aria-label="称号预览">
+            <span class="appearance-preview__mark">
+              <img v-if="customImage" :src="customImage" alt="" />
+              <UIcon v-else :name="`i-lucide-${form.icon}`" />
+            </span>
+            <strong class="appearance-preview__label" :class="{ 'is-colored': previewColor }" :style="previewColor ? { backgroundImage: previewColor } : undefined">{{ form.label.trim() || "称号名称" }}</strong>
           </div>
-        </UFormField>
+
+          <div class="appearance-row">
+            <span class="appearance-row__label" id="title-color-label">颜色</span>
+            <div class="swatches" role="radiogroup" aria-labelledby="title-color-label">
+              <button type="button" role="radio" class="swatch" :aria-checked="form.color === null" :disabled="saving" @click="form.color = null">
+                <span class="swatch__chip swatch__chip--none" /><span>未设置</span>
+              </button>
+              <button v-for="name in TITLE_PALETTE_NAMES" :key="name" type="button" role="radio" class="swatch" :aria-checked="isColor({ kind: 'palette', name })" :disabled="saving" @click="form.color = { kind: 'palette', name }">
+                <span class="swatch__chip" :style="{ background: titleColorBackground({ kind: 'palette', name }) }" /><span>{{ titleColorLabel({ kind: "palette", name }) }}</span>
+              </button>
+              <button v-if="legacyColor" type="button" role="radio" class="swatch" :aria-checked="isColor(legacyColor)" :disabled="saving" @click="form.color = legacyColor">
+                <span class="swatch__chip" :style="{ background: titleColorBackground(legacyColor) ?? 'var(--surface-sunken)' }" /><span>{{ titleColorLabel(legacyColor) }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="appearance-row">
+            <span class="appearance-row__label">图标</span>
+            <UPopover v-model:open="iconPickerOpen">
+              <UButton type="button" color="neutral" variant="outline" :disabled="saving" :icon="`i-lucide-${form.icon}`" :label="form.icon" trailing-icon="i-lucide-chevron-down" />
+              <template #content>
+                <div class="icon-grid" role="listbox" aria-label="选择图标">
+                  <button v-for="name in iconChoices" :key="name" type="button" role="option" class="icon-grid__item" :aria-selected="name === form.icon" :title="name" :aria-label="name" @click="pickIcon(name)">
+                    <UIcon :name="`i-lucide-${name}`" />
+                  </button>
+                </div>
+              </template>
+            </UPopover>
+          </div>
+
+          <div class="appearance-row">
+            <span class="appearance-row__label">自定义图片</span>
+            <div class="image-source">
+              <div class="image-source__actions">
+                <input ref="fileInput" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" tabindex="-1" @change="onFileChosen">
+                <UButton type="button" color="neutral" variant="outline" icon="i-lucide-upload" label="上传图片" :disabled="saving" @click="fileInput?.click()" />
+                <UButton v-if="customImage" type="button" color="neutral" variant="ghost" icon="i-lucide-x" label="移除" :disabled="saving" @click="clearCustomImage" />
+                <span v-if="iconFile" class="image-source__file">{{ iconFile.name }}</span>
+              </div>
+              <UInput v-model="form.iconUrl" type="url" placeholder="或粘贴 CDN 链接 https://…" maxlength="2048" :disabled="saving" @update:model-value="onIconUrlInput" />
+              <p class="image-source__hint">PNG、JPEG 或 WebP。设置后优先于上方图标。</p>
+            </div>
+          </div>
+        </fieldset>
         <UFormField class="title-dialog-form__wide">
           <UCheckbox v-model="form.publicVisibility" label="公开显示" :disabled="saving" />
           <template #help>关闭后不出现在公开成就页，不影响获取。</template>
@@ -166,10 +250,34 @@ function submitEdit() {
 .more-settings { border-top: 1px solid var(--line); color: var(--muted); }
 .more-settings summary { padding: var(--space-3) 0; cursor: pointer; }
 .more-settings-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--space-5); padding-top: var(--space-2); }
-.title-icon-upload { display: grid; gap: var(--space-2); }
-.title-icon-preview img { display: block; max-height: 3rem; border-radius: var(--radius-control); }
+.appearance { display: grid; gap: var(--space-4); margin: 0; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-control); min-width: 0; }
+.appearance legend { padding: 0 var(--space-2); color: var(--muted); font-size: var(--type-caption-size); }
+.appearance-preview { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-radius: var(--radius-control); background: var(--surface-sunken, var(--surface-raised)); }
+.appearance-preview__mark { display: grid; place-items: center; flex: none; width: 4rem; height: 4rem; font-size: 2rem; border-radius: var(--radius-control); background: var(--surface-raised); overflow: hidden; }
+.appearance-preview__mark img { width: 100%; height: 100%; object-fit: contain; }
+.appearance-preview__label { font-size: 1.25rem; }
+.appearance-preview__label.is-colored { color: transparent; background-clip: text; -webkit-background-clip: text; }
+.appearance-row { display: grid; grid-template-columns: 6rem minmax(0, 1fr); align-items: start; gap: var(--space-3); }
+.appearance-row__label { padding-top: var(--space-2); font-size: var(--type-caption-size); color: var(--muted); }
+.swatches { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.swatch { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1); border: 1px solid var(--line); border-radius: var(--radius-pill); background: transparent; color: inherit; cursor: pointer; }
+.swatch[aria-checked="true"] { border-color: var(--accent); background: color-mix(in oklch, var(--accent) 12%, transparent); }
+.swatch:disabled { cursor: not-allowed; opacity: 0.6; }
+.swatch__chip { width: 1.5rem; height: 1.5rem; border-radius: 50%; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.25); }
+.swatch__chip--none { background: repeating-linear-gradient(45deg, transparent 0 3px, var(--line-strong) 3px 4px); }
+.icon-grid { display: grid; grid-template-columns: repeat(6, 2.5rem); gap: var(--space-1); padding: var(--space-2); }
+.icon-grid__item { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; font-size: 1.25rem; border: 1px solid transparent; border-radius: var(--radius-control); background: transparent; color: inherit; cursor: pointer; }
+.icon-grid__item:hover { background: var(--surface-raised); }
+.icon-grid__item[aria-selected="true"] { border-color: var(--accent); color: var(--accent); }
+.image-source { display: grid; gap: var(--space-2); min-width: 0; }
+.image-source__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.image-source__file { color: var(--muted); font-size: var(--type-caption-size); overflow-wrap: anywhere; }
+.image-source__hint { margin: 0; color: var(--muted); font-size: var(--type-caption-size); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 @container (max-width: 36rem) {
   .title-dialog-form { grid-template-columns: 1fr; }
   .more-settings-body { grid-template-columns: 1fr; }
+  .appearance-row { grid-template-columns: 1fr; }
+  .appearance-row__label { padding-top: 0; }
 }
 </style>
