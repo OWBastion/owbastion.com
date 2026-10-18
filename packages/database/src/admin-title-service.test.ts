@@ -189,7 +189,7 @@ describe("real title acquisition migration", () => {
     sqlite.exec("CREATE TABLE random_event_title_challenges (event_id TEXT NOT NULL, challenge_id TEXT NOT NULL REFERENCES title_challenges(id) ON DELETE CASCADE, PRIMARY KEY (event_id, challenge_id))");
     sqlite.exec("INSERT INTO title_challenges (id,title_key,category_override,condition,evidence_rule,submission_mode,status,retired_version,starts_at,ends_at,created_at,updated_at,scope,map_variant,game_version,introduced_version,progress_rule) VALUES ('title.MULTI','MULTI','category','condition','evidence','manual','active','26.1101.1',100,300,1,2,'map','classic','26.1003.1','26.0901.1','{\"type\":\"required_maps_completed\",\"mapIds\":[\"map.alpha\"]}'); INSERT INTO achievement_challenge_maps VALUES ('title.MULTI','map.alpha'); INSERT INTO random_event_title_challenges VALUES ('event.test','title.MULTI')");
     const before = sqlite.prepare("SELECT * FROM title_challenges").get();
-    sqlite.exec(readFileSync("migrations/0105_title_challenge_acquisition_paths.sql", "utf8"));
+    sqlite.exec(readFileSync("migrations/0106_title_challenge_acquisition_paths.sql", "utf8"));
     expect(sqlite.prepare("SELECT * FROM title_challenges WHERE id='title.MULTI'").get()).toEqual({ ...before, replaced_by_challenge_id: null });
     expect(sqlite.prepare("SELECT * FROM achievement_challenge_maps").all()).toEqual([{ challenge_id: "title.MULTI", map_id: "map.alpha" }]);
     expect(sqlite.prepare("SELECT * FROM random_event_title_challenges").all()).toEqual([{ event_id: "event.test", challenge_id: "title.MULTI" }]);
