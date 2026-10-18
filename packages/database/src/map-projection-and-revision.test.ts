@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { AgentSpatialConfig } from "@owbastion/contracts";
 import { createPlatformServices } from "./index";
 import { hashRequest as requestHash } from "./portal-session";
@@ -134,6 +134,46 @@ describe("Agents map gameplay projection", () => {
       copyConfiguration: false,
       challengeAssignments: assignments,
     }, auth, "expired-pioneer-create-assignment")).rejects.toThrow("REVISION_CHALLENGE_NOT_ASSIGNABLE");
+  });
+
+  it("keeps a granted map title definition resolvable before, during, and after its Pioneer window", async () => {
+    const { database, sqlite } = createTestDatabase("map.pioneer-window");
+    seedTitle(sqlite, "PIONEER");
+    seedRule(sqlite, "rule.pioneer.window", "PIONEER", "pioneer", { slot: "pioneer", defaultScope: "explicit" });
+    const startsAt = now + 60_000;
+    const endsAt = now + 120_000;
+    seedException(sqlite, "exception.pioneer.window", "rule.pioneer.window", "map.pioneer-window", { startsAt, endsAt });
+    seedAgentSpatialConfig(sqlite, "revision:map.pioneer-window:initial");
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.pioneer-window', '1004', 'Pioneer Holder', 'pioneer holder', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.pioneer-window', 'player.pioneer-window', 'PIONEER', 'map.pioneer-window', 'revision:map.pioneer-window:initial', 'pioneer', 'active', 'submission', 'submission.pioneer-window', 'admin', ?)").run(now);
+    const services = createPlatformServices(database);
+    const clock = vi.spyOn(Date, "now");
+    try {
+      for (const at of [startsAt - 1, startsAt + 1, endsAt + 1]) {
+        clock.mockReturnValue(at);
+        const [titles, holders] = await Promise.all([
+          services.listAgentTitles({ mapId: "map.pioneer-window", page: 1, pageSize: 50 }),
+          services.listAgentMapTitleHolders({ mapId: "map.pioneer-window", page: 1, pageSize: 50 }),
+        ]);
+        expect(holders.items).not.toEqual([]);
+        for (const holder of holders.items) {
+          expect(titles.items, `timestamp ${at}`).toContainEqual(expect.objectContaining({
+            titleKey: holder.titleKey,
+            scope: "map",
+            mapId: "map.pioneer-window",
+            slot: holder.slot ?? undefined,
+          }));
+        }
+      }
+      clock.mockReturnValue(endsAt + 1);
+      const after = await services.listAgentTitles({ mapId: "map.pioneer-window", page: 1, pageSize: 50 });
+      expect(after.items).toContainEqual(expect.objectContaining({ titleKey: "PIONEER", mapId: "map.pioneer-window", availability: "retired" }));
+      clock.mockReturnValue(startsAt + 1);
+      const inside = await services.listAgentTitles({ mapId: "map.pioneer-window", page: 1, pageSize: 50 });
+      expect(inside.items).toContainEqual(expect.objectContaining({ titleKey: "PIONEER", mapId: "map.pioneer-window", availability: "active" }));
+    } finally {
+      clock.mockRestore();
+    }
   });
 });
 
