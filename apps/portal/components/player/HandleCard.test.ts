@@ -10,15 +10,16 @@ const portalApi = vi.fn(async (path: string, options?: { method?: string; body?:
 });
 mockNuxtImport("usePortalApi", () => () => portalApi);
 
-const stubs = { UCard: { template: "<div><slot /></div>" } };
+const stubs = {};
 
 describe("player handle card", () => {
   it("requests a handle with an idempotency key and shows the pending review state", async () => {
     portalApi.mockClear();
-    const wrapper = await mountSuspended(HandleCard, { props: { publicProfile: true }, global: { stubs } });
+    const wrapper = await mountSuspended(HandleCard, { global: { stubs } });
     await flushPromises();
     expect(wrapper.text()).toContain("未设置");
 
+    await wrapper.get("button").trigger("click");
     await wrapper.get("input").setValue("堡主一号");
     await wrapper.get("form").trigger("submit");
     await flushPromises();
