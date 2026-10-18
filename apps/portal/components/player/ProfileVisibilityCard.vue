@@ -37,17 +37,11 @@ async function save(change: Partial<typeof draft>) {
 <template>
   <div class="visibility-card">
     <div class="visibility-row">
-      <div class="visibility-copy">
-        <strong>在排行榜公开我的主页</strong>
-        <p>关闭后你在排行榜显示为匿名玩家，名次与分数照常保留。</p>
-      </div>
+      <strong>公开主页</strong>
       <USwitch :model-value="draft.publicProfile" :disabled="saving" aria-label="公开主页" @update:model-value="save({ publicProfile: $event })" />
     </div>
     <div v-if="draft.publicProfile" class="visibility-row visibility-extra">
-      <div class="visibility-copy">
-        <strong>隐藏我的 BattleTag</strong>
-        <p>其他玩家会看到你的公开 ID（未设置则显示匿名玩家），称号和名次照常公开。你自己始终能看到。</p>
-      </div>
+      <strong>隐藏 BattleTag</strong>
       <USwitch :model-value="draft.hideBattleTag" :disabled="saving" aria-label="隐藏 BattleTag" @update:model-value="save({ hideBattleTag: $event })" />
     </div>
     <p v-if="error" class="visibility-error" role="alert">{{ error }}</p>
@@ -56,11 +50,9 @@ async function save(change: Partial<typeof draft>) {
 </template>
 
 <style scoped>
-.visibility-card { display: grid; gap: var(--space-3); width: min(26rem, calc(100vw - 2rem)); padding: var(--space-4); }
+.visibility-card { display: grid; gap: var(--space-3); width: min(20rem, calc(100vw - 2rem)); padding: var(--space-4); }
 .visibility-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
-.visibility-copy { display: grid; min-width: 0; gap: var(--space-1); }
-.visibility-copy strong { color: var(--text); font-size: .85rem; }
-.visibility-copy p { margin: 0; color: var(--quiet); font-size: .73rem; }
+.visibility-row strong { color: var(--text); font-size: .85rem; }
 .visibility-extra { padding-top: var(--space-3); border-top: 1px solid var(--line); }
 .visibility-error { margin: var(--space-2) 0 0; color: var(--danger) !important; }
 </style>
