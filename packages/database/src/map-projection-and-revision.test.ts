@@ -136,7 +136,7 @@ describe("Agents map gameplay projection", () => {
     }, auth, "expired-pioneer-create-assignment")).rejects.toThrow("REVISION_CHALLENGE_NOT_ASSIGNABLE");
   });
 
-  it("keeps a granted map title definition resolvable before, during, and after its Pioneer window", async () => {
+  it("keeps a granted map title definition resolvable and unchanged before, during, and after its Pioneer window", async () => {
     const { database, sqlite } = createTestDatabase("map.pioneer-window");
     seedTitle(sqlite, "PIONEER");
     seedRule(sqlite, "rule.pioneer.window", "PIONEER", "pioneer", { slot: "pioneer", defaultScope: "explicit" });
@@ -162,15 +162,11 @@ describe("Agents map gameplay projection", () => {
             scope: "map",
             mapId: "map.pioneer-window",
             slot: holder.slot ?? undefined,
+            // One title key is one definition across maps: the window must not change it.
+            availability: "active",
           }));
         }
       }
-      clock.mockReturnValue(endsAt + 1);
-      const after = await services.listAgentTitles({ mapId: "map.pioneer-window", page: 1, pageSize: 50 });
-      expect(after.items).toContainEqual(expect.objectContaining({ titleKey: "PIONEER", mapId: "map.pioneer-window", availability: "retired" }));
-      clock.mockReturnValue(startsAt + 1);
-      const inside = await services.listAgentTitles({ mapId: "map.pioneer-window", page: 1, pageSize: 50 });
-      expect(inside.items).toContainEqual(expect.objectContaining({ titleKey: "PIONEER", mapId: "map.pioneer-window", availability: "active" }));
     } finally {
       clock.mockRestore();
     }

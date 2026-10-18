@@ -2124,51 +2124,28 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       // A title with active grants on this map must keep a resolvable definition
       // regardless of whether its acquisition path (Pioneer window, scheduled
       // challenge) is currently open: the window gates submission eligibility,
-      // not the definition that holder records reference. The same read joins the
-      // rule model to tell whether the title is still obtainable on this map.
+      // not the definition that holder records reference. A title key is one
+      // definition across maps, so availability comes from the catalog, never
+      // from this map's window.
       const grantedRows = await platformCache.cached("grants", `map-granted-title-rows:${mapId}`, () => db.select({
         title: titleCatalog,
         slot: playerTitleGrants.slot,
-        ruleKind: mapTitleRules.kind,
-        ruleDefaultScope: mapTitleRules.defaultScope,
-        ruleStatus: mapTitleRules.status,
-        exceptionEnabled: mapTitleRuleExceptions.enabled,
-        exceptionStartsAt: mapTitleRuleExceptions.startsAt,
-        exceptionEndsAt: mapTitleRuleExceptions.endsAt,
-        assignedRevisionId: gameplayRevisions.id,
       })
         .from(playerTitleGrants)
         .innerJoin(titleCatalog, and(eq(playerTitleGrants.titleKey, titleCatalog.key), eq(titleCatalog.scope, "map"), ne(titleCatalog.lifecycle, "draft"), eq(titleCatalog.publicVisibility, 1), isNotNull(titleCatalog.gameVersion)))
-        .leftJoin(mapTitleRules, eq(mapTitleRules.titleKey, titleCatalog.key))
-        .leftJoin(mapTitleRuleExceptions, and(eq(mapTitleRuleExceptions.ruleId, mapTitleRules.id), eq(mapTitleRuleExceptions.mapId, mapId)))
-        .leftJoin(gameplayRevisionChallengeAssignments, and(
-          eq(gameplayRevisionChallengeAssignments.challengeFamily, "map_title_rule"),
-          eq(gameplayRevisionChallengeAssignments.challengeId, mapTitleRules.id),
-          eq(gameplayRevisionChallengeAssignments.mapId, mapId),
-          eq(gameplayRevisionChallengeAssignments.enabled, 1),
-        ))
-        .leftJoin(gameplayRevisions, and(eq(gameplayRevisions.id, gameplayRevisionChallengeAssignments.gameplayRevisionId), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])))
         .where(and(eq(playerTitleGrants.status, "active"), eq(playerTitleGrants.mapId, mapId)))
         .orderBy(titleCatalog.key, playerTitleGrants.slot));
-      const grantedByKey = new globalThis.Map<string, { title: typeof titleCatalog.$inferSelect; slot: string | null; obtainable: boolean }>();
+      const grantedByKey = new globalThis.Map<string, { title: typeof titleCatalog.$inferSelect; slot: string | null }>();
       for (const row of grantedRows) {
-        const pioneer = row.ruleKind?.trim().toLocaleLowerCase() === "pioneer";
-        const obtainable = row.assignedRevisionId !== null && row.ruleStatus === "active"
-          && (!pioneer || (row.ruleDefaultScope === "explicit" && pioneerExceptionIsSubmittable(row.exceptionEnabled ?? 0, row.exceptionStartsAt, row.exceptionEndsAt, timestamp)));
         const existing = grantedByKey.get(row.title.key);
-        if (existing) {
-          existing.obtainable ||= obtainable;
-          existing.slot ??= row.slot;
-        } else {
-          grantedByKey.set(row.title.key, { title: row.title, slot: row.slot, obtainable });
-        }
+        if (existing) existing.slot ??= row.slot;
+        else grantedByKey.set(row.title.key, { title: row.title, slot: row.slot });
       }
-      const grantedTitles = [...grantedByKey.values()].flatMap(({ title, slot, obtainable }): Title[] => {
+      const grantedTitles = [...grantedByKey.values()].flatMap(({ title, slot }): Title[] => {
         if (mappedKeys.has(title.key)) return [];
         mappedKeys.add(title.key);
         return [{
           ...titleCatalogView(title),
-          availability: obtainable ? "active" : "retired",
           scope: "map",
           mapId,
           ...(slot ? { slot: slot as Title["slot"] } : {}),
