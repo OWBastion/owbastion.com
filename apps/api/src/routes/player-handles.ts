@@ -1,4 +1,5 @@
-import { normalizePlayerHandle } from "@owbastion/domain";import { playerHandleRequestSchema } from "@owbastion/contracts";
+import { normalizePlayerHandle } from "@owbastion/domain";
+import { playerHandleRequestSchema } from "@owbastion/contracts";
 import { parseBody, routeErrorResponse, maintainerRoute, type AdminRouteDependencies, type ApiApp, type RouteErrorMap } from "./route-contract";
 
 type PlayerHandleDependencies = AdminRouteDependencies & {

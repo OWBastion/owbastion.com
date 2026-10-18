@@ -151,7 +151,7 @@ describe("player handle requests", () => {
     ["is all full-width digits", "１２３４", "HANDLE_ALL_DIGITS"],
     ["is a reserved term", "admin", "HANDLE_RESERVED"],
     ["contains a reserved term", "xxAdminxx", "HANDLE_RESERVED"],
-    ["contains a short reserved term", "game", "HANDLE_RESERVED"],
+    ["is a route-reserved term", "me", "HANDLE_RESERVED"],
     ["contains a reserved Chinese term", "超级管理员", "HANDLE_RESERVED"],
     ["contains 官方", "我是官方号", "HANDLE_RESERVED"],
   ])("rejects an ID that %s", async (_label, handle, code) => {

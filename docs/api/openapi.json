@@ -395,7 +395,7 @@
    },
    "put": {
     "operationId": "requestCurrentPlayerHandle",
-    "description": "Requests a platform handle (first claim or change). Allowed: ASCII letters, digits, and CJK Unified Ideographs U+4E00-9FFF; 2-9 characters; not all digits; no reserved term contained. Normalized with NFKC and ASCII lowercase. A maintainer must approve it; the request replaces any earlier pending or rejected one and does not change the active handle. 409 HANDLE_TAKEN when another Player holds or has pending the normalized handle, HANDLE_UNCHANGED for the Player's own active handle; 422 HANDLE_INVALID_CHARACTERS, HANDLE_INVALID_LENGTH, HANDLE_ALL_DIGITS, or HANDLE_RESERVED.",
+    "description": "Requests a platform handle (first claim or change). Allowed: ASCII letters, digits, and CJK Unified Ideographs U+4E00-9FFF; 2-9 characters; not all digits; not a reserved route/system term as a whole, and no impersonation term (such as admin or 官方) contained. Normalized with NFKC and ASCII lowercase. A maintainer must approve it; the request replaces any earlier pending or rejected one and does not change the active handle. 409 HANDLE_TAKEN when another Player holds or has pending the normalized handle, HANDLE_UNCHANGED for the Player's own active handle; 422 HANDLE_INVALID_CHARACTERS, HANDLE_INVALID_LENGTH, HANDLE_ALL_DIGITS, or HANDLE_RESERVED.",
     "parameters": [
      {
       "$ref": "#/components/parameters/idempotencyKey"

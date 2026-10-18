@@ -126,8 +126,9 @@ because a material rule change creates a new Challenge.
 
 - An optional public handle (custom ID) on a Player Account, used for `/u/{id}` public profiles.
   Rules live in `packages/domain/src/player-handle.ts`: ASCII letters, digits, and CJK; 2–9
-  characters; not all digits; compared after NFKC and ASCII lowercase; reserved terms by
-  containment.
+  characters; not all digits; compared after NFKC and ASCII lowercase; route/system terms
+  (`user`, `me`, `堡垒`, …) are rejected only as the whole ID, impersonation terms (`admin`,
+  `官方`, …) anywhere inside it.
 - Every claim and change is a maintainer-reviewed request. One pending request per Player;
   it reserves its normalized ID and does not change the current ID. Approve/reject need no
   reason. An approved change releases the old ID at once (no alias or history); a maintainer

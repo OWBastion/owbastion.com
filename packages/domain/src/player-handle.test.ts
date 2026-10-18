@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizePlayerHandle, reservedPlayerHandleTerms, validatePlayerHandle } from "./player-handle";
+import { containedReservedPlayerHandleTerms, exactReservedPlayerHandleTerms, normalizePlayerHandle, validatePlayerHandle } from "./player-handle";
 
 describe("player handle rules", () => {
   it("normalizes with NFKC and ASCII lowercase only", () => {
@@ -22,14 +22,21 @@ describe("player handle rules", () => {
     expect(validatePlayerHandle("1a")).toEqual({ handle: "1a" });
   });
 
-  it.each(reservedPlayerHandleTerms)("rejects the reserved term %s", (term) => {
+  it.each([...exactReservedPlayerHandleTerms, ...containedReservedPlayerHandleTerms])("rejects the reserved term %s exactly", (term) => {
     expect(validatePlayerHandle(term)).toEqual({ error: "HANDLE_RESERVED" });
     expect(validatePlayerHandle(term.toUpperCase())).toEqual({ error: "HANDLE_RESERVED" });
+    expect(validatePlayerHandle(term.replace(/[a-z0-9]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0xfee0)))).toEqual({ error: "HANDLE_RESERVED" });
   });
 
-  it("matches reserved terms by containment, not only exactly", () => {
-    expect(validatePlayerHandle("myadmin1")).toEqual({ error: "HANDLE_RESERVED" });
-    expect(validatePlayerHandle("我是客服号")).toEqual({ error: "HANDLE_RESERVED" });
-    expect(validatePlayerHandle("ＡＤＭＩＮ")).toEqual({ error: "HANDLE_RESERVED" });
+  it("accepts exact-only terms inside longer IDs", () => {
+    for (const handle of ["james", "homer", "apiary", "rapid", "堡垒王", "ow堡垒", "users1"]) {
+      expect(validatePlayerHandle(handle)).toEqual({ handle });
+    }
+  });
+
+  it("rejects containment terms inside longer IDs", () => {
+    for (const handle of ["myadmin1", "我是客服号", "ＡＤＭＩＮ", "xbastion"]) {
+      expect(validatePlayerHandle(handle)).toEqual({ error: "HANDLE_RESERVED" });
+    }
   });
 });
