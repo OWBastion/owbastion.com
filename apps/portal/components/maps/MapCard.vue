@@ -23,7 +23,7 @@ const mapIndex = computed(() => props.map.mapId.split(".").at(-1)?.slice(0, 2).t
     <div class="map-card-media" aria-hidden="true"><img v-if="map.coverUrl" :src="map.coverUrl" alt="" /><span v-else>{{ mapIndex }}</span></div>
     <div class="map-card-body">
       <div class="map-card-heading"><h2 class="type-card-title">{{ map.mapName }}</h2><span class="type-caption">{{ map.gameVersion }}</span></div>
-      <StatusBadge :label="reviewBadge.label" :tone="reviewBadge.tone" icon="★" />
+      <StatusBadge v-bind="reviewBadge" />
       <dl class="map-card-stats">
         <div><dt class="type-label-sm">地图评级</dt><dd class="type-label" :class="{ quiet: map.difficultyRating == null }">{{ map.difficultyRating ?? "暂无记录" }}</dd></div>
         <div><dt class="type-label-sm">挑战</dt><dd class="type-label" :class="{ quiet: !mapChallenges.length }">{{ mapChallenges.length ? `${mapChallenges.length} 项` : "暂无记录" }}</dd></div>

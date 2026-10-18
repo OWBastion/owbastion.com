@@ -20,11 +20,10 @@ describe("buildMapProgressRows", () => {
       maps,
       challenges,
       titles: [
-        { grantId: "grant-partial", titleKey: "PARTIAL_PIONEER", scope: "map", mapId: "map.partial", gameplayRevisionId: "revision:partial:default" },
-        { grantId: "grant-classic", titleKey: "PARTIAL_CLASSIC", scope: "map", mapId: "map.partial", gameplayRevisionId: "revision:partial:classic" },
-        { grantId: "grant-complete", titleKey: "COMPLETE_PIONEER", scope: "map", mapId: "map.complete", gameplayRevisionId: "revision:complete:default" },
+        { grantId: "grant-partial", titleKey: "PARTIAL_PIONEER", label: "开拓者", icon: "trophy", category: "地图", condition: "完成", scope: "map", mapId: "map.partial", gameplayRevisionId: "revision:partial:default", grantedAt: 1 },
+        { grantId: "grant-classic", titleKey: "PARTIAL_CLASSIC", label: "经典", icon: "trophy", category: "地图", condition: "完成", scope: "map", mapId: "map.partial", gameplayRevisionId: "revision:partial:classic", grantedAt: 1 },
+        { grantId: "grant-complete", titleKey: "COMPLETE_PIONEER", label: "开拓者", icon: "trophy", category: "地图", condition: "完成", scope: "map", mapId: "map.complete", gameplayRevisionId: "revision:complete:default", grantedAt: 1 },
       ],
-      profiles: [],
     });
 
     expect(rows.map((row) => row.map.mapId)).toEqual(["map.unplayed", "map.partial", "map.complete"]);
@@ -41,9 +40,8 @@ describe("buildMapProgressRows", () => {
         { challengeId: "default", mapId: "map.test", gameplayRevisionId: "revision:test:default", titleKey: "TITLE", name: "默认", status: "active" },
       ],
       titles: [
-        { grantId: "grant-selectable", titleKey: "TITLE", scope: "map", mapId: "map.test", gameplayRevisionId: "revision:test:selectable" },
+        { grantId: "grant-selectable", titleKey: "TITLE", label: "称号", icon: "trophy", category: "地图", condition: "完成", scope: "map", mapId: "map.test", gameplayRevisionId: "revision:test:selectable", grantedAt: 1 },
       ],
-      profiles: [],
     });
 
     expect(rows[0]?.earnedChallenges).toHaveLength(0);
@@ -54,7 +52,6 @@ describe("buildMapProgressRows", () => {
       maps: [{ mapId: "map.empty", mapName: "无目标地图", defaultGameplayRevisionId: "revision:empty:default" }],
       challenges: [],
       titles: [],
-      profiles: [],
     });
 
     expect(rows[0]?.challenges).toHaveLength(0);

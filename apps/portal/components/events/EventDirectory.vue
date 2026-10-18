@@ -146,7 +146,7 @@ onMounted(() => { hydrated.value = true; });
                 <UBadge v-for="tag in visibleEffectChips(event).rawTags" :key="`raw-${tag}`" :label="tag" color="neutral" variant="subtle" />
                 <span v-if="visibleEffectChips(event).overflow" class="effect-overflow type-caption">+{{ visibleEffectChips(event).overflow }}</span>
               </div>
-              <StatusBadge v-bind="eventRatingChip(event.eventId)" icon="★" />
+              <StatusBadge v-bind="eventRatingChip(event.eventId)" />
             </div>
           </article>
         </div>

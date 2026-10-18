@@ -1,3 +1,6 @@
+import type { OwnedTitle } from "~/types/title";
+import { findOwnedTitle } from "./achievement-status";
+
 export type MapProgressMap = {
   mapId: string;
   mapName: string;
@@ -13,40 +16,17 @@ export type MapProgressChallenge = {
   status: "active" | "sunsetting";
 };
 
-export type MapProgressTitle = {
-  grantId: string;
-  titleKey: string;
-  scope: "global" | "map";
-  mapId?: string;
-  gameplayRevisionId?: string;
-  mapName?: string;
-  slot?: "pioneer" | "conqueror" | "dominator";
-};
-
-export type MapProgressProfile = {
-  mapId: string;
-  gameplayRevisionId?: string;
-  totalXp: number;
-  verifiedRunCount: number;
-  lowestDeaths: number | null;
-  fewestSkips: number | null;
-  highestCompletedDifficulty: string | null;
-  recentRuns: Array<{ acceptedAt: number }>;
-};
-
 export type MapProgressRow = {
   map: MapProgressMap;
   gameplayRevisionId: string | null;
   challenges: MapProgressChallenge[];
   earnedChallenges: MapProgressChallenge[];
-  profile: MapProgressProfile | null;
 };
 
 export function buildMapProgressRows(input: {
   maps: MapProgressMap[];
   challenges: MapProgressChallenge[];
-  titles: MapProgressTitle[];
-  profiles: MapProgressProfile[];
+  titles: OwnedTitle[];
 }): MapProgressRow[] {
   const rows = input.maps.map((map): MapProgressRow => {
     const gameplayRevisionId = map.defaultGameplayRevisionId ?? null;
@@ -55,17 +35,12 @@ export function buildMapProgressRows(input: {
       && challenge.gameplayRevisionId === gameplayRevisionId
       && Boolean(challenge.titleKey),
     );
-    const earnedChallenges = challenges.filter((challenge) => input.titles.some((title) =>
-      title.scope === "map"
-      && title.mapId === map.mapId
-      && title.gameplayRevisionId === gameplayRevisionId
-      && title.titleKey === challenge.titleKey,
-    ));
-    const profile = input.profiles.find((candidate) =>
-      candidate.mapId === map.mapId
-      && candidate.gameplayRevisionId === gameplayRevisionId,
-    ) ?? null;
-    return { map, gameplayRevisionId, challenges, earnedChallenges, profile };
+    const earnedChallenges = challenges.filter((challenge) => Boolean(findOwnedTitle(input.titles, {
+      titleKey: challenge.titleKey!,
+      mapId: map.mapId,
+      gameplayRevisionId: gameplayRevisionId ?? "",
+    })));
+    return { map, gameplayRevisionId, challenges, earnedChallenges };
   });
 
   const rank = (row: MapProgressRow) => {

@@ -105,6 +105,7 @@ function setProgressGameMode(value: string) {
 }
 const regularScope = "__regular__";
 const scopeItems = computed(() => [{ label: "常规模式（指定地图）", value: regularScope }, ...props.modes.map(({ mode, mapIds }) => ({ label: `${mode}（${mapIds.length} 张地图）`, value: mode }))]);
+const mapItems = computed(() => [{ label: "全部有效地图", value: "" }, ...props.maps.map((map) => ({ label: map.mapName, value: map.mapId }))]);
 const progressMode = computed(() => props.item && isChallengeTitle(props.item) ? props.item.progressRule?.mode : undefined);
 const followedMapCount = computed(() => props.modes.find(({ mode }) => mode === progressMode.value)?.mapIds.length ?? 0);
 function setProgressScope(value: string) {
@@ -239,7 +240,7 @@ function onIconFile(value: File | null | undefined) {
             <USelect class="editor-control" :model-value="asChallenge(item)!.scope ?? 'global'" :disabled="saving || Boolean(asChallenge(item)!.progressRule)" :items="[{ label: '全部地图', value: 'global' }, { label: '指定地图', value: 'map' }]" @update:model-value="setScope($event as 'global' | 'map')" />
           </UFormField>
           <UFormField v-if="asChallenge(item)!.scope === 'map'" class="editor-field editor-field--wide" label="指定地图">
-            <USelect class="editor-control" :model-value="asChallenge(item)!.mapIds ?? []" multiple :items="[{ label: '全部有效地图', value: '' }, ...maps.map((map) => ({ label: map.mapName, value: map.mapId }))]" :disabled="saving" @update:model-value="setMapIds(($event as string[]).filter(Boolean))" />
+            <USelect class="editor-control" :model-value="asChallenge(item)!.mapIds ?? []" multiple :items="mapItems" :disabled="saving" @update:model-value="setMapIds(($event as string[]).filter(Boolean))" />
           </UFormField>
           <UFormField v-if="asChallenge(item)!.scope === 'map'" class="editor-field" label="地图版本">
             <USelect class="editor-control" :model-value="asChallenge(item)!.mapVariant" :items="[{ label: '标准版', value: undefined }, { label: '经典版', value: 'classic' }]" :disabled="saving" @update:model-value="setMapVariant($event as 'classic' | undefined)" />

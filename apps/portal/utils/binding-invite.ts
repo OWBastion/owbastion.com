@@ -8,6 +8,26 @@ export const parseBattleTag = (value: string): ParsedBattleTag | null => {
   return { playerName, playerId };
 };
 
+export const bindingInviteBatchLimit = 100;
+
+export const parseBattleTagBatch = (input: string): { players: ParsedBattleTag[]; errors: string[] } => {
+  const players: ParsedBattleTag[] = [];
+  const errors: string[] = [];
+  const seen = new Set<string>();
+  input.split(/\r?\n/).forEach((rawLine, index) => {
+    const line = rawLine.trim();
+    if (!line) return;
+    const player = parseBattleTag(line);
+    if (!player) { errors.push(`第 ${index + 1} 行格式无效`); return; }
+    const key = `${player.playerName.toLocaleLowerCase()}#${player.playerId}`;
+    if (seen.has(key)) { errors.push(`第 ${index + 1} 行重复`); return; }
+    seen.add(key);
+    players.push(player);
+  });
+  if (players.length > bindingInviteBatchLimit) errors.push(`一次最多生成 ${bindingInviteBatchLimit} 个邀请码`);
+  return { players, errors };
+};
+
 export const qqVerificationCommand = (code: string) => `/验证 ${code}`;
 
 export const bindingInviteCopyText = (code: string, origin: string) => {

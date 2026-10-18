@@ -4,6 +4,8 @@ import type { RandomEvent } from "~/types/random-event";
 export type EventPatch = Partial<Pick<RandomEvent, "name" | "category" | "description" | "durationSeconds" | "cooldownSeconds" | "weight" | "gameVersion" | "eventGroup" | "releaseStatus" | "effectTags">>;
 export type EventDraft = ReadonlyMap<string, EventPatch>;
 
+export const statusLabels = { implemented: "已实装", development: "开发中", removed: "已移除" } as const;
+
 const patchKeys = ["name", "category", "description", "durationSeconds", "cooldownSeconds", "weight", "gameVersion", "eventGroup", "releaseStatus", "effectTags"] as const;
 const same = (left: unknown, right: unknown) => JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
 

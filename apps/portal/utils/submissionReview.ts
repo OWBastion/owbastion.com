@@ -1,4 +1,4 @@
-import type { AdminSubmission, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreview } from "~/composables/useAdminApi";
+import type { AdminSubmission, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreview, AdminVerifiedRunConflict } from "~/composables/useAdminApi";
 
 export const reviewEvidenceFieldLabels: Record<AdminSubmissionReviewCandidate["requiredFields"][number], string> = {
   map_name: "地图",
@@ -46,7 +46,7 @@ const blockingMessages: Record<string, string> = {
 export const knownReviewBlockingMessage = (code: string | null | undefined) => code ? blockingMessages[code] ?? null : null;
 export const reviewBlockingMessage = (code: string | null | undefined) => code ? knownReviewBlockingMessage(code) ?? `暂时无法通过（${code}）。` : "";
 
-const supersededFieldLabels: Record<string, string> = {
+export const verifiedRunConflictFieldLabels: Record<AdminVerifiedRunConflict["conflictFields"][number], string> = {
   match_code: "对局码", map: "地图", gameplay_revision: "版本修订", map_variant: "地图版本", difficulty: "难度",
   game_version: "游戏版本", completion_duration: "通关用时", deaths: "死亡次数", skips: "跳过次数", event_counters: "事件计数",
 };
@@ -55,7 +55,7 @@ export const verifiedRunPreviewLabel = (verifiedRun: AdminSubmissionReviewPrevie
   ? "已记录通关记录"
   : verifiedRun.status === "eligible"
     ? verifiedRun.supersededFields.length
-      ? `将按识别结果记录通关记录，并作废已有的同对局码记录（不一致：${verifiedRun.supersededFields.map((field) => supersededFieldLabels[field] ?? "其他字段").join("、")}）`
+      ? `将按识别结果记录通关记录，并作废已有的同对局码记录（不一致：${verifiedRun.supersededFields.map((field) => verifiedRunConflictFieldLabels[field as AdminVerifiedRunConflict["conflictFields"][number]] ?? "其他字段").join("、")}）`
       : "将按识别结果记录通关记录"
     : null;
 

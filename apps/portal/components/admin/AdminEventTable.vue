@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { RandomEvent } from "~/types/random-event";
-import { draftedFields, type EventDraft, type EventPatch } from "~/utils/event-draft";
+import { draftedFields, statusLabels, type EventDraft, type EventPatch } from "~/utils/event-draft";
 import { formatProbability } from "~/utils/event-probabilities";
 
 export type EventSortKey = "name" | "weight" | "probability" | "gameVersion";
@@ -19,7 +19,6 @@ const emit = defineEmits<{ stage: [eventId: string, patch: EventPatch]; open: [e
 const selected = defineModel<string[]>("selected", { default: () => [] });
 const sort = defineModel<EventSort>("sort", { required: true });
 
-const statusLabels = { implemented: "已实装", development: "开发中", removed: "已移除" } as const;
 const categoryTone = (category: string) => category === "减益" ? "is-error" : category === "增益" ? "is-success" : category === "机制" ? "is-info" : "";
 const maxProbability = computed(() => Math.max(0, ...props.next.values()));
 const allSelected = computed(() => props.events.length > 0 && props.events.every((event) => selected.value.includes(event.eventId)));

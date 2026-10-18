@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { EventPatch } from "~/utils/event-draft";
+import { statusLabels, type EventPatch } from "~/utils/event-draft";
 
 defineProps<{ selectedCount: number; draftCount: number; summary: string; saving: boolean; versions: string[]; groups: string[] }>();
 const emit = defineEmits<{ patch: [patch: EventPatch]; weight: [operation: "set" | "add" | "multiply", value: number]; clear: []; save: []; discard: [] }>();
@@ -18,7 +18,7 @@ const applyWeight = () => { const value = Number(weight.value); if (weight.value
     </span>
     <template v-if="selectedCount">
       <select class="native-field" aria-label="设为状态" @change="pick($event, (value) => emit('patch', { releaseStatus: value as 'implemented' }))">
-        <option value="">设为状态…</option><option value="implemented">已实装</option><option value="development">开发中</option><option value="removed">已移除</option>
+        <option value="">设为状态…</option><option v-for="(label, value) in statusLabels" :key="value" :value="value">{{ label }}</option>
       </select>
       <select class="native-field" aria-label="移到版本" @change="pick($event, (value) => emit('patch', { gameVersion: value }))">
         <option value="">移到版本…</option><option v-for="version in versions" :key="version">{{ version }}</option>
@@ -26,9 +26,9 @@ const applyWeight = () => { const value = Number(weight.value); if (weight.value
       <select class="native-field" aria-label="设事件组" @change="pick($event, (value) => emit('patch', { eventGroup: value === '__clear' ? null : value }))">
         <option value="">设事件组…</option><option v-for="group in groups" :key="group">{{ group }}</option><option value="__clear">清除事件组</option>
       </select>
-      <span class="selection-bar__weight" role="group" aria-label="批量调整权重">
-        <button v-for="[value, label] in ([['set', '权重＝'], ['add', '＋'], ['multiply', '×']] as const)" :key="value" type="button" class="native-field selection-bar__op" :aria-pressed="operation === value" @click="operation = value">{{ label }}</button>
-        <input v-model="weight" class="native-field selection-bar__value" type="number" step="0.05" placeholder="数值" aria-label="权重数值" @keydown.enter.prevent="applyWeight">
+      <span class="action-bar__weight" role="group" aria-label="批量调整权重">
+        <button v-for="[value, label] in ([['set', '权重＝'], ['add', '＋'], ['multiply', '×']] as const)" :key="value" type="button" class="native-field action-bar__op" :aria-pressed="operation === value" @click="operation = value">{{ label }}</button>
+        <input v-model="weight" class="native-field action-bar__value" type="number" step="0.05" placeholder="数值" aria-label="权重数值" @keydown.enter.prevent="applyWeight">
         <UButton label="应用" color="neutral" variant="outline" size="sm" @click="applyWeight" />
       </span>
     </template>
@@ -47,8 +47,8 @@ const applyWeight = () => { const value = Number(weight.value); if (weight.value
 .action-bar__status { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); }
 .action-bar__summary { color: var(--muted); font-size: var(--type-label-sm-size); }
 .action-bar__spacer { flex: 1; }
-.selection-bar__weight { display: inline-flex; align-items: center; gap: var(--space-1); }
-.selection-bar__op { min-width: 2.5rem; cursor: pointer; }
-.selection-bar__op[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-surface); color: var(--accent); font-weight: 600; }
-.selection-bar__value { width: 5.5rem; }
+.action-bar__weight { display: inline-flex; align-items: center; gap: var(--space-1); }
+.action-bar__op { min-width: 2.5rem; cursor: pointer; }
+.action-bar__op[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-surface); color: var(--accent); font-weight: 600; }
+.action-bar__value { width: 5.5rem; }
 </style>
