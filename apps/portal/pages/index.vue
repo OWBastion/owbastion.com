@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { formatEditorialDate } from "~/utils/editorial";
+import { introductionPages } from "~/utils/introduction-pages";
 
 const { data: releases } = await useAsyncData("home-latest-changelog", () => queryEditorialSummaries("changelog"), { default: () => [] });
 // Summaries are generated newest first.
@@ -29,7 +30,7 @@ useSeoMeta({
         <h2 id="latest-title" class="type-title">最新版本</h2>
         <NuxtLink to="/changelog" class="latest-all">全部版本更新</NuxtLink>
       </div>
-      <NuxtLink :to="latest.path" class="content-card content-card--link interactive-card pressable-soft">
+      <NuxtLink :to="latest.path" class="latest-card content-card content-card--link interactive-card pressable-soft">
         <span class="latest-meta">
           <span class="latest-version num"><span class="sr-only">版本 </span>{{ latest.version }}</span>
           <time class="latest-date" :datetime="latest.releasedAt">{{ formatEditorialDate(latest.releasedAt) }}</time>
@@ -41,23 +42,10 @@ useSeoMeta({
     <section class="content-section" aria-labelledby="content-title">
       <h2 id="content-title" class="type-title">目录</h2>
       <div class="content-grid directory-grid">
-        <NuxtLink id="events" to="/events" class="content-card content-card--link interactive-card pressable-soft">
-          <h3 class="type-headline">随机事件</h3>
-        </NuxtLink>
-        <NuxtLink id="maps" to="/maps" class="content-card content-card--link interactive-card pressable-soft">
-          <h3 class="type-headline">地图</h3>
-        </NuxtLink>
-        <NuxtLink id="achievements" to="/achievements" class="content-card content-card--link interactive-card pressable-soft">
-          <h3 class="type-headline">成就</h3>
-        </NuxtLink>
-        <NuxtLink to="/leaderboard" class="content-card content-card--link interactive-card pressable-soft">
-          <h3 class="type-headline">排行榜</h3>
-        </NuxtLink>
-        <NuxtLink to="/changelog" class="content-card content-card--link interactive-card pressable-soft">
-          <h3 class="type-headline">版本更新</h3>
-        </NuxtLink>
-        <NuxtLink to="/blog" class="content-card content-card--link interactive-card pressable-soft">
-          <h3 class="type-headline">开发日志</h3>
+        <NuxtLink v-for="page in introductionPages" :key="page.to" :to="page.to" class="content-card content-card--link interactive-card pressable-soft directory-card">
+          <UIcon :name="page.icon" class="directory-icon" aria-hidden="true" />
+          <h3 class="type-headline">{{ page.label }}</h3>
+          <p class="directory-description">{{ page.description }}</p>
         </NuxtLink>
       </div>
     </section>
@@ -92,6 +80,12 @@ useSeoMeta({
   border-color: color-mix(in oklch, var(--accent) 42%, var(--line-strong));
   background: color-mix(in oklch, var(--surface) 88%, var(--accent-surface));
 }
+.latest-update .latest-card,
+.latest-update .latest-card:hover,
+.latest-update .latest-card:focus-visible { background: radial-gradient(120% 140% at 0% 0%, color-mix(in oklch, var(--accent) 16%, transparent), transparent 58%), var(--surface); }
+.directory-card { gap: var(--space-2); }
+.directory-icon { width: 1.5rem; height: 1.5rem; margin-bottom: var(--space-2); color: var(--accent); }
+.directory-description { margin: 0; color: var(--muted); font-size: var(--type-caption-size); }
 .footer { display: flex; justify-content: space-between; gap: var(--space-4); padding-top: var(--space-6); border-top: 1px solid var(--line); color: var(--quiet); font-size: var(--type-caption-size); }
 @media (max-width: 47.99rem) {
   .content-card { padding: var(--space-5); }
