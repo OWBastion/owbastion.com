@@ -39,7 +39,7 @@ const run = (overrides: Partial<CurrentPlayerMasteryResponse["runs"][number]> = 
   ...overrides,
 });
 
-const player = ref<Player | null>({ player: { playerId: "1", playerName: "Player", isAdmin: false, publicProfile: true }, recentSubmissions: [] });
+const player = ref<Player | null>({ player: { playerId: "1", playerName: "Player", isAdmin: false, publicProfile: true, hideBattleTag: false }, recentSubmissions: [] });
 const titles = ref<OwnedTitle[]>([]);
 const status = ref<"unknown" | "loading" | "authenticated" | "anonymous">("authenticated");
 const activityDays = ref<PlayerActivityDay[]>([]);
@@ -88,8 +88,9 @@ async function mountPage(): Promise<VueWrapper> {
         UEmpty: { props: ["title"], template: "<div>{{ title }}</div>" },
         USkeleton: { template: "<div class=\"skeleton\" />" },
         UIcon: { props: ["name"], template: "<i :data-icon=\"name\" />" },
+        UPopover: { template: "<div><slot /><slot name=\"content\" /></div>" },
         PlayerHandleCard: { template: "<div data-handle=\"card\" />" },
-        PlayerProfileVisibilityCard: { props: ["publicProfile"], template: "<div data-visibility=\"card\">{{ publicProfile }}</div>" },
+        PlayerProfileVisibilityCard: { props: ["publicProfile", "hideBattleTag"], template: "<div data-visibility=\"card\">{{ publicProfile }}/{{ hideBattleTag }}<slot /></div>" },
       },
     },
   });
@@ -100,7 +101,7 @@ async function mountPage(): Promise<VueWrapper> {
 const stat = (wrapper: VueWrapper, label: string) => wrapper.findAll(".stat-sheet__item").find((item) => item.get("dt").text() === label)!.get("dd").text().replace(/\s+/g, " ");
 
 function reset(overrides?: { runs?: CurrentPlayerMasteryResponse["runs"]; profiles?: CurrentPlayerMasteryResponse["profiles"] }) {
-  player.value = { player: { playerId: "1", playerName: "Player", isAdmin: false, publicProfile: true }, recentSubmissions: [] };
+  player.value = { player: { playerId: "1", playerName: "Player", isAdmin: false, publicProfile: true, hideBattleTag: false }, recentSubmissions: [] };
   titles.value = [];
   status.value = "authenticated";
   activityDays.value = [];
@@ -132,12 +133,13 @@ describe("me profile page", () => {
     expect(wrapper.text()).not.toContain("地图成就");
   });
 
-  it("shows the public-profile visibility control fed by the player setting", async () => {
+  it("offers the visibility settings as a secondary control inside the hero, not a page section", async () => {
     reset();
     const wrapper = await mountPage();
-    const section = wrapper.get('section[aria-labelledby="visibility-title"]');
-    expect(section.text()).toContain("公开主页");
-    expect(section.get("[data-visibility='card']").text()).toBe("true");
+    expect(wrapper.find('section[aria-labelledby="visibility-title"]').exists()).toBe(false);
+    const settings = wrapper.get(".profile-hero__settings");
+    expect(settings.get("[data-visibility='card']").text()).toBe("true/false");
+    expect(settings.find("[data-handle='card']").exists()).toBe(true);
   });
 
   it("groups earned titles into series with the map series first", async () => {
@@ -276,7 +278,7 @@ describe("me profile page", () => {
     expect(wrapper.find('[role="status"][aria-label="读取中…"]').exists()).toBe(false);
     expect(wrapper.text()).toContain("无法读取玩家信息");
 
-    player.value = { player: { playerId: "1", playerName: "Player", isAdmin: false, publicProfile: true }, recentSubmissions: [] };
+    player.value = { player: { playerId: "1", playerName: "Player", isAdmin: false, publicProfile: true, hideBattleTag: false }, recentSubmissions: [] };
     status.value = "authenticated";
     await wrapper.findAll("button").find((button) => button.text() === "重试")!.trigger("click");
     await flushPromises();

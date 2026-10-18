@@ -3041,7 +3041,7 @@ if (verifiedRunPlan?.superseded) await reconcileVerifiedRunProgressChallenges({ 
       const verifiedRunOutcomes = await loadVerifiedRunSubmissionOutcomes(recentSubmissions.map((submission) => submission.submissionId));
       return {
         contractVersion: "1" as const,
-        player: { playerId: player.playerId, playerName: player.playerName, isAdmin: player.isAdmin === 1, publicProfile: player.publicProfile === 1 },
+        player: { playerId: player.playerId, playerName: player.playerName, isAdmin: player.isAdmin === 1, publicProfile: player.publicProfile === 1, hideBattleTag: player.hideBattleTag === 1 },
         recentSubmissions: recentSubmissions.map((submission) => {
           const verifiedRunOutcome = verifiedRunOutcomes.get(submission.submissionId);
           return { submissionId: submission.submissionId, status: playerSubmissionStatus(submission.status), resubmissionRequired: submission.status === "resubmission_required", mapName: submission.mapName, challengeId: submission.challengeId ?? undefined, difficulty: submission.difficulty ?? undefined, reason: verifiedRunOutcome?.status === "conflict" ? undefined : submission.reason ?? undefined, ...playerVerifiedRunSubmissionOutcomeFields(verifiedRunOutcome), createdAt: submission.createdAt, updatedAt: submission.updatedAt };
@@ -3053,13 +3053,13 @@ if (verifiedRunPlan?.superseded) await reconcileVerifiedRunProgressChallenges({ 
       const operation = "player.profile.visibility.update";
       const current = await getCurrentPortalPlayer(input.sessionToken);
       if (!current) throw new Error("UNAUTHENTICATED");
-      const request = { publicProfile: input.publicProfile };
+      const request = { publicProfile: input.publicProfile, hideBattleTag: input.hideBattleTag };
       const replay = await replayOrConflict<PlayerProfileVisibilityResponse>(db, current.player.id, operation, idempotencyKey, request);
       if (replay) return replay;
       const timestamp = now();
-      const response: PlayerProfileVisibilityResponse = { contractVersion: "1", publicProfile: input.publicProfile };
+      const response: PlayerProfileVisibilityResponse = { contractVersion: "1", publicProfile: input.publicProfile, hideBattleTag: input.hideBattleTag };
       await database.batch([
-        database.prepare("UPDATE player_accounts SET public_profile = ?, updated_at = ? WHERE id = ?").bind(input.publicProfile ? 1 : 0, timestamp, current.player.id),
+        database.prepare("UPDATE player_accounts SET public_profile = ?, hide_battletag = ?, updated_at = ? WHERE id = ?").bind(input.publicProfile ? 1 : 0, input.hideBattleTag ? 1 : 0, timestamp, current.player.id),
         database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(`${current.player.id}:${operation}:${idempotencyKey}`, current.player.id, operation, await hashRequest(request), JSON.stringify(response), timestamp),
         database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), "user", current.player.id, operation, "player_accounts", current.player.id, JSON.stringify(request), timestamp),
       ]);

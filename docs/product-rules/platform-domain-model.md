@@ -198,7 +198,10 @@ Public ranking may show only privacy-safe facts: public display identity, rank, 
 mastery, completion counts, approved personal bests, public Titles. Never screenshots,
 match codes, QQ identifiers, raw OCR, review/audit detail, risk signals, or storage
 references. One simple public-profile visibility setting; disabling it anonymizes the
-Player on boards without changing scores or eligibility. Title visibility reuses the Title's
+Player on boards without changing scores or eligibility. A second setting hides the BattleTag name
+from other Players while the profile stays public: public projections then show the
+approved handle as the display name, or anonymous when none exists; the Player always
+sees their own BattleTag. Title visibility reuses the Title's
 own field.
 
 ## Reviews

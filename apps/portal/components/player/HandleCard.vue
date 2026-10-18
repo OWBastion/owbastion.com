@@ -85,7 +85,7 @@ onMounted(load);
           <UButton :label="state.handle ? '更换' : '设置'" color="neutral" variant="outline" size="sm" @click="editing = true" />
         </div>
       </div>
-      <p v-if="editing" class="handle-note">字母、数字和汉字，不能全为数字，由维护者审核。</p>
+      <p v-if="editing" class="handle-note">2–9 个字母、数字或汉字，不能全为数字。</p>
       <div v-if="state.pending" class="handle-row">
         <span class="handle-note"><b>{{ state.pending.handle }}</b> · 审核中</span>
         <UButton label="撤回申请" color="neutral" variant="ghost" size="sm" :disabled="busy" @click="withdraw" />

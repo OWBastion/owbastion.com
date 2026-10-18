@@ -11,7 +11,7 @@ const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(valu
 const fixture = () => {
   const harness = createD1();
   harness.sqlite.exec(`
-    CREATE TABLE player_accounts (id TEXT PRIMARY KEY, player_id TEXT NOT NULL, player_name TEXT NOT NULL, normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, public_profile INTEGER NOT NULL DEFAULT 1, banned_at INTEGER, banned_by TEXT, ban_reason TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE player_accounts (id TEXT PRIMARY KEY, player_id TEXT NOT NULL, player_name TEXT NOT NULL, normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, public_profile INTEGER NOT NULL DEFAULT 1, hide_battletag INTEGER NOT NULL DEFAULT 0, banned_at INTEGER, banned_by TEXT, ban_reason TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE portal_sessions (id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, token_hash TEXT NOT NULL, expires_at INTEGER NOT NULL);
     CREATE TABLE maps (id TEXT PRIMARY KEY, name TEXT NOT NULL, game_version TEXT NOT NULL, status TEXT NOT NULL, introduced_version TEXT NOT NULL, retired_version TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE gameplay_revisions (id TEXT PRIMARY KEY, map_id TEXT NOT NULL REFERENCES maps(id), lifecycle TEXT NOT NULL, legacy_map_variant TEXT, mode TEXT, copied_from_revision_id TEXT, reset_reason TEXT, game_version TEXT NOT NULL, spatial_config_json TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
@@ -298,6 +298,19 @@ describe("public player profiles by handle", () => {
     sqlite.prepare("UPDATE player_accounts SET public_profile = 1").run();
     sqlite.prepare("DELETE FROM player_handles").run();
     await expect(services.getPublicPlayerByHandle({ handle: "alpha" })).resolves.toBeNull();
+  });
+
+  it("replaces a hidden BattleTag name with the handle, or anonymous, while keeping public detail", async () => {
+    const { services, sqlite, addPlayer, addMap, addRevision, addRun } = fixture();
+    addPlayer("shown", "Shown"); addPlayer("hidden", "Hidden"); addPlayer("secret", "Secret");
+    addMap("map.a", "Map A"); addRevision("rev.a1", "map.a", "default");
+    for (const [index, id] of ["shown", "hidden", "secret"].entries()) addRun(`r.${id}`, id, "map.a", "rev.a1", 100 - index, 100);
+    withHandle(sqlite, "hidden", "hiddenone");
+    sqlite.prepare("UPDATE player_accounts SET hide_battletag = 1 WHERE id IN ('hidden', 'secret')").run();
+    const page = leaderboardResponseSchema.parse(await services.getPublicLeaderboard({ board: "mastery", page: 1, pageSize: 10 }));
+    expect(page.items.map((item) => item.player?.displayName)).toEqual(["Shown", "hiddenone", "匿名玩家"]);
+    expect(JSON.stringify(page)).not.toMatch(/Hidden|Secret/);
+    expect(await services.getPublicPlayerByHandle({ handle: "hiddenone" })).toMatchObject({ publicProfile: true, player: { displayName: "hiddenone" }, boards: { mastery: { rank: 2 } } });
   });
 
   it("links leaderboard rows only for public Players with an active handle", async () => {

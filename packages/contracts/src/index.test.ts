@@ -108,9 +108,10 @@ describe("v1 platform contracts", () => {
   });
 
   it("keeps profile visibility owner-shaped and leaderboard entries free of private fields", () => {
-    expect(playerProfileVisibilityRequestSchema.safeParse({ contractVersion: "1", publicProfile: false }).success).toBe(true);
-    expect(playerProfileVisibilityRequestSchema.safeParse({ contractVersion: "1", publicProfile: "no" }).success).toBe(false);
-    expect(playerProfileVisibilityResponseSchema.safeParse({ contractVersion: "1", publicProfile: true }).success).toBe(true);
+    expect(playerProfileVisibilityRequestSchema.safeParse({ contractVersion: "1", publicProfile: false, hideBattleTag: true }).success).toBe(true);
+    expect(playerProfileVisibilityRequestSchema.safeParse({ contractVersion: "1", publicProfile: false }).success).toBe(false);
+    expect(playerProfileVisibilityRequestSchema.safeParse({ contractVersion: "1", publicProfile: "no", hideBattleTag: false }).success).toBe(false);
+    expect(playerProfileVisibilityResponseSchema.safeParse({ contractVersion: "1", publicProfile: true, hideBattleTag: false }).success).toBe(true);
     const entry = { rank: 1, score: 100, reachedAt: 1_000, player: { playerKey: "key-1", displayName: "Player", equippedTitle: { titleKey: "PIONEER", label: "开拓者", icon: "trophy", iconUrl: null } } };
     expect(leaderboardEntrySchema.safeParse(entry).success).toBe(true);
     expect(leaderboardEntrySchema.safeParse({ ...entry, player: null }).success).toBe(true);

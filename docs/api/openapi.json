@@ -358,7 +358,7 @@
   "/v1/me/profile/visibility": {
    "put": {
     "operationId": "updateCurrentPlayerProfileVisibility",
-    "description": "Updates the owning Player Account's public-profile visibility. When off, every public projection keeps the Player's rank and score but withholds display name, avatar initial, equipped Title, and per-map/title detail; the Player appears anonymously. The public leaderboard entry contract carries display identity, rank, score, and equipped Title only while the Player is public.",
+    "description": "Replaces the owning Player Account's public-profile visibility (`publicProfile`, `hideBattleTag`). `hideBattleTag` keeps the public profile and titles but withholds the BattleTag name from other Players: public leaderboard and /u projections show the Player's approved handle as the display name, or anonymous when there is none. The Player always sees their own BattleTag. When `publicProfile` is off, every public projection keeps the Player's rank and score but withholds display name, avatar initial, equipped Title, and per-map/title detail; the Player appears anonymously. The public leaderboard entry contract carries display identity, rank, score, and equipped Title only while the Player is public.",
     "parameters": [
      {
       "$ref": "#/components/parameters/idempotencyKey"
