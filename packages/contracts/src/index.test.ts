@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionPromotionRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventCreateRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventBatchRequestSchema, adminRandomEventVersionAvailabilityRequestSchema, adminRandomEventVersionListResponseSchema, adminSubmissionReviewPreviewRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, adminVerifiedRunCorrectionRequestSchema, adminVerifiedRunSchema, agentMapSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema, agentTitleListResponseSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, ocrAccuracyFeedbackRequestSchema, ocrAccuracyFeedbackResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerProfileVisibilityRequestSchema, playerProfileVisibilityResponseSchema, leaderboardEntrySchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryResponseSchema, qqBindingClaimVerifyRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, playerHandleStateResponseSchema, publicPlayerProfileSchema } from "./index";
+import { adminTitleCreateRequestSchema, adminTitleChallengeCreateRequestSchema, adminChallengeLifecycleRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionPromotionRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventCreateRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventBatchRequestSchema, adminRandomEventVersionAvailabilityRequestSchema, adminRandomEventVersionListResponseSchema, adminSubmissionReviewPreviewRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, adminVerifiedRunCorrectionRequestSchema, adminVerifiedRunSchema, agentMapSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema, agentTitleListResponseSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, ocrAccuracyFeedbackRequestSchema, ocrAccuracyFeedbackResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerProfileVisibilityRequestSchema, playerProfileVisibilityResponseSchema, leaderboardEntrySchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryResponseSchema, qqBindingClaimVerifyRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, playerHandleStateResponseSchema, publicPlayerProfileSchema } from "./index";
 
 describe("v1 platform contracts", () => {
-  it("validates global and scoped achievement creation", () => {
-    const base = { contractVersion: "1" as const, titleKey: "CLASSIC_RACETRACK", titleName: "经典赛道", icon: "trophy", category: "经典版系列", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual" as const, status: "active" as const, gameVersion: "26.0728.1", scope: "map" as const };
-    expect(adminAchievementCreateRequestSchema.safeParse({ ...base, mapIds: ["map.route66"] }).success).toBe(true);
-    expect(adminAchievementCreateRequestSchema.safeParse({ ...base, mapIds: ["map.route66"], mapVariant: "classic" }).success).toBe(true);
-    expect(adminAchievementCreateRequestSchema.safeParse({ ...base, scope: "global", mapIds: ["map.route66"] }).success).toBe(false);
-    expect(adminAchievementCreateRequestSchema.safeParse({ ...base, titleKey: "not-valid" }).success).toBe(false);
+  it("separates title-only creation from acquisition fields", () => {
+    const title = { contractVersion: "1", label: "经典赛道", icon: "trophy", category: "经典版系列", scope: "map", displayKind: "fixed", publicVisibility: true };
+    expect(adminTitleCreateRequestSchema.safeParse(title).success).toBe(true);
+    expect(adminTitleCreateRequestSchema.safeParse({ ...title, titleKey: "not-valid" }).success).toBe(false);
+    expect(adminTitleCreateRequestSchema.safeParse({ ...title, lifecycle: "active" }).success).toBe(false);
+    const challenge = { contractVersion: "1", condition: "完成挑战", submissionMode: "manual", status: "active", mapIds: ["map.route66"], mapVariant: "classic" };
+    expect(adminTitleChallengeCreateRequestSchema.safeParse(challenge).success).toBe(true);
+    expect(adminTitleChallengeCreateRequestSchema.safeParse({ ...challenge, scope: "map" }).success).toBe(false);
+    expect(adminChallengeLifecycleRequestSchema.parse({ contractVersion: "1", status: "active", startsAt: null, retiredVersion: null })).toMatchObject({ startsAt: null, retiredVersion: null });
   });
   it("accepts unreleased stable title definitions in the Agents build projection", () => {
     expect(agentTitleListResponseSchema.safeParse({
@@ -399,7 +402,9 @@ describe("v1 platform contracts", () => {
   });
 
   it("validates achievement update fields without requiring optional lifecycle metadata", () => {
-    const input = { contractVersion: "1", family: "achievement", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "archived" };
+    const input = { contractVersion: "1", family: "achievement", saveMode: "in_place", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "archived" };
+    expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, saveMode: undefined }).success).toBe(false);
+    expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, scope: "global" }).success).toBe(false);
     expect(adminChallengeUpdateRequestSchema.safeParse(input).success).toBe(true);
     expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, iconUrl: "https://cdn.example.com/icon.webp" }).success).toBe(true);
     expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, iconUrl: "not-a-url" }).success).toBe(false);
@@ -423,13 +428,13 @@ describe("v1 platform contracts", () => {
   });
 
   it("accepts null optional fields from an admin response when editing a challenge", () => {
-    const title = { contractVersion: "1", family: "achievement", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, iconUrl: null, status: "active", retiredVersion: null, startsAt: null, endsAt: null };
+    const title = { contractVersion: "1", family: "achievement", saveMode: "in_place", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, iconUrl: null, status: "active", retiredVersion: null, startsAt: null, endsAt: null };
     expect(adminChallengeUpdateRequestSchema.safeParse(title).success).toBe(true);
     expect(adminChallengeUpdateRequestSchema.safeParse({ contractVersion: "1", family: "map", status: "active", retiredVersion: null }).success).toBe(true);
   });
 
   it("accepts active challenges with a schedule window", () => {
-    const input = { contractVersion: "1", family: "achievement", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "active", startsAt: 2_000, endsAt: 3_000 };
+    const input = { contractVersion: "1", family: "achievement", saveMode: "in_place", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "active", startsAt: 2_000, endsAt: 3_000 };
     expect(adminChallengeUpdateRequestSchema.safeParse(input).success).toBe(true);
     expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, endsAt: 1_000 }).success).toBe(false);
     expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, startsAt: undefined, endsAt: undefined }).success).toBe(true);
@@ -438,14 +443,11 @@ describe("v1 platform contracts", () => {
     expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, status: "archived" }).success).toBe(false);
   });
 
-  it("allows a draft achievement to omit release metadata", () => {
-    const input = { contractVersion: "1", titleKey: "FUTURE_TITLE", titleName: "未来称号", icon: "trophy", category: "未来系列", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", scope: "global", mapIds: [], status: "draft" };
-    expect(adminAchievementCreateRequestSchema.safeParse(input).success).toBe(true);
-    // The service records the current version when a non-draft challenge omits it.
-    expect(adminAchievementCreateRequestSchema.safeParse({ ...input, status: "active" }).success).toBe(true);
-    expect(adminAchievementCreateRequestSchema.safeParse({ ...input, status: "active", retiredVersion: "26.0901.1" }).success).toBe(true);
-    expect(adminAchievementCreateRequestSchema.safeParse({ ...input, status: "archived" }).success).toBe(true);
-    expect(adminAchievementCreateRequestSchema.safeParse({ ...input, retiredVersion: "26.0901.1" }).success).toBe(false);
+  it("allows a new challenge to omit release metadata but not create an archived path", () => {
+    const input = { contractVersion: "1", condition: "完成挑战", submissionMode: "manual", status: "draft" };
+    expect(adminTitleChallengeCreateRequestSchema.safeParse(input).success).toBe(true);
+    expect(adminTitleChallengeCreateRequestSchema.safeParse({ ...input, status: "active" }).success).toBe(true);
+    expect(adminTitleChallengeCreateRequestSchema.safeParse({ ...input, status: "archived" }).success).toBe(false);
     expect(adminChallengeSchema.safeParse({ challengeId: "title.FUTURE_TITLE", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "FUTURE_TITLE", titleName: "未来称号", icon: "trophy", category: "未来系列", condition: "完成挑战", evidenceRule: "完整截图", gameVersion: null, status: "draft", introducedVersion: null, submissionMode: "manual", categoryOverride: null, retiredVersion: null, startsAt: null, endsAt: null }).success).toBe(true);
   });
 

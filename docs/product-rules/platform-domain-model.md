@@ -57,7 +57,8 @@ because a material rule change creates a new Challenge.
 - Conditions are embedded, one list with one top-level `AND`/`OR`; no nested trees until a
   confirmed need. Aggregate progress stays derivable from Runs (no counters or workflow
   engine). A material change (difficulty, counts, events, map/revision scope) creates a new
-  Challenge and archives the old; presentation-only edits update in place.
+  Challenge and archives the old without rewriting its Completions or Grants;
+  presentation-only edits may update in place or create a new Challenge.
 - A higher Challenge may explicitly `satisfies` a lower one: ordinary completion of the lower,
   then its own Grant if not owned in scope. It is Challenge semantics, not Grant inheritance.
 - Manual acquisition (special, community, developer, compensation, appeal) uses the same
@@ -226,7 +227,8 @@ engine or mandatory reasons.
 
 ## Admin information architecture
 
-- Top level (frequent work): Titles, Challenges, Maps, Random Events, Players, Invitations,
+- Top level (frequent work): Titles (with acquisition Challenges), Map Challenges, Maps,
+  Random Events, Players, Invitations,
   Screenshot Review, Reviews/Moderation. Contextual: Grants, Verified Runs, Mastery, Seasons,
   Leaderboards, Audit, OCR Feedback. No blog/changelog editing. Remove standalone CRUD once a
   workflow covers it; keep no empty or duplicate surfaces for compatibility.

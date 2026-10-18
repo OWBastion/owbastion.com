@@ -12,7 +12,7 @@ export const titleCatalogSchema = `CREATE TABLE title_catalog (
     scope TEXT NOT NULL,
     display_kind TEXT NOT NULL,
     color_json TEXT NOT NULL DEFAULT 'null',
-    game_version TEXT NOT NULL
+    game_version TEXT
   );`;
 
 export const auditEventsRequiredIdSchema = `CREATE TABLE audit_events (

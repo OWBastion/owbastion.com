@@ -14,13 +14,20 @@ Platform-owned metadata and its authoring rules. Lifecycle semantics:
 - A Challenge awards exactly one Title; `draft`/`active`/`archived`, optional start/end,
   and a condition-visibility flag that never gates evaluation. Conditions are one
   top-level AND/OR list. A material qualification change creates a new Challenge and
-  archives the old; copy-only edits update in place.
+  archives the old, linking it to its replacement without changing old Completions or
+  Grants. Copy-only edits may update in place or create a replacement, as chosen by the
+  maintainer. Title creation is independent of Challenge creation; a Title may have no
+  Challenge or multiple acquisition Challenges. Challenge scope belongs to its Title.
 - Legacy authoring and projection routes still expose schedule/release fields while
   records are adapted to Challenge -> Completion -> Grant.
 - Every new qualification is a Completion before its Grant. An already-owned Title is
   skipped across its acquisition Challenges in the same scope; explicit `satisfies` links
   may record lower Completions and Grants when not already owned.
 - Admin changes need maintainer authorization, an idempotency key, and an audit record.
+  Retirement archives the Title's non-archived Challenges and map title rules atomically;
+  its response retains their prior lifecycle/window state. Reopening may restore those
+  owned rows in the same batch, making retirement reversible. Manual-grant Challenges
+  are not ordinary acquisition rows or counts in the Title workspace.
 
 ## Manual and historical issuance
 

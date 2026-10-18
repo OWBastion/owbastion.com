@@ -385,6 +385,7 @@ export const titleChallenges = sqliteTable("title_challenges", {
   scope: text("scope").notNull().default("global"),
   mapVariant: text("map_variant"),
   progressRule: text("progress_rule"),
+  replacedByChallengeId: text("replaced_by_challenge_id").references((): AnySQLiteColumn => titleChallenges.id),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, (table) => ({

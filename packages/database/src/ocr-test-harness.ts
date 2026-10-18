@@ -27,7 +27,6 @@ import {
   randomEventsSchema,
   standaloneModesSchema,
   reviewedAnnotationsSchemaWithoutReferences,
-  standaloneModesSchema,
   submissionOutcomesWithReferencesSchema,
   submissionReviewsSchema,
   titleCatalogSchema,
@@ -247,17 +246,19 @@ export const installSchema = (sqlite: DatabaseSync) => {
       condition TEXT NOT NULL,
       evidence_rule TEXT NOT NULL,
       submission_mode TEXT NOT NULL,
-      game_version TEXT NOT NULL,
-      status TEXT NOT NULL,
-      introduced_version TEXT NOT NULL,
+      game_version TEXT,
+      status TEXT NOT NULL CHECK (status IN ('draft', 'active', 'archived')),
+      introduced_version TEXT,
       retired_version TEXT,
       starts_at INTEGER,
       ends_at INTEGER,
       scope TEXT NOT NULL DEFAULT 'global',
       map_variant TEXT,
       progress_rule TEXT,
+      replaced_by_challenge_id TEXT REFERENCES title_challenges(id),
       created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
+      updated_at INTEGER NOT NULL,
+      CHECK (ends_at IS NULL OR starts_at IS NULL OR ends_at > starts_at)
     );
     ${achievementChallengeMapsSchema}
     ${mapMetadataSchema}

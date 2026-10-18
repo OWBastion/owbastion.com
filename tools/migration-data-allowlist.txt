@@ -40,3 +40,4 @@
 0094_achievement_progress_rule.sql
 0100_upload_session_submission_timing.sql
 0101_challenge_lifecycle_convergence.sql
+0105_title_challenge_acquisition_paths.sql
