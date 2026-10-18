@@ -1,7 +1,9 @@
 import { DatabaseSync } from "node:sqlite";
+import { mapTitleRulesSchema } from "../test/schema";
 import { describe, expect, it } from "vitest";
 import { evaluateCanonicalChallengeConditions, parseCanonicalChallengeConditions } from "@owbastion/domain";
-import type { AdminAchievementCreateRequest, AdminChallengeUpdateRequest } from "@owbastion/contracts";
+import type { AdminTitleChallengeCreateRequest, AdminChallengeUpdateRequest } from "@owbastion/contracts";
+type ProgressFixtureInput = AdminTitleChallengeCreateRequest & { titleKey: string; titleName: string; icon: string; category: string; scope: "global" | "map"; mapIds: string[]; categoryOverride: null; iconUrl: null };
 import type { AuthContext, VerifiedRunInput } from "@owbastion/domain";
 import { createPlatformServices } from "./index";
 import { assessChallengeOcrQuality } from "./ocr-response";
@@ -83,6 +85,7 @@ const hashRequest = async (value: unknown) => {
 };
 
 const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
+  ${mapTitleRulesSchema}
   CREATE TABLE player_accounts (id TEXT PRIMARY KEY NOT NULL, player_id TEXT NOT NULL, player_name TEXT NOT NULL, normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'active', public_profile INTEGER NOT NULL DEFAULT 1, hide_battletag INTEGER NOT NULL DEFAULT 0, banned_at INTEGER, banned_by TEXT, ban_reason TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
   CREATE TABLE maps (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, game_version TEXT NOT NULL, status TEXT NOT NULL, introduced_version TEXT NOT NULL, retired_version TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
   CREATE TABLE map_metadata (map_id TEXT PRIMARY KEY NOT NULL REFERENCES maps(id), difficulty_rating TEXT, mechanics_json TEXT NOT NULL DEFAULT '[]', cover_url TEXT, background_url TEXT, updated_at INTEGER NOT NULL, updated_by TEXT NOT NULL);
@@ -214,7 +217,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   CREATE TABLE idempotency_keys (id TEXT PRIMARY KEY NOT NULL, actor_id TEXT NOT NULL, operation TEXT NOT NULL, request_hash TEXT NOT NULL, response_json TEXT NOT NULL, created_at INTEGER NOT NULL);
   CREATE TABLE audit_events (id TEXT PRIMARY KEY NOT NULL, correlation_id TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, operation TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, payload_json TEXT NOT NULL, created_at INTEGER NOT NULL);
   CREATE TABLE title_catalog (key TEXT PRIMARY KEY NOT NULL, label TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'award', icon_url TEXT, icon_object_key TEXT, category TEXT NOT NULL, condition TEXT NOT NULL, lifecycle TEXT NOT NULL DEFAULT 'active', public_visibility INTEGER NOT NULL DEFAULT 1, scope TEXT NOT NULL DEFAULT 'global', display_kind TEXT NOT NULL DEFAULT 'fixed', color_json TEXT NOT NULL DEFAULT 'null', game_version TEXT);
-  CREATE TABLE title_challenges (id TEXT PRIMARY KEY NOT NULL, title_key TEXT NOT NULL, category_override TEXT, condition TEXT NOT NULL, evidence_rule TEXT NOT NULL, submission_mode TEXT NOT NULL, game_version TEXT, status TEXT NOT NULL, introduced_version TEXT, retired_version TEXT, starts_at INTEGER, ends_at INTEGER, scope TEXT NOT NULL DEFAULT 'global', map_variant TEXT, progress_rule TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+  CREATE TABLE title_challenges (id TEXT PRIMARY KEY NOT NULL, title_key TEXT NOT NULL, category_override TEXT, condition TEXT NOT NULL, evidence_rule TEXT NOT NULL, submission_mode TEXT NOT NULL, game_version TEXT, status TEXT NOT NULL, introduced_version TEXT, retired_version TEXT, starts_at INTEGER, ends_at INTEGER, scope TEXT NOT NULL DEFAULT 'global', map_variant TEXT, progress_rule TEXT, replaced_by_challenge_id TEXT REFERENCES title_challenges(id), created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
   CREATE TABLE achievement_challenge_maps (challenge_id TEXT NOT NULL, map_id TEXT NOT NULL, PRIMARY KEY (challenge_id, map_id));
   CREATE TABLE achievement_challenges (id TEXT PRIMARY KEY NOT NULL);
   CREATE TABLE mastery_run_conflict_resolutions (id TEXT PRIMARY KEY NOT NULL, mastery_run_id TEXT NOT NULL REFERENCES mastery_runs(id), conflict_submission_id TEXT NOT NULL REFERENCES submissions(id), action TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, reason TEXT, resolved_at INTEGER NOT NULL, UNIQUE (mastery_run_id, conflict_submission_id));
@@ -245,7 +248,7 @@ const admin: AuthContext = { actorType: "user", subject: "admin.1", roles: ["mai
 const insertSubmission = (sqlite: DatabaseSync, id: string, playerAccountId: string, createdAt: number) =>
   sqlite.prepare("INSERT INTO submissions (id, player_account_id, binding_id, created_at, updated_at) VALUES (?, ?, 'binding-1', ?, ?)").run(id, playerAccountId, createdAt, createdAt);
 
-const achievementInput = (overrides: Partial<AdminAchievementCreateRequest> = {}): AdminAchievementCreateRequest => ({
+const achievementInput = (overrides: Partial<ProgressFixtureInput> = {}): ProgressFixtureInput => ({
   contractVersion: "1",
   titleKey: "ANNIVERSARY_TOUR",
   titleName: "到此一游",
@@ -289,20 +292,26 @@ const progressGrants = (sqlite: DatabaseSync) =>
   sqlite.prepare("SELECT id, player_account_id, status, source_type, source_id, granted_by, completion_id, revocation_type FROM player_title_grants WHERE granted_by = 'system:verified_run_progress' OR source_id IN (SELECT id FROM challenge_completions WHERE source_type = 'verified_run_progress')").all() as { id: string; player_account_id: string; status: string; source_type: string; source_id: string; granted_by: string; completion_id: string | null; revocation_type: string | null }[];
 
 const canonicalChallengeIds = (sqlite: DatabaseSync) =>
-  (sqlite.prepare("SELECT id, rule_version, conditions_json FROM challenges WHERE source_family = 'title_challenge' AND source_id = 'title.ANNIVERSARY_TOUR'").all() as { id: string; rule_version: string; conditions_json: string }[]);
+  (sqlite.prepare("SELECT id, rule_version, conditions_json FROM challenges WHERE source_family = 'title_challenge' AND title_key = 'ANNIVERSARY_TOUR'").all() as { id: string; rule_version: string; conditions_json: string }[]);
 
 const setup = () => {
   const harness = createD1();
   const { database, sqlite } = harness;
   installSchema(sqlite);
   seed(sqlite);
-  const services = createPlatformServices(database);
+  const platform = createPlatformServices(database);
+  // Existing run fixtures use the old combined input, but author through the two replacement boundaries.
+  const services = { ...platform, createProgressChallenge: async (input: ProgressFixtureInput, auth: AuthContext, key: string) => {
+    await platform.createAdminTitle({ contractVersion: "1", titleKey: input.titleKey, label: input.titleName, icon: input.icon, category: input.category, scope: input.scope, displayKind: "fixed", publicVisibility: true, gameVersion: input.gameVersion }, auth, "fixture.title");
+    const response = await platform.createAdminTitleChallenge({ contractVersion: "1", titleKey: input.titleKey, condition: input.condition, evidenceRule: input.evidenceRule, submissionMode: input.submissionMode, status: input.status, gameVersion: input.gameVersion, startsAt: input.startsAt, endsAt: input.endsAt, progressRule: input.progressRule, ...(input.scope === "map" ? { mapIds: input.mapIds } : {}), enableTitle: true }, auth, key);
+    return response;
+  } };
   return { ...harness, services };
 };
 
 const seedProgressReadRule = (sqlite: DatabaseSync, input: {
   id: string;
-  rule?: AdminAchievementCreateRequest["progressRule"];
+  rule?: AdminTitleChallengeCreateRequest["progressRule"];
   startsAt?: number;
   endsAt?: number;
   status?: string;
@@ -410,7 +419,7 @@ describe("verified-run progress challenges", () => {
 
   it("completes and grants only after every required map has an eligible active run", async () => {
     const { sqlite, services } = setup();
-    await services.createAdminAchievement(achievementInput(), admin, "create.1");
+    await services.createProgressChallenge(achievementInput(), admin, "create.1");
     insertSubmission(sqlite, "submission-1", "account-1", 500);
 
     await services.recordVerifiedRun(runInput({ mapId: "map.alpha", gameplayRevisionId: "revision:map.alpha", sourceSubmissionId: "submission-1" }));
@@ -424,7 +433,7 @@ describe("verified-run progress challenges", () => {
     expect(completions[0]).toMatchObject({ status: "active", source_type: "verified_run_progress", source_id: "account-1", gameplay_revision_id: null });
     const grants = progressGrants(sqlite);
     expect(grants).toHaveLength(1);
-    expect(grants[0]).toMatchObject({ status: "active", source_type: "automatic", source_id: "title.ANNIVERSARY_TOUR:account-1", granted_by: "system:verified_run_progress", completion_id: completions[0]!.id });
+    expect(grants[0]).toMatchObject({ status: "active", source_type: "automatic", source_id: expect.stringMatching(/^title\.ANNIVERSARY_TOUR\..+:account-1$/), granted_by: "system:verified_run_progress", completion_id: completions[0]!.id });
     expect(canonicalChallengeIds(sqlite)).toHaveLength(1);
     expect(JSON.parse(canonicalChallengeIds(sqlite)[0]!.conditions_json)).toEqual({ operator: "and", conditions: [{ type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"] }] });
   });
@@ -437,7 +446,7 @@ describe("verified-run progress challenges", () => {
         ('revision:map.beta:mirror', 'map.beta', 'selectable', NULL, '2026镜中回响', NULL, NULL, '26.1001.1', 1, 1);
       INSERT INTO standalone_modes (mode, event_weight_total, created_at, updated_at) VALUES ('2026镜中回响', NULL, 1, 1);
     `);
-    await services.createAdminAchievement(achievementInput({ progressRule: { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"], mode: "2026 镜中回响" } }), admin, "create.mode");
+    await services.createProgressChallenge(achievementInput({ progressRule: { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"], mode: "2026 镜中回响" } }), admin, "create.mode");
     insertSubmission(sqlite, "submission-1", "account-1", 500);
     insertSubmission(sqlite, "submission-2", "account-1", 600);
     await services.recordVerifiedRun(runInput({ mapId: "map.alpha", gameplayRevisionId: "revision:map.alpha", sourceSubmissionId: "submission-1" }));
@@ -461,9 +470,9 @@ describe("verified-run progress challenges", () => {
   it("follows every map of its standalone mode when the rule lists none", async () => {
     const { sqlite, services } = setup();
     const save = (mapIds: string[], key: string) => services.upsertAdminStandaloneMode({ contractVersion: "1", mode: "2026镜中回响", mapIds, eventPools: [], eventWeightTotal: null }, admin, key);
-    await expect(services.createAdminAchievement(achievementInput({ progressRule: { type: "required_maps_completed", mode: "2026镜中回响" } }), admin, "create.unknown-mode")).rejects.toThrow("STANDALONE_MODE_NOT_FOUND");
+    await expect(services.createProgressChallenge(achievementInput({ progressRule: { type: "required_maps_completed", mode: "2026镜中回响" } }), admin, "create.unknown-mode")).rejects.toThrow("STANDALONE_MODE_NOT_FOUND");
     await save(["map.alpha", "map.beta"], "mode.two");
-    await services.createAdminAchievement(achievementInput({ progressRule: { type: "required_maps_completed", mode: "2026镜中回响" } }), admin, "create.follow");
+    await services.createProgressChallenge(achievementInput({ progressRule: { type: "required_maps_completed", mode: "2026镜中回响" } }), admin, "create.follow");
     const mirror = (mapId: string) => (sqlite.prepare("SELECT id FROM gameplay_revisions WHERE map_id = ? AND mode = '2026镜中回响'").get(mapId) as { id: string }).id;
     insertSubmission(sqlite, "submission-1", "account-1", 500);
     insertSubmission(sqlite, "submission-2", "account-1", 600);
@@ -492,7 +501,7 @@ describe("verified-run progress challenges", () => {
         ('revision:map.alpha:mirror', 'map.alpha', 'selectable', NULL, '2026镜中回响', NULL, NULL, '26.1001.1', 1, 1),
         ('revision:map.beta:mirror', 'map.beta', 'selectable', NULL, '2026镜中回响', NULL, NULL, '26.1001.1', 1, 1);
     `);
-    await services.createAdminAchievement(achievementInput(), admin, "create.regular");
+    await services.createProgressChallenge(achievementInput(), admin, "create.regular");
     insertSubmission(sqlite, "submission-1", "account-1", 500);
     insertSubmission(sqlite, "submission-2", "account-1", 600);
     await services.recordVerifiedRun(runInput({ mapId: "map.alpha", gameplayRevisionId: "revision:map.alpha:mirror", sourceSubmissionId: "submission-1" }));
@@ -503,7 +512,7 @@ describe("verified-run progress challenges", () => {
   it("keeps progress open for another player and counts only their own runs", async () => {
     const { sqlite, services } = setup();
     sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding-2', 'identity-2', 'account-2', 'qq', 'group-1', 'member-2', 'active', 1)").run();
-    await services.createAdminAchievement(achievementInput(), admin, "create.1");
+    await services.createProgressChallenge(achievementInput(), admin, "create.1");
     insertSubmission(sqlite, "submission-1", "account-1", 500);
     insertSubmission(sqlite, "submission-2", "account-2", 600);
 
@@ -514,7 +523,7 @@ describe("verified-run progress challenges", () => {
 
   it("honours the minimum difficulty threshold per map", async () => {
     const { sqlite, services } = setup();
-    await services.createAdminAchievement(achievementInput({ progressRule: { type: "required_maps_completed", mapIds: ["map.alpha"], difficultyAtLeast: "专家" } }), admin, "create.1");
+    await services.createProgressChallenge(achievementInput({ progressRule: { type: "required_maps_completed", mapIds: ["map.alpha"], difficultyAtLeast: "专家" } }), admin, "create.1");
     insertSubmission(sqlite, "submission-1", "account-1", 500);
     insertSubmission(sqlite, "submission-2", "account-1", 600);
 
@@ -527,7 +536,7 @@ describe("verified-run progress challenges", () => {
 
   it("applies the event window to the source submission creation time", async () => {
     const { sqlite, services } = setup();
-    await services.createAdminAchievement(achievementInput({ status: "active", gameVersion: "26.0810.1", startsAt: 1_000, endsAt: 2_000 }), admin, "create.1");
+    await services.createProgressChallenge(achievementInput({ status: "active", gameVersion: "26.0810.1", startsAt: 1_000, endsAt: 2_000 }), admin, "create.1");
     // Runs recorded against submissions outside [startsAt, endsAt) do not count.
     insertSubmission(sqlite, "submission-early", "account-1", 500);
     insertSubmission(sqlite, "submission-alpha", "account-1", 1_500);
@@ -546,7 +555,7 @@ describe("verified-run progress challenges", () => {
 
   it("invalidates and restores the derived completion and grant with the run", async () => {
     const { sqlite, services } = setup();
-    await services.createAdminAchievement(achievementInput(), admin, "create.1");
+    await services.createProgressChallenge(achievementInput(), admin, "create.1");
     insertSubmission(sqlite, "submission-1", "account-1", 500);
     insertSubmission(sqlite, "submission-2", "account-1", 600);
     await services.recordVerifiedRun(runInput({ sourceSubmissionId: "submission-1" }));
@@ -564,7 +573,7 @@ describe("verified-run progress challenges", () => {
 
   it("reconciles when an admin corrects run facts across required maps", async () => {
     const { sqlite, services } = setup();
-    await services.createAdminAchievement(achievementInput(), admin, "create.1");
+    await services.createProgressChallenge(achievementInput(), admin, "create.1");
     insertSubmission(sqlite, "submission-1", "account-1", 500);
     insertSubmission(sqlite, "submission-2", "account-1", 600);
     await services.recordVerifiedRun(runInput({ sourceSubmissionId: "submission-1" }));
@@ -576,9 +585,37 @@ describe("verified-run progress challenges", () => {
     expect(progressGrants(sqlite)).toMatchObject([{ status: "active" }]);
   });
 
+  it("keeps the title when a satisfied sibling path replaces the revoking grant owner", async () => {
+    const { sqlite, services } = setup();
+    // Path A needs both maps and grants first; path B (map.alpha only) is
+    // added later and shares the player's satisfaction of map.alpha.
+    await services.createProgressChallenge(achievementInput(), admin, "create.a");
+    insertSubmission(sqlite, "submission-1", "account-1", 500);
+    insertSubmission(sqlite, "submission-2", "account-1", 600);
+    await services.recordVerifiedRun(runInput({ sourceSubmissionId: "submission-1" }));
+    const betaRun = await services.recordVerifiedRun(runInput({ mapId: "map.beta", gameplayRevisionId: "revision:map.beta", sourceSubmissionId: "submission-2", matchCode: "2345-6789-1234" }));
+    expect(progressGrants(sqlite)).toMatchObject([{ status: "active" }]);
+    const originalSource = progressGrants(sqlite)[0]!.source_id;
+
+    // A second path that also satisfies the title must not leave the player
+    // titleless when the first path's grant is revoked later.
+    await services.createProgressChallenge(achievementInput({ progressRule: { type: "required_maps_completed", mapIds: ["map.alpha"] } }), admin, "create.b");
+    expect(progressGrants(sqlite)).toMatchObject([{ status: "active" }]);
+
+    // Invalidate the beta run: path A stops being satisfied and revokes its
+    // grant, while path B still satisfies the title and must re-issue it.
+    await services.invalidateVerifiedRun({ verifiedRunId: betaRun.run.runId, reason: "evidence invalidated" }, { actorType: "user", actorId: "maintainer-1" });
+    const activeGrants = progressGrants(sqlite).filter(row => row.status === "active");
+    expect(activeGrants).toHaveLength(1);
+    const liveCompletion = sqlite.prepare("SELECT id FROM challenge_completions WHERE status = 'active'").get() as { id: string };
+    expect(activeGrants[0]!.completion_id).toBe(liveCompletion.id);
+    expect(activeGrants[0]!.source_id).not.toBe(originalSource);
+    expect(progressCompletion(sqlite).filter(row => row.status === "active")).toHaveLength(1);
+  });
+
   it("stays idempotent under repeated runs and reconciliation", async () => {
     const { sqlite, services } = setup();
-    await services.createAdminAchievement(achievementInput(), admin, "create.1");
+    await services.createProgressChallenge(achievementInput(), admin, "create.1");
     insertSubmission(sqlite, "submission-1", "account-1", 500);
     insertSubmission(sqlite, "submission-2", "account-1", 600);
     insertSubmission(sqlite, "submission-3", "account-1", 700);
@@ -612,72 +649,49 @@ describe("verified-run progress challenges", () => {
     await services.recordVerifiedRun(runInput({ mapId: "map.beta", gameplayRevisionId: "revision:map.beta", sourceSubmissionId: "submission-2", matchCode: "2345-6789-1234" }));
     expect(progressCompletion(sqlite)).toEqual([]);
 
-    await services.createAdminAchievement(achievementInput(), admin, "create.1");
+    await services.createProgressChallenge(achievementInput(), admin, "create.1");
     expect(progressCompletion(sqlite)).toMatchObject([{ status: "active" }]);
     expect(progressGrants(sqlite)).toMatchObject([{ status: "active" }]);
   });
 
-  it("rejects progress rules with incompatible scope, submission mode, or maps", async () => {
+  it.each([
+    [{ scope: "map", mapIds: ["map.alpha"] }, "INVALID_MAP_SCOPE"],
+    [{ submissionMode: "automatic" }, "INVALID_SUBMISSION_MODE"],
+    [{ progressRule: { type: "required_maps_completed", mapIds: ["map.missing"] } }, "MAP_NOT_FOUND"],
+    [{ progressRule: { type: "required_maps_completed", mapIds: ["map.retired"] } }, "MAP_NOT_ACTIVE"],
+  ] as const)("rejects incompatible progress configuration %j", async (overrides, error) => {
     const { sqlite, services } = setup();
-    await expect(services.createAdminAchievement(achievementInput({ scope: "map", mapIds: ["map.alpha"] }), admin, "reject.scope")).rejects.toThrow("INVALID_MAP_SCOPE");
-    await expect(services.createAdminAchievement(achievementInput({ submissionMode: "automatic" }), admin, "reject.mode")).rejects.toThrow("INVALID_SUBMISSION_MODE");
-    await expect(services.createAdminAchievement(achievementInput({ progressRule: { type: "required_maps_completed", mapIds: ["map.missing"] } }), admin, "reject.map")).rejects.toThrow("MAP_NOT_FOUND");
-    await expect(services.createAdminAchievement(achievementInput({ progressRule: { type: "required_maps_completed", mapIds: ["map.retired"] } }), admin, "reject.retired")).rejects.toThrow("MAP_NOT_ACTIVE");
+    await expect(services.createProgressChallenge(achievementInput(overrides as Partial<ProgressFixtureInput>), admin, "reject")).rejects.toThrow(error);
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM title_challenges").get()).toEqual({ count: 0 });
   });
 
-  it("re-evaluates players when an admin edits or removes the progress rule", async () => {
+  it("requires a new progress challenge for qualification changes and preserves predecessor awards", async () => {
     const { sqlite, services } = setup();
-    await services.createAdminAchievement(achievementInput({ progressRule: { type: "required_maps_completed", mapIds: ["map.alpha"] } }), admin, "create.1");
+    const first = await services.createProgressChallenge(achievementInput({ progressRule: { type: "required_maps_completed", mapIds: ["map.alpha"] } }), admin, "create.1");
     insertSubmission(sqlite, "submission-1", "account-1", 500);
     insertSubmission(sqlite, "submission-2", "account-1", 600);
     await services.recordVerifiedRun(runInput({ sourceSubmissionId: "submission-1" }));
+    const before = progressGrants(sqlite);
+    const update = { contractVersion: "1" as const, family: "achievement" as const, challengeId: first.challengeId, saveMode: "in_place" as "in_place" | "new_challenge", condition: first.condition, evidenceRule: first.evidenceRule, submissionMode: first.submissionMode, categoryOverride: null, status: "active" as const, gameVersion: first.gameVersion, progressRule: { type: "required_maps_completed" as const, mapIds: ["map.alpha", "map.beta"] } };
+    await expect(services.updateAdminChallenge(update, admin, "reject")).rejects.toThrow("CHALLENGE_QUALIFICATION_CHANGED");
+    const next = await services.updateAdminChallenge({ ...update, saveMode: "new_challenge" }, admin, "replace");
+    expect(next.challengeId).not.toBe(first.challengeId);
     expect(progressCompletion(sqlite)).toMatchObject([{ status: "active" }]);
-    expect(progressGrants(sqlite)).toMatchObject([{ status: "active" }]);
-
-    const update = (overrides: Partial<AdminChallengeUpdateRequest>): AdminChallengeUpdateRequest => ({
-      contractVersion: "1",
-      family: "achievement",
-      challengeId: "title.ANNIVERSARY_TOUR",
-      condition: "在活动期间完成全部指定地图",
-      evidenceRule: "由已核实成绩自动判定",
-      submissionMode: "manual",
-      categoryOverride: null,
-      status: "active",
-      gameVersion: "26.0810.1",
-      ...overrides,
-    } as AdminChallengeUpdateRequest);
-
-    // Widening the required set mints a new canonical rule identity; the
-    // player no longer satisfies it, so the superseded mirror is invalidated
-    // and the single derived grant is revoked.
-    await services.updateAdminChallenge(update({ progressRule: { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"] } }), admin, "update.widen");
-    expect(progressCompletion(sqlite)).toMatchObject([{ status: "invalidated" }]);
-    expect(progressGrants(sqlite)).toMatchObject([{ status: "revoked", revocation_type: "evidence" }]);
-
-    // Completing the new rule restores the same grant row, relinked to the
-    // completion under the new canonical identity.
+    expect(progressGrants(sqlite)).toEqual(before);
     await services.recordVerifiedRun(runInput({ mapId: "map.beta", gameplayRevisionId: "revision:map.beta", sourceSubmissionId: "submission-2", matchCode: "2345-6789-1234" }));
-    const completions = progressCompletion(sqlite);
-    expect(completions).toHaveLength(2);
-    expect(completions.filter((completion) => completion.status === "active")).toHaveLength(1);
-    const grants = progressGrants(sqlite);
-    expect(grants).toHaveLength(1);
-    expect(grants[0]).toMatchObject({ status: "active", source_id: "title.ANNIVERSARY_TOUR:account-1", completion_id: completions.find((completion) => completion.status === "active")!.id });
-
-    // Removing the rule turns it back into a screenshot challenge and clears
-    // the derived mirror: the completion is invalidated and the grant revoked.
-    await services.updateAdminChallenge(update({ progressRule: null }), admin, "update.remove");
-    expect(sqlite.prepare("SELECT progress_rule FROM title_challenges WHERE id = 'title.ANNIVERSARY_TOUR'").get()).toEqual({ progress_rule: null });
-    expect(progressCompletion(sqlite)).toMatchObject([{ status: "invalidated" }, { status: "invalidated" }]);
-    expect(progressGrants(sqlite)).toMatchObject([{ status: "revoked" }]);
+    expect(progressGrants(sqlite)).toEqual(before);
+    expect(progressCompletion(sqlite).every(row => row.status === "active")).toBe(true);
+    const screenshot = await services.updateAdminChallenge({ ...update, challengeId: next.challengeId, saveMode: "new_challenge", progressRule: null }, admin, "remove-rule");
+    expect(screenshot).not.toHaveProperty("progressRule");
+    expect(progressGrants(sqlite)).toEqual(before);
+    expect(progressCompletion(sqlite).every(row => row.status === "active")).toBe(true);
   });
 
   it("exposes privacy-safe per-map progress to the owning player only", async () => {
     const { sqlite, services } = setup();
     const startsAt = Date.now() - 60_000;
     const endsAt = Date.now() + 3_600_000;
-    await services.createAdminAchievement(achievementInput({ status: "active", startsAt, endsAt, progressRule: { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"], difficultyAtLeast: "困难" } }), admin, "create.1");
+    await services.createProgressChallenge(achievementInput({ status: "active", startsAt, endsAt, progressRule: { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"], difficultyAtLeast: "困难" } }), admin, "create.1");
     insertSubmission(sqlite, "submission-1", "account-1", startsAt + 1);
     await services.recordVerifiedRun(runInput({ sourceSubmissionId: "submission-1", acceptedAt: startsAt + 1 }));
     const tokenHash = await hashRequest("session-token");
@@ -687,7 +701,7 @@ describe("verified-run progress challenges", () => {
     expect(response).not.toBeNull();
     expect(response!.items).toHaveLength(1);
     expect(response!.items[0]).toMatchObject({
-      challengeId: "title.ANNIVERSARY_TOUR",
+      challengeId: expect.stringMatching(/^title\.ANNIVERSARY_TOUR\..+/),
       titleKey: "ANNIVERSARY_TOUR",
       status: "active",
       startsAt,
@@ -705,7 +719,7 @@ describe("verified-run progress challenges", () => {
   it("scopes grant mutations to the reconciled player", async () => {
     const { sqlite, services } = setup();
     sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding-2', 'identity-2', 'account-2', 'qq', 'group-1', 'member-2', 'active', 1)").run();
-    await services.createAdminAchievement(achievementInput(), admin, "create.1");
+    await services.createProgressChallenge(achievementInput(), admin, "create.1");
     insertSubmission(sqlite, "submission-1", "account-1", 500);
     insertSubmission(sqlite, "submission-2", "account-1", 600);
     insertSubmission(sqlite, "submission-3", "account-2", 500);
@@ -737,7 +751,7 @@ describe("verified-run progress challenges", () => {
 
   it("repairs the derived mirror on same-state Verified Run retries", async () => {
     const { sqlite, services } = setup();
-    await services.createAdminAchievement(achievementInput(), admin, "create.1");
+    await services.createProgressChallenge(achievementInput(), admin, "create.1");
     insertSubmission(sqlite, "submission-1", "account-1", 500);
     insertSubmission(sqlite, "submission-2", "account-1", 600);
     await services.recordVerifiedRun(runInput({ sourceSubmissionId: "submission-1" }));
@@ -781,20 +795,20 @@ describe("verified-run progress challenges", () => {
     expect(progressCompletion(sqlite)).toEqual([]);
 
     const input = achievementInput();
-    await services.createAdminAchievement(input, admin, "create.1");
+    await services.createProgressChallenge(input, admin, "create.1");
     expect(progressCompletion(sqlite)).toMatchObject([{ status: "active" }]);
 
     // The create batch committed but the backfill mirror never landed.
     sqlite.prepare("DELETE FROM challenge_completions WHERE source_type = 'verified_run_progress'").run();
     sqlite.prepare("DELETE FROM player_title_grants WHERE granted_by = 'system:verified_run_progress'").run();
-    await services.createAdminAchievement(input, admin, "create.1");
+    await services.createProgressChallenge(input, admin, "create.1");
     expect(progressCompletion(sqlite)).toMatchObject([{ status: "active" }]);
     expect(progressGrants(sqlite)).toMatchObject([{ status: "active" }]);
   });
 
   it("re-runs reconciliation on a replayed spot-check revocation", async () => {
     const { sqlite, services } = setup();
-    await services.createAdminAchievement(achievementInput(), admin, "create.1");
+    await services.createProgressChallenge(achievementInput(), admin, "create.1");
     insertSubmission(sqlite, "submission-1", "account-1", 500);
     insertSubmission(sqlite, "submission-2", "account-1", 600);
     await services.recordVerifiedRun(runInput({ sourceSubmissionId: "submission-1" }));
@@ -826,8 +840,8 @@ describe("verified-run progress challenges", () => {
 
     // The public catalog still exposes the rule so clients can render progress.
     const { services } = setup();
-    await services.createAdminAchievement(achievementInput(), admin, "create.1");
+    await services.createProgressChallenge(achievementInput(), admin, "create.1");
     const publicList = await services.listChallenges({ family: "achievement" });
-    expect(publicList).toMatchObject([{ challengeId: "title.ANNIVERSARY_TOUR", progressRule: { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"] } }]);
+    expect(publicList).toMatchObject([{ challengeId: expect.stringMatching(/^title\.ANNIVERSARY_TOUR\..+/), progressRule: { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"] } }]);
   });
 });

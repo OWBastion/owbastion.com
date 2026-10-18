@@ -224,7 +224,7 @@ export const createAgentServices = (db: ReturnType<typeof drizzle>, dependencies
           pioneerPrefixes: JSON.parse(reward.reward.pioneerPrefixesJson) as string[],
         });
       }
-      const custom = await db.select({ title: titleCatalog, challenge: titleChallenges })
+      const candidates = await db.select({ title: titleCatalog, challenge: titleChallenges })
         .from(titleChallenges)
         .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
         .where(and(
@@ -232,15 +232,19 @@ export const createAgentServices = (db: ReturnType<typeof drizzle>, dependencies
           eq(titleChallenges.scope, "map"),
           eq(titleCatalog.scope, "map"),
           eq(titleCatalog.lifecycle, "active"),
-        ))
-        .get();
-      if (!custom || !titleChallengeIsSubmittable(custom.challenge.status, custom.challenge.startsAt, custom.challenge.endsAt, now(), custom.challenge.gameVersion)) return null;
-      const targets = await loadChallengeMapIds([custom.challenge.id]);
-      const targetIds = targets.get(custom.challenge.id) ?? [];
-      const mapRow = targetIds.length
-        ? await db.select({ id: maps.id }).from(maps).where(and(eq(maps.status, "active"), inArray(maps.id, targetIds))).orderBy(maps.id).get()
-        : await db.select({ id: maps.id }).from(maps).where(eq(maps.status, "active")).orderBy(maps.id).get();
-      return mapRow ? asMapAgentTitle(custom.title, mapRow.id, titleGameVersion) : null;
+        ));
+      const playable = candidates.filter(({ challenge }) => titleChallengeIsSubmittable(challenge.status, challenge.startsAt, challenge.endsAt, now(), challenge.gameVersion));
+      if (!playable.length) return null;
+      const [targets, activeMaps] = await Promise.all([
+        loadChallengeMapIds(playable.map(({ challenge }) => challenge.id)),
+        db.select({ id: maps.id }).from(maps).where(eq(maps.status, "active")).orderBy(maps.id),
+      ]);
+      for (const custom of playable) {
+        const targetIds = targets.get(custom.challenge.id) ?? [];
+        const map = activeMaps.find(map => !targetIds.length || targetIds.includes(map.id));
+        if (map) return asMapAgentTitle(custom.title, map.id, titleGameVersion);
+      }
+      return null;
     },
     async searchAgentContent(this: PlatformServices, input: AgentSearchQuery) {
       const query = input.query.toLocaleLowerCase();

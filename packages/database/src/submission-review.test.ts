@@ -42,6 +42,24 @@ describe("maintainer Challenge confirmation during submission review", () => {
     sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.add', 'submission.add', 1, 'review_required', ?, ?)").run(JSON.stringify({ schema_version: "1", ok: true, layout_version: "1280x720-v7", data: { achievement_titles: titles } }), now);
   };
 
+  it("targets a newly added random-id title challenge and grants through its canonical completion", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedAchievementEvidence(sqlite, ["新称号"]);
+    const services = createPlatformServices(database);
+    await services.createAdminTitle({ contractVersion: "1", titleKey: "NEW_TITLE", label: "新称号", icon: "trophy", category: "测试", scope: "global", displayKind: "fixed", publicVisibility: true, gameVersion: "26.1003.1" }, auth, "new-title");
+    const challenge = await services.createAdminTitleChallenge({ contractVersion: "1", titleKey: "NEW_TITLE", condition: "新挑战", submissionMode: "manual", status: "active", gameVersion: "26.1003.1", enableTitle: true }, auth, "new-path");
+    const preview = await services.previewSubmissionReview({ submissionId: "submission.add" }, auth);
+    const candidate = preview.candidates.find(row => row.titleName === "新称号");
+    expect(candidate).toBeDefined();
+    const request = { submissionId: "submission.add", decision: "approved" as const, confirmedChallengeIds: [candidate!.challengeId] };
+    await services.reviewSubmission(request, auth, "approve-new-path");
+    const grant = sqlite.prepare("SELECT g.title_key,g.status,c.source_id,c.challenge_id,ch.source_id AS authoring_id FROM player_title_grants g JOIN challenge_completions c ON c.id=g.completion_id JOIN challenges ch ON ch.id=c.challenge_id WHERE g.title_key='NEW_TITLE'").get();
+    expect(grant).toEqual({ title_key: "NEW_TITLE", status: "active", source_id: "submission.add", challenge_id: candidate!.challengeId, authoring_id: challenge.challengeId });
+    await services.reviewSubmission(request, auth, "approve-new-path");
+    expect(sqlite.prepare("SELECT count(*) AS n FROM player_title_grants WHERE title_key='NEW_TITLE'").get()).toEqual({ n: 1 });
+  });
+
   it("brings regular map Challenges back when the reviewer corrects a misread mode", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);

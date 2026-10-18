@@ -1557,7 +1557,7 @@ describe("API", () => {
     const adminApp = createTestApp({
       listAdminChallenges: async ({ family, status }) => ({ contractVersion: "1", items: family === "achievement" && status === "active" ? [{ challengeId: "title.flawless", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "FLAWLESS", titleName: "完美无缺", icon: "zap", category: "极限操作系列", categoryOverride: null, condition: "单局跳过英雄次数为 0 且通关。", evidenceRule: "完整截图", gameVersion: "2026.07.15", status: "active", submissionMode: "manual", introducedVersion: "2026.07.15", retiredVersion: null }] : family === undefined ? [{ challengeId: "title.INTERNAL", family: "title_catalog", type: "title_catalog", titleKey: "INTERNAL", titleName: "内部称号", icon: "wrench", category: "开发保留", condition: "开发/管理用途。", lifecycle: "active", publicVisibility: true, availability: "active", scope: "global", displayKind: "fixed", gameVersion: "2026.07.15", hasChallenge: false }] : [] }),
       updateAdminChallenge: async (input) => { if (input.family !== "achievement") throw new Error("CHALLENGE_NOT_FOUND"); updates.push(input); return { challengeId: input.challengeId, family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "FLAWLESS", titleName: "完美无缺", icon: "zap", category: input.categoryOverride ?? "极限操作系列", categoryOverride: input.categoryOverride, condition: input.condition, evidenceRule: input.evidenceRule, gameVersion: "2026.07.15", status: input.status, submissionMode: input.submissionMode, introducedVersion: "2026.07.15", retiredVersion: input.status === "active" ? input.retiredVersion ?? null : null } as const; },
-      updateAdminCatalogTitle: async (input) => { catalogUpdates.push(input); },
+      updateAdminCatalogTitle: async (input) => { catalogUpdates.push(input); return { contractVersion: "1", previousLifecycle: "active", cascaded: { challenges: [], mapTitleRules: [] }, title: { titleKey: input.titleKey, label: "内部称号", icon: "wrench", iconUrl: null, category: "开发保留", scope: "global", displayKind: "fixed", color: null, publicVisibility: true, lifecycle: input.lifecycle ?? "active", gameVersion: null, developerOnly: true, status: "retired", acquisition: { kind: "none" } } }; },
     }, authenticateAsMaintainer);
     expect((await app.request("http://localhost/v1/admin/achievements", {}, env)).status).toBe(403);
     const anonymousApp = createTestApp({}, anonymousAuth);
@@ -1568,7 +1568,7 @@ describe("API", () => {
     const denied = await app.request("http://localhost/v1/admin/achievements", {}, env);
     expect(denied.headers.get("cache-control")).toBe("private, no-store");
     expect(await listed.json()).toMatchObject({ items: [{ family: "achievement", categoryOverride: null }] });
-    const retirement = { contractVersion: "1", condition: "单局跳过英雄次数为 0 且通关。", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: "极限操作系列", status: "archived" };
+    const retirement = { contractVersion: "1", saveMode: "in_place", condition: "单局跳过英雄次数为 0 且通关。", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: "极限操作系列", status: "archived" };
     expect((await adminApp.request("http://localhost/v1/admin/achievements/title.flawless", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(retirement) }, env)).status).toBe(422);
     const updated = await adminApp.request("http://localhost/v1/admin/achievements/title.flawless", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "achievement-1" }, body: JSON.stringify(retirement) }, env);
     expect(updated.status).toBe(200);
@@ -1577,24 +1577,13 @@ describe("API", () => {
     const catalog = await adminApp.request("http://localhost/v1/admin/achievements", {}, env);
     expect(await catalog.json()).toMatchObject({ items: [{ family: "title_catalog", titleKey: "INTERNAL", hasChallenge: false }] });
     const titleStatus = await adminApp.request("http://localhost/v1/admin/titles/INTERNAL", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "title-catalog-1" }, body: JSON.stringify({ contractVersion: "1", lifecycle: "retired" }) }, env);
-    expect(titleStatus.status).toBe(204);
+    expect(titleStatus.status).toBe(200);
     expect(catalogUpdates).toMatchObject([{ titleKey: "INTERNAL", lifecycle: "retired" }]);
   });
 
-  it("creates a scoped achievement through the maintainer API", async () => {
-    const created: unknown[] = [];
-    const adminApp = createTestApp({
-      createAdminAchievement: async (input) => {
-        created.push(input);
-        return { challengeId: `title.${input.titleKey}`, family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: input.titleKey, titleName: input.titleName, icon: input.icon, category: input.category, categoryOverride: null, condition: input.condition, evidenceRule: input.evidenceRule, gameVersion: input.gameVersion ?? null, status: input.status, submissionMode: input.submissionMode, introducedVersion: input.gameVersion ?? null, retiredVersion: null, scope: input.scope, mapIds: input.mapIds };
-      },
-    }, authenticateAsMaintainer);
-    const body = { contractVersion: "1", titleKey: "CLASSIC_RACETRACK", titleName: "经典赛道", icon: "trophy", category: "经典版系列", condition: "完成经典版挑战", evidenceRule: "完整截图", submissionMode: "manual", scope: "map", mapIds: ["map.route66"], status: "active", gameVersion: "26.0728.1" };
-    expect((await app.request("http://localhost/v1/admin/achievements", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "create-1" }, body: JSON.stringify(body) }, env)).status).toBe(403);
-    const response = await adminApp.request("http://localhost/v1/admin/achievements", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "create-1" }, body: JSON.stringify(body) }, env);
-    expect(response.status).toBe(201);
-    expect(await response.json()).toMatchObject({ challengeId: "title.CLASSIC_RACETRACK", scope: "map", mapIds: ["map.route66"] });
-    expect(created).toEqual([expect.objectContaining(body)]);
+  it("removes the combined title and challenge creation route", async () => {
+    const adminApp = createTestApp({}, authenticateAsMaintainer);
+    expect((await adminApp.request("http://localhost/v1/admin/achievements", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "removed" }, body: JSON.stringify({ contractVersion: "1" }) }, env)).status).toBe(404);
   });
 
   it("accepts a maintainer achievement icon upload as multipart data", async () => {

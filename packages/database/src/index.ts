@@ -2,10 +2,11 @@ import { count, desc, eq, and, or, inArray, isNull, isNotNull, ne, lte, lt, gte,
 
 import { drizzle } from "drizzle-orm/d1";
 import { createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, passkeyUserHandleMatches, verifyPasskeyAuthentication, verifyPasskeyRegistration } from "@owbastion/auth";
-import { buildMasteryMapProfile, buildMasteryProfiles, calculateVerifiedRunXpV3, difficultyAtLeastSatisfied, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, isWellFormedGameVersion, matchGameMode, normalizeGameMode, regularGameModeLabel, eventWeightTotalCode, runCodeEventWeightTotal, parseCanonicalChallengeConditions, parseChallengeProgressRule, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
+import { buildMasteryMapProfile, buildMasteryProfiles, calculateVerifiedRunXpV3, difficultyAtLeastSatisfied, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, isWellFormedGameVersion, matchGameMode, normalizeGameMode, regularGameModeLabel, eventWeightTotalCode, runCodeEventWeightTotal, parseCanonicalChallengeConditions, parseChallengeProgressRule, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode, publicTitleChallengeStatus } from "@owbastion/domain";
+export { publicTitleChallengeStatus } from "@owbastion/domain";
 import type { AdminVerifiedRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, ChallengeCondition, ChallengeProgressRule, VerifiedRunDifficulty, VerifiedRunEventCounters, VerifiedRunEvidenceCompatibilityV1, MasteryMapProfile, VerifiedRunActor, VerifiedRunConflictField, VerifiedRunForProjection, VerifiedRunXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
-import type { AdminRandomEventBatchRequest, AdminStandaloneMode, AdminStandaloneModeListResponse, AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrReevaluateResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReopenResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerChallengeProgressListResponse, PlayerProfileVisibilityResponse, PlayerSubmissionStatus, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, QqScreenshotSubmissionRequest, QqScreenshotSubmissionResponse, RandomEvent, RandomEventVersion, ScreenshotSetStatus, Title } from "@owbastion/contracts";
+import type { AdminRandomEventBatchRequest, AdminStandaloneMode, AdminStandaloneModeListResponse, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrReevaluateResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReopenResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerChallengeProgressListResponse, PlayerProfileVisibilityResponse, PlayerSubmissionStatus, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, QqScreenshotSubmissionRequest, QqScreenshotSubmissionResponse, RandomEvent, RandomEventVersion, ScreenshotSetStatus, Title } from "@owbastion/contracts";
 import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, challengeCompletions, challengeSatisfies, challenges, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrAccuracyFeedback, ocrResults, passkeyChallenges, passkeyCredentials, passkeyRecoveryGrants, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, portalSessions, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, reviews, standaloneModes, screenshotSetMembers, screenshotSets, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions, verifiedRunConflictResolutions, verifiedRunLifecycleEvents, verifiedRuns } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { fetchQqAttachmentImage } from "./qq-attachment";
@@ -73,13 +74,6 @@ export const titleIconVersionOf = (objectKey: string): string => {
 // window: a draft or archived challenge never projects, an active challenge
 // before its start shows as "scheduled", and an announced retiredVersion shows
 // as "sunsetting".
-export const publicTitleChallengeStatus = (status: string, startsAt: number | null, endsAt: number | null, timestamp: number, gameVersion: string | null | undefined = "known", retiredVersion?: string | null) => {
-  if (!gameVersion?.trim()) return null;
-  if (status !== "active") return null;
-  if (endsAt !== null && timestamp >= endsAt) return null;
-  if (startsAt !== null && timestamp < startsAt) return "scheduled";
-  return retiredVersion ? "sunsetting" : "active";
-};
 export const titleChallengeIsSubmittable = (status: string, startsAt: number | null, endsAt: number | null, timestamp: number, gameVersion: string | null | undefined = "known") => {
   const publicStatus = publicTitleChallengeStatus(status, startsAt, endsAt, timestamp, gameVersion);
   return publicStatus === "active" || publicStatus === "sunsetting";
@@ -331,11 +325,13 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     const projection = rule ? await resolveMapTitleProjection(rule.ruleId, input.mapId, revision.id) : null;
     if (projection) return { title, mapId: input.mapId, gameplayRevisionId: revision.id, slot: projection.slot, manualChallengeId };
 
-    const titleChallenge = await db.select({ challenge: titleChallenges, catalog: titleCatalog }).from(titleChallenges)
+    const titleChallengeRows = await db.select({ challenge: titleChallenges, catalog: titleCatalog }).from(titleChallenges)
       .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
-      .where(and(eq(titleChallenges.titleKey, title.key), eq(titleChallenges.scope, "map"))).get();
-    const challengeProjection = titleChallenge ? await snapshotTitleChallenge(titleChallenge.challenge, titleChallenge.catalog, input.mapId, revision.id) : null;
-    if (challengeProjection) return { title, mapId: input.mapId, gameplayRevisionId: revision.id, slot: challengeProjection.slot, manualChallengeId };
+      .where(and(eq(titleChallenges.titleKey, title.key), eq(titleChallenges.scope, "map")));
+    for (const row of titleChallengeRows) {
+      const challengeProjection = await snapshotTitleChallenge(row.challenge, row.catalog, input.mapId, revision.id);
+      if (challengeProjection) return { title, mapId: input.mapId, gameplayRevisionId: revision.id, slot: challengeProjection.slot, manualChallengeId };
+    }
 
     const reward = await db.select({ slot: mapTitleRewards.slot }).from(mapTitleRewards)
       .where(and(eq(mapTitleRewards.mapId, input.mapId), eq(mapTitleRewards.titleKey, title.key))).get();
@@ -1235,7 +1231,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   type ProgressChallengeFacts = {
     // globalThis.Map/Set: the imported contracts `Map` type shadows the builtins.
     completions: globalThis.Map<string, Array<{ id: string; challengeId: string; status: string }>>;
-    grants: globalThis.Map<string, { activeGrant: { id: string; completionId: string | null } | null; administrativelyRevoked: boolean }>;
+    grants: globalThis.Map<string, { activeGrant: { id: string; completionId: string | null; sourceType: string; sourceId: string } | null; administrativelyRevoked: boolean }>;
     eligibility: globalThis.Map<string, { completed: Set<string>; satisfied: boolean }>;
   };
 
@@ -1264,7 +1260,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           eq(challenges.sourceFamily, "title_challenge"),
           eq(challenges.sourceId, challenge.id),
         )))).then((parts) => parts.flat()),
-      Promise.all(playerChunks.map((ids) => db.select({ playerAccountId: playerTitleGrants.playerAccountId, id: playerTitleGrants.id, completionId: playerTitleGrants.completionId, status: playerTitleGrants.status, revocationType: playerTitleGrants.revocationType })
+      Promise.all(playerChunks.map((ids) => db.select({ playerAccountId: playerTitleGrants.playerAccountId, id: playerTitleGrants.id, completionId: playerTitleGrants.completionId, status: playerTitleGrants.status, revocationType: playerTitleGrants.revocationType, sourceType: playerTitleGrants.sourceType, sourceId: playerTitleGrants.sourceId })
         .from(playerTitleGrants)
         .where(and(
           inArray(playerTitleGrants.playerAccountId, ids),
@@ -1275,11 +1271,11 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     ]);
     const completions = new globalThis.Map<string, Array<{ id: string; challengeId: string; status: string }>>();
     for (const row of completionRows) completions.set(row.playerAccountId, [...(completions.get(row.playerAccountId) ?? []), row]);
-    const grants = new globalThis.Map<string, { activeGrant: { id: string; completionId: string | null } | null; administrativelyRevoked: boolean }>();
+    const grants = new globalThis.Map<string, { activeGrant: { id: string; completionId: string | null; sourceType: string; sourceId: string } | null; administrativelyRevoked: boolean }>();
     for (const playerAccountId of playerAccountIds) if (!grants.has(playerAccountId)) grants.set(playerAccountId, { activeGrant: null, administrativelyRevoked: false });
     for (const row of grantRows) {
       const entry = grants.get(row.playerAccountId)!;
-      if (row.status === "active" && !entry.activeGrant) entry.activeGrant = { id: row.id, completionId: row.completionId };
+      if (row.status === "active" && !entry.activeGrant) entry.activeGrant = { id: row.id, completionId: row.completionId, sourceType: row.sourceType, sourceId: row.sourceId };
       else if (row.status === "revoked" && row.revocationType === "administrator") entry.administrativelyRevoked = true;
     }
     return { completions, grants, eligibility };
@@ -1287,6 +1283,12 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
 
   // Pure statement emission from prefetched facts; keeps the original
   // per-(challenge, player) ordering so batched writes land identically.
+  // `revokingOwners` maps
+  // `${playerAccountId}\n${titleKey}` to the progress Challenge ids whose plan
+  // revokes the player's automatic grant this batch. A sibling path can still
+  // satisfy the title while the Challenge that issued the active grant loses
+  // it, so a satisfied sibling must re-issue instead of keeping a grant that
+  // is about to be revoked.
   const planPlayerProgressChallenge = (input: {
     playerAccountId: string;
     challenge: typeof titleChallenges.$inferSelect;
@@ -1296,9 +1298,10 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     reason: string | null;
     timestamp: number;
     facts: ProgressChallengeFacts;
+    revokingOwners: globalThis.Map<string, Set<string>>;
     statements: D1PreparedStatement[];
   }) => {
-    const { playerAccountId, challenge, rule, canonicalChallengeId, actorId, reason, timestamp, facts, statements } = input;
+    const { playerAccountId, challenge, rule, canonicalChallengeId, actorId, reason, timestamp, facts, revokingOwners, statements } = input;
     const eligibility = facts.eligibility.get(playerAccountId) ?? { completed: new Set<string>(), satisfied: false };
     const completions = facts.completions.get(playerAccountId) ?? [];
     const { activeGrant, administrativelyRevoked } = facts.grants.get(playerAccountId) ?? { activeGrant: null, administrativelyRevoked: false };
@@ -1336,7 +1339,12 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       // completion. The player-scoped source id keeps the table-wide
       // (source_type, source_id, title_key) uniqueness intact per award.
       const grantSourceId = `${challenge.id}:${playerAccountId}`;
-      const keepGrant = activeGrant && !staleCompletions.some((completion) => completion.id === activeGrant.completionId);
+      // The grant is kept only when it is not about to be revoked: either this
+      // plan invalidates its backing completion, or another progress Challenge
+      // that issued it (`<challengeId>:<player>`) revokes it this batch.
+      const grantOwner = activeGrant?.sourceType === "automatic" ? activeGrant.sourceId.slice(0, activeGrant.sourceId.lastIndexOf(":")) : null;
+      const revoking = grantOwner ? (revokingOwners.get(`${playerAccountId}\n${challenge.titleKey}`)?.has(grantOwner) ?? false) : false;
+      const keepGrant = activeGrant && !revoking && !staleCompletions.some((completion) => completion.id === activeGrant.completionId);
       if (!administrativelyRevoked && !keepGrant) {
         const grantId = crypto.randomUUID();
         statements.push(
@@ -1362,23 +1370,13 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     }
   };
 
-  // Re-evaluates every progress Challenge for the owners of runs whose
-  // authoritative facts just changed. Runs after the mutating write commits.
-  // Corrections can move a run across required-map boundaries, so evaluation
-  // is not pre-filtered by the run's current map.
-  const reconcileVerifiedRunProgressChallenges = async (input: { verifiedRunIds: string[]; actorId: string; reason?: string | null }) => {
-    const runIds = [...new Set(input.verifiedRunIds)];
-    if (!runIds.length) return;
+  // Prefetch facts for every progress Challenge, then decide which of them
+  // revoke the player's automatic grant this batch. Sibling paths must see
+  // that decision before they decide to keep the grant.
+  const loadReconciliation = async (playerIds: string[], timestamp: number) => {
     const progressChallenges = await loadProgressChallenges();
-    if (!progressChallenges.length) return;
-    const runs = await db.select({ playerAccountId: verifiedRuns.playerAccountId })
-      .from(verifiedRuns)
-      .where(inArray(verifiedRuns.id, runIds));
-    const playerIds = [...new Set(runs.map((run) => run.playerAccountId))];
-    if (!playerIds.length) return;
-    const timestamp = now();
-    const reason = input.reason?.trim() || null;
-    const statements: D1PreparedStatement[] = [];
+    const plans: Array<{ challenge: typeof titleChallenges.$inferSelect; rule: ChallengeProgressRule; canonicalChallengeId: string; facts: ProgressChallengeFacts }> = [];
+    const revokingOwners = new globalThis.Map<string, Set<string>>();
     for (const { challenge, rule } of progressChallenges) {
       const [canonicalChallengeId] = await materializingCanonicalChallenges.resolveMany([{
         legacyChallengeId: challenge.id,
@@ -1390,8 +1388,39 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       // Bulk-prefetch every player's facts once per challenge: 3 grouped reads
       // replace the ~4 queries each player used to pay.
       const facts = await loadProgressChallengeFacts({ playerAccountIds: playerIds, challenge, rule });
+      plans.push({ challenge, rule, canonicalChallengeId, facts });
       for (const playerAccountId of playerIds) {
-        planPlayerProgressChallenge({ playerAccountId, challenge, rule, canonicalChallengeId, actorId: input.actorId, reason, timestamp, facts, statements });
+        const eligibility = facts.eligibility.get(playerAccountId);
+        const activeCompletions = (facts.completions.get(playerAccountId) ?? []).filter((completion) => completion.status === "active");
+        if (!eligibility?.satisfied && activeCompletions.length) {
+          const key = `${playerAccountId}\n${challenge.titleKey}`;
+          revokingOwners.set(key, new Set([...(revokingOwners.get(key) ?? []), challenge.id]));
+        }
+      }
+    }
+    return { plans, revokingOwners };
+  };
+
+  // Re-evaluates every progress Challenge for the owners of runs whose
+  // authoritative facts just changed. Runs after the mutating write commits.
+  // Corrections can move a run across required-map boundaries, so evaluation
+  // is not pre-filtered by the run's current map.
+  const reconcileVerifiedRunProgressChallenges = async (input: { verifiedRunIds: string[]; actorId: string; reason?: string | null }) => {
+    const runIds = [...new Set(input.verifiedRunIds)];
+    if (!runIds.length) return;
+    const runs = await db.select({ playerAccountId: verifiedRuns.playerAccountId })
+      .from(verifiedRuns)
+      .where(inArray(verifiedRuns.id, runIds));
+    const playerIds = [...new Set(runs.map((run) => run.playerAccountId))];
+    if (!playerIds.length) return;
+    const timestamp = now();
+    const reason = input.reason?.trim() || null;
+    const { plans, revokingOwners } = await loadReconciliation(playerIds, timestamp);
+    if (!plans.length) return;
+    const statements: D1PreparedStatement[] = [];
+    for (const { challenge, rule, canonicalChallengeId, facts } of plans) {
+      for (const playerAccountId of playerIds) {
+        planPlayerProgressChallenge({ playerAccountId, challenge, rule, canonicalChallengeId, actorId: input.actorId, reason, timestamp, facts, revokingOwners, statements });
       }
     }
     if (statements.length) await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
@@ -1427,28 +1456,33 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     ]);
     const players = [...new Set([...runPlayers, ...completionPlayers].map(({ playerAccountId }) => playerAccountId))];
     if (!players.length) return;
-    const statements: D1PreparedStatement[] = [];
-    const facts = await loadProgressChallengeFacts({ playerAccountIds: players, challenge: input.challenge, rule: input.rule });
+    // Plan the target challenge with the incoming rule (an edit may not have
+    // committed the stored rule yet), plus every sibling path sharing its
+    // title so a re-issued grant replaces the one this path now revokes.
+    const { plans, revokingOwners } = await loadReconciliation(players, timestamp);
+    const own = { challenge: input.challenge, rule: input.rule, canonicalChallengeId, facts: await loadProgressChallengeFacts({ playerAccountIds: players, challenge: input.challenge, rule: input.rule }) };
+    const otherPlans = plans.filter(({ challenge }) => challenge.id !== input.challenge.id);
+    // The edited challenge's revocation set must come from the incoming rule,
+    // not the stale stored one `loadReconciliation` read.
     for (const playerAccountId of players) {
-      planPlayerProgressChallenge({ playerAccountId, challenge: input.challenge, rule: input.rule, canonicalChallengeId, actorId: input.actorId, reason: input.reason?.trim() || null, timestamp, facts, statements });
+      const eligibility = own.facts.eligibility.get(playerAccountId);
+      const activeCompletions = (own.facts.completions.get(playerAccountId) ?? []).filter((completion) => completion.status === "active");
+      const key = `${playerAccountId}\n${input.challenge.titleKey}`;
+      const owners = new Set([...(revokingOwners.get(key) ?? [])].filter((id) => id !== input.challenge.id));
+      if (!eligibility?.satisfied && activeCompletions.length) owners.add(input.challenge.id);
+      if (owners.size) revokingOwners.set(key, owners);
+      else revokingOwners.delete(key);
+    }
+    const statements: D1PreparedStatement[] = [];
+    for (const playerAccountId of players) {
+      planPlayerProgressChallenge({ playerAccountId, challenge: own.challenge, rule: own.rule, canonicalChallengeId, actorId: input.actorId, reason: input.reason?.trim() || null, timestamp, facts: own.facts, revokingOwners, statements });
+    }
+    for (const { challenge, rule, canonicalChallengeId: siblingCanonicalId, facts } of otherPlans) {
+      for (const playerAccountId of players) {
+        planPlayerProgressChallenge({ playerAccountId, challenge, rule, canonicalChallengeId: siblingCanonicalId, actorId: input.actorId, reason: input.reason?.trim() || null, timestamp, facts, revokingOwners, statements });
+      }
     }
     if (statements.length) await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
-  };
-
-  // Removes the derived mirror when the rule itself is removed: every active
-  // progress Completion under this legacy Challenge's canonical identities is
-  // invalidated and the single source-keyed grant is revoked. Re-adding the
-  // rule restores eligible mirrors through the normal reconcile path.
-  const clearProgressChallengeMirrors = async (input: { challenge: typeof titleChallenges.$inferSelect; actorId: string; reason?: string | null }) => {
-    const reason = input.reason?.trim() || "progress_rule_removed";
-    const timestamp = now();
-    const statements: D1PreparedStatement[] = [
-      database.prepare("UPDATE challenge_completions SET status = 'invalidated', invalidated_by = ?, invalidated_at = ?, invalidation_reason = ? WHERE source_type = 'verified_run_progress' AND status = 'active' AND challenge_id IN (SELECT id FROM challenges WHERE source_family = 'title_challenge' AND source_id = ?)").bind(input.actorId, timestamp, reason, input.challenge.id),
-      database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, 'service', ?, 'challenge.completion.progress', 'challenge_completion', id, ?, ? FROM challenge_completions WHERE source_type = 'verified_run_progress' AND status = 'invalidated' AND invalidated_at = ? AND challenge_id IN (SELECT id FROM challenges WHERE source_family = 'title_challenge' AND source_id = ?) AND changes() > 0").bind(crypto.randomUUID(), crypto.randomUUID(), input.actorId, JSON.stringify({ legacyChallengeId: input.challenge.id, titleKey: input.challenge.titleKey, action: "rule_removed", reason }), timestamp, timestamp, input.challenge.id),
-      database.prepare("UPDATE player_title_grants SET status = 'revoked', revocation_type = 'evidence', revoked_by = ?, revoked_at = ?, revoke_reason = ? WHERE status = 'active' AND source_type = 'automatic' AND granted_by = 'system:verified_run_progress' AND title_key = ?").bind(input.actorId, timestamp, reason, input.challenge.titleKey),
-      database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, 'service', ?, 'title_grant.revoke', 'player_title_grant', id, ?, ? FROM player_title_grants WHERE granted_by = 'system:verified_run_progress' AND title_key = ? AND status = 'revoked' AND revoked_at = ? AND changes() > 0").bind(crypto.randomUUID(), crypto.randomUUID(), input.actorId, JSON.stringify({ legacyChallengeId: input.challenge.id, titleKey: input.challenge.titleKey, action: "rule_removed", reason }), timestamp, input.challenge.titleKey, timestamp),
-    ];
-    await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
   };
 
 
@@ -2035,7 +2069,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       latestBuildVersion,
       assertProgressRuleTargets,
       reconcileProgressChallengePlayers,
-      clearProgressChallengeMirrors,
       challengeCatalog: {
         enabledMapChallengeAssignment,
         loadChallengeMapIds,
@@ -2083,12 +2116,11 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       }));
       const mappedKeys = new Set(mappedTitles.map((title) => title.titleKey));
       const timestamp = now();
-      const customTitles = customMapRows.filter(({ title, challenge }) => !mappedKeys.has(title.key) && titleChallengeIsSubmittable(challenge.status, challenge.startsAt, challenge.endsAt, timestamp, challenge.gameVersion)).map(({ title }): Title => ({
-        ...titleCatalogView(title),
-        scope: "map",
-        mapId: input.mapId,
-        gameVersion: title.gameVersion!,
-      }));
+      const customTitles = customMapRows.flatMap(({ title, challenge }): Title[] => {
+        if (mappedKeys.has(title.key) || !titleChallengeIsSubmittable(challenge.status, challenge.startsAt, challenge.endsAt, timestamp, challenge.gameVersion)) return [];
+        mappedKeys.add(title.key);
+        return [{ ...titleCatalogView(title), scope: "map", mapId: input.mapId, gameVersion: title.gameVersion! }];
+      });
       return globalTitles.concat(mappedTitles, customTitles);
     },
 

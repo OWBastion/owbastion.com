@@ -57,7 +57,7 @@ import type {
   Map,
   Title,
   OwnedTitle, HistoricalTitleGrant, AdminTitleGrantListResponse, AdminTitleGrantHolderDetailResponse, AdminHistoricalTitleHolderFilter, AdminTitleGrantRequest, AdminTitleGrantBulkRequest, AdminTitleGrantBulkResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse,
-  AdminChallenge, AdminChallengeListResponse, AdminChallengeUpdateRequest, AdminAchievementCreateRequest, AdminMapMetadataUpdateRequest, AdminMapCreateRequest,
+  AdminChallenge, AdminChallengeListResponse, AdminChallengeUpdateRequest, AdminTitleCreateRequest, AdminTitleChallengeCreateRequest, AdminTitleChallenge, AdminTitleSummary, AdminChallengeLifecycleRequest, AdminChallengeLifecycleResponse, AdminCatalogTitleUpdateResponse, AdminMapMetadataUpdateRequest, AdminMapCreateRequest,
   AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapRevisionPromotionRequest,
   AdminCatalogTitleUpdateRequest,
   AdminMapTitleRule, AdminMapTitleRuleListResponse, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleInheritanceResponse, AdminMapTitleRuleExceptionUpsertRequest,
@@ -88,6 +88,7 @@ export * from "./challenge-conditions";
 export * from "./random-event";
 export * from "./leaderboard";
 export * from "./season";
+export * from "./title-availability";
 export * from "./player-handle";
 
 export type LocalDevAccount = {
@@ -251,9 +252,13 @@ export type PlatformServices = {
   createAdminManualTitleGrant(input: AdminManualTitleGrantRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminManualTitleGrantResponse>;
   createAdminManualTitleGrantBatch(input: AdminManualTitleGrantBatchRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminManualTitleGrantBatchResponse>;
   listAdminChallenges(input: { family?: "map" | "achievement"; status?: string }, auth: AuthContext): Promise<AdminChallengeListResponse>;
-  createAdminAchievement(input: AdminAchievementCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminChallenge>;
+  listAdminTitleSummaries(auth: AuthContext): Promise<{ contractVersion: "1"; items: AdminTitleSummary[] }>;
+  createAdminTitle(input: AdminTitleCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminTitleSummary & { contractVersion: "1" }>;
+  listAdminTitleChallenges(input: { titleKey: string }, auth: AuthContext): Promise<{ contractVersion: "1"; items: AdminTitleChallenge[] }>;
+  createAdminTitleChallenge(input: AdminTitleChallengeCreateRequest & { titleKey: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminTitleChallenge & { contractVersion: "1" }>;
+  updateAdminChallengeLifecycle(input: AdminChallengeLifecycleRequest & { challengeId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminChallengeLifecycleResponse>;
   updateAdminChallenge(input: AdminChallengeUpdateRequest & { challengeId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminChallenge>;
-  updateAdminCatalogTitle(input: AdminCatalogTitleUpdateRequest & { titleKey: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
+  updateAdminCatalogTitle(input: AdminCatalogTitleUpdateRequest & { titleKey: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminCatalogTitleUpdateResponse>;
   listAdminMapTitleRules(auth: AuthContext): Promise<AdminMapTitleRuleListResponse>;
   createAdminMapTitleRule(input: AdminMapTitleRuleCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminMapTitleRule>;
   updateAdminMapTitleRule(input: AdminMapTitleRuleUpdateRequest & { ruleId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminMapTitleRule>;

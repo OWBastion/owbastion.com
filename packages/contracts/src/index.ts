@@ -908,53 +908,83 @@ const adminAchievementChallengeUpdateSchema = z.object({
   retiredVersion: optionalRetirementVersion,
   startsAt: optionalScheduleTimestamp,
   endsAt: optionalScheduleTimestamp,
-  scope: z.enum(["global", "map"]).optional(),
+  saveMode: z.enum(["in_place", "new_challenge"]),
   mapIds: z.array(externalId).max(256).optional(),
-  mapVariant: z.literal("classic").optional(),
+  mapVariant: z.literal("classic").nullable().optional(),
   progressRule: achievementProgressRuleSchema.nullable().optional(),
-}).superRefine((value, ctx) => {
+}).strict().superRefine((value, ctx) => {
   if (value.status !== "active" && value.retiredVersion !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "Only active challenges may announce a retired version" });
   if (value.status !== "draft" && value.gameVersion === null) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["gameVersion"], message: "Only draft challenges may clear a game version" });
   if (value.startsAt !== undefined && value.endsAt !== undefined && value.endsAt <= value.startsAt) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endsAt"], message: "The end time must be after the start time" });
   if (value.status === "archived" && (value.startsAt !== undefined || value.endsAt !== undefined)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["startsAt"], message: "Archived challenges cannot have a time window" });
-  if (value.scope === "global" && value.mapIds?.length) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["mapIds"], message: "Global challenges cannot target maps" });
   if (value.progressRule && value.submissionMode !== "manual") ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["submissionMode"], message: "Progress challenges are not screenshot-evaluated" });
-  if (value.progressRule && value.scope === "map") ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["scope"], message: "Progress challenges cannot target maps through scope" });
 });
 export const adminChallengeUpdateRequestSchema = z.union([adminMapChallengeUpdateSchema, adminAchievementChallengeUpdateSchema]);
 
 const achievementKey = z.string().trim().regex(/^[A-Z][A-Z0-9_]{1,63}$/);
-export const adminAchievementCreateRequestSchema = z.object({
+export const adminTitleCreateRequestSchema = z.object({
   contractVersion,
-  titleKey: achievementKey,
-  titleName: z.string().trim().min(1).max(256),
+  titleKey: achievementKey.optional(),
+  label: z.string().trim().min(1).max(256),
   icon: achievementIcon,
   category: z.string().trim().min(1).max(128),
-  condition: z.string().trim().min(1).max(1024),
-  evidenceRule: z.string().trim().min(1).max(2048),
-  submissionMode: z.enum(["manual", "automatic"]),
   scope: z.enum(["global", "map"]),
-  mapIds: z.array(externalId).max(256).default([]),
-  mapVariant: z.literal("classic").optional(),
-  status: challengeLifecycleStatus,
+  displayKind: z.enum(["fixed", "map_pioneer", "map_name_suffix"]),
+  color: titleColorSchema.nullable().optional(),
+  publicVisibility: z.boolean(),
   gameVersion: optionalGameVersion,
-  categoryOverride: z.string().trim().min(1).max(128).nullable().default(null),
-  iconUrl: z.string().trim().url().max(2048).nullable().default(null),
+}).strict();
+export const adminTitleChallengeCreateRequestSchema = z.object({
+  contractVersion,
+  condition: z.string().trim().min(1).max(1024),
+  evidenceRule: z.string().trim().min(1).max(2048).optional(),
+  submissionMode: z.enum(["manual", "automatic"]),
+  status: z.enum(["draft", "active"]),
   startsAt: optionalScheduleTimestamp,
   endsAt: optionalScheduleTimestamp,
-  retiredVersion: optionalRetirementVersion,
+  gameVersion: optionalGameVersion,
+  mapIds: z.array(externalId).max(256).optional(),
+  mapVariant: z.literal("classic").optional(),
   progressRule: achievementProgressRuleSchema.optional(),
-}).superRefine((value, ctx) => {
-  if (value.scope === "global" && value.mapIds.length) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["mapIds"], message: "Global challenges cannot target maps" });
-  if (value.progressRule && value.submissionMode !== "manual") ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["submissionMode"], message: "Progress challenges are not screenshot-evaluated" });
-  if (value.progressRule && value.scope === "map") ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["scope"], message: "Progress challenges cannot target maps through scope" });
-  if (value.startsAt !== undefined && value.endsAt !== undefined && value.endsAt <= value.startsAt) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endsAt"], message: "The end time must be after the start time" });
-  if (value.status === "archived" && (value.startsAt !== undefined || value.endsAt !== undefined)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["startsAt"], message: "Archived challenges cannot have a time window" });
-  if (value.status !== "active" && value.retiredVersion !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "Only active challenges may announce a retired version" });
+  enableTitle: z.boolean().optional(),
+}).strict().superRefine((value, ctx) => {
+  if (value.startsAt !== undefined && value.endsAt !== undefined && value.endsAt <= value.startsAt) ctx.addIssue({ code: "custom", path: ["endsAt"], message: "The end time must be after the start time" });
+  if (value.progressRule && value.submissionMode !== "manual") ctx.addIssue({ code: "custom", path: ["submissionMode"], message: "Progress challenges are not screenshot-evaluated" });
 });
-// Catalog updates touch Title definition fields only. Challenge lifecycle,
-// schedule, and rule fields belong to the challenge endpoints; a catalog row
-// never dual-writes Challenge state.
+export const adminTitleChallengeSchema = adminAchievementChallengeSchema.extend({
+  startsAt: scheduleTimestamp.nullable(),
+  endsAt: scheduleTimestamp.nullable(),
+  mapIds: z.array(externalId),
+  replacedByChallengeId: externalId.nullable(),
+});
+export const adminTitleChallengeResponseSchema = adminTitleChallengeSchema.extend({ contractVersion });
+export const adminTitleChallengeListResponseSchema = z.object({ contractVersion, items: z.array(adminTitleChallengeSchema) });
+export const derivedStatusSchema = z.enum(["draft", "scheduled", "active", "sunsetting", "ended", "retired"]);
+export const adminTitleSummarySchema = z.object({
+  titleKey: externalId, label: z.string(), icon: achievementIcon, iconUrl: z.string().url().nullable(), category: z.string(),
+  scope: z.enum(["global", "map"]), displayKind: z.enum(["fixed", "map_pioneer", "map_name_suffix"]), color: titleColorSchema.nullable(),
+  publicVisibility: z.boolean(), lifecycle: titleLifecycleStatus, gameVersion: gameVersionValue, developerOnly: z.boolean(), status: derivedStatusSchema,
+  acquisition: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("challenges"), challengeCount: z.number().int().nonnegative(), completableCount: z.number().int().nonnegative() }),
+    z.object({ kind: z.literal("map_rule"), ruleId: externalId, condition: z.string(), scopeLabel: z.string() }),
+    z.object({ kind: z.literal("none") }),
+  ]),
+});
+export const adminTitleSummaryResponseSchema = adminTitleSummarySchema.extend({ contractVersion });
+export const adminTitleSummaryListResponseSchema = z.object({ contractVersion, items: z.array(adminTitleSummarySchema) });
+const adminChallengePreviousStateSchema = z.object({ status: challengeLifecycleStatus, retiredVersion: storedRetirementVersion.nullable(), startsAt: scheduleTimestamp.nullable(), endsAt: scheduleTimestamp.nullable() });
+export const adminChallengeLifecycleRequestSchema = z.object({
+  contractVersion, status: challengeLifecycleStatus, retiredVersion: optionalRetirementVersion.nullable(),
+  startsAt: scheduleTimestamp.nullable().optional(), endsAt: scheduleTimestamp.nullable().optional(),
+}).strict().superRefine((value, ctx) => {
+  if (value.startsAt != null && value.endsAt != null && value.endsAt <= value.startsAt) ctx.addIssue({ code: "custom", path: ["endsAt"], message: "The end time must be after the start time" });
+});
+export const adminChallengeLifecycleResponseSchema = z.object({ contractVersion, challenge: adminTitleChallengeSchema, previous: adminChallengePreviousStateSchema });
+export const adminTitleCascadeSchema = z.object({
+  challenges: z.array(adminChallengePreviousStateSchema.extend({ challengeId: externalId })),
+  mapTitleRules: z.array(z.object({ ruleId: externalId, status: challengeLifecycleStatus, retiredVersion: storedRetirementVersion.nullable() })),
+}).strict();
+export const adminCatalogTitleUpdateResponseSchema = z.object({ contractVersion, title: adminTitleSummarySchema, previousLifecycle: titleLifecycleStatus, cascaded: adminTitleCascadeSchema });
 export const adminCatalogTitleUpdateRequestSchema = z.object({
   contractVersion,
   lifecycle: titleLifecycleStatus.optional(),
@@ -965,6 +995,7 @@ export const adminCatalogTitleUpdateRequestSchema = z.object({
   scope: z.enum(["global", "map"]).optional(),
   displayKind: z.enum(["fixed", "map_pioneer", "map_name_suffix"]).optional(),
   color: titleColorSchema.nullable().optional(),
+  restore: adminTitleCascadeSchema.optional(),
 });
 
 export const playerUploadSessionRequestSchema = z.object({
@@ -1995,7 +2026,14 @@ export type AdminManualTitleGrantBatchResponse = z.infer<typeof adminManualTitle
 export type AdminChallenge = z.infer<typeof adminChallengeSchema>;
 export type AdminChallengeListResponse = z.infer<typeof adminChallengeListResponseSchema>;
 export type AdminChallengeUpdateRequest = z.infer<typeof adminChallengeUpdateRequestSchema>;
-export type AdminAchievementCreateRequest = z.infer<typeof adminAchievementCreateRequestSchema>;
+export type AdminTitleCreateRequest = z.infer<typeof adminTitleCreateRequestSchema>;
+export type AdminTitleChallengeCreateRequest = z.infer<typeof adminTitleChallengeCreateRequestSchema>;
+export type AdminTitleChallenge = z.infer<typeof adminTitleChallengeSchema>;
+export type AdminTitleSummary = z.infer<typeof adminTitleSummarySchema>;
+export type AdminTitleCascade = z.infer<typeof adminTitleCascadeSchema>;
+export type AdminChallengeLifecycleRequest = z.infer<typeof adminChallengeLifecycleRequestSchema>;
+export type AdminChallengeLifecycleResponse = z.infer<typeof adminChallengeLifecycleResponseSchema>;
+export type AdminCatalogTitleUpdateResponse = z.infer<typeof adminCatalogTitleUpdateResponseSchema>;
 export type AdminCatalogTitleUpdateRequest = z.infer<typeof adminCatalogTitleUpdateRequestSchema>;
 export type AdminMapTitleRule = z.infer<typeof adminMapTitleRuleSchema>;
 export type AdminMapTitleRuleListResponse = z.infer<typeof adminMapTitleRuleListResponseSchema>;

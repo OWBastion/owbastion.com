@@ -136,10 +136,11 @@ Admin components follow [page-archetypes.md](page-archetypes.md) and share the s
 
 | Component | Purpose |
 | --- | --- |
-| `AdminAchievementNav` | Underlined navigation across title catalog, general challenges, map challenges. |
-| `AdminAchievementCreateDialog` | Large form to create a challenge (title rule), including collect-maps progress rule and icon. |
-| `AdminAchievementEditorDialog` | Edit a catalog entry, general challenge, or map challenge; fields follow entry type. |
-| `AdminAchievementDialogs` | Dialog host for edit, end challenge, retire title confirmations, and create; state from the workspace composable. |
+| `AdminAchievementNav` | Underlined navigation across titles and map challenges (aria-label 称号与挑战). |
+| `AdminTitleWorkspace` | Merged title page: one row per title with inline-expanding acquisition list, title and challenge actions, undo toasts, four list states, narrow record list. |
+| `AdminTitleCreateDialog` | Create (always draft) or edit a title; fields include scope, displayKind, color, icon, visibility; key conflicts surface on the 唯一 key field. |
+| `AdminChallengeDialog` | Add or edit a challenge under a title; qualification changes force 保存为新挑战, text changes offer 原地更新 vs 新挑战. |
+| `AdminAchievementEditorDialog` | Edit a map challenge (`family = map`); used by the map challenges page. |
 | `AdminSpatialConfigInput` | Segmented switch between single-map and multi-route spatial config. |
 | `AdminCompositeSpatialConfigInput` | Top-level composite config editor: shared points and respawn axis, embedded stage editors, validation. |
 | `AdminCompositeStagesInput` | Composite rules (pick count, first and later stage selection) and atomic stages. |

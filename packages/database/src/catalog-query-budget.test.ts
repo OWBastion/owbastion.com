@@ -59,6 +59,7 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       scope TEXT NOT NULL DEFAULT 'global',
       map_variant TEXT,
       progress_rule TEXT,
+      replaced_by_challenge_id TEXT REFERENCES title_challenges(id),
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );

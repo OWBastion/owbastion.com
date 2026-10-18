@@ -1779,14 +1779,52 @@
       "$ref": "#/components/responses/Json"
      }
     }
+   }
+  },
+  "/v1/admin/title-summaries": {
+   "get": {
+    "operationId": "listAdminTitleSummaries",
+    "description": "Maintainer-only, private/no-store. Every global and map Title sorted by category then label, with public-derived availability and non-manual acquisition summary.",
+    "responses": {
+     "200": { "description": "Title summaries", "content": { "application/json": { "schema": { "type": "object", "required": ["contractVersion", "items"], "properties": { "contractVersion": { "type": "string", "enum": ["1"] }, "items": { "type": "array", "items": { "$ref": "#/components/schemas/AdminTitleSummary" } } } } } } },
+     "401": { "$ref": "#/components/responses/Json" },
+     "403": { "$ref": "#/components/responses/Json" }
+    }
+   }
+  },
+  "/v1/admin/titles/{titleKey}/challenges": {
+   "parameters": [{ "$ref": "#/components/parameters/titleKey" }],
+   "get": {
+    "operationId": "listAdminTitleChallenges",
+    "description": "Maintainer-only. Non-manual acquisition paths, non-archived first then newest first. TITLE_NOT_FOUND returns 404.",
+    "responses": {
+     "200": { "description": "Acquisition challenges", "content": { "application/json": { "schema": { "type": "object", "required": ["contractVersion", "items"], "properties": { "contractVersion": { "type": "string", "enum": ["1"] }, "items": { "type": "array", "items": { "$ref": "#/components/schemas/AdminTitleChallenge" } } } } } } },
+     "404": { "$ref": "#/components/responses/Json" }
+    }
    },
    "post": {
-    "operationId": "createAdminAchievement",
-    "description": "Creates an authoring-side title challenge. Issuance records a canonical Challenge Completion and linked Title Grant. The canonical Challenge lifecycle is draft, active, or archived; time windows and public-condition visibility are separate from that lifecycle.",
+    "operationId": "createAdminTitleChallenge",
+    "description": "Maintainer-only, idempotent and audited. Creates title.<titleKey>.<random suffix>; scope comes from the Title. Map fields on global Titles return INVALID_MAP_SCOPE (422). enableTitle plus active challenge activates a draft Title in the same batch. Defaults evidenceRule to 完整截图 and active gameVersion to the latest known build. TITLE_RETIRED / TITLE_MANAGED_BY_MAP_RULE return 409; TITLE_NOT_FOUND returns 404.",
+    "parameters": [{ "$ref": "#/components/parameters/idempotencyKey" }],
+    "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdminTitleChallengeCreateRequest" } } } },
     "responses": {
-     "201": {
-      "$ref": "#/components/responses/Json"
-     }
+     "201": { "description": "Created acquisition challenge with contractVersion 1", "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/AdminTitleChallenge" }, { "$ref": "#/components/schemas/ContractVersion" }] } } } },
+     "404": { "$ref": "#/components/responses/Json" },
+     "409": { "$ref": "#/components/responses/Json" },
+     "422": { "$ref": "#/components/responses/Json" }
+    }
+   }
+  },
+  "/v1/admin/achievements/{challengeId}/lifecycle": {
+   "put": {
+    "operationId": "updateAdminChallengeLifecycle",
+    "description": "Maintainer-only, idempotent and audited. Updates only challenge lifecycle metadata. Omitted retirement/window fields retain their values; explicit null clears. Returns the exact prior state for undo by sending previous as a new request with contractVersion 1 and a fresh Idempotency-Key.",
+    "parameters": [{ "$ref": "#/components/parameters/challengeId" }, { "$ref": "#/components/parameters/idempotencyKey" }],
+    "requestBody": { "required": true, "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/ContractVersion" }, { "$ref": "#/components/schemas/AdminChallengeLifecycleRequest" }] } } } },
+    "responses": {
+     "200": { "description": "Challenge and exact prior state", "content": { "application/json": { "schema": { "type": "object", "required": ["contractVersion", "challenge", "previous"], "properties": { "contractVersion": { "type": "string", "enum": ["1"] }, "challenge": { "$ref": "#/components/schemas/AdminTitleChallenge" }, "previous": { "$ref": "#/components/schemas/AdminChallengeState" } } } } } },
+     "404": { "$ref": "#/components/responses/Json" },
+     "422": { "$ref": "#/components/responses/Json" }
     }
    }
   },
@@ -2177,20 +2215,33 @@
   "/v1/admin/titles/{titleKey}": {
    "put": {
     "operationId": "updateAdminTitle",
-    "description": "Updates catalog metadata and the Title's draft, active, or retired lifecycle. publicVisibility independently controls public presentation. Acquisition remains Challenge-derived and creates a Completion before a Grant.",
+    "description": "Maintainer-only, idempotent and audited. Updates Title metadata/lifecycle. Retirement archives owned non-archived challenges and map rules in the same batch, preserving their prior state in cascaded. Restore is allowed only from retired to active and only for rows owned by this Title (otherwise 422 INVALID_RESTORE). Replays return the original title, previousLifecycle and cascaded response. Undo retirement with lifecycle active and restore=cascaded; undo activation with lifecycle draft.",
+    "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdminTitleUpdateRequest" } } } },
     "parameters": [
      {
       "$ref": "#/components/parameters/titleKey"
-     }
+     },
+     { "$ref": "#/components/parameters/idempotencyKey" }
     ],
     "responses": {
-     "204": {
-      "description": "Updated"
-     }
+     "200": { "description": "Title and reversible cascade", "content": { "application/json": { "schema": { "type": "object", "required": ["contractVersion", "title", "previousLifecycle", "cascaded"], "properties": { "contractVersion": { "type": "string", "enum": ["1"] }, "title": { "$ref": "#/components/schemas/AdminTitleSummary" }, "previousLifecycle": { "type": "string", "enum": ["draft", "active", "retired"] }, "cascaded": { "$ref": "#/components/schemas/AdminTitleCascade" } } } } } },
+     "404": { "$ref": "#/components/responses/Json" },
+     "422": { "$ref": "#/components/responses/Json" }
     }
    }
   },
   "/v1/admin/titles": {
+   "post": {
+    "operationId": "createAdminTitle",
+    "description": "Maintainer-only, idempotent and audited. Creates only a Title, always draft. Generates titleKey when omitted; duplicate keys return 409 TITLE_KEY_CONFLICT.",
+    "parameters": [{ "$ref": "#/components/parameters/idempotencyKey" }],
+    "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdminTitleCreateRequest" } } } },
+    "responses": {
+     "201": { "description": "Created draft Title summary", "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/AdminTitleSummary" }, { "$ref": "#/components/schemas/ContractVersion" }] } } } },
+     "409": { "$ref": "#/components/responses/Json" },
+     "422": { "$ref": "#/components/responses/Json" }
+    }
+   },
    "get": {
     "operationId": "listAdminTitles",
     "parameters": [
@@ -2223,16 +2274,19 @@
   "/v1/admin/achievements/{challengeId}": {
    "put": {
     "operationId": "updateAdminAchievement",
-    "description": "Updates title challenge rules, lifecycle, optional schedule boundaries, and gameVersion. Adding release metadata later does not recreate the challenge; an already public challenge cannot clear it.",
+    "description": "Maintainer-only, idempotent and audited. Achievement-family edits require saveMode in_place or new_challenge; scope is rejected because it belongs to the Title. Changes to progressRule presence/contents, mapIds or mapVariant require new_challenge; in_place returns 422 CHALLENGE_QUALIFICATION_CHANGED. new_challenge inserts a random prefixed ID and archives/links the predecessor in one batch; predecessor completions/grants remain untouched. Text changes honor either mode. Map-family edits retain their existing shape and do not use saveMode. A released challenge cannot clear gameVersion.",
+    "requestBody": { "required": true, "content": { "application/json": { "schema": { "oneOf": [{ "$ref": "#/components/schemas/AdminTitleChallengeUpdateRequest" }, { "$ref": "#/components/schemas/AdminMapChallengeUpdateRequest" }] } } } },
     "parameters": [
      {
       "$ref": "#/components/parameters/challengeId"
-     }
+     },
+     { "$ref": "#/components/parameters/idempotencyKey" }
     ],
     "responses": {
-     "200": {
-      "$ref": "#/components/responses/Json"
-     }
+     "200": { "$ref": "#/components/responses/Json" },
+     "404": { "$ref": "#/components/responses/Json" },
+     "409": { "$ref": "#/components/responses/Json" },
+     "422": { "$ref": "#/components/responses/Json" }
     }
    }
   },
@@ -3233,6 +3287,59 @@
   }
  },
  "components": {
+  "schemas": {
+   "ContractVersion": { "type": "object", "required": ["contractVersion"], "properties": { "contractVersion": { "type": "string", "enum": ["1"] } } },
+   "ChallengeProgressRule": { "type": "object", "required": ["type"], "additionalProperties": false, "properties": { "type": { "type": "string", "enum": ["required_maps_completed"] }, "mapIds": { "type": "array", "minItems": 1, "maxItems": 256, "items": { "type": "string" } }, "mode": { "type": "string" }, "difficultyAtLeast": { "type": "string" } }, "anyOf": [{ "required": ["mapIds"] }, { "required": ["mode"] }] },
+   "AdminTitleSummary": {
+    "type": "object", "required": ["titleKey", "label", "icon", "iconUrl", "category", "scope", "displayKind", "color", "publicVisibility", "lifecycle", "gameVersion", "developerOnly", "status", "acquisition"],
+    "properties": {
+     "titleKey": { "type": "string" }, "label": { "type": "string" }, "icon": { "type": "string" }, "iconUrl": { "type": "string", "nullable": true }, "category": { "type": "string" },
+     "scope": { "type": "string", "enum": ["global", "map"] }, "displayKind": { "type": "string", "enum": ["fixed", "map_pioneer", "map_name_suffix"] }, "color": { "nullable": true, "description": "Existing title color: palette, heroColor, custom or gradient." },
+     "publicVisibility": { "type": "boolean" }, "lifecycle": { "type": "string", "enum": ["draft", "active", "retired"] }, "gameVersion": { "type": "string", "nullable": true }, "developerOnly": { "type": "boolean" }, "status": { "type": "string", "enum": ["draft", "scheduled", "active", "sunsetting", "ended", "retired"] },
+     "acquisition": { "oneOf": [
+      { "type": "object", "required": ["kind", "challengeCount", "completableCount"], "properties": { "kind": { "type": "string", "enum": ["challenges"] }, "challengeCount": { "type": "integer", "minimum": 0 }, "completableCount": { "type": "integer", "minimum": 0 } } },
+      { "type": "object", "required": ["kind", "ruleId", "condition", "scopeLabel"], "properties": { "kind": { "type": "string", "enum": ["map_rule"] }, "ruleId": { "type": "string" }, "condition": { "type": "string" }, "scopeLabel": { "type": "string" } } },
+      { "type": "object", "required": ["kind"], "properties": { "kind": { "type": "string", "enum": ["none"] } } }
+     ] }
+    }
+   },
+   "AdminTitleCreateRequest": {
+    "type": "object", "additionalProperties": false, "required": ["contractVersion", "label", "category", "scope", "displayKind", "icon", "publicVisibility"],
+    "properties": { "contractVersion": { "type": "string", "enum": ["1"] }, "titleKey": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,63}$" }, "label": { "type": "string", "minLength": 1, "maxLength": 256 }, "category": { "type": "string", "minLength": 1, "maxLength": 128 }, "scope": { "type": "string", "enum": ["global", "map"] }, "displayKind": { "type": "string", "enum": ["fixed", "map_pioneer", "map_name_suffix"] }, "color": { "nullable": true }, "icon": { "type": "string" }, "publicVisibility": { "type": "boolean" }, "gameVersion": { "type": "string", "nullable": true } }
+   },
+   "AdminTitleChallengeCreateRequest": {
+    "type": "object", "additionalProperties": false, "required": ["contractVersion", "condition", "submissionMode", "status"],
+    "properties": { "contractVersion": { "type": "string", "enum": ["1"] }, "condition": { "type": "string", "minLength": 1, "maxLength": 1024 }, "evidenceRule": { "type": "string", "minLength": 1, "maxLength": 2048 }, "submissionMode": { "type": "string", "enum": ["manual", "automatic"] }, "status": { "type": "string", "enum": ["draft", "active"] }, "startsAt": { "type": "integer", "nullable": true }, "endsAt": { "type": "integer", "nullable": true }, "gameVersion": { "type": "string", "nullable": true }, "mapIds": { "type": "array", "maxItems": 256, "items": { "type": "string" } }, "mapVariant": { "type": "string", "enum": ["classic"] }, "progressRule": { "$ref": "#/components/schemas/ChallengeProgressRule" }, "enableTitle": { "type": "boolean" } }
+   },
+   "AdminChallengeState": {
+    "type": "object", "required": ["status", "retiredVersion", "startsAt", "endsAt"], "properties": { "status": { "type": "string", "enum": ["draft", "active", "archived"] }, "retiredVersion": { "type": "string", "nullable": true }, "startsAt": { "type": "integer", "nullable": true }, "endsAt": { "type": "integer", "nullable": true } }
+   },
+   "AdminChallengeLifecycleRequest": {
+    "type": "object", "required": ["status"], "properties": { "status": { "type": "string", "enum": ["draft", "active", "archived"] }, "retiredVersion": { "type": "string", "nullable": true }, "startsAt": { "type": "integer", "nullable": true }, "endsAt": { "type": "integer", "nullable": true } }
+   },
+   "AdminTitleChallenge": {
+    "allOf": [{ "$ref": "#/components/schemas/AdminChallengeState" }, {
+     "type": "object", "required": ["challengeId", "titleKey", "family", "type", "kind", "titleName", "icon", "category", "categoryOverride", "condition", "evidenceRule", "submissionMode", "gameVersion", "introducedVersion", "mapIds", "replacedByChallengeId"],
+     "properties": { "challengeId": { "type": "string" }, "titleKey": { "type": "string" }, "family": { "type": "string", "enum": ["achievement"] }, "type": { "type": "string", "enum": ["title_achievement"] }, "kind": { "type": "string", "enum": ["title_achievement"] }, "titleName": { "type": "string" }, "icon": { "type": "string" }, "iconUrl": { "type": "string", "nullable": true }, "category": { "type": "string" }, "categoryOverride": { "type": "string", "nullable": true }, "condition": { "type": "string" }, "evidenceRule": { "type": "string" }, "submissionMode": { "type": "string", "enum": ["manual", "automatic"] }, "gameVersion": { "type": "string", "nullable": true }, "introducedVersion": { "type": "string", "nullable": true }, "mapIds": { "type": "array", "items": { "type": "string" } }, "mapVariant": { "type": "string", "enum": ["classic"] }, "scope": { "type": "string", "enum": ["global", "map"] }, "progressRule": { "$ref": "#/components/schemas/ChallengeProgressRule" }, "replacedByChallengeId": { "type": "string", "nullable": true } }
+    }]
+   },
+   "AdminTitleChallengeUpdateRequest": {
+    "type": "object", "additionalProperties": false, "required": ["contractVersion", "condition", "evidenceRule", "submissionMode", "categoryOverride", "status", "saveMode"],
+    "properties": { "contractVersion": { "type": "string", "enum": ["1"] }, "family": { "type": "string", "enum": ["achievement"] }, "saveMode": { "type": "string", "enum": ["in_place", "new_challenge"] }, "condition": { "type": "string" }, "evidenceRule": { "type": "string" }, "submissionMode": { "type": "string", "enum": ["manual", "automatic"] }, "categoryOverride": { "type": "string", "nullable": true }, "iconUrl": { "type": "string", "nullable": true }, "status": { "type": "string", "enum": ["draft", "active", "archived"] }, "gameVersion": { "type": "string", "nullable": true }, "retiredVersion": { "type": "string", "nullable": true }, "startsAt": { "type": "integer", "nullable": true }, "endsAt": { "type": "integer", "nullable": true }, "mapIds": { "type": "array", "items": { "type": "string" } }, "mapVariant": { "type": "string", "nullable": true, "enum": ["classic", null] }, "progressRule": { "allOf": [{ "$ref": "#/components/schemas/ChallengeProgressRule" }], "nullable": true } }
+   },
+   "AdminMapChallengeUpdateRequest": {
+    "type": "object", "required": ["contractVersion", "status"], "properties": { "contractVersion": { "type": "string", "enum": ["1"] }, "family": { "type": "string", "enum": ["map"] }, "name": { "type": "string" }, "difficulty": { "type": "string", "nullable": true }, "condition": { "type": "string" }, "evidenceRule": { "type": "string" }, "submissionMode": { "type": "string", "enum": ["manual", "automatic"] }, "status": { "type": "string", "enum": ["draft", "active", "archived"] }, "retiredVersion": { "type": "string", "nullable": true } }
+   },
+   "AdminTitleCascade": {
+    "type": "object", "required": ["challenges", "mapTitleRules"], "properties": {
+     "challenges": { "type": "array", "items": { "allOf": [{ "$ref": "#/components/schemas/AdminChallengeState" }, { "type": "object", "required": ["challengeId"], "properties": { "challengeId": { "type": "string" } } }] } },
+     "mapTitleRules": { "type": "array", "items": { "type": "object", "required": ["ruleId", "status", "retiredVersion"], "properties": { "ruleId": { "type": "string" }, "status": { "type": "string", "enum": ["draft", "active", "archived"] }, "retiredVersion": { "type": "string", "nullable": true } } } }
+    }
+   },
+   "AdminTitleUpdateRequest": {
+    "type": "object", "required": ["contractVersion"], "properties": { "contractVersion": { "type": "string", "enum": ["1"] }, "lifecycle": { "type": "string", "enum": ["draft", "active", "retired"] }, "publicVisibility": { "type": "boolean" }, "label": { "type": "string" }, "icon": { "type": "string" }, "category": { "type": "string" }, "scope": { "type": "string", "enum": ["global", "map"] }, "displayKind": { "type": "string", "enum": ["fixed", "map_pioneer", "map_name_suffix"] }, "color": { "nullable": true }, "restore": { "$ref": "#/components/schemas/AdminTitleCascade" } }
+   }
+  },
   "parameters": {
    "submissionId": {
     "name": "submissionId",

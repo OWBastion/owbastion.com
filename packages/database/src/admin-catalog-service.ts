@@ -1,13 +1,13 @@
 import { and, eq, inArray, isNull, ne, notExists } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import { parseChallengeProgressRule } from "@owbastion/domain";
+import { deriveTitleAvailability, parseChallengeProgressRule } from "@owbastion/domain";
+import { createAdminTitleServices } from "./admin-title-service";
 import type { AuthContext, ChallengeProgressRule, PlatformServices } from "@owbastion/domain";
-import type { AdminAchievementCreateRequest, AdminChallenge, AdminCatalogTitleUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminMapTitleRuleUpdateRequest, AgentTitle } from "@owbastion/contracts";
+import type { AdminChallenge, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminMapTitleRuleUpdateRequest, AgentTitle } from "@owbastion/contracts";
 import { hashRequest } from "./portal-session";
 import type { createChallengeCatalogServices } from "./challenge-catalog-service";
 import type { createChallengeSnapshotServices } from "./challenge-snapshot-service";
 import {
-  achievementChallengeMaps,
   achievementChallenges,
   gameplayRevisionChallengeAssignments,
   gameplayRevisions,
@@ -28,12 +28,6 @@ const titleIconContentTypes = new Map([["image/png", "png"], ["image/jpeg", "jpg
 // rule, or a map challenge that rewards it. Title obtainability is derived
 // from these paths, never stored on the title.
 type TitleAcquisitionPath = { status: string; startsAt: number | null; endsAt: number | null; retiredVersion: string | null };
-const deriveTitleAvailability = (paths: TitleAcquisitionPath[], timestamp: number): "scheduled" | "active" | "sunsetting" | "ended" => {
-  const live = paths.filter((path) => path.status === "active" && (path.startsAt === null || path.startsAt <= timestamp) && (path.endsAt === null || path.endsAt > timestamp));
-  if (live.length) return live.every((path) => path.retiredVersion) ? "sunsetting" : "active";
-  if (paths.some((path) => path.status === "active" && path.startsAt !== null && path.startsAt > timestamp)) return "scheduled";
-  return "ended";
-};
 
 type ChallengeCatalogServices = Pick<ReturnType<typeof createChallengeCatalogServices>,
   | "enabledMapChallengeAssignment"
@@ -53,7 +47,11 @@ type AdminCatalogServices = Pick<PlatformServices,
   | "updateAdminMapTitleRule"
   | "listAdminMapTitleInheritance"
   | "upsertAdminMapTitleRuleException"
-  | "createAdminAchievement"
+  | "listAdminTitleSummaries"
+  | "createAdminTitle"
+  | "listAdminTitleChallenges"
+  | "createAdminTitleChallenge"
+  | "updateAdminChallengeLifecycle"
   | "updateAdminChallenge"
   | "updateAdminCatalogTitle"
   | "uploadAdminTitleIcon"
@@ -74,7 +72,6 @@ type AdminCatalogServicesDependencies = {
   latestBuildVersion: () => Promise<string>;
   assertProgressRuleTargets: (rule: { mapIds?: string[]; mode?: string }) => Promise<void>;
   reconcileProgressChallengePlayers: (input: { challenge: typeof titleChallenges.$inferSelect; rule: ChallengeProgressRule; actorId: string; reason?: string | null }) => Promise<void>;
-  clearProgressChallengeMirrors: (input: { challenge: typeof titleChallenges.$inferSelect; actorId: string; reason?: string | null }) => Promise<void>;
   challengeCatalog: ChallengeCatalogServices;
   challengeSnapshot: ChallengeSnapshotServices;
 };
@@ -94,7 +91,6 @@ export const createAdminCatalogServices = ({
   latestBuildVersion,
   assertProgressRuleTargets,
   reconcileProgressChallengePlayers,
-  clearProgressChallengeMirrors,
   challengeCatalog,
   challengeSnapshot,
 }: AdminCatalogServicesDependencies): AdminCatalogServices => {
@@ -103,10 +99,8 @@ export const createAdminCatalogServices = ({
     loadChallengeMapIds,
     loadMapScopedTitleChallenges,
     loadMapTitleRuleChallenges,
-    loadTitleChallengeRevisions,
     toPublicMapChallenge,
     toTitleChallengeBase,
-    validateChallengeMapScope,
   } = challengeCatalog;
   const { resolveMapTitleProjection } = challengeSnapshot;
 
@@ -142,7 +136,10 @@ export const createAdminCatalogServices = ({
     await database.batch(revisions.map(({ revision }) => insertDefaultMapTitleRuleAssignment(revision.id, revision.mapId, rule.id, timestamp)));
   };
 
+  const { updateTitleChallenge, ...titleServices } = createAdminTitleServices({ database, evidenceBucket, db, now, replayOrConflict, latestBuildVersion, assertProgressRuleTargets, reconcileProgressChallengePlayers, challengeCatalog });
+
   return {
+    ...titleServices,
     async listAdminChallenges(input) {
       const items: AdminChallenge[] = [];
       if (!input.family || input.family === "map") {
@@ -328,77 +325,8 @@ export const createAdminCatalogServices = ({
       ]);
     },
 
-    async createAdminAchievement(input: AdminAchievementCreateRequest, auth, idempotencyKey) {
-      const replay = await replayOrConflict<AdminChallenge>(db, auth.subject, "admin.achievement.create", idempotencyKey, input);
-      if (replay) {
-        // Create persists its idempotency response in the same batch as the
-        // challenge, so a replay is the only retry that can rerun the
-        // post-commit progress backfill after a failed first attempt. The
-        // stored rule (not the request) decides what to reconcile.
-        const created = await db.select().from(titleChallenges).where(eq(titleChallenges.id, `title.${input.titleKey}`)).get();
-        const rule = created ? parseChallengeProgressRule(created.progressRule) : null;
-        if (created && rule && created.status === "active") {
-          await reconcileProgressChallengePlayers({ challenge: created, rule, actorId: auth.subject });
-        }
-        return replay;
-      }
-      // The version is internal bookkeeping: administrators may omit it and the current version is recorded.
-      const gameVersion = input.gameVersion?.trim() || (input.status !== "draft" ? await latestBuildVersion() : null);
-      const existing = await db.select({ key: titleCatalog.key, category: titleCatalog.category }).from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
-      if (existing) throw new Error("TITLE_KEY_CONFLICT");
-      if (input.progressRule) {
-        if (input.scope !== "global") throw new Error("INVALID_MAP_SCOPE");
-        if (input.submissionMode !== "manual") throw new Error("INVALID_SUBMISSION_MODE");
-        await assertProgressRuleTargets(input.progressRule);
-      }
-      const targetMapIds = [...new Set(input.mapIds)];
-      await validateChallengeMapScope(input.scope, targetMapIds);
-      const timestamp = now();
-      const challengeId = `title.${input.titleKey}`;
-      const mapVariant = input.mapVariant ?? null;
-      const revisions = input.scope === "map" ? await loadTitleChallengeRevisions(targetMapIds, mapVariant) : [];
-      const response: AdminChallenge = {
-        challengeId,
-        family: "achievement",
-        type: "title_achievement",
-        kind: "title_achievement",
-        titleKey: input.titleKey,
-        titleName: input.titleName,
-        icon: input.icon,
-        iconUrl: input.iconUrl,
-        category: input.categoryOverride ?? input.category,
-        categoryOverride: input.categoryOverride,
-        condition: input.condition,
-        evidenceRule: input.evidenceRule,
-        gameVersion,
-        status: input.status,
-        submissionMode: input.submissionMode,
-        introducedVersion: gameVersion,
-        retiredVersion: input.status === "active" ? input.retiredVersion ?? null : null,
-        startsAt: input.status !== "archived" ? input.startsAt ?? null : null,
-        endsAt: input.status !== "archived" ? input.endsAt ?? null : null,
-        scope: input.scope,
-        mapIds: targetMapIds,
-        ...(input.mapVariant ? { mapVariant: input.mapVariant } : {}),
-        ...(input.progressRule ? { progressRule: input.progressRule } : {}),
-      };
-      const statements: D1PreparedStatement[] = [
-        database.prepare("INSERT INTO title_catalog (key,label,icon,icon_url,category,condition,lifecycle,scope,display_kind,color_json,game_version) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind(input.titleKey, input.titleName, input.icon, input.iconUrl, input.category, input.condition, input.status === "archived" ? "retired" : input.status === "draft" ? "draft" : "active", input.scope, "fixed", "null", gameVersion),
-        database.prepare("INSERT INTO title_challenges (id,title_key,category_override,condition,evidence_rule,submission_mode,game_version,status,introduced_version,retired_version,starts_at,ends_at,scope,map_variant,progress_rule,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(challengeId, input.titleKey, input.categoryOverride, input.condition, input.evidenceRule, input.submissionMode, input.gameVersion ?? null, input.status, input.gameVersion ?? null, input.status === "active" ? input.retiredVersion ?? null : null, input.status !== "archived" ? input.startsAt ?? null : null, input.status !== "archived" ? input.endsAt ?? null : null, input.scope, input.mapVariant ?? null, input.progressRule ? JSON.stringify(input.progressRule) : null, timestamp, timestamp),
-        ...targetMapIds.map((mapId) => database.prepare("INSERT INTO achievement_challenge_maps (challenge_id,map_id) VALUES (?,?)").bind(challengeId, mapId)),
-        ...revisions.map(({ revision }) => database.prepare("INSERT INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, created_at, updated_at) VALUES (?, ?, ?, 'title_challenge', ?, 1, ?, ?)").bind(`assignment:${revision.id}:title_challenge:${challengeId}`, revision.id, revision.mapId, challengeId, timestamp, timestamp)),
-        database.prepare("INSERT INTO idempotency_keys (id,actor_id,operation,request_hash,response_json,created_at) VALUES (?,?,?,?,?,?)").bind(`${auth.subject}:admin.achievement.create:${idempotencyKey}`, auth.subject, "admin.achievement.create", await hashRequest(input), JSON.stringify(response), timestamp),
-        database.prepare("INSERT INTO audit_events (id,correlation_id,actor_type,actor_id,operation,entity_type,entity_id,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, "admin.achievement.create", "challenge", challengeId, JSON.stringify({ ...input, mapIds: targetMapIds }), timestamp),
-      ];
-      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
-      if (input.progressRule && input.status === "active") {
-        const created = await db.select().from(titleChallenges).where(eq(titleChallenges.id, challengeId)).get();
-        if (created) await reconcileProgressChallengePlayers({ challenge: created, rule: input.progressRule, actorId: auth.subject });
-      }
-      return response;
-    },
-
     async updateAdminChallenge(input, auth, idempotencyKey) {
+      if (input.family === "achievement") return updateTitleChallenge(input, auth, idempotencyKey);
       const replay = await replayOrConflict<AdminChallenge>(db, auth.subject, "admin.achievement.update", idempotencyKey, input); if (replay) return replay;
       const timestamp = now();
       if (input.family === "map") {
@@ -429,112 +357,7 @@ export const createAdminCatalogServices = ({
         await recordAudit(db, auth, "admin.achievement.update", "challenge", input.challengeId, input);
         return response;
       }
-      const row = await db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, input.challengeId)).get();
-      if (!row) throw new Error("CHALLENGE_NOT_FOUND");
-      const scope = input.scope ?? (row.challenge.scope as "global" | "map" ?? "global");
-      const progressRule = input.progressRule !== undefined ? input.progressRule : parseChallengeProgressRule(row.challenge.progressRule);
-      if (progressRule) {
-        if (scope !== "global") throw new Error("INVALID_MAP_SCOPE");
-        if (input.submissionMode !== "manual") throw new Error("INVALID_SUBMISSION_MODE");
-        // Map existence is only re-validated when the rule itself changes;
-        // drift (a required map retired later) must not block unrelated edits.
-        if (input.progressRule !== undefined) await assertProgressRuleTargets(progressRule);
-      }
-      const mapIds = input.mapIds !== undefined ? [...new Set(input.mapIds)] : (scope === "map" ? (await db.select({ mapId: achievementChallengeMaps.mapId }).from(achievementChallengeMaps).where(eq(achievementChallengeMaps.challengeId, row.challenge.id))).map(({ mapId }) => mapId) : []);
-      await validateChallengeMapScope(scope, mapIds);
-      const gameVersion = input.gameVersion !== undefined ? input.gameVersion : row.challenge.gameVersion;
-      const introducedVersion = row.challenge.introducedVersion ?? input.gameVersion ?? null;
-      const hasReleaseHistory = row.challenge.introducedVersion !== null || row.challenge.gameVersion !== null;
-      if (input.gameVersion === null && hasReleaseHistory) throw new Error("ACHIEVEMENT_GAME_VERSION_REQUIRED");
-      if (input.status !== "draft" && !gameVersion?.trim()) throw new Error("ACHIEVEMENT_GAME_VERSION_REQUIRED");
-      await db.update(titleChallenges).set({
-        condition: input.condition,
-        evidenceRule: input.evidenceRule,
-        submissionMode: input.submissionMode,
-        categoryOverride: input.categoryOverride,
-        status: input.status,
-        retiredVersion: input.status === "active" ? input.retiredVersion ?? null : null,
-        startsAt: input.status !== "archived" ? input.startsAt ?? null : null,
-        endsAt: input.status !== "archived" ? input.endsAt ?? null : null,
-        scope,
-        mapVariant: scope === "global" ? null : input.mapVariant !== undefined ? input.mapVariant : row.challenge.mapVariant,
-        progressRule: progressRule ? JSON.stringify(progressRule) : null,
-        gameVersion,
-        introducedVersion,
-        updatedAt: timestamp,
-      }).where(eq(titleChallenges.id, row.challenge.id));
-      if (input.scope !== undefined || input.mapIds !== undefined) {
-        await db.delete(achievementChallengeMaps).where(eq(achievementChallengeMaps.challengeId, row.challenge.id));
-        if (scope === "map" && mapIds.length) await db.insert(achievementChallengeMaps).values(mapIds.map((mapId) => ({ challengeId: row.challenge.id, mapId })));
-      }
-      await db.update(titleCatalog).set({ gameVersion }).where(eq(titleCatalog.key, row.title.key));
-      if (scope === "map") {
-        const mapVariant = input.mapVariant !== undefined ? input.mapVariant : (row.challenge.mapVariant as "classic" | null) ?? null;
-        const revisions = await loadTitleChallengeRevisions(mapIds, mapVariant);
-        if (revisions.length) await db.insert(gameplayRevisionChallengeAssignments).values(revisions.map(({ revision }) => ({
-          id: `assignment:${revision.id}:title_challenge:${row.challenge.id}`,
-          gameplayRevisionId: revision.id,
-          mapId: revision.mapId,
-          challengeFamily: "title_challenge",
-          challengeId: row.challenge.id,
-          enabled: 1,
-          condition: null,
-          evidenceRule: null,
-          submissionMode: null,
-          slot: null,
-          createdAt: timestamp,
-          updatedAt: timestamp,
-        }))).onConflictDoNothing();
-      }
-      if (input.iconUrl !== undefined) {
-        await db.update(titleCatalog).set({ iconUrl: input.iconUrl, iconObjectKey: input.iconUrl === row.title.iconUrl ? row.title.iconObjectKey : null }).where(eq(titleCatalog.key, row.title.key));
-        if (input.iconUrl !== row.title.iconUrl && row.title.iconObjectKey && evidenceBucket) await evidenceBucket.delete(row.title.iconObjectKey);
-      }
-      const response: AdminChallenge = { challengeId: row.challenge.id, family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: row.title.key, titleName: row.title.label, icon: row.title.icon, iconUrl: input.iconUrl !== undefined ? input.iconUrl : row.title.iconUrl, category: input.categoryOverride ?? row.title.category, categoryOverride: input.categoryOverride, condition: input.condition, evidenceRule: input.evidenceRule, gameVersion, status: input.status, submissionMode: input.submissionMode, introducedVersion, retiredVersion: input.status === "active" ? input.retiredVersion ?? null : null, startsAt: input.status !== "archived" ? input.startsAt ?? null : null, endsAt: input.status !== "archived" ? input.endsAt ?? null : null, scope, mapIds, ...(input.mapVariant !== undefined ? { mapVariant: input.mapVariant } : row.challenge.mapVariant ? { mapVariant: row.challenge.mapVariant as "classic" } : {}), ...(progressRule ? { progressRule } : {}) };
-      if (progressRule && input.status === "active") {
-        const updated = await db.select().from(titleChallenges).where(eq(titleChallenges.id, row.challenge.id)).get();
-        if (updated) await reconcileProgressChallengePlayers({ challenge: updated, rule: progressRule, actorId: auth.subject });
-      } else if (!progressRule && row.challenge.progressRule) {
-        await clearProgressChallengeMirrors({ challenge: row.challenge, actorId: auth.subject });
-      }
-      await recordIdempotency(db, auth.subject, "admin.achievement.update", idempotencyKey, input, response);
-      await recordAudit(db, auth, "admin.achievement.update", "challenge", input.challengeId, input);
-      return response;
-    },
-
-    async updateAdminCatalogTitle(input: AdminCatalogTitleUpdateRequest & { titleKey: string }, auth, idempotencyKey) {
-      const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "admin.title.catalog.update", idempotencyKey, input); if (replay) return;
-      const title = await db.select().from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
-      if (!title) throw new Error("TITLE_NOT_FOUND");
-      const lifecycle = input.lifecycle ?? title.lifecycle as "draft" | "active" | "retired";
-      const timestamp = now();
-      // Retiring a Title ends ordinary acquisition through every path it owns:
-      // its title challenges and map title rules are archived (any retirement
-      // announcement is spent). Map completion challenges belong to their map
-      // and stay untouched — the Title lifecycle already gates the reward.
-      // Re-activation only flips the catalog row; archived challenges stay
-      // archived and must be re-enabled explicitly.
-      const retiring = lifecycle === "retired" && title.lifecycle !== "retired";
-      await database.batch([
-        database.prepare("UPDATE title_catalog SET lifecycle = ?, public_visibility = ?, label = ?, icon = ?, category = ?, scope = ?, display_kind = ?, color_json = ? WHERE key = ?")
-          .bind(
-            lifecycle,
-            input.publicVisibility !== undefined ? (input.publicVisibility ? 1 : 0) : title.publicVisibility,
-            input.label ?? title.label,
-            input.icon ?? title.icon,
-            input.category ?? title.category,
-            input.scope ?? title.scope,
-            input.displayKind ?? title.displayKind,
-            input.color !== undefined ? JSON.stringify(input.color) : title.colorJson,
-            input.titleKey,
-          ),
-        ...(retiring ? [
-          database.prepare("UPDATE title_challenges SET status = 'archived', retired_version = NULL, starts_at = NULL, ends_at = NULL, updated_at = ? WHERE title_key = ? AND status != 'archived'").bind(timestamp, input.titleKey),
-          database.prepare("UPDATE map_title_rules SET status = 'archived', retired_version = NULL, updated_at = ? WHERE title_key = ? AND status != 'archived'").bind(timestamp, input.titleKey),
-        ] : []),
-      ]);
-      await recordIdempotency(db, auth.subject, "admin.title.catalog.update", idempotencyKey, input, {});
-      await recordAudit(db, auth, "admin.title.catalog.update", "title_catalog", input.titleKey, { previousLifecycle: title.lifecycle, lifecycle, cascaded: retiring, previousPublicVisibility: title.publicVisibility === 1, publicVisibility: input.publicVisibility ?? title.publicVisibility === 1 });
+      throw new Error("CHALLENGE_NOT_FOUND");
     },
 
     async uploadAdminTitleIcon(input, auth) {

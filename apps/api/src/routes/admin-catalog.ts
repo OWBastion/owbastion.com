@@ -1,5 +1,7 @@
 import {
-  adminAchievementCreateRequestSchema,
+  adminTitleCreateRequestSchema,
+  adminTitleChallengeCreateRequestSchema,
+  adminChallengeLifecycleRequestSchema,
   adminCatalogTitleUpdateRequestSchema,
   adminChallengeUpdateRequestSchema,
   adminMapCreateRequestSchema,
@@ -33,19 +35,35 @@ export const registerAdminCatalogRoutes = (app: ApiApp, dependencies: AdminRoute
     return c.json(await logServiceOperation(c, "admin_list_achievements", () => dependencies.services(c.env).listAdminChallenges({ family: family as "map" | "achievement" | undefined, status }, auth)));
   }));
 
-  app.post("/v1/admin/achievements", async (c) => {
-    return adminMutation(c, {
-      schema: adminAchievementCreateRequestSchema,
-      status: 201,
-      action: (input, auth, key) => dependencies.services(c.env).createAdminAchievement(input, auth, key),
-      errors: {
-        ...errorGroup(409, "The title key already exists", "TITLE_KEY_CONFLICT"),
-        ...errorGroup(422, "One or more target maps are unavailable", "MAP_NOT_FOUND", "MAP_NOT_ACTIVE"),
-        ...errorGroup(422, "Active, sunsetting, and retired challenges require a game version", "ACHIEVEMENT_GAME_VERSION_REQUIRED"),
-        ...errorGroup(422, "A developer-retained title cannot become a player challenge", "DEVELOPER_TITLE_CANNOT_BE_A_CHALLENGE"),
-      },
-    });
-  });
+  app.get("/v1/admin/title-summaries", maintainerRoute(requireMaintainer, async (c, auth) => c.json(await dependencies.services(c.env).listAdminTitleSummaries(auth))));
+  app.post("/v1/admin/titles", (c) => adminMutation(c, {
+    schema: adminTitleCreateRequestSchema,
+    status: 201,
+    action: (input, auth, key) => dependencies.services(c.env).createAdminTitle(input, auth, key),
+    errors: errorGroup(409, "The title key already exists", "TITLE_KEY_CONFLICT"),
+  }));
+  app.get("/v1/admin/titles/:titleKey/challenges", maintainerRoute(requireMaintainer, async (c, auth) => {
+    try { return c.json(await dependencies.services(c.env).listAdminTitleChallenges({ titleKey: c.req.param("titleKey")! }, auth)); }
+    catch (error) { if (error instanceof Error && error.message === "TITLE_NOT_FOUND") return errorResponse(c, 404, "TITLE_NOT_FOUND", "The title does not exist"); throw error; }
+  }));
+  app.post("/v1/admin/titles/:titleKey/challenges", (c) => adminMutation(c, {
+    schema: adminTitleChallengeCreateRequestSchema,
+    status: 201,
+    action: (input, auth, key) => dependencies.services(c.env).createAdminTitleChallenge({ ...input, titleKey: c.req.param("titleKey") }, auth, key),
+    errors: {
+      ...errorGroup(404, "The title does not exist", "TITLE_NOT_FOUND"),
+      ...errorGroup(409, "The title cannot accept challenges", "TITLE_RETIRED", "TITLE_MANAGED_BY_MAP_RULE"),
+      ...errorGroup(422, "The challenge scope, rule, window or version is invalid", "MAP_NOT_FOUND", "MAP_NOT_ACTIVE", "INVALID_MAP_SCOPE", "INVALID_SUBMISSION_MODE", "ACHIEVEMENT_GAME_VERSION_REQUIRED", "INVALID_CHALLENGE_WINDOW", "STANDALONE_MODE_NOT_FOUND"),
+    },
+  }));
+  app.put("/v1/admin/achievements/:challengeId/lifecycle", (c) => adminMutation(c, {
+    schema: adminChallengeLifecycleRequestSchema,
+    action: (input, auth, key) => dependencies.services(c.env).updateAdminChallengeLifecycle({ ...input, challengeId: c.req.param("challengeId") }, auth, key),
+    errors: {
+      ...errorGroup(404, "The challenge does not exist", "CHALLENGE_NOT_FOUND"),
+      ...errorGroup(422, "The challenge window or version is invalid", "INVALID_CHALLENGE_WINDOW", "ACHIEVEMENT_GAME_VERSION_REQUIRED"),
+    },
+  }));
 
   app.post("/v1/admin/maps", (c) => adminMutation(c, {
     schema: adminMapCreateRequestSchema,
@@ -243,11 +261,11 @@ export const registerAdminCatalogRoutes = (app: ApiApp, dependencies: AdminRoute
   app.put("/v1/admin/titles/:titleKey", async (c) => {
     return adminMutation(c, {
       schema: adminCatalogTitleUpdateRequestSchema,
-      noContent: true,
       action: (input, auth, key) => dependencies.services(c.env).updateAdminCatalogTitle({ ...input, titleKey: c.req.param("titleKey") }, auth, key),
       errors: {
         ...errorGroup(404, "The title does not exist", "TITLE_NOT_FOUND"),
-        ...errorGroup(409, "The title has a challenge record", "TITLE_HAS_CHALLENGE"),
+        ...errorGroup(422, "Restore is only valid for this title when reopening it", "INVALID_RESTORE"),
+        ...errorGroup(422, "The scope cannot change while acquisition paths exist", "TITLE_SCOPE_LOCKED"),
         ...errorGroup(422, "A developer-retained title cannot become a player challenge", "DEVELOPER_TITLE_CANNOT_BE_A_CHALLENGE"),
       },
     });
@@ -276,10 +294,11 @@ export const registerAdminCatalogRoutes = (app: ApiApp, dependencies: AdminRoute
         const input = body as Record<string, unknown> | null;
         return { ...input, family: input?.family ?? (c.req.param("challengeId").startsWith("title.") ? "achievement" : "map") };
       },
-      action: (input, auth, key) => dependencies.services(c.env).updateAdminChallenge({ ...input, challengeId: c.req.param("challengeId") }, auth, key),
+      action: async (input, auth, key) => ({ contractVersion: "1", ...await dependencies.services(c.env).updateAdminChallenge({ ...input, challengeId: c.req.param("challengeId") }, auth, key) }),
       errors: {
         ...errorGroup(404, "The achievement does not exist", "CHALLENGE_NOT_FOUND"),
-        ...errorGroup(422, "The challenge lifecycle metadata is invalid", "MAP_NOT_FOUND", "MAP_NOT_ACTIVE", "INVALID_MAP_SCOPE", "ACHIEVEMENT_GAME_VERSION_REQUIRED"),
+        ...errorGroup(422, "The challenge lifecycle metadata is invalid", "MAP_NOT_FOUND", "MAP_NOT_ACTIVE", "INVALID_MAP_SCOPE", "ACHIEVEMENT_GAME_VERSION_REQUIRED", "CHALLENGE_QUALIFICATION_CHANGED", "INVALID_CHALLENGE_WINDOW", "INVALID_SUBMISSION_MODE", "STANDALONE_MODE_NOT_FOUND"),
+        ...errorGroup(409, "The title cannot accept a replacement challenge", "TITLE_RETIRED", "TITLE_MANAGED_BY_MAP_RULE"),
       },
     });
   });
