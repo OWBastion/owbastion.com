@@ -13,6 +13,11 @@
 -- trigger whose referenced table is dropped mid-schema cannot be recreated
 -- until the name resolves, so the rebuild drops it first and restores the
 -- exact 0086 body alongside the scope/lifecycle index.
+-- player_title_grants_inherit_conqueror_after_dominator_insert (0075) fires on
+-- every restored DOMINATOR row whose CONQUEROR row is not back yet, inserting a
+-- duplicate CONQUEROR that then violates player_title_grants_active_identity_idx
+-- when the real one is restored. It is dropped for the restore and recreated
+-- with its 0075 body afterwards.
 --
 -- Converting retired rows to active and moving child rows through staging are
 -- data writes; the exception for this file lives in
@@ -79,6 +84,7 @@ DELETE FROM achievement_challenges;
 DELETE FROM random_event_map_challenges;
 
 DROP TRIGGER player_equipped_titles_validate_insert;
+DROP TRIGGER player_title_grants_inherit_conqueror_after_dominator_insert;
 DROP TABLE title_catalog;
 ALTER TABLE title_catalog_next RENAME TO title_catalog;
 CREATE INDEX title_catalog_scope_idx ON title_catalog(scope, lifecycle);
@@ -104,6 +110,84 @@ DROP TABLE temp_player_title_grants;
 DROP TABLE temp_challenges;
 DROP TABLE temp_achievement_challenges;
 DROP TABLE temp_random_event_map_challenges;
+
+CREATE TRIGGER player_title_grants_inherit_conqueror_after_dominator_insert
+AFTER INSERT ON player_title_grants
+WHEN NEW.title_key = 'DOMINATOR'
+  AND NEW.map_id IS NOT NULL
+  AND NEW.gameplay_revision_id IS NOT NULL
+  AND NEW.status = 'active'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM player_title_grants AS conqueror
+    WHERE conqueror.player_account_id = NEW.player_account_id
+      AND conqueror.title_key = 'CONQUEROR'
+      AND conqueror.map_id = NEW.map_id
+      AND conqueror.gameplay_revision_id = NEW.gameplay_revision_id
+      AND conqueror.status = 'active'
+  )
+BEGIN
+  INSERT INTO player_title_grants (
+    id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status,
+    source_type, source_id, granted_by, granted_at
+  ) VALUES (
+    lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' ||
+      lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' ||
+      lower(hex(randomblob(6))),
+    NEW.player_account_id,
+    'CONQUEROR',
+    NEW.map_id,
+    NEW.gameplay_revision_id,
+    'conqueror',
+    'active',
+    NEW.source_type,
+    NEW.source_id,
+    NEW.granted_by,
+    NEW.granted_at
+  ) ON CONFLICT(source_type, source_id, title_key) DO UPDATE SET
+    map_id = excluded.map_id,
+    gameplay_revision_id = excluded.gameplay_revision_id,
+    slot = excluded.slot,
+    status = 'active',
+    granted_by = excluded.granted_by,
+    granted_at = excluded.granted_at,
+    revoked_by = NULL,
+    revoked_at = NULL,
+    revoke_reason = NULL;
+
+  INSERT INTO audit_events (
+    id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id,
+    payload_json, created_at
+  )
+  SELECT
+    lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' ||
+      lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' ||
+      lower(hex(randomblob(6))),
+    lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' ||
+      lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' ||
+      lower(hex(randomblob(6))),
+    'service',
+    'trigger:player_title_grants_inherit_conqueror',
+    'title_grant.inherit',
+    'player_title_grant',
+    id,
+    json_object(
+      'sourceGrantId', NEW.id,
+      'titleKey', 'CONQUEROR',
+      'mapId', NEW.map_id,
+      'gameplayRevisionId', NEW.gameplay_revision_id,
+      'sourceType', NEW.source_type,
+      'sourceId', NEW.source_id,
+      'reason', '主宰称号自动继承征服者称号。'
+    ),
+    CAST(strftime('%s', 'now') AS INTEGER) * 1000
+  FROM player_title_grants
+  WHERE player_account_id = NEW.player_account_id
+    AND title_key = 'CONQUEROR'
+    AND map_id = NEW.map_id
+    AND gameplay_revision_id = NEW.gameplay_revision_id
+    AND status = 'active';
+END;
 
 CREATE TRIGGER player_equipped_titles_validate_insert BEFORE INSERT ON player_equipped_titles BEGIN
   SELECT RAISE(ABORT, 'EQUIPPED_TITLE_GRANT_INVALID')
