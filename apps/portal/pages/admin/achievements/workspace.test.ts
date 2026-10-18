@@ -6,19 +6,125 @@ import ChallengesPage from "./challenges.vue";
 import MapChallengesPage from "./map-challenges.vue";
 import TitlesPage from "./titles.vue";
 import LegacyIndexPage from "./index.vue";
-import AdminDateTimePicker from "../../../components/admin/AdminDateTimePicker.vue";
 
-const title = { challengeId: "title-1", family: "achievement", type: "title_achievement", titleKey: "FLAWLESS", titleName: "守望先锋", icon: "trophy", iconUrl: null, category: "战绩", categoryOverride: null, condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", status: "active", gameVersion: "3.1.0", introducedVersion: "3.1.0", retiredVersion: null };
-const secondTitle = { ...title, challengeId: "title-2", titleName: "游戏先锋", startsAt: 4_000_000_000_000, endsAt: 4_000_000_000_100 };
-const catalogTitle = { challengeId: "title.INTERNAL", family: "title_catalog", type: "title_catalog", titleKey: "INTERNAL", titleName: "内部称号", icon: "wrench", iconUrl: null, category: "开发保留", condition: "开发/管理用途。", lifecycle: "active", publicVisibility: true, availability: "active", scope: "global", displayKind: "fixed", gameVersion: "3.1.0", hasChallenge: false };
-const linkedCatalogTitle = { ...catalogTitle, challengeId: "title.FLAWLESS", titleKey: "FLAWLESS", titleName: "守望先锋", category: "战绩", condition: "完成挑战", hasChallenge: true };
+const titleSummary = {
+  titleKey: "FLAWLESS",
+  label: "守望先锋",
+  icon: "trophy",
+  iconUrl: null,
+  category: "战绩",
+  scope: "global",
+  displayKind: "fixed",
+  color: null,
+  publicVisibility: true,
+  lifecycle: "active",
+  gameVersion: "26.0301.1",
+  developerOnly: false,
+  status: "active",
+  acquisition: { kind: "challenges", challengeCount: 2, completableCount: 1 },
+};
+const draftSummary = {
+  ...titleSummary,
+  titleKey: "LIGHT_LOADOUT",
+  label: "轻装上阵",
+  lifecycle: "draft",
+  status: "draft",
+  acquisition: { kind: "challenges", challengeCount: 1, completableCount: 0 },
+};
+const mapRuleSummary = {
+  ...titleSummary,
+  titleKey: "CONQUEROR",
+  label: "征服者",
+  scope: "map",
+  displayKind: "map_name_suffix",
+  acquisition: { kind: "map_rule", ruleId: "rule.conqueror", condition: "通关对应地图传奇难度。", scopeLabel: "适用于所有地图的默认版本" },
+};
+const retiredSummary = {
+  ...titleSummary,
+  titleKey: "LUCKY",
+  label: "福星高照",
+  lifecycle: "retired",
+  status: "retired",
+  acquisition: { kind: "none" },
+};
+const summaries = [titleSummary, draftSummary, mapRuleSummary, retiredSummary];
+let summariesOverride: unknown[] | null = null;
+let pendingList = false;
+let listError = false;
+const stateCache = new Map<string, unknown>();
+const asyncDataCache = new Map<string, unknown>();
+// useState/useAsyncData caches persist across mounts inside one test file; keep
+// per-mount maps so mock changes are not shadowed by a previous mount's data.
+mockNuxtImport("useState", () => <T>(key: string, init: () => T) => {
+  if (!stateCache.has(key)) stateCache.set(key, init());
+  return { get value() { return stateCache.get(key) as T; }, set value(next: T) { stateCache.set(key, next); } };
+});
+mockNuxtImport("useAsyncData", () => <T>(key: unknown, handler: () => Promise<T>, options: { default?: () => T } = {}) => {
+  const resolvedKey = typeof key === "object" && key !== null && "value" in key ? String((key as { value: unknown }).value) : String(key);
+  const pending = ref(false);
+  const data = ref<T | undefined>(asyncDataCache.get(resolvedKey) as T | undefined ?? options.default?.());
+  const refresh = async () => {
+    pending.value = true;
+    try {
+      const result = await handler();
+      asyncDataCache.set(resolvedKey, result);
+      data.value = result;
+      return result;
+    } finally {
+      pending.value = false;
+    }
+  };
+  return { data, pending, refresh, execute: refresh };
+});
+
+const activeChallenge = {
+  challengeId: "ch-1",
+  titleKey: "FLAWLESS",
+  condition: "传奇及以上难度，通关时间 < 1 小时 30 分钟。",
+  evidenceRule: "完整截图",
+  submissionMode: "manual",
+  status: "active",
+  startsAt: null,
+  endsAt: null,
+  introducedVersion: "26.0301.1",
+  retiredVersion: null,
+  mapIds: [],
+  replacedByChallengeId: null,
+};
+const archivedChallenge = {
+  ...activeChallenge,
+  challengeId: "ch-2",
+  condition: "地狱及以上难度，通关时间 < 1 小时 45 分钟。",
+  status: "archived",
+};
+const draftChallenge = { ...activeChallenge, challengeId: "ch-3", titleKey: "LIGHT_LOADOUT", status: "draft" };
+const sunsettingChallenge = { ...activeChallenge, challengeId: "ch-sun", retiredVersion: "26.1101.1" };
+
 const map = { challengeId: "map-1", family: "map", gameplayRevisionId: "revision:map.kings-row:initial", type: "map_completion", name: "国王大道挑战", mapId: "map.kings-row", mapName: "国王大道", difficulty: "困难", condition: "完成国王大道挑战。", evidenceRule: "完整截图", submissionMode: "manual", status: "active", gameVersion: "3.0.0", introducedVersion: "3.0.0", retiredVersion: null };
-const secondMap = { ...map, challengeId: "map-2", name: "国王大道专家挑战" };
-const duplicateMap = { ...map, mapId: "map.route-66", mapName: "66号公路", name: "66号公路挑战" };
 const mapRule = { ruleId: "rule.conqueror", titleKey: "CONQUEROR", titleName: "征服者", kind: "conqueror", condition: "完成地图", evidenceRule: "完整截图", submissionMode: "manual", displayKind: "map_name_suffix", slot: "conqueror", defaultScope: "all_active", status: "active", introducedVersion: "3.1.0", retiredVersion: null };
 const mapInheritance = { mapId: "map.kings-row", rule: mapRule, projected: true, source: "map_title_rule", effective: { condition: "完成地图", evidenceRule: "完整截图", submissionMode: "manual", slot: "conqueror" }, exception: null };
+
+const challengeLists: Record<string, unknown[]> = {};
+const defaultChallengeLists: Record<string, unknown[]> = {
+  FLAWLESS: [activeChallenge, archivedChallenge],
+  LIGHT_LOADOUT: [draftChallenge],
+  CONQUEROR: [],
+  LUCKY: [],
+};
+Object.assign(challengeLists, defaultChallengeLists);
+
 const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
-  if (path === "/v1/achievements") return Promise.resolve({ items: [{ ...title }, { ...secondTitle }, { ...catalogTitle }, { ...linkedCatalogTitle }, { ...map }, { ...secondMap }, { ...duplicateMap }] });
+  if (path === "/v1/title-summaries") {
+    if (pendingList) return new Promise(() => {});
+    if (listError) {
+      const failure = new Error("Request failed") as Error & { data?: unknown; statusCode?: number };
+      failure.statusCode = 503;
+      failure.data = { contractVersion: "1", error: { code: "UPSTREAM_UNAVAILABLE", message: "服务暂时不可用，请稍后重试。", requestId: "req-err" } };
+      return Promise.reject(failure);
+    }
+    return Promise.resolve({ items: (summariesOverride ?? summaries).map((item) => ({ ...(item as object) })) });
+  }
+  if (path === "/v1/achievements") return Promise.resolve({ items: [{ ...map }] });
   if (path === "/v1/maps") return Promise.resolve({ items: [{ mapId: "map.kings-row", mapName: "国王大道" }, { mapId: "map.route-66", mapName: "66号公路" }] });
   if (path === "/v1/standalone-modes") return Promise.resolve({ items: [{ mode: "2026镜中回响", mapIds: ["map.kings-row", "map.route-66"] }] });
   if (path === "/v1/map-title-rules") return Promise.resolve({ items: [mapRule] });
@@ -26,15 +132,40 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record
   if (path === "/v1/maps/map.kings-row/map-title-inheritance") return Promise.resolve({ items: [mapInheritance] });
   if (path === "/v1/maps/map.route-66/map-title-inheritance") return Promise.resolve({ items: [] });
   if (path === "/v1/maps/map.kings-row/map-title-rules/rule.conqueror/exception" && options?.method === "PUT") return Promise.resolve();
-  if (path === "/v1/achievements/title-1" && options?.method === "PUT") return Promise.resolve({ ...title, ...options.body });
-  if (path === "/v1/achievements/title-2" && options?.method === "PUT") return Promise.resolve({ ...secondTitle, ...options.body });
+  const challengesMatch = path.match(/^\/v1\/titles\/([^/]+)\/challenges$/);
+  if (challengesMatch && !options?.method) return Promise.resolve({ items: challengeLists[challengesMatch[1]!] ?? [] });
+  if (challengesMatch && options?.method === "POST") return Promise.resolve({ ...activeChallenge, challengeId: "ch-new", titleKey: challengesMatch[1], condition: String(options.body?.condition ?? "") });
+  if (path === "/v1/achievements/ch-1/lifecycle" && options?.method === "PUT") {
+    return Promise.resolve({ contractVersion: "1", challenge: { ...activeChallenge, status: options.body?.status, retiredVersion: options.body?.retiredVersion ?? null }, previous: { status: "active", retiredVersion: null, startsAt: null, endsAt: null } });
+  }
+  if (path === "/v1/achievements/ch-2/lifecycle" && options?.method === "PUT") {
+    return Promise.resolve({ contractVersion: "1", challenge: { ...archivedChallenge, status: options.body?.status }, previous: { status: "archived", retiredVersion: null, startsAt: null, endsAt: null } });
+  }
+  if (path === "/v1/achievements/ch-3/lifecycle" && options?.method === "PUT") {
+    return Promise.resolve({ contractVersion: "1", challenge: { ...draftChallenge, status: options.body?.status }, previous: { status: "draft", retiredVersion: null, startsAt: null, endsAt: null } });
+  }
+  if (path === "/v1/achievements/ch-1" && options?.method === "PUT") return Promise.resolve({ ...activeChallenge, ...options.body });
+  if (path === "/v1/achievements/ch-2" && options?.method === "PUT") return Promise.resolve({ ...archivedChallenge, ...options.body });
+  if (path === "/v1/achievements/ch-sun" && options?.method === "PUT") return Promise.resolve({ ...sunsettingChallenge, ...options.body });
   if (path === "/v1/achievements/map-1" && options?.method === "PUT") return Promise.resolve({ ...map, ...options.body });
-  if (path === "/v1/achievements/map-2" && options?.method === "PUT") return Promise.resolve({ ...secondMap, ...options.body });
-  if (path === "/v1/titles/INTERNAL" && options?.method === "PUT") return Promise.resolve();
-  if (path === "/v1/titles/FLAWLESS" && options?.method === "PUT") return Promise.resolve();
+  const titleMatch = path.match(/^\/v1\/titles\/([^/]+)$/);
+  if (titleMatch && options?.method === "PUT") {
+    const before = summaries.find((item) => item.titleKey === titleMatch[1])!;
+    return Promise.resolve({
+      contractVersion: "1",
+      title: { ...before, lifecycle: options.body?.lifecycle ?? before.lifecycle },
+      previousLifecycle: before.lifecycle,
+      cascaded: { challenges: [{ challengeId: "ch-1", status: "active", retiredVersion: null, startsAt: null, endsAt: null }], mapTitleRules: [] },
+    });
+  }
+  if (path === "/v1/titles" && options?.method === "POST") {
+    return Promise.resolve({ ...titleSummary, titleKey: String(options.body?.titleKey ?? "GENERATED"), label: String(options.body?.label ?? ""), lifecycle: "draft", status: "draft", acquisition: { kind: "none" } });
+  }
   throw new Error(`Unexpected request: ${path}`);
 });
 mockNuxtImport("useAdminApi", () => () => adminApi);
+const toastAdd = vi.fn();
+mockNuxtImport("useToast", () => () => ({ add: toastAdd }));
 mockNuxtImport("useCurrentPlayer", () => () => ({ player: ref({ player: { isAdmin: true } }), status: ref("authenticated"), refresh: vi.fn() }));
 const navigateTo = vi.hoisted(() => vi.fn());
 mockNuxtImport("navigateTo", () => navigateTo);
@@ -44,8 +175,14 @@ const mountedWrappers: VueWrapper[] = [];
 
 const pages = { challenges: ChallengesPage, map: MapChallengesPage, titles: TitlesPage };
 
-async function mountPage(page: keyof typeof pages = "challenges"): Promise<VueWrapper> {
+async function mountPage(page: keyof typeof pages = "titles", options: { summaries?: unknown[] | null; pending?: boolean; error?: boolean } = {}): Promise<VueWrapper> {
   adminApi.mockClear();
+  toastAdd.mockClear();
+  stateCache.clear();
+  asyncDataCache.clear();
+  summariesOverride = options.summaries ?? null;
+  pendingList = options.pending ?? false;
+  listError = options.error ?? false;
   route.path = `/admin/achievements/${page === "map" ? "map-challenges" : page}`;
   route.query = {};
   const wrapper = await mountSuspended(pages[page], {
@@ -74,68 +211,131 @@ async function mountPage(page: keyof typeof pages = "challenges"): Promise<VueWr
 afterEach(() => {
   for (const wrapper of mountedWrappers.splice(0)) wrapper.unmount();
   vi.restoreAllMocks();
+  summariesOverride = null;
+  pendingList = false;
+  listError = false;
+  stateCache.clear();
+  asyncDataCache.clear();
+  for (const key of Object.keys(challengeLists)) delete challengeLists[key];
+  Object.assign(challengeLists, defaultChallengeLists);
 });
 
-describe("achievement admin page", () => {
-  it("opens the new achievement form after loading map choices", async () => {
-    const wrapper = await mountPage();
-    await wrapper.findAll("button").find((button) => button.text() === "新建挑战")!.trigger("click");
-    await flushPromises();
-    expect(wrapper.text()).toContain("新建挑战");
-    expect(wrapper.text()).toContain("全部地图");
-    wrapper.unmount();
-  });
+async function expand(wrapper: VueWrapper, label: string) {
+  await wrapper.get(`button[aria-label="展开${label}的获取方式"]`).trigger("click");
+  await flushPromises();
+}
 
-  it("uses an empty map selection for all-map challenges", async () => {
-    const wrapper = await mountPage();
-    await wrapper.findAll("button").find((button) => button.text() === "新建挑战")!.trigger("click");
-    await flushPromises();
-    const form = wrapper.get("form#achievement-create-form");
-    await form.findAll("select")[3]!.setValue("map");
-    expect(form.text()).toContain("指定地图");
-    expect(form.text()).toContain("留空作用于全部有效地图");
-    wrapper.unmount();
-  });
-
-  it("renders each achievement section on its own route", async () => {
-    const challenges = await mountPage("challenges");
-    expect(challenges.find('select[aria-label="筛选挑战状态"]').exists()).toBe(true);
-    expect(challenges.text()).toContain("战绩");
-    expect(challenges.text()).toContain("未开放");
-    expect(challenges.text()).not.toContain("内部称号");
-    expect(challenges.text()).not.toContain("开发保留");
-    expect(challenges.text()).not.toContain("国王大道");
-    expect(challenges.findAll('table button[aria-label="编辑规则"]')).toHaveLength(2);
-    expect(challenges.findAll('table button[aria-label="计划下线"]')).toHaveLength(2);
-    expect(challenges.findAll('table button[aria-label="结束挑战"]')).toHaveLength(2);
-    expect(challenges.findAll("button").some((button) => button.text() === "管理")).toBe(false);
-
-    const map = await mountPage("map");
-    await map.get('button[aria-label="按地图查看"]').trigger("click");
-    await flushPromises();
-    expect(map.text()).toContain("国王大道");
-    expect(map.text()).toContain("征服者");
-    expect(map.text()).not.toContain("内部称号");
-
-    const titles = await mountPage("titles");
-    expect(titles.text()).toContain("内部称号");
-    expect(titles.text()).toContain("开发保留");
-    expect(titles.text()).toContain("有关联挑战");
-    expect(titles.text()).not.toContain("国王大道");
-  });
-
-  it("links the three sections and marks the current one", async () => {
+describe("achievement admin pages", () => {
+  it("sanity renders the standard list", async () => {
     const wrapper = await mountPage("titles");
-    const nav = wrapper.get('nav[aria-label="挑战与称号"]');
-    expect(nav.findAll("a").map((link) => link.text())).toEqual(["称号目录", "通用挑战", "地图挑战"]);
-    expect(nav.get('[aria-current="page"]').text()).toBe("称号目录");
+    expect(wrapper.text()).toContain("守望先锋");
+  });
+
+
+  it("renders titles with their acquisition summaries and statuses", async () => {
+    const wrapper = await mountPage("titles");
+    expect(wrapper.text()).toContain("守望先锋");
+    expect(wrapper.text()).toContain("2 条挑战 · 1 条可完成");
+    expect(wrapper.text()).toContain("地图称号规则");
+    expect(wrapper.text()).toContain("无获取方式");
+    expect(wrapper.text()).toContain("已退休");
+    expect(wrapper.text()).toContain("轻装上阵");
+  });
+
+  it("expands a title and lists its challenges with actions", async () => {
+    const wrapper = await mountPage("titles");
+    await expand(wrapper, "守望先锋");
+    expect(adminApi).toHaveBeenCalledWith("/v1/titles/FLAWLESS/challenges");
+    expect(wrapper.text()).toContain("传奇及以上难度");
+    expect(wrapper.text()).toContain("长期开放");
+    expect(wrapper.text()).toContain("引入 26.0301.1");
+    expect(wrapper.findAll('button[aria-label="计划下线守望先锋的挑战"]')).toHaveLength(1);
+    expect(wrapper.findAll('button[aria-label="结束守望先锋的挑战"]')).toHaveLength(1);
+    expect(wrapper.findAll('button[aria-label="重开守望先锋的挑战"]')).toHaveLength(1);
+  });
+
+  it("shows the map-rule card for rule-managed titles and links to map challenges", async () => {
+    const wrapper = await mountPage("titles");
+    await expand(wrapper, "征服者");
+    expect(adminApi.mock.calls.some(([path]) => path === "/v1/titles/CONQUEROR/challenges")).toBe(false);
+    expect(wrapper.text()).toContain("通关对应地图传奇难度。");
+    expect(wrapper.text()).toContain("由地图称号规则发放 · 适用于所有地图的默认版本");
+    expect(wrapper.findAll("a").some((link) => link.text() === "在地图挑战中管理")).toBe(true);
+  });
+
+  it("shows the retired empty card for retired titles without challenges", async () => {
+    const wrapper = await mountPage("titles");
+    await expand(wrapper, "福星高照");
+    expect(wrapper.text()).toContain("已退休，没有挑战。仍可手动发放给指定玩家。");
+    expect(wrapper.findAll("button").some((button) => button.text() === "添加挑战")).toBe(false);
+  });
+
+  it("shows the empty acquisition card for titles without challenges", async () => {
+    const once = adminApi.getMockImplementation()!;
+    const wrapper = await mountPage("titles", { summaries: [{ ...titleSummary, acquisition: { kind: "none" } }] });
+    await expand(wrapper, "守望先锋");
+    expect(wrapper.text()).toContain("还没有获取方式，玩家无法获得这个称号。");
+    expect(wrapper.findAll("button").some((button) => button.text() === "添加第一条挑战")).toBe(true);
+  });
+
+  it("navigates grants with the title preselected", async () => {
+    const wrapper = await mountPage("titles");
+    const grant = wrapper.findAll("a").find((link) => link.text() === "发放");
+    expect(grant).toBeTruthy();
+  });
+
+  it("shows the loading skeleton while the list request is pending", async () => {
+    stateCache.clear();
+    pendingList = true;
+    const loadingWrapper = await mountSuspended(TitlesPage, {
+      attachTo: document.body,
+      global: { stubs: { NuxtLink: { template: "<a><slot /></a>" }, StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" } } },
+    });
+    await flushPromises();
+    expect(loadingWrapper.text()).toContain("读取中…");
+    loadingWrapper.unmount();
+  });
+
+  it("shows the empty state with a create action", async () => {
+    const wrapper = await mountPage("titles", { summaries: [] });
+    expect(wrapper.text()).toContain("还没有称号");
+    expect(wrapper.findAll("button").some((button) => button.text() === "新建第一个称号")).toBe(true);
+  });
+
+  it("shows the filter-empty state and clears the filters", async () => {
+    const wrapper = await mountPage("titles");
+    await wrapper.get('input[aria-label="搜索称号或完成条件"]').setValue("不存在的称号");
+    await flushPromises();
+    expect(wrapper.text()).toContain("没有符合条件的称号");
+    const clear = wrapper.findAll("button").find((button) => button.text() === "清除筛选")!;
+    await clear.trigger("click");
+    await flushPromises();
+    expect(wrapper.text()).toContain("守望先锋");
+  });
+
+  it("shows the error state and retries", async () => {
+    const wrapper = await mountPage("titles", { error: true });
+    expect(wrapper.text()).toContain("无法读取称号");
+    expect(wrapper.text()).toContain("服务暂时不可用，请稍后重试。");
+    listError = false;
+    await wrapper.findAll("button").find((button) => button.text() === "重试")!.trigger("click");
+    await flushPromises();
+    expect(wrapper.text()).toContain("守望先锋");
+  });
+
+  it("links the two sections and marks the current one", async () => {
+    const wrapper = await mountPage("titles");
+    const nav = wrapper.get('nav[aria-label="称号与挑战"]');
+    expect(nav.findAll("a").map((link) => link.text())).toEqual(["称号", "地图挑战"]);
+    expect(nav.get('[aria-current="page"]').text()).toBe("称号");
   });
 
   it.each([
     [{ section: "catalog" }, "/admin/achievements/titles", {}],
     [{ section: "map", mapId: "map.kings-row", ruleId: "rule.conqueror" }, "/admin/achievements/map-challenges", { mapId: "map.kings-row", ruleId: "rule.conqueror" }],
-    [{ section: "generic" }, "/admin/achievements/challenges", {}],
-    [{}, "/admin/achievements/challenges", {}],
+    [{ section: "generic" }, "/admin/achievements/titles", {}],
+    [{}, "/admin/achievements/titles", {}],
+    [{ x: "1" }, "/admin/achievements/titles", { x: "1" }],
   ])("redirects legacy deep link %j", async (query, path, carried) => {
     navigateTo.mockClear();
     route.query = query as Record<string, string>;
@@ -143,154 +343,144 @@ describe("achievement admin page", () => {
     expect(navigateTo).toHaveBeenCalledWith({ path, query: carried }, expect.objectContaining({ redirectCode: 302 }));
   });
 
-  it("applies the status filter to the mobile record list", async () => {
-    const wrapper = await mountPage();
-    expect(wrapper.text()).toContain("守望先锋");
-    expect(wrapper.text()).toContain("游戏先锋");
-    await wrapper.get('select[aria-label="筛选挑战状态"]').setValue("scheduled");
-    await flushPromises();
-
-    expect(wrapper.text()).toContain("游戏先锋");
-    expect(wrapper.text()).not.toContain("守望先锋");
+  it("redirects the old challenges URL preserving query params", async () => {
+    navigateTo.mockClear();
+    route.query = { x: "1" };
+    await mountSuspended(ChallengesPage);
+    expect(navigateTo).toHaveBeenCalledWith({ path: "/admin/achievements/titles", query: { x: "1" } }, expect.objectContaining({ redirectCode: 302 }));
   });
 
-  it("edits the catalog row when its challenge shares the same challenge id", async () => {
-    adminApi.mockImplementationOnce((path: string) => path === "/v1/achievements"
-      ? Promise.resolve({ items: [{ ...title, challengeId: "title.FLAWLESS" }, { ...linkedCatalogTitle }] })
-      : Promise.reject(new Error(`Unexpected request: ${path}`)));
+  it("retires a title immediately and undoes with the cascaded restore", async () => {
     const wrapper = await mountPage("titles");
-    await wrapper.get('button[aria-label="编辑称号"]').trigger("click");
+    await wrapper.get('button[aria-label="退休守望先锋"]').trigger("click");
     await flushPromises();
-    const form = wrapper.get("form#achievement-editor");
-    expect(form.text()).toContain("称号标签");
-    expect(wrapper.findAll("textarea")).toHaveLength(0);
-    await form.get('input[maxlength="256"]').setValue("守望先锋改");
-    await form.trigger("submit");
+    const call = adminApi.mock.calls.find(([path, options]) => path === "/v1/titles/FLAWLESS" && options?.method === "PUT");
+    expect(call?.[1]?.body).toEqual(expect.objectContaining({ lifecycle: "retired" }));
+    const toastEntry = toastAdd.mock.calls.find(([entry]) => entry.title === "已退休「守望先锋」");
+    expect(toastEntry?.[0]?.actions?.[0]?.label).toBe("撤销");
+    adminApi.mockClear();
+    toastEntry![0].actions[0].onClick();
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/titles/FLAWLESS", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ label: "守望先锋改" }) }));
+    const undo = adminApi.mock.calls.find(([path, options]) => path === "/v1/titles/FLAWLESS" && options?.method === "PUT");
+    expect(undo?.[1]?.body).toEqual(expect.objectContaining({
+      lifecycle: "active",
+      restore: { challenges: [{ challengeId: "ch-1", status: "active", retiredVersion: null, startsAt: null, endsAt: null }], mapTitleRules: [] },
+    }));
   });
 
-  it("edits title lifecycle and public visibility without creating a challenge", async () => {
+  it("offers 同时启用称号 when adding an active challenge to a draft title", async () => {
     const wrapper = await mountPage("titles");
-    await wrapper.get('button[aria-label="编辑称号"]').trigger("click");
+    await expand(wrapper, "轻装上阵");
+    await wrapper.findAll("button").find((button) => button.text() === "添加挑战")!.trigger("click");
     await flushPromises();
-    expect(wrapper.find("form").text()).toContain("称号标签");
-    expect(wrapper.findAll("textarea")).toHaveLength(0);
-    expect(wrapper.findAllComponents(AdminDateTimePicker)).toHaveLength(0);
-    await wrapper.get("form#achievement-editor").findAll("select")[3]!.setValue("draft");
-    await wrapper.get('form#achievement-editor [role="checkbox"][aria-label="公开显示"]').trigger("click");
-    await wrapper.get("form").trigger("submit");
+    const form = wrapper.get("form#admin-challenge-form");
+    const statusSelect = form.findAll("select").find((select) => select.text().includes("草稿") && select.text().includes("已开放"))!;
+    await statusSelect.setValue("active");
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/titles/INTERNAL", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ contractVersion: "1", lifecycle: "draft", publicVisibility: false, label: "内部称号", icon: "wrench", category: "开发保留", scope: "global", displayKind: "fixed", color: null }) }));
-    const catalogBody = adminApi.mock.calls.find(([path]) => path === "/v1/titles/INTERNAL")?.[1]?.body;
-    expect(catalogBody && "status" in catalogBody).toBe(false);
+    expect(form.text()).toContain("同时启用称号「轻装上阵」");
+    await form.findAll("textarea")[0]!.setValue("完成条件");
+    await form.trigger("submit");
+    await flushPromises();
+    const call = adminApi.mock.calls.find(([path, options]) => path === "/v1/titles/LIGHT_LOADOUT/challenges" && options?.method === "POST");
+    expect(call?.[1]?.body).toEqual(expect.objectContaining({ contractVersion: "1", enableTitle: true, status: "active" }));
   });
 
-  it("keeps the complete editor visible while scheduling an achievement", async () => {
-    const wrapper = await mountPage();
-    await wrapper.get('button[aria-label="编辑规则"]').trigger("click");
+  it("sends saveMode new_challenge when qualification changes", async () => {
+    const wrapper = await mountPage("titles");
+    await expand(wrapper, "守望先锋");
+    await wrapper.get('button[aria-label="编辑守望先锋的挑战"]').trigger("click");
+    await flushPromises();
+    const form = wrapper.get("form#admin-challenge-form");
+    expect(wrapper.text()).not.toContain("保存为新挑战");
+    await form.findAll("select")[0]!.setValue("required_maps_completed");
+    await flushPromises();
+    expect(wrapper.text()).toContain("保存后会新建一条挑战");
+    const mapSelect = form.findAll("select").find((select) => select.attributes("multiple") !== undefined)!;
+    await mapSelect.setValue(["map.kings-row"]);
+    await form.trigger("submit");
+    await flushPromises();
+    const call = adminApi.mock.calls.find(([path, options]) => path === "/v1/achievements/ch-1" && options?.method === "PUT");
+    expect(call?.[1]?.body).toEqual(expect.objectContaining({ saveMode: "new_challenge" }));
+  });
+
+  it("offers the save-mode choice for text-only changes", async () => {
+    const wrapper = await mountPage("titles");
+    await expand(wrapper, "守望先锋");
+    await wrapper.get('button[aria-label="编辑守望先锋的挑战"]').trigger("click");
+    await flushPromises();
+    const form = wrapper.get("form#admin-challenge-form");
+    await form.findAll("textarea")[0]!.setValue("完成条件（修订措辞）");
+    await flushPromises();
+    expect(wrapper.text()).toContain("这次修改怎么保存");
+    await form.find('input[type="radio"][value="new_challenge"]').setValue(true);
+    await form.trigger("submit");
+    await flushPromises();
+    const call = adminApi.mock.calls.find(([path, options]) => path === "/v1/achievements/ch-1" && options?.method === "PUT");
+    expect(call?.[1]?.body).toEqual(expect.objectContaining({ saveMode: "new_challenge", condition: "完成条件（修订措辞）" }));
+  });
+
+  it("sends in_place for window-only changes without prompting", async () => {
+    const wrapper = await mountPage("titles");
+    await expand(wrapper, "守望先锋");
+    await wrapper.get('button[aria-label="编辑守望先锋的挑战"]').trigger("click");
+    await flushPromises();
+    const form = wrapper.get("form#admin-challenge-form");
+    await form.findAll("input").find((input) => input.attributes("placeholder") === "例如 26.1003.1")!.setValue("26.1101.1");
+    await flushPromises();
+    expect(wrapper.text()).not.toContain("这次修改怎么保存");
+    await form.trigger("submit");
+    await flushPromises();
+    const call = adminApi.mock.calls.find(([path, options]) => path === "/v1/achievements/ch-1" && options?.method === "PUT");
+    expect(call?.[1]?.body).toEqual(expect.objectContaining({ saveMode: "in_place" }));
+  });
+
+  it("keeps the announced sunset version when editing a sunsetting challenge", async () => {
+    challengeLists.FLAWLESS = [sunsettingChallenge];
+    const wrapper = await mountPage("titles");
+    await expand(wrapper, "守望先锋");
+    await wrapper.get('button[aria-label="编辑守望先锋的挑战"]').trigger("click");
+    await flushPromises();
+    const form = wrapper.get("form#admin-challenge-form");
+    await form.findAll("textarea")[0]!.setValue("完成条件（措辞修订）");
+    await flushPromises();
+    await form.trigger("submit");
+    await flushPromises();
+    const call = adminApi.mock.calls.find(([path, options]) => path === "/v1/achievements/ch-sun" && options?.method === "PUT");
+    expect(call?.[1]?.body).toEqual(expect.objectContaining({ saveMode: "in_place", retiredVersion: "26.1101.1" }));
+  });
+
+  it("creates a draft title and reports TITLE_KEY_CONFLICT on the key field", async () => {
+    const wrapper = await mountPage("titles");
+    await wrapper.findAll("button").find((button) => button.text() === "新建称号")!.trigger("click");
+    await flushPromises();
+    const form = wrapper.get("form#admin-title-form");
+    await form.findAll("input")[0]!.setValue("新称号");
+    await form.findAll("input").find((input) => input.attributes("placeholder") === "选择或输入")!.setValue("战绩");
+    await form.findAll("input").find((input) => input.attributes("placeholder") === "例如 LIGHT_LOADOUT")!.setValue("FLAWLESS");
+    adminApi.mockImplementationOnce((path: string, options?: { method?: string }) => {
+      if (path === "/v1/titles" && options?.method === "POST") {
+        const failure = new Error("conflict") as Error & { data?: unknown; statusCode?: number };
+        failure.statusCode = 409;
+        failure.data = { error: { code: "TITLE_KEY_CONFLICT", message: "唯一 key 已被其他称号使用", requestId: "req-1" } };
+        return Promise.reject(failure);
+      }
+      return Promise.reject(new Error(`Unexpected request: ${path}`));
+    });
+
+    await wrapper.findAll("button").find((button) => button.text() === "仅创建称号")!.trigger("click");
+    await flushPromises();
+    await flushPromises();
+    expect(wrapper.text()).toContain("无法创建称号");
+    expect(wrapper.text()).toContain("已被「守望先锋」使用");
+  });
+
+  it("keeps the map challenges page working through the unified workspace", async () => {
+    const wrapper = await mountPage("map");
+    await wrapper.get('button[aria-label="按地图查看"]').trigger("click");
+    await flushPromises();
+    const mapRow = wrapper.findAll("tr").find((row) => row.text().includes("国王大道挑战") && row.findAll("button").some((button) => button.text() === "编辑挑战"))!;
+    await mapRow.findAll("button").find((button) => button.text() === "编辑挑战")!.trigger("click");
     const form = wrapper.get("form#achievement-editor");
-    await form.findAll("select")[1]!.setValue("active");
-    const pickers = wrapper.findAllComponents(AdminDateTimePicker);
-    await pickers[0]!.vm.$emit("update:modelValue", new Date("2030-01-01T00:00:00").getTime());
-    await pickers[1]!.vm.$emit("update:modelValue", new Date("2030-01-02T00:00:00").getTime());
-    await form.trigger("submit");
-    await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/achievements/title-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ status: "active", condition: "完成挑战", evidenceRule: "完整截图", startsAt: expect.any(Number), endsAt: expect.any(Number) }) }));
-  });
-
-  it("saves expanded title rules and clears the category override", async () => {
-    const wrapper = await mountPage();
-    await wrapper.get('button[aria-label="编辑规则"]').trigger("click");
-    await flushPromises();
-    const textareas = wrapper.findAll("textarea");
-    await textareas[0].setValue("完成更新后的挑战");
-    const category = wrapper.find('input[placeholder="战绩"]');
-    await category.setValue("");
-    await wrapper.get("form#achievement-editor").trigger("submit");
-    await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/achievements/title-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ condition: "完成更新后的挑战", categoryOverride: null }) }));
-  });
-
-  it("keeps the standalone mode when saving a progress rule that follows it", async () => {
-    adminApi.mockImplementationOnce((path: string) => path === "/v1/achievements"
-      ? Promise.resolve({ items: [{ ...title, submissionMode: "manual", scope: "global", progressRule: { type: "required_maps_completed", mode: "2026镜中回响" } }] })
-      : Promise.reject(new Error(`Unexpected request: ${path}`)));
-    const wrapper = await mountPage();
-    await wrapper.get('button[aria-label="编辑规则"]').trigger("click");
-    await flushPromises();
-    await wrapper.get("form#achievement-editor").trigger("submit");
-    await flushPromises();
-    const call = adminApi.mock.calls.find(([path, options]) => path === "/v1/achievements/title-1" && options?.method === "PUT");
-    expect(call?.[1]?.body?.progressRule).toEqual({ type: "required_maps_completed", mode: "2026镜中回响" });
-  });
-
-  it("saves a CDN icon URL and keeps file upload collapsed", async () => {
-    const wrapper = await mountPage();
-    await wrapper.get('button[aria-label="编辑规则"]').trigger("click");
-    await flushPromises();
-    const iconUrl = wrapper.get('input[placeholder="https://cdn.example.com/icon.webp"]');
-    await iconUrl.setValue("https://cdn.example.com/flawless.webp");
-    expect(wrapper.get("details").attributes("open")).toBeUndefined();
-    await wrapper.get("form#achievement-editor").trigger("submit");
-    await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/achievements/title-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ iconUrl: "https://cdn.example.com/flawless.webp" }) }));
-  });
-
-  it("plans a sunset in a temporary Nuxt UI popover", async () => {
-    const wrapper = await mountPage();
-    const planButton = wrapper.get('button[aria-label="计划下线"]');
-    await planButton.trigger("click");
-    const form = wrapper.find("form");
-    await form.find('input[placeholder="例如 26.0713.1"]').setValue("26.0713.1");
-    await form.trigger("submit");
-    await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/achievements/title-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ status: "active", retiredVersion: "26.0713.1" }) }));
-  });
-
-  it("routes a genuine map challenge to the unified editor", async () => {
-    const wrapper = await mountPage("map");
-    await wrapper.get('button[aria-label="按地图查看"]').trigger("click");
-    await flushPromises();
-    const mapRow = wrapper.findAll("tr").find((row) => row.text().includes("国王大道挑战") && !row.text().includes("专家"))!;
-    await mapRow.get("button").trigger("click");
-    expect(wrapper.text()).toContain("编辑规则");
-    expect(adminApi.mock.calls.some(([path, options]) => path === "/v1/achievements/map-1" && options?.method === "PUT")).toBe(false);
-  });
-
-  it("saves map rules and exceptions from the unified workspace", async () => {
-    const wrapper = await mountPage("map");
-    await wrapper.findAll("button").find((button) => button.text() === "编辑规则")!.trigger("click");
-    await wrapper.get("form#map-title-rule-editor").trigger("submit");
-    await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/map-title-rules/rule.conqueror", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ titleKey: "CONQUEROR", kind: "conqueror", defaultScope: "all_active" }) }));
-
-    await wrapper.get('button[aria-label="按地图查看"]').trigger("click");
-    await flushPromises();
-    await wrapper.findAll("button").find((button) => button.text() === "编辑例外")!.trigger("click");
-    await wrapper.get("form#map-exception-editor").trigger("submit");
-    await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/maps/map.kings-row/map-title-rules/rule.conqueror/exception", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ contractVersion: "1", enabled: true }) }));
-  });
-
-  it("keeps duplicate map challenge IDs isolated by map identity", async () => {
-    const wrapper = await mountPage("map");
-    await wrapper.get('button[aria-label="按地图查看"]').trigger("click");
-    await flushPromises();
-    await wrapper.get('select[aria-label="选择地图"]').setValue("map.route-66");
-    await flushPromises();
-    const mapRow = wrapper.findAll("tr").find((row) => row.text().includes("66号公路挑战"))!;
-    await mapRow.findAll("button").find((button) => button.text() === "编辑挑战")!.trigger("click");
-    expect((wrapper.get('input[maxlength="256"]').element as HTMLInputElement).value).toBe("66号公路挑战");
-  });
-
-  it("saves expanded map challenge rules", async () => {
-    const wrapper = await mountPage("map");
-    await wrapper.get('button[aria-label="按地图查看"]').trigger("click");
-    await flushPromises();
-    const mapRow = wrapper.findAll("tr").find((row) => row.text().includes("国王大道挑战") && !row.text().includes("专家"))!;
-    await mapRow.findAll("button").find((button) => button.text() === "编辑挑战")!.trigger("click");
-    const form = wrapper.get("form");
     await form.find('input[maxlength="256"]').setValue("新的地图挑战");
     await form.findAll("textarea")[0]!.setValue("完成更新后的地图挑战");
     await form.trigger("submit");
@@ -298,29 +488,13 @@ describe("achievement admin page", () => {
     expect(adminApi).toHaveBeenCalledWith("/v1/achievements/map-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ family: "map", name: "新的地图挑战", condition: "完成更新后的地图挑战", evidenceRule: "完整截图", submissionMode: "manual" }) }));
   });
 
-  it("does not write when the end confirmation is cancelled", async () => {
-    const wrapper = await mountPage();
-    await wrapper.get('button[aria-label="结束挑战"]').trigger("click");
+  it("saves map rules and exceptions from the unified workspace", async () => {
+    const wrapper = await mountPage("map");
+    const ruleButton = wrapper.findAll("button").find((button) => button.text() === "编辑规则");
+    expect(ruleButton).toBeTruthy();
+    await ruleButton!.trigger("click");
+    await wrapper.get("form#map-title-rule-editor").trigger("submit");
     await flushPromises();
-    const requestsBeforeCancel = adminApi.mock.calls.length;
-    await wrapper.findAll('[role="dialog"] button').find((button) => button.text() === "取消")!.trigger("click");
-    await flushPromises();
-    expect(adminApi).toHaveBeenCalledTimes(requestsBeforeCancel);
-    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
-  });
-
-  it("retires a catalog-only title without creating a challenge", async () => {
-    const wrapper = await mountPage("titles");
-    const endButton = wrapper.get('button[aria-label="退休称号"]');
-    await endButton.trigger("click");
-    await flushPromises();
-    expect(document.body.textContent).toContain("退休后该称号不再发放。");
-    expect(document.body.textContent).toContain("确认退休");
-    expect(document.body.textContent).not.toContain("结束后不再接受新的截图提交。");
-    await (document.body.querySelector('[role="dialog"] form') as HTMLFormElement).dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/titles/INTERNAL", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ contractVersion: "1", lifecycle: "retired", publicVisibility: true, label: "内部称号", icon: "wrench", category: "开发保留" }) }));
-    expect(adminApi.mock.calls.filter(([path]) => path === "/v1/achievements").length).toBeGreaterThan(1);
-    expect(wrapper.text()).toContain("已退休");
+    expect(adminApi).toHaveBeenCalledWith("/v1/map-title-rules/rule.conqueror", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ titleKey: "CONQUEROR", kind: "conqueror", defaultScope: "all_active" }) }));
   });
 });

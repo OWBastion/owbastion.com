@@ -1,287 +1,60 @@
 <script setup lang="ts">
-import type { AdminAchievement, AdminMap, CatalogTitle, MapAchievement, StandaloneModeOption, TitleAchievement } from "./admin-achievement-types";
-import { DEFAULT_EVIDENCE_RULE, DIFFICULTY_OPTIONS, isCatalog, isChallengeTitle, isMap, isTitle } from "./admin-achievement-types";
+import type { MapAchievement } from "./admin-achievement-types";
 
 const props = defineProps<{
   open: boolean;
-  item: AdminAchievement | null;
-  maps: AdminMap[];
-  modes: StandaloneModeOption[];
-  categories: string[];
+  item: MapAchievement | null;
   saving: boolean;
-  iconFile: File | null;
-  iconUploading: boolean;
 }>();
 
 const emit = defineEmits<{
   "update:open": [open: boolean];
-  "update:iconFile": [file: File | null];
-  "update-catalog-lifecycle": [lifecycle: CatalogTitle["lifecycle"]];
-  "update-public-visibility": [publicVisibility: boolean];
   save: [];
   cancel: [];
-  "upload-icon": [];
 }>();
-
-// A required field inside the collapsed 更多设置 would otherwise block submit while hidden.
-const moreSettings = useTemplateRef<HTMLDetailsElement>("moreSettings");
-const revealInvalidField = (event: Event) => {
-  if (moreSettings.value?.contains(event.target as Node)) moreSettings.value.open = true;
-};
 
 const dialogOpen = computed({
   get: () => props.open,
   set: (open: boolean) => emit("update:open", open),
 });
 
-const title = computed(() => props.item && isCatalog(props.item) ? "编辑称号目录" : "编辑规则");
-const description = computed(() => props.item ? (isTitle(props.item) ? props.item.titleName : props.item.name) : undefined);
-const submitLabel = computed(() => props.item && isCatalog(props.item) ? "保存目录" : "保存规则");
+const statusItems = [{ label: "草稿", value: "draft" }, { label: "已开放", value: "active" }, { label: "已下线", value: "archived" }];
 
-const statusItems = computed(() => {
-  const item = props.item;
-  if (!item) return [];
-  if (isCatalog(item)) return [];
-  return [{ label: "草稿", value: "draft" }, { label: "已开放", value: "active" }, { label: "已下线", value: "archived" }];
-});
-
-const catalogColorValue = (color: CatalogTitle["color"]) => color?.kind === "palette" ? color.name : "none";
-
-function asTitle(item: AdminAchievement): TitleAchievement | CatalogTitle | null {
-  return isTitle(item) ? item : null;
-}
-function asChallenge(item: AdminAchievement): TitleAchievement | null {
-  return isChallengeTitle(item) ? item : null;
-}
-function asMap(item: AdminAchievement): MapAchievement | null {
-  return isMap(item) ? item : null;
-}
-function asCatalog(item: AdminAchievement): CatalogTitle | null {
-  return isCatalog(item) ? item : null;
-}
-
-function setEvidenceRule(value: string) {
-  if (props.item && (isChallengeTitle(props.item) || isMap(props.item))) props.item.evidenceRule = value;
-}
-function setSubmissionMode(value: "manual" | "automatic") {
-  if (props.item && (isChallengeTitle(props.item) || isMap(props.item))) props.item.submissionMode = value;
-}
-function setScope(value: "global" | "map") {
-  if (props.item && isChallengeTitle(props.item)) props.item.scope = value;
-}
-function setMapIds(value: string[]) {
-  if (props.item && isChallengeTitle(props.item)) props.item.mapIds = value;
-}
-function setMapVariant(value: "classic" | undefined) {
-  if (props.item && isChallengeTitle(props.item)) props.item.mapVariant = value;
-}
-function setProgressMode(value: "none" | "required_maps_completed") {
-  if (!props.item || !isChallengeTitle(props.item)) return;
-  if (value === "none") {
-    props.item.progressRule = null;
-    return;
-  }
-  props.item.progressRule = { type: "required_maps_completed", ...(props.item.progressRule?.mapIds?.length ? { mapIds: props.item.progressRule.mapIds } : {}) };
-  props.item.scope = "global";
-  props.item.submissionMode = "manual";
-  props.item.mapIds = [];
-  props.item.mapVariant = undefined;
-}
-function setProgressMapIds(value: string[]) {
-  if (!props.item || !isChallengeTitle(props.item) || !props.item.progressRule) return;
-  // No maps with a mode means the rule follows every map of that mode.
-  const { mapIds: _omitted, ...rest } = props.item.progressRule;
-  props.item.progressRule = value.length ? { ...rest, mapIds: value } : { ...rest };
-}
-function setProgressDifficulty(value: string | undefined) {
-  if (!props.item || !isChallengeTitle(props.item) || !props.item.progressRule) return;
-  const { difficultyAtLeast: _omitted, ...rest } = props.item.progressRule;
-  props.item.progressRule = value ? { ...rest, difficultyAtLeast: value } : { ...rest };
-}
-function setProgressGameMode(value: string) {
-  if (!props.item || !isChallengeTitle(props.item) || !props.item.progressRule) return;
-  const { mode: _omitted, ...rest } = props.item.progressRule;
-  props.item.progressRule = value.trim() ? { ...rest, mode: value.trim() } : { ...rest };
-}
-const regularScope = "__regular__";
-const scopeItems = computed(() => [{ label: "常规模式（指定地图）", value: regularScope }, ...props.modes.map(({ mode, mapIds }) => ({ label: `${mode}（${mapIds.length} 张地图）`, value: mode }))]);
-const mapItems = computed(() => [{ label: "全部有效地图", value: "" }, ...props.maps.map((map) => ({ label: map.mapName, value: map.mapId }))]);
-const progressMode = computed(() => props.item && isChallengeTitle(props.item) ? props.item.progressRule?.mode : undefined);
-const followedMapCount = computed(() => props.modes.find(({ mode }) => mode === progressMode.value)?.mapIds.length ?? 0);
-function setProgressScope(value: string) {
-  if (value === regularScope) setProgressGameMode("");
-  else {
-    setProgressGameMode(value);
-    setProgressMapIds([]);
-  }
-}
-const progressModeItems = [{ label: "截图条件", value: "none" }, { label: "集齐指定地图", value: "required_maps_completed" }];
-const progressDifficultyItems = computed(() => [{ label: "不限难度", value: "" }, ...DIFFICULTY_OPTIONS.map((difficulty) => ({ label: `至少${difficulty}`, value: difficulty }))]);
-function setCatalogColor(value: string) {
-  if (!props.item || !isCatalog(props.item)) return;
-  props.item.color = value === "none" ? null : { kind: "palette", name: value as "orange" | "red" | "purple" | "gold" | "blue" };
-}
-function setCatalogLifecycle(value: string) {
-  if (value === "draft" || value === "active" || value === "retired") emit("update-catalog-lifecycle", value);
-}
-function setPublicVisibility(value: boolean | "indeterminate") {
-  if (typeof value === "boolean") emit("update-public-visibility", value);
-}
-function setIconUrl(value: string) {
-  if (props.item && isChallengeTitle(props.item)) props.item.iconUrl = value || null;
-}
-function setCategoryOverride(value: string) {
-  if (props.item && isChallengeTitle(props.item)) props.item.categoryOverride = value || null;
-}
 function setRetiredVersion(value: string) {
-  if (props.item && (isChallengeTitle(props.item) || isMap(props.item))) props.item.retiredVersion = value || null;
-}
-function setGameVersion(value: string) {
-  if (props.item && isChallengeTitle(props.item)) props.item.gameVersion = value || null;
-}
-function setScheduleTime(field: "startsAt" | "endsAt", value: number | null) {
-  if (props.item && isChallengeTitle(props.item)) props.item[field] = value;
-}
-function onIconFile(value: File | null | undefined) {
-  emit("update:iconFile", value ?? null);
+  if (props.item) props.item.retiredVersion = value || null;
 }
 </script>
 
 <template>
-  <AdminResponsiveDialog v-model:open="dialogOpen" :title="title" :description="description" size="lg">
+  <AdminResponsiveDialog v-model:open="dialogOpen" title="编辑规则" :description="item?.name" size="lg">
     <template #body>
-      <form v-if="item" id="achievement-editor" class="admin-achievement-editor admin-achievement-editor--edit" @submit.prevent="emit('save')" @invalid.capture="revealInvalidField">
-        <template v-if="asCatalog(item)">
-          <UFormField class="editor-field" label="称号标签" required>
-            <UInput class="editor-control" v-model="asCatalog(item)!.titleName" required maxlength="256" :disabled="saving" />
-          </UFormField>
-          <UFormField class="editor-field" label="图标键" required>
-            <UInput class="editor-control" v-model="asCatalog(item)!.icon" required maxlength="64" :disabled="saving" />
-          </UFormField>
-          <UFormField class="editor-field" label="称号系列" required>
-            <UInputMenu class="editor-control" v-model="asCatalog(item)!.category" :items="categories" create-item placeholder="选择或输入" :disabled="saving" @create="asCatalog(item)!.category = $event.trim()" />
-          </UFormField>
-          <UFormField class="editor-field" label="称号范围">
-            <USelect class="editor-control" v-model="asCatalog(item)!.scope" :items="[{ label: '全局称号', value: 'global' }, { label: '地图称号', value: 'map' }]" :disabled="saving" />
-          </UFormField>
-          <UFormField class="editor-field" label="展示方式">
-            <USelect class="editor-control" v-model="asCatalog(item)!.displayKind" :items="[{ label: '固定称号', value: 'fixed' }, { label: '地图名 + 开拓者', value: 'map_pioneer' }, { label: '地图名 + 后缀称号', value: 'map_name_suffix' }]" :disabled="saving" />
-          </UFormField>
-          <UFormField class="editor-field" label="颜色">
-            <USelect class="editor-control" :model-value="catalogColorValue(asCatalog(item)!.color)" :items="[{ label: '未设置', value: 'none' }, { label: '橙色', value: 'orange' }, { label: '红色', value: 'red' }, { label: '紫色', value: 'purple' }, { label: '金色', value: 'gold' }, { label: '蓝色', value: 'blue' }]" :disabled="saving" @update:model-value="setCatalogColor" />
-          </UFormField>
-          <UFormField class="editor-field" label="生命周期">
-            <USelect class="editor-control" :model-value="asCatalog(item)!.lifecycle" :items="[{ label: '草稿', value: 'draft' }, { label: '已启用', value: 'active' }, { label: '已退休', value: 'retired' }]" :disabled="saving" @update:model-value="setCatalogLifecycle" />
-          </UFormField>
-          <UCheckbox :model-value="asCatalog(item)!.publicVisibility" label="公开显示" :disabled="saving" @update:model-value="setPublicVisibility" />
-        </template>
-
-        <UFormField v-if="asMap(item)" class="editor-field" label="挑战名称" required>
-          <UInput class="editor-control" v-model="asMap(item)!.name" required maxlength="256" :disabled="saving" />
+      <form v-if="item" id="achievement-editor" class="admin-achievement-editor admin-achievement-editor--edit" @submit.prevent="emit('save')">
+        <UFormField class="editor-field" label="挑战名称" required>
+          <UInput class="editor-control" v-model="item.name" required maxlength="256" :disabled="saving" />
         </UFormField>
-        <UFormField v-if="asMap(item)" class="editor-field" label="难度">
-          <UInput class="editor-control" v-model="asMap(item)!.difficulty" maxlength="64" :disabled="saving" />
+        <UFormField class="editor-field" label="难度">
+          <UInput class="editor-control" v-model="item.difficulty" maxlength="64" :disabled="saving" />
         </UFormField>
-
-        <template v-if="!asCatalog(item)">
-          <UFormField class="editor-field editor-field--wide" label="完成条件" required>
-            <UTextarea class="editor-control" v-model="(item as TitleAchievement | MapAchievement).condition" required maxlength="1024" :disabled="saving" />
-          </UFormField>
-        </template>
-
-        <template v-if="asChallenge(item)">
-          <UFormField class="editor-field" label="完成规则" help="集齐指定地图的进度型挑战以已验证通关为准，不走截图审核，必须保持全部地图与手动提交。">
-            <USelect class="editor-control" :model-value="asChallenge(item)!.progressRule ? 'required_maps_completed' : 'none'" :items="progressModeItems" :disabled="saving" @update:model-value="setProgressMode($event as 'none' | 'required_maps_completed')" />
-          </UFormField>
-          <template v-if="asChallenge(item)!.progressRule">
-            <UFormField class="editor-field" label="统计范围" help="选择独立模式后自动跟随该模式的全部地图，不用再逐张勾选。">
-              <USelect class="editor-control" :model-value="progressMode ?? regularScope" :items="scopeItems" :disabled="saving" @update:model-value="setProgressScope($event as string)" />
-            </UFormField>
-            <UFormField class="editor-field" label="最低难度">
-              <USelect class="editor-control" :model-value="asChallenge(item)!.progressRule!.difficultyAtLeast ?? ''" :items="progressDifficultyItems" :disabled="saving" @update:model-value="setProgressDifficulty(($event as string) || undefined)" />
-            </UFormField>
-            <UFormField v-if="progressMode" class="editor-field editor-field--wide">
-              <p class="editor-note">自动跟随「{{ progressMode }}」的 {{ followedMapCount }} 张地图。</p>
-            </UFormField>
-            <UFormField v-else class="editor-field editor-field--wide" label="要求地图" help="玩家在活动时间内于每张地图各留下至少一条有效已验证通关即完成。">
-              <USelect class="editor-control" :model-value="asChallenge(item)!.progressRule!.mapIds ?? []" multiple :items="maps.map((map) => ({ label: map.mapName, value: map.mapId }))" :disabled="saving" @update:model-value="setProgressMapIds($event as string[])" />
-            </UFormField>
-          </template>
-        </template>
-
-        <UFormField v-if="!asCatalog(item)" class="editor-field" label="状态">
-          <USelect class="editor-control" v-model="(item as TitleAchievement | MapAchievement).status" :disabled="saving" :items="statusItems" :ui="{ base: 'w-full' }" />
+        <UFormField class="editor-field editor-field--wide" label="完成条件" required>
+          <UTextarea class="editor-control" v-model="item.condition" required maxlength="1024" :disabled="saving" />
         </UFormField>
-
-        <template v-if="asChallenge(item) && asChallenge(item)!.status !== 'archived'">
-          <UFormField class="editor-field" label="开始时间">
-            <AdminDateTimePicker class="editor-control" :model-value="asChallenge(item)!.startsAt" :disabled="saving" placeholder="选择开始时间" @update:model-value="setScheduleTime('startsAt', $event)" />
-          </UFormField>
-          <UFormField class="editor-field" label="结束时间">
-            <AdminDateTimePicker class="editor-control" :model-value="asChallenge(item)!.endsAt" :disabled="saving" placeholder="选择结束时间" @update:model-value="setScheduleTime('endsAt', $event)" />
-          </UFormField>
-        </template>
-
-        <UFormField v-if="(item as TitleAchievement | MapAchievement).status === 'active'" class="editor-field" label="计划下线版本" help="已开放挑战宣布下线版本后展示为即将结束。">
-          <UInput class="editor-control" :model-value="(item as TitleAchievement | MapAchievement).retiredVersion ?? ''" placeholder="例如 26.0713.1" :disabled="saving" @update:model-value="setRetiredVersion" />
+        <UFormField class="editor-field editor-field--wide" label="截图规则" required>
+          <UTextarea class="editor-control" v-model="item.evidenceRule" required maxlength="2048" :disabled="saving" />
         </UFormField>
-
-        <details v-if="!asCatalog(item)" ref="moreSettings" class="editor-field editor-field--wide more-settings">
-          <summary>更多设置</summary>
-          <div class="more-settings-body">
-            <UFormField v-if="!asChallenge(item)?.progressRule" class="editor-field editor-field--wide" label="截图规则" required>
-              <UTextarea class="editor-control" :model-value="(item as TitleAchievement | MapAchievement).evidenceRule ?? DEFAULT_EVIDENCE_RULE" required maxlength="2048" :disabled="saving" @update:model-value="setEvidenceRule" />
-            </UFormField>
-            <UFormField v-if="!asChallenge(item)?.progressRule" class="editor-field" label="提交方式">
-              <USelect class="editor-control" :model-value="(item as TitleAchievement | MapAchievement).submissionMode ?? 'manual'" :disabled="saving || Boolean(asChallenge(item)?.progressRule)" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" :ui="{ base: 'w-full' }" @update:model-value="setSubmissionMode($event as 'manual' | 'automatic')" />
-            </UFormField>
-        <template v-if="asChallenge(item)">
-          <UFormField v-if="!asChallenge(item)?.progressRule" class="editor-field" label="称号适用范围">
-            <USelect class="editor-control" :model-value="asChallenge(item)!.scope ?? 'global'" :disabled="saving || Boolean(asChallenge(item)!.progressRule)" :items="[{ label: '全部地图', value: 'global' }, { label: '指定地图', value: 'map' }]" @update:model-value="setScope($event as 'global' | 'map')" />
-          </UFormField>
-          <UFormField v-if="asChallenge(item)!.scope === 'map'" class="editor-field editor-field--wide" label="指定地图">
-            <USelect class="editor-control" :model-value="asChallenge(item)!.mapIds ?? []" multiple :items="mapItems" :disabled="saving" @update:model-value="setMapIds(($event as string[]).filter(Boolean))" />
-          </UFormField>
-          <UFormField v-if="asChallenge(item)!.scope === 'map'" class="editor-field" label="地图版本">
-            <USelect class="editor-control" :model-value="asChallenge(item)!.mapVariant" :items="[{ label: '标准版', value: undefined }, { label: '经典版', value: 'classic' }]" :disabled="saving" @update:model-value="setMapVariant($event as 'classic' | undefined)" />
-          </UFormField>
-        <UFormField v-if="asChallenge(item)" class="editor-field" label="游戏版本">
-          <UInput class="editor-control" :model-value="asChallenge(item)!.gameVersion ?? ''" placeholder="留空使用最新版本，格式 YY.MMDD.序号" :disabled="saving" @update:model-value="setGameVersion" />
+        <UFormField class="editor-field" label="提交方式">
+          <USelect class="editor-control" v-model="item.submissionMode" :disabled="saving" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" :ui="{ base: 'w-full' }" />
         </UFormField>
-          <UFormField class="editor-field" label="展示分类" :help="`留空则使用 Bastion 系列“${asChallenge(item)!.category}”`">
-            <UInput class="editor-control" :model-value="asChallenge(item)!.categoryOverride ?? ''" :disabled="saving" :placeholder="asChallenge(item)!.category" maxlength="128" @update:model-value="setCategoryOverride" />
-          </UFormField>
-          <UFormField class="editor-field editor-field--wide" label="自定义图标" help="留空使用默认图标。">
-            <div class="icon-upload">
-              <div v-if="asTitle(item)!.iconUrl" class="admin-achievement-icon-preview">
-                <img :src="asTitle(item)!.iconUrl!" alt="当前成就图标" />
-              </div>
-              <UInput class="editor-control" type="url" :model-value="asTitle(item)!.iconUrl ?? ''" placeholder="https://cdn.example.com/icon.webp" maxlength="2048" :disabled="saving" @update:model-value="setIconUrl" />
-              <details class="icon-upload-option">
-                <summary>上传图标</summary>
-                <div class="icon-upload-content">
-                  <p>PNG、JPG 或 WebP，最大 512 KB。</p>
-                  <UFileUpload :model-value="iconFile" accept="image/png,image/jpeg,image/webp" :multiple="false" label="选择图标文件" :disabled="iconUploading || saving" @update:model-value="onIconFile" />
-                  <UButton type="button" label="上传图标" color="neutral" variant="outline" :loading="iconUploading" :disabled="!iconFile || saving" @click="emit('upload-icon')" />
-                </div>
-              </details>
-            </div>
-          </UFormField>
-        </template>
-          </div>
-        </details>
+        <UFormField class="editor-field" label="状态">
+          <USelect class="editor-control" v-model="item.status" :disabled="saving" :items="statusItems" :ui="{ base: 'w-full' }" />
+        </UFormField>
+        <UFormField v-if="item.status === 'active'" class="editor-field" label="计划下线版本" help="已开放挑战宣布下线版本后展示为即将结束。">
+          <UInput class="editor-control" :model-value="item.retiredVersion ?? ''" placeholder="例如 26.0713.1" :disabled="saving" @update:model-value="setRetiredVersion" />
+        </UFormField>
       </form>
     </template>
     <template #footer>
-      <UButton :label="submitLabel" form="achievement-editor" :loading="saving" type="submit" />
+      <UButton label="保存规则" form="achievement-editor" :loading="saving" type="submit" />
       <UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="emit('cancel')" />
     </template>
   </AdminResponsiveDialog>
 </template>
-
-<style scoped>
-.more-settings { border-top: 1px solid var(--line); color: var(--muted); }
-.more-settings summary { padding: var(--space-3) 0; cursor: pointer; }
-.more-settings-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--space-5); padding-top: var(--space-2); }
-.editor-note { margin: 0; color: var(--muted); font-size: var(--type-caption-size); }
-</style>
