@@ -15,7 +15,7 @@ describe("v1 platform contracts", () => {
   it("accepts unreleased stable title definitions in the Agents build projection", () => {
     expect(agentTitleListResponseSchema.safeParse({
       contractVersion: "1",
-      items: [{ titleKey: "FUTURE_TITLE", label: "未来称号", icon: "trophy", category: "未来系列", condition: "完成挑战", lifecycle: "active", publicVisibility: true, availability: "active", scope: "global", displayKind: "fixed", color: null, gameVersion: null }],
+      items: [{ titleKey: "FUTURE_TITLE", label: "未来称号", icon: "trophy", category: "未来系列", condition: "完成挑战", lifecycle: "active", publicVisibility: true, scope: "global", displayKind: "fixed", color: null, gameVersion: null }],
       page: 1,
       pageSize: 20,
       total: 1,
@@ -453,16 +453,20 @@ describe("v1 platform contracts", () => {
   });
 
   it("keeps catalog-title updates to title definition fields", () => {
-    const input = { contractVersion: "1", lifecycle: "retired", label: "内部称号", icon: "wrench", category: "开发保留", scope: "global", displayKind: "fixed", color: { kind: "palette", name: "blue" } };
+    const input = { contractVersion: "1", lifecycle: "active", label: "内部称号", icon: "wrench", category: "开发保留", scope: "global", displayKind: "fixed", color: { kind: "palette", name: "blue" } };
     expect(adminCatalogTitleUpdateRequestSchema.safeParse(input).success).toBe(true);
     // Challenge lifecycle and schedule fields are not part of the catalog
     // contract; legacy dual-write keys are stripped rather than stored.
     const stripped = adminCatalogTitleUpdateRequestSchema.parse({ ...input, status: "active", condition: "完成挑战", startsAt: 2_000, endsAt: 3_000 });
     expect("status" in stripped).toBe(false);
     expect("startsAt" in stripped).toBe(false);
-    expect(stripped.lifecycle).toBe("retired");
+    expect(stripped.lifecycle).toBe("active");
     expect(adminCatalogTitleUpdateRequestSchema.safeParse({ ...input, lifecycle: "sunsetting" }).success).toBe(false);
     expect(adminCatalogTitleUpdateRequestSchema.safeParse({ ...input, lifecycle: "archived" }).success).toBe(false);
+    expect(adminCatalogTitleUpdateRequestSchema.safeParse({ ...input, lifecycle: "retired" }).success).toBe(false);
+    // The retired-lifecycle cascade is gone; a legacy restore payload is
+    // stripped rather than stored.
+    expect("restore" in adminCatalogTitleUpdateRequestSchema.parse({ ...input, restore: { challenges: [], mapTitleRules: [] } })).toBe(false);
   });
 
   it("keeps historical retirement version records readable", () => {

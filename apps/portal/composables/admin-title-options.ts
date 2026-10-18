@@ -2,7 +2,7 @@ import type { Map as CatalogMap, Title } from "@owbastion/contracts";
 
 type AdminApi = <T>(path: string) => Promise<T>;
 
-export type AdminTitleOption = Pick<Title, "titleKey" | "label" | "category" | "availability" | "scope" | "mapId" | "slot"> & {
+export type AdminTitleOption = Pick<Title, "titleKey" | "label" | "category" | "scope" | "mapId" | "slot"> & {
   mapName?: string;
   value: string;
 };

@@ -112,5 +112,5 @@ source ID, revocation fields. Active uniqueness prevents the same title in the
 same scope twice. Create and revoke are idempotent and audited; revoke preserves
 the row and hides the title from the player. Each Grant links to its qualifying
 Completion. Manual Grants create a manual Completion, never a Submission or
-Review, and may target retired titles. Historical holder names are immutable
+Review, and may target titles in any lifecycle state. Historical holder names are immutable
 snapshots, not identity proof.

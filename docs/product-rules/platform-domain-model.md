@@ -32,9 +32,10 @@ because a material rule change creates a new Challenge.
 
 ## Titles
 
-- Lifecycle `draft`/`active`/`retired`; separate public visibility. "Obtainable" is derived
-  (at least one currently completable Challenge), never stored. Retiring stops new
-  Completions; Grants stay valid until explicitly revoked.
+- Lifecycle `draft`/`active`; separate public visibility. "Ended" is derived from the
+  acquisition paths (every Challenge archived or outside its window), never stored.
+  Ending a Title means ending its open Challenges; existing Grants stay valid until
+  explicitly revoked.
 - Category/tags are display metadata only; every Title uses the same
   Challenge -> Completion -> Grant chain.
 - Ownership is per qualification scope, not global `Player x Title`: at most one active
@@ -50,8 +51,8 @@ because a material rule change creates a new Challenge.
 - Lifecycle `draft`/`active`/`archived`, optional `startsAt`/`endsAt`, and a
   public-condition visibility field. No `enabled`, `paused`, `scheduled`, `retired` states;
   legacy fields map into these during the adapter period.
-- Currently completable only if all hold: status `active`; now inside the window; Title not
-  retired; Player holds no active ownership of that Title in the scope; no administrative
+- Currently completable only if all hold: status `active`; now inside the window; Player
+  holds no active ownership of that Title in the scope; no administrative
   block on automatic re-grant. Expired Challenges stop producing Completions; existing
   records stay immutable.
 - Conditions are embedded, one list with one top-level `AND`/`OR`; no nested trees until a
@@ -177,7 +178,8 @@ silently replaced.
   there are no Event Revisions, and Bastion implementation history is not copied in. A
   rework that changes Challenge semantics updates both owners and archives and recreates
   affected Challenges.
-- Map and Event share `draft`/`active`/`retired`. Unused drafts may be deleted; once
+- Map and Event share `draft`/`active`/`retired` (map status, unrelated to the title
+  lifecycle). Unused drafts may be deleted; once
   referenced by durable facts, retirement preserves identity. Metadata edits never create
   revisions; only a real compatibility or historical boundary (Gameplay Revision) does.
 

@@ -66,7 +66,7 @@ const tooLarge = computed(() => requestedCount.value > 500);
 const canConfirm = computed(() => !saving.value && !loadingTitles.value && selectedPlayers.value.length > 0 && selectedTitles.value.length > 0 && !tooLarge.value);
 
 function titleLabel(title: AdminTitleOption) {
-  return `${title.label}${title.availability === "retired" ? "（不再发放）" : ""}`;
+  return title.label;
 }
 function titleDescription(title: AdminTitleOption) {
   return title.mapName ? `${title.mapName} · ${titleLabel(title)}` : titleLabel(title);

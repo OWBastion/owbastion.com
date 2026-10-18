@@ -78,7 +78,7 @@ The consequences of this decision are:
 
 The accepted minimal lifecycles are:
 
-- Title: `draft | active | retired`;
+- Title: `draft | active` (its ended state is derived from its acquisition paths);
 - Challenge: `draft | active | archived`;
 - Map/Event: `draft | active | retired`;
 - Season: `draft | active | archived`.

@@ -11,7 +11,7 @@ type HistoricalTitleGroup = {
 };
 type AchievementCard =
   | { kind: "catalog"; challenge: PublicAchievement }
-  | { kind: "retired"; title: OwnedTitle };
+  | { kind: "ended"; title: OwnedTitle };
 type AchievementGroup = { category: string; cards: AchievementCard[] };
 
 const props = withDefaults(defineProps<{
@@ -33,7 +33,7 @@ const ownedTitleKeys = computed(() => new Set(props.titles.map((title) => title.
 const earnedCatalogCount = computed(() => props.challenges.filter((challenge) => ownedTitleKeys.value.has(challenge.titleKey)).length);
 const recentTitles = computed(() => [...props.titles].sort((left, right) => right.grantedAt - left.grantedAt).slice(0, 3));
 const catalogTitleKeys = computed(() => new Set(props.challenges.map((challenge) => challenge.titleKey)));
-const retiredGlobalTitles = computed(() => props.titles.filter((title) => title.scope === "global" && !catalogTitleKeys.value.has(title.titleKey)));
+const endedGlobalTitles = computed(() => props.titles.filter((title) => title.scope === "global" && !catalogTitleKeys.value.has(title.titleKey)));
 const currentMapTitleKeys = computed(() => new Set(props.mapChallenges
   .filter((challenge) => challenge.titleKey && props.maps.some((map) => map.mapId === challenge.mapId && map.defaultGameplayRevisionId === challenge.gameplayRevisionId))
   .map((challenge) => `${challenge.mapId}:${challenge.gameplayRevisionId}:${challenge.titleKey}`)));
@@ -57,15 +57,15 @@ const mapTitleGroups = computed(() => groupHistoricalTitles(
   (title) => title.mapName ?? "地图称号",
 ));
 const mapTitleCount = computed(() => mapTitleGroups.value.reduce((count, group) => count + group.titles.length, 0));
-const isAchievementCardEarned = (card: AchievementCard) => card.kind === "retired" || ownedTitleKeys.value.has(card.challenge.titleKey);
-const ownedGlobalTitleForCard = (card: AchievementCard) => card.kind === "retired"
+const isAchievementCardEarned = (card: AchievementCard) => card.kind === "ended" || ownedTitleKeys.value.has(card.challenge.titleKey);
+const ownedGlobalTitleForCard = (card: AchievementCard) => card.kind === "ended"
   ? card.title
   : findOwnedTitle(props.titles, { titleKey: card.challenge.titleKey });
 const stateForCard = (card: AchievementCard) => achievementState(ownedGlobalTitleForCard(card));
 const groups = computed(() => {
   const grouped = new Map<string, AchievementCard[]>();
   for (const challenge of props.challenges) grouped.set(challenge.category, [...(grouped.get(challenge.category) ?? []), { kind: "catalog", challenge }]);
-  for (const title of retiredGlobalTitles.value) grouped.set(title.category, [...(grouped.get(title.category) ?? []), { kind: "retired", title }]);
+  for (const title of endedGlobalTitles.value) grouped.set(title.category, [...(grouped.get(title.category) ?? []), { kind: "ended", title }]);
   const cardName = (card: AchievementCard) => card.kind === "catalog" ? card.challenge.titleName : card.title.label;
   return [...grouped.entries()]
     .map(([category, cards]): AchievementGroup => ({
@@ -102,7 +102,7 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
               <div class="achievement-copy">
                 <div class="achievement-title-row">
                   <strong class="type-card-title">{{ card.kind === 'catalog' ? card.challenge.titleName : card.title.label }}</strong>
-                  <StatusBadge v-if="card.kind === 'retired'" class="retired-status" label="不再发放" />
+                  <StatusBadge v-if="card.kind === 'ended'" class="retired-status" label="不再发放" />
                 </div>
                 <AchievementStatus class="achievement-state" :state="stateForCard(card)" />
                 <span class="type-label-sm">{{ card.kind === 'catalog' ? card.challenge.condition : card.title.condition }}</span>

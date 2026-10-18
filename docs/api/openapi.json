@@ -320,7 +320,7 @@
   "/v1/me/titles": {
    "get": {
     "operationId": "listCurrentPlayerTitles",
-    "description": "Returns the signed-in player's active title grants, including grants whose catalog title is retired, with current equipped state for eligible global grants. Map-scoped titles remain available through their current map projection and are never manually equipped. allTitles is an independent platform entitlement; when true, Bastion receives all current global titles without relying on equipped rows.",
+    "description": "Returns the signed-in player's active title grants, including grants whose catalog title's acquisition paths have all ended, with current equipped state for eligible global grants. Map-scoped titles remain available through their current map projection and are never manually equipped. allTitles is an independent platform entitlement; when true, Bastion receives all current global titles without relying on equipped rows.",
     "responses": {
      "200": {
       "$ref": "#/components/responses/Json"
@@ -1773,7 +1773,7 @@
   "/v1/admin/achievements": {
    "get": {
     "operationId": "listAdminAchievements",
-    "description": "Maintainers can inspect the Title catalog and its Challenge acquisition paths. Titles expose draft, active, or retired lifecycle and independent public visibility; canonical Challenges expose draft, active, or archived lifecycle and optional time windows.",
+    "description": "Maintainers can inspect the Title catalog and its Challenge acquisition paths. Titles expose draft or active lifecycle and independent public visibility; a title's ended state is derived from its paths. Canonical Challenges expose draft, active, or archived lifecycle and optional time windows.",
     "responses": {
      "200": {
       "$ref": "#/components/responses/Json"
@@ -1804,7 +1804,7 @@
    },
    "post": {
     "operationId": "createAdminTitleChallenge",
-    "description": "Maintainer-only, idempotent and audited. Creates title.<titleKey>.<random suffix>; scope comes from the Title. Map fields on global Titles return INVALID_MAP_SCOPE (422). enableTitle plus active challenge activates a draft Title in the same batch. Defaults evidenceRule to 完整截图 and active gameVersion to the latest known build. TITLE_RETIRED / TITLE_MANAGED_BY_MAP_RULE return 409; TITLE_NOT_FOUND returns 404.",
+    "description": "Maintainer-only, idempotent and audited. Creates title.<titleKey>.<random suffix>; scope comes from the Title. Map fields on global Titles return INVALID_MAP_SCOPE (422). enableTitle plus active challenge activates a draft Title in the same batch. Defaults evidenceRule to 完整截图 and active gameVersion to the latest known build. TITLE_MANAGED_BY_MAP_RULE returns 409; TITLE_NOT_FOUND returns 404.",
     "parameters": [{ "$ref": "#/components/parameters/idempotencyKey" }],
     "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdminTitleChallengeCreateRequest" } } } },
     "responses": {
@@ -2215,7 +2215,7 @@
   "/v1/admin/titles/{titleKey}": {
    "put": {
     "operationId": "updateAdminTitle",
-    "description": "Maintainer-only, idempotent and audited. Updates Title metadata/lifecycle. Retirement archives owned non-archived challenges and map rules in the same batch, preserving their prior state in cascaded. Restore is allowed only from retired to active and only for rows owned by this Title (otherwise 422 INVALID_RESTORE). Replays return the original title, previousLifecycle and cascaded response. Undo retirement with lifecycle active and restore=cascaded; undo activation with lifecycle draft.",
+    "description": "Maintainer-only, idempotent and audited. Updates Title metadata and toggles draft/active lifecycle; a title's ended state is derived from its acquisition paths, so ending a title means ending its open Challenges individually. Replays return the original title and previousLifecycle response. Undo activation with lifecycle draft.",
     "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdminTitleUpdateRequest" } } } },
     "parameters": [
      {
@@ -2224,7 +2224,7 @@
      { "$ref": "#/components/parameters/idempotencyKey" }
     ],
     "responses": {
-     "200": { "description": "Title and reversible cascade", "content": { "application/json": { "schema": { "type": "object", "required": ["contractVersion", "title", "previousLifecycle", "cascaded"], "properties": { "contractVersion": { "type": "string", "enum": ["1"] }, "title": { "$ref": "#/components/schemas/AdminTitleSummary" }, "previousLifecycle": { "type": "string", "enum": ["draft", "active", "retired"] }, "cascaded": { "$ref": "#/components/schemas/AdminTitleCascade" } } } } } },
+     "200": { "description": "Updated title summary", "content": { "application/json": { "schema": { "type": "object", "required": ["contractVersion", "title", "previousLifecycle"], "properties": { "contractVersion": { "type": "string", "enum": ["1"] }, "title": { "$ref": "#/components/schemas/AdminTitleSummary" }, "previousLifecycle": { "type": "string", "enum": ["draft", "active"] } } } } } },
      "404": { "$ref": "#/components/responses/Json" },
      "422": { "$ref": "#/components/responses/Json" }
     }
@@ -3295,7 +3295,7 @@
     "properties": {
      "titleKey": { "type": "string" }, "label": { "type": "string" }, "icon": { "type": "string" }, "iconUrl": { "type": "string", "nullable": true }, "category": { "type": "string" },
      "scope": { "type": "string", "enum": ["global", "map"] }, "displayKind": { "type": "string", "enum": ["fixed", "map_pioneer", "map_name_suffix"] }, "color": { "nullable": true, "description": "Existing title color: palette, heroColor, custom or gradient." },
-     "publicVisibility": { "type": "boolean" }, "lifecycle": { "type": "string", "enum": ["draft", "active", "retired"] }, "gameVersion": { "type": "string", "nullable": true }, "developerOnly": { "type": "boolean" }, "status": { "type": "string", "enum": ["draft", "scheduled", "active", "sunsetting", "ended", "retired"] },
+     "publicVisibility": { "type": "boolean" }, "lifecycle": { "type": "string", "enum": ["draft", "active"] }, "gameVersion": { "type": "string", "nullable": true }, "developerOnly": { "type": "boolean" }, "status": { "type": "string", "enum": ["draft", "scheduled", "active", "sunsetting", "ended"] },
      "acquisition": { "oneOf": [
       { "type": "object", "required": ["kind", "challengeCount", "completableCount"], "properties": { "kind": { "type": "string", "enum": ["challenges"] }, "challengeCount": { "type": "integer", "minimum": 0 }, "completableCount": { "type": "integer", "minimum": 0 } } },
       { "type": "object", "required": ["kind", "ruleId", "condition", "scopeLabel"], "properties": { "kind": { "type": "string", "enum": ["map_rule"] }, "ruleId": { "type": "string" }, "condition": { "type": "string" }, "scopeLabel": { "type": "string" } } },
@@ -3330,14 +3330,8 @@
    "AdminMapChallengeUpdateRequest": {
     "type": "object", "required": ["contractVersion", "status"], "properties": { "contractVersion": { "type": "string", "enum": ["1"] }, "family": { "type": "string", "enum": ["map"] }, "name": { "type": "string" }, "difficulty": { "type": "string", "nullable": true }, "condition": { "type": "string" }, "evidenceRule": { "type": "string" }, "submissionMode": { "type": "string", "enum": ["manual", "automatic"] }, "status": { "type": "string", "enum": ["draft", "active", "archived"] }, "retiredVersion": { "type": "string", "nullable": true } }
    },
-   "AdminTitleCascade": {
-    "type": "object", "required": ["challenges", "mapTitleRules"], "properties": {
-     "challenges": { "type": "array", "items": { "allOf": [{ "$ref": "#/components/schemas/AdminChallengeState" }, { "type": "object", "required": ["challengeId"], "properties": { "challengeId": { "type": "string" } } }] } },
-     "mapTitleRules": { "type": "array", "items": { "type": "object", "required": ["ruleId", "status", "retiredVersion"], "properties": { "ruleId": { "type": "string" }, "status": { "type": "string", "enum": ["draft", "active", "archived"] }, "retiredVersion": { "type": "string", "nullable": true } } } }
-    }
-   },
    "AdminTitleUpdateRequest": {
-    "type": "object", "required": ["contractVersion"], "properties": { "contractVersion": { "type": "string", "enum": ["1"] }, "lifecycle": { "type": "string", "enum": ["draft", "active", "retired"] }, "publicVisibility": { "type": "boolean" }, "label": { "type": "string" }, "icon": { "type": "string" }, "iconUrl": { "type": "string", "nullable": true }, "category": { "type": "string" }, "scope": { "type": "string", "enum": ["global", "map"] }, "displayKind": { "type": "string", "enum": ["fixed", "map_pioneer", "map_name_suffix"] }, "color": { "nullable": true }, "restore": { "$ref": "#/components/schemas/AdminTitleCascade" } }
+    "type": "object", "required": ["contractVersion"], "properties": { "contractVersion": { "type": "string", "enum": ["1"] }, "lifecycle": { "type": "string", "enum": ["draft", "active"] }, "publicVisibility": { "type": "boolean" }, "label": { "type": "string" }, "icon": { "type": "string" }, "iconUrl": { "type": "string", "nullable": true }, "category": { "type": "string" }, "scope": { "type": "string", "enum": ["global", "map"] }, "displayKind": { "type": "string", "enum": ["fixed", "map_pioneer", "map_name_suffix"] }, "color": { "nullable": true } }
    }
   },
   "parameters": {

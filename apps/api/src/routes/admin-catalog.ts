@@ -52,7 +52,7 @@ export const registerAdminCatalogRoutes = (app: ApiApp, dependencies: AdminRoute
     action: (input, auth, key) => dependencies.services(c.env).createAdminTitleChallenge({ ...input, titleKey: c.req.param("titleKey") }, auth, key),
     errors: {
       ...errorGroup(404, "The title does not exist", "TITLE_NOT_FOUND"),
-      ...errorGroup(409, "The title cannot accept challenges", "TITLE_RETIRED", "TITLE_MANAGED_BY_MAP_RULE"),
+      ...errorGroup(409, "The title cannot accept challenges", "TITLE_MANAGED_BY_MAP_RULE"),
       ...errorGroup(422, "The challenge scope, rule, window or version is invalid", "MAP_NOT_FOUND", "MAP_NOT_ACTIVE", "INVALID_MAP_SCOPE", "INVALID_SUBMISSION_MODE", "ACHIEVEMENT_GAME_VERSION_REQUIRED", "INVALID_CHALLENGE_WINDOW", "STANDALONE_MODE_NOT_FOUND"),
     },
   }));
@@ -264,7 +264,6 @@ export const registerAdminCatalogRoutes = (app: ApiApp, dependencies: AdminRoute
       action: (input, auth, key) => dependencies.services(c.env).updateAdminCatalogTitle({ ...input, titleKey: c.req.param("titleKey") }, auth, key),
       errors: {
         ...errorGroup(404, "The title does not exist", "TITLE_NOT_FOUND"),
-        ...errorGroup(422, "Restore is only valid for this title when reopening it", "INVALID_RESTORE"),
         ...errorGroup(422, "The scope cannot change while acquisition paths exist", "TITLE_SCOPE_LOCKED"),
         ...errorGroup(422, "A developer-retained title cannot become a player challenge", "DEVELOPER_TITLE_CANNOT_BE_A_CHALLENGE"),
       },
@@ -298,7 +297,7 @@ export const registerAdminCatalogRoutes = (app: ApiApp, dependencies: AdminRoute
       errors: {
         ...errorGroup(404, "The achievement does not exist", "CHALLENGE_NOT_FOUND"),
         ...errorGroup(422, "The challenge lifecycle metadata is invalid", "MAP_NOT_FOUND", "MAP_NOT_ACTIVE", "INVALID_MAP_SCOPE", "ACHIEVEMENT_GAME_VERSION_REQUIRED", "CHALLENGE_QUALIFICATION_CHANGED", "INVALID_CHALLENGE_WINDOW", "INVALID_SUBMISSION_MODE", "STANDALONE_MODE_NOT_FOUND"),
-        ...errorGroup(409, "The title cannot accept a replacement challenge", "TITLE_RETIRED", "TITLE_MANAGED_BY_MAP_RULE"),
+        ...errorGroup(409, "The title cannot accept a replacement challenge", "TITLE_MANAGED_BY_MAP_RULE"),
       },
     });
   });

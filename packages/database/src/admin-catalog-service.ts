@@ -203,11 +203,14 @@ export const createAdminCatalogServices = ({
           ...(parseChallengeProgressRule(challenge.progressRule) ? { progressRule: parseChallengeProgressRule(challenge.progressRule)! } : {}),
         })));
       }
-      if (!input.family) {
+      // The challenge-style status filter has no title-level "archived" state:
+      // a title only stores draft|active, and its ended state is derived from
+      // its acquisition paths. Filtering by archived lists no catalog titles.
+      if (!input.family && input.status !== "archived") {
         const rows = await db.select({ title: titleCatalog, challenge: titleChallenges })
           .from(titleCatalog)
           .leftJoin(titleChallenges, eq(titleChallenges.titleKey, titleCatalog.key))
-          .where(input.status ? eq(titleCatalog.lifecycle, input.status === "archived" ? "retired" : input.status) : undefined);
+          .where(input.status ? eq(titleCatalog.lifecycle, input.status) : undefined);
         const catalogTitles = new Map<string, { title: typeof titleCatalog.$inferSelect; paths: TitleAcquisitionPath[] }>();
         for (const { title, challenge } of rows) {
           const entry = catalogTitles.get(title.key) ?? { title, paths: [] };
@@ -225,7 +228,7 @@ export const createAdminCatalogServices = ({
         }
         const timestamp = now();
         items.push(...[...catalogTitles.values()].map(({ title, paths }): AdminChallenge => {
-          const { label: titleName, availability: _storedAvailability, ...titleFields } = toAgentTitle(title);
+          const { label: titleName, ...titleFields } = toAgentTitle(title);
           return {
             ...titleFields,
             challengeId: `title.${title.key}`,
