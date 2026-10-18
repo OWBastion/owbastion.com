@@ -1331,7 +1331,7 @@
   "/v1/agents/titles": {
    "get": {
     "operationId": "listAgentTitles",
-    "description": "Build projection for Bastion. Includes stable global title definitions regardless of player-facing release metadata or challenge lifecycle; gameVersion is null when no release version is assigned. Inclusion here does not make a title visible, earnable, or equipable through player-facing flows.",
+    "description": "Build projection for Bastion. Includes stable global title definitions regardless of player-facing release metadata or challenge lifecycle; gameVersion is null when no release version is assigned. Inclusion here does not make a title visible, earnable, or equipable through player-facing flows. When mapId is given, every map-scoped title with an active grant on that map keeps a definition even after its acquisition window closes; such definitions report availability retired while still-obtainable titles report active.",
     "parameters": [
      {
       "$ref": "#/components/parameters/agentPage"
