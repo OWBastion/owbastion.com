@@ -7,20 +7,20 @@ const summary: ReviewSummary = { targetType: "map", targetId: "map.samoa", avera
 
 describe("reviewRatingChip", () => {
   it("shows 暂无评分 without a rating", () => {
-    expect(reviewRatingChip(null, false)).toEqual({ label: "暂无评分", tone: "accent" });
+    expect(reviewRatingChip(null, false)).toEqual({ label: "暂无评分", tone: "accent", icon: "★" });
     expect(reviewRatingChip({ ...summary, averageRating: null, reviewCount: 0 }, false).label).toBe("暂无评分");
   });
 
   it("shows any rating normally, however few reviews", () => {
-    expect(reviewRatingChip({ ...summary, reviewCount: 1 }, false)).toEqual({ label: "4.6 分 · 1 条", tone: "accent" });
+    expect(reviewRatingChip({ ...summary, reviewCount: 1 }, false)).toEqual({ label: "4.6 分 · 1 条", tone: "accent", icon: "★" });
   });
 
   it("ignores sampleInsufficient and still shows the rating", () => {
-    expect(reviewRatingChip({ ...summary, reviewCount: 1, sampleInsufficient: true }, false)).toEqual({ label: "4.6 分 · 1 条", tone: "accent" });
+    expect(reviewRatingChip({ ...summary, reviewCount: 1, sampleInsufficient: true }, false)).toEqual({ label: "4.6 分 · 1 条", tone: "accent", icon: "★" });
   });
 
   it("uses the default tone while loading or unavailable", () => {
-    expect(reviewRatingChip(null, true)).toEqual({ label: "读取中…", tone: "default" });
-    expect(reviewRatingChip(null, false, "x")).toEqual({ label: "评分暂不可用", tone: "default" });
+    expect(reviewRatingChip(null, true)).toEqual({ label: "读取中…", tone: "default", icon: "★" });
+    expect(reviewRatingChip(null, false, "x")).toEqual({ label: "评分暂不可用", tone: "default", icon: "★" });
   });
 });

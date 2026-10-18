@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { PublicAchievement } from "~/components/AchievementCatalog.vue";
+import type { OwnedTitle } from "~/types/title";
 import { portalErrorDetails } from "~/utils/portal-error";
 
 useSeoMeta({ title: "成就 · 躲避堡垒 3", description: "查看已发布的成就挑战与完成条件。" });
@@ -7,13 +8,12 @@ useSeoMeta({ title: "成就 · 躲避堡垒 3", description: "查看已发布的
 const { data: catalog, pending: loading, error: catalogError } = await useAsyncData("public-achievement-directory", () => usePublicCatalog<{ items: PublicAchievement[] }>("achievements"));
 const challenges = computed(() => catalog.value?.items ?? []);
 const { player, refresh: refreshPlayer } = useCurrentPlayer();
-const { items: ownedTitles, refresh: refreshTitles } = usePlayerTitles();
-const titlesLoaded = shallowRef(false);
-const titles = computed(() => player.value && titlesLoaded.value ? ownedTitles.value : undefined);
+const { refresh: refreshTitles } = usePlayerTitles();
+const titles = shallowRef<OwnedTitle[]>();
 onMounted(async () => {
   try {
-    if (await refreshPlayer()) { await refreshTitles(); titlesLoaded.value = true; }
-  } catch { titlesLoaded.value = false; }
+    if (await refreshPlayer()) titles.value = await refreshTitles();
+  } catch { titles.value = undefined; }
 });
 const error = computed(() => catalogError.value ? portalErrorDetails(catalogError.value, "无法读取成就，请稍后重试。").description : "");
 </script>

@@ -23,7 +23,7 @@ const { data: catalog, pending: catalogLoading, error: catalogError } = await us
 const playerError = shallowRef("");
 const map = computed(() => catalog.value?.maps.find((item) => item.mapId === mapId.value) ?? null);
 const row = computed(() => map.value
-  ? buildMapProgressRows({ maps: [map.value], challenges: catalog.value?.challenges ?? [], titles: titles.value, profiles: profiles.value })[0] ?? null
+  ? buildMapProgressRows({ maps: [map.value], challenges: catalog.value?.challenges ?? [], titles: titles.value })[0] ?? null
   : null);
 const profile = computed(() => profiles.value.find((item) => item.mapId === mapId.value) ?? null);
 const historyForMap = computed(() => historyMapId.value === mapId.value ? history.value : null);

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Map, MapChallenge } from "~/types/challenge";
+import type { OwnedTitle } from "~/types/title";
 import MapDirectory from "../components/maps/MapDirectory.vue";
 import { portalErrorDetails } from "~/utils/portal-error";
 
@@ -17,9 +18,8 @@ const { data: catalog, pending: loading, error: catalogError } = await useAsyncD
 const maps = computed(() => catalog.value?.maps ?? []);
 const challenges = computed(() => catalog.value?.challenges ?? []);
 const error = computed(() => catalogError.value ? portalErrorDetails(catalogError.value, "请稍后重试。").description : "");
-const { items: ownedTitles, refresh: refreshTitles } = usePlayerTitles();
-const titlesLoaded = shallowRef(false);
-const titles = computed(() => player.value && titlesLoaded.value ? ownedTitles.value : undefined);
+const { refresh: refreshTitles } = usePlayerTitles();
+const titles = shallowRef<OwnedTitle[]>();
 const selectedMapId = computed(() => typeof route.query.mapId === "string" ? route.query.mapId : undefined);
 
 
@@ -27,8 +27,8 @@ onMounted(async () => {
   try { await refresh(); }
   catch { player.value = null; }
   if (!player.value) return;
-  try { await refreshTitles(); titlesLoaded.value = true; }
-  catch { titlesLoaded.value = false; }
+  try { titles.value = await refreshTitles(); }
+  catch { titles.value = undefined; }
 });
 </script>
 

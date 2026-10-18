@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useDebounceFn } from "@vueuse/core";
 import type { AdminBindingInviteBatchResponse, AdminBindingInviteResponse } from "@owbastion/contracts";
-import { type ParsedBattleTag, bindingInviteCopyText, parseBattleTag } from "~/utils/binding-invite";
+import { type ParsedBattleTag, bindingInviteCopyText, parseBattleTag, parseBattleTagBatch } from "~/utils/binding-invite";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
 
@@ -30,23 +30,7 @@ const copiedInviteId = shallowRef<string | null>(null);
 const selectedHolder = computed(() => selectedHolderDetail.value?.holderName === selectedHolderName.value ? selectedHolderDetail.value : null);
 const selectedGrantIds = computed(() => selectedHolder.value?.grants.map((grant) => grant.grantId) ?? []);
 const parsedPlayer = computed(() => parseBattleTag(battleTag.value));
-const batch = computed(() => {
-  const players: ParsedBattleTag[] = [];
-  const errors: string[] = [];
-  const seen = new Set<string>();
-  batchInput.value.split(/\r?\n/).forEach((rawLine, index) => {
-    const line = rawLine.trim();
-    if (!line) return;
-    const player = parseBattleTag(line);
-    if (!player) { errors.push(`第 ${index + 1} 行格式无效`); return; }
-    const key = `${player.playerName.toLocaleLowerCase()}#${player.playerId}`;
-    if (seen.has(key)) { errors.push(`第 ${index + 1} 行重复`); return; }
-    seen.add(key);
-    players.push(player);
-  });
-  if (players.length > 100) errors.push("一次最多生成 100 个邀请码");
-  return { players, errors };
-});
+const batch = computed(() => parseBattleTagBatch(batchInput.value));
 const canSubmitBatch = computed(() => batch.value.players.length > 0 && !batch.value.errors.length && !submitting.value);
 const batchCountLabel = computed(() => batch.value.players.length ? `${batch.value.players.length} 位玩家` : "每行一位玩家");
 function setMode(next: "single" | "batch") {

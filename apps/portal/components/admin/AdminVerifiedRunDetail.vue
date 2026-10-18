@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import type { AdminVerifiedRunConflict, AdminVerifiedRunDetail } from "~/composables/useAdminApi";
+import type { AdminVerifiedRunDetail } from "~/composables/useAdminApi";
 import { ocrStatusLabel, ocrStatusTone } from "~/utils/ocrStatus";
 import { submissionStatusText, submissionStatusTone } from "~/utils/submissionStatus";
+import { verifiedRunConflictFieldLabels } from "~/utils/submissionReview";
 
 type ConflictAction = "keep_existing" | "invalidate_existing";
 
@@ -24,18 +25,6 @@ const formatDuration = (seconds: number) => `${Math.floor(seconds / 60)} 分 ${s
 const runStatusLabel = (value: "active" | "invalidated") => value === "active" ? "有效" : "已作废";
 const acceptanceSourceLabel = (value: "submission_automatic" | "submission_review") => value === "submission_automatic" ? "自动通过" : "人工核对";
 const lifecycleLabel = (value: "accepted" | "invalidated" | "restored") => ({ accepted: "已接受", invalidated: "已作废", restored: "已恢复" })[value];
-const conflictFieldLabel: Record<AdminVerifiedRunConflict["conflictFields"][number], string> = {
-  match_code: "对局码",
-  map: "地图",
-  gameplay_revision: "版本修订",
-  map_variant: "地图版本",
-  difficulty: "难度",
-  game_version: "游戏版本",
-  completion_duration: "通关用时",
-  deaths: "死亡次数",
-  skips: "跳过次数",
-  event_counters: "事件计数",
-};
 const eventCounters = computed(() => Object.entries(props.detail.run.eventCounters).sort(([left], [right]) => left.localeCompare(right)));
 const sourceStatusLabel = computed(() => submissionStatusText[props.detail.sourceSubmission.status] ?? "其他状态");
 const sourceStatusTone = computed(() => submissionStatusTone(props.detail.sourceSubmission.status));
@@ -150,7 +139,7 @@ function sourcePath(submissionId: string) {
             <StatusBadge :label="submissionStatusText[conflict.submissionStatus] ?? '其他状态'" :tone="submissionStatusTone(conflict.submissionStatus)" />
           </header>
           <dl class="detail-grid verified-run-detail__facts">
-            <div class="detail-grid__row"><dt>差异字段</dt><dd>{{ conflict.conflictFields.map((field) => conflictFieldLabel[field]).join('、') }}</dd></div>
+            <div class="detail-grid__row"><dt>差异字段</dt><dd>{{ conflict.conflictFields.map((field) => verifiedRunConflictFieldLabels[field]).join('、') }}</dd></div>
             <div class="detail-grid__row"><dt>地图</dt><dd :class="{ 'detail-grid__empty': conflict.facts.mapName == null }">{{ conflict.facts.mapName ?? NONE }}</dd></div>
             <div class="detail-grid__row"><dt>难度</dt><dd :class="{ 'detail-grid__empty': conflict.facts.difficulty == null }">{{ conflict.facts.difficulty ?? NONE }}</dd></div>
             <div class="detail-grid__row"><dt>游戏版本</dt><dd :class="{ 'detail-grid__empty': conflict.facts.gameVersion == null }">{{ conflict.facts.gameVersion ?? NONE }}</dd></div>

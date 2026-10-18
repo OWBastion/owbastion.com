@@ -60,8 +60,8 @@ const mapTitleCount = computed(() => mapTitleGroups.value.reduce((count, group) 
 const isAchievementCardEarned = (card: AchievementCard) => card.kind === "retired" || ownedTitleKeys.value.has(card.challenge.titleKey);
 const ownedGlobalTitleForCard = (card: AchievementCard) => card.kind === "retired"
   ? card.title
-  : props.titles.find((title) => title.titleKey === card.challenge.titleKey && title.scope === "global");
-const stateForCard = (card: AchievementCard) => achievementState(card.kind === "retired" ? card.title : findOwnedTitle(props.titles, { titleKey: card.challenge.titleKey }));
+  : findOwnedTitle(props.titles, { titleKey: card.challenge.titleKey });
+const stateForCard = (card: AchievementCard) => achievementState(ownedGlobalTitleForCard(card));
 const groups = computed(() => {
   const grouped = new Map<string, AchievementCard[]>();
   for (const challenge of props.challenges) grouped.set(challenge.category, [...(grouped.get(challenge.category) ?? []), { kind: "catalog", challenge }]);
@@ -79,7 +79,7 @@ const progressByChallenge = computed(() => new Map(props.challengeProgress.map((
 const progressFor = (card: AchievementCard) => card.kind === "catalog" && card.challenge.progressRule ? progressByChallenge.value.get(card.challenge.challengeId) : undefined;
 const mapNameFor = (mapId: string) => props.maps.find((map) => map.mapId === mapId)?.mapName ?? mapId;
 
-const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, challenges: props.mapChallenges, titles: props.titles, profiles: [] }));
+const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, challenges: props.mapChallenges, titles: props.titles }));
 const targetMapCount = computed(() => mapProgressRows.value.filter((row) => row.challenges.length).length);
 const totalChallengeCount = computed(() => mapProgressRows.value.reduce((count, row) => count + row.challenges.length, 0));
 const earnedChallengeCount = computed(() => mapProgressRows.value.reduce((count, row) => count + row.earnedChallenges.length, 0));

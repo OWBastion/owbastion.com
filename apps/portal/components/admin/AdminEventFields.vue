@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { randomEventRarityForWeight } from "@owbastion/domain";
-import type { EventPatch } from "~/utils/event-draft";
+import { statusLabels, type EventPatch } from "~/utils/event-draft";
 
 export type EventFieldValues = { name: string; eventGroup: string | null; category: string; gameVersion: string; releaseStatus: "development" | "implemented" | "removed"; weight: number | null; durationSeconds: number | null; cooldownSeconds: number | null; description: string; effectTags: string[] };
 
 const props = defineProps<{ values: EventFieldValues; groups: string[]; categories: string[]; versions: string[]; tags: string[]; disabled?: boolean }>();
 const emit = defineEmits<{ patch: [patch: EventPatch] }>();
 const rarity = computed(() => randomEventRarityForWeight(props.values.weight) || "—");
+const statusItems = (["development", "implemented", "removed"] as const).map((value) => ({ label: statusLabels[value], value }));
 const numberOrNull = (value: string) => value === "" ? null : Number(value);
 const tagsModel = computed({ get: () => props.values.effectTags, set: (value: string[]) => emit("patch", { effectTags: value.map((tag) => tag.trim()).filter(Boolean) }) });
 </script>
@@ -20,7 +21,7 @@ const tagsModel = computed({ get: () => props.values.effectTags, set: (value: st
     </div>
     <div class="event-fields__pair">
       <UFormField label="版本"><UInputMenu :model-value="values.gameVersion" :items="versions" create-item placeholder="选择或输入" class="w-full" :disabled="disabled" required @update:model-value="emit('patch', { gameVersion: $event })" @create="emit('patch', { gameVersion: $event.trim() })" /></UFormField>
-      <UFormField label="状态"><USelect :model-value="values.releaseStatus" :items="[{ label: '开发中', value: 'development' }, { label: '已实装', value: 'implemented' }, { label: '已移除', value: 'removed' }]" class="w-full" :disabled="disabled" @update:model-value="emit('patch', { releaseStatus: $event as EventFieldValues['releaseStatus'] })" /></UFormField>
+      <UFormField label="状态"><USelect :model-value="values.releaseStatus" :items="statusItems" class="w-full" :disabled="disabled" @update:model-value="emit('patch', { releaseStatus: $event as EventFieldValues['releaseStatus'] })" /></UFormField>
     </div>
     <div class="event-fields__pair">
       <UFormField label="权重" :hint="`稀有度：${rarity}`"><UInput :model-value="values.weight ?? undefined" type="number" step="0.05" min="0" class="w-full" :disabled="disabled" @input="emit('patch', { weight: numberOrNull(($event.target as HTMLInputElement).value) })" /></UFormField>

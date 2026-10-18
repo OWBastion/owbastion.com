@@ -42,12 +42,7 @@ const removeEvent = (eventId: string) => { draft.eventCounters = draft.eventCoun
 const addEvent = (eventId: string) => { if (eventId) draft.eventCounters.push({ eventId, count: "1" }); };
 watch(() => draft.mapId, async (mapId, previous) => {
   if (previous !== undefined && previous !== mapId) draft.gameplayRevisionId = "";
-  let loaded: AdminMapEditor["revisions"] = [];
-  try {
-    loaded = (await api<AdminMapEditor>(`/v1/maps/${encodeURIComponent(mapId)}/editor`)).revisions;
-  } catch {
-    loaded = [];
-  }
+  const loaded = await api<AdminMapEditor>(`/v1/maps/${encodeURIComponent(mapId)}/editor`).then((response) => response.revisions).catch(() => []);
   if (draft.mapId !== mapId) return;
   revisions.value = loaded;
   if (!draft.gameplayRevisionId) draft.gameplayRevisionId = revisions.value.find((revision) => revision.lifecycle === "default")?.revisionId ?? revisions.value[0]?.revisionId ?? "";
@@ -73,8 +68,8 @@ function submit() {
     }));
     emit("submit", {
       changes: {
-        mapId: draft.mapId.trim(),
-        gameplayRevisionId: draft.gameplayRevisionId.trim(),
+        mapId: draft.mapId,
+        gameplayRevisionId: draft.gameplayRevisionId,
         difficulty: draft.difficulty,
         gameVersion: draft.gameVersion.trim(),
         matchCode: draft.matchCode.trim(),
