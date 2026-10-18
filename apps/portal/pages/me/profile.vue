@@ -148,7 +148,18 @@ onMounted(() => {
 <template>
   <main class="profile-page page-shell">
     <template v-if="player">
-      <PlayerProfileHero :player-name="player.player.playerName" :player-id="player.player.playerId" :equipped-titles="equippedTitles" :titles-ready="titlesReady" :stats="heroStats" @inspect="inspectTitle" />
+      <PlayerProfileHero :player-name="player.player.playerName" :player-id="player.player.playerId" :equipped-titles="equippedTitles" :titles-ready="titlesReady" :stats="heroStats" @inspect="inspectTitle">
+        <template #settings>
+          <UPopover :content="{ align: 'end' }">
+            <UButton icon="i-lucide-settings-2" color="neutral" variant="ghost" aria-label="公开设置" />
+            <template #content>
+              <PlayerProfileVisibilityCard :public-profile="player.player.publicProfile" :hide-battle-tag="player.player.hideBattleTag" @updated="setVisibility">
+                <PlayerHandleCard v-if="player.player.publicProfile" />
+              </PlayerProfileVisibilityCard>
+            </template>
+          </UPopover>
+        </template>
+      </PlayerProfileHero>
 
       <section v-if="currentProfiles.length" class="section-block" aria-labelledby="records-title">
         <PageSectionHeader title="战绩" heading-id="records-title" count="每张地图的个人最佳" />
@@ -205,13 +216,6 @@ onMounted(() => {
           </section>
         </div>
       </div>
-
-      <section class="section-block" aria-labelledby="visibility-title">
-        <PageSectionHeader title="公开主页" heading-id="visibility-title" />
-        <PlayerProfileVisibilityCard :public-profile="player.player.publicProfile" :hide-battle-tag="player.player.hideBattleTag" @updated="setVisibility">
-          <PlayerHandleCard v-if="player.player.publicProfile" />
-        </PlayerProfileVisibilityCard>
-      </section>
 
       <PlayerTitleInspectDialog v-model:open="inspectOpen" :title="inspected" />
     </template>

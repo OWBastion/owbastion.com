@@ -35,7 +35,7 @@ async function save(change: Partial<typeof draft>) {
 </script>
 
 <template>
-  <UCard class="visibility-card" variant="subtle">
+  <div class="visibility-card">
     <div class="visibility-row">
       <div class="visibility-copy">
         <strong>在排行榜公开我的主页</strong>
@@ -52,14 +52,15 @@ async function save(change: Partial<typeof draft>) {
     </div>
     <p v-if="error" class="visibility-error" role="alert">{{ error }}</p>
     <div v-if="$slots.default" class="visibility-extra"><slot /></div>
-  </UCard>
+  </div>
 </template>
 
 <style scoped>
+.visibility-card { display: grid; gap: var(--space-3); width: min(26rem, calc(100vw - 2rem)); padding: var(--space-4); }
 .visibility-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
 .visibility-copy { display: grid; min-width: 0; gap: var(--space-1); }
 .visibility-copy strong { color: var(--text); font-size: .85rem; }
 .visibility-copy p { margin: 0; color: var(--quiet); font-size: .73rem; }
-.visibility-extra { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
+.visibility-extra { padding-top: var(--space-3); border-top: 1px solid var(--line); }
 .visibility-error { margin: var(--space-2) 0 0; color: var(--danger) !important; }
 </style>

@@ -88,8 +88,9 @@ async function mountPage(): Promise<VueWrapper> {
         UEmpty: { props: ["title"], template: "<div>{{ title }}</div>" },
         USkeleton: { template: "<div class=\"skeleton\" />" },
         UIcon: { props: ["name"], template: "<i :data-icon=\"name\" />" },
+        UPopover: { template: "<div><slot /><slot name=\"content\" /></div>" },
         PlayerHandleCard: { template: "<div data-handle=\"card\" />" },
-        PlayerProfileVisibilityCard: { props: ["publicProfile"], template: "<div data-visibility=\"card\">{{ publicProfile }}</div>" },
+        PlayerProfileVisibilityCard: { props: ["publicProfile", "hideBattleTag"], template: "<div data-visibility=\"card\">{{ publicProfile }}/{{ hideBattleTag }}<slot /></div>" },
       },
     },
   });
@@ -132,12 +133,13 @@ describe("me profile page", () => {
     expect(wrapper.text()).not.toContain("地图成就");
   });
 
-  it("shows the public-profile visibility control fed by the player setting", async () => {
+  it("offers the visibility settings as a secondary control inside the hero, not a page section", async () => {
     reset();
     const wrapper = await mountPage();
-    const section = wrapper.get('section[aria-labelledby="visibility-title"]');
-    expect(section.text()).toContain("公开主页");
-    expect(section.get("[data-visibility='card']").text()).toBe("true");
+    expect(wrapper.find('section[aria-labelledby="visibility-title"]').exists()).toBe(false);
+    const settings = wrapper.get(".profile-hero__settings");
+    expect(settings.get("[data-visibility='card']").text()).toBe("true/false");
+    expect(settings.find("[data-handle='card']").exists()).toBe(true);
   });
 
   it("groups earned titles into series with the map series first", async () => {

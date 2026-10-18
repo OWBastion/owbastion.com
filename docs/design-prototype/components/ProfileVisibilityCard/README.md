@@ -1,4 +1,4 @@
-设置页卡片，用开关控制是否在排行榜公开个人主页。数据写入 `PUT /v1/me/profile/visibility`（带 Idempotency-Key）。
+个人主页顶部玩家卡右上角的二级控件：点设置图标按钮在 Popover 中打开，不占页面段落。用开关控制是否在排行榜公开个人主页。数据写入 `PUT /v1/me/profile/visibility`（带 Idempotency-Key）。
 
 **使用**：传入 `publicProfile`、`hideBattleTag`，保存后触发 `updated(response)`，两个值一起写入。默认插槽放公开 ID 行。
 
