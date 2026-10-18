@@ -107,6 +107,26 @@ export const titleColorLabel = (color: AdminTitleColor) =>
         ? `英雄色 ${color.index}`
         : "未设置";
 
+export const TITLE_PALETTE_NAMES = ["orange", "red", "purple", "gold", "blue"] as const;
+
+// Bastion's breathPalette (Bastion/src/session/game.opy): in game a palette title
+// breathes between these two endpoints, so it renders as a gradient, not a flat colour.
+const PALETTE_ENDPOINTS: Record<(typeof TITLE_PALETTE_NAMES)[number], [[number, number, number], [number, number, number]]> = {
+  orange: [[250, 121, 0], [255, 220, 180]],
+  red: [[238, 75, 43], [255, 0, 0]],
+  purple: [[161, 73, 197], [204, 204, 255]],
+  gold: [[255, 242, 163], [255, 196, 0]],
+  blue: [[85, 178, 204], [25, 80, 120]],
+};
+const rgbCss = (value: readonly number[]) => `rgb(${value.join(" ")})`;
+export const titleColorBackground = (color: AdminTitleColor): string | undefined => {
+  if (color?.kind === "palette") {
+    const [from, to] = PALETTE_ENDPOINTS[color.name];
+    return `linear-gradient(135deg, ${rgbCss(from)}, ${rgbCss(to)})`;
+  }
+  return color?.kind === "rgb" ? rgbCss(color.value) : undefined;
+};
+
 export const titleAcquisitionLabel = (acquisition: AdminTitleAcquisition) =>
   acquisition.kind === "challenges"
     ? `${acquisition.challengeCount} 条挑战 · ${acquisition.completableCount} 条可完成`

@@ -3305,7 +3305,7 @@
    },
    "AdminTitleCreateRequest": {
     "type": "object", "additionalProperties": false, "required": ["contractVersion", "label", "category", "scope", "displayKind", "icon", "publicVisibility"],
-    "properties": { "contractVersion": { "type": "string", "enum": ["1"] }, "titleKey": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,63}$" }, "label": { "type": "string", "minLength": 1, "maxLength": 256 }, "category": { "type": "string", "minLength": 1, "maxLength": 128 }, "scope": { "type": "string", "enum": ["global", "map"] }, "displayKind": { "type": "string", "enum": ["fixed", "map_pioneer", "map_name_suffix"] }, "color": { "nullable": true }, "icon": { "type": "string" }, "publicVisibility": { "type": "boolean" }, "gameVersion": { "type": "string", "nullable": true } }
+    "properties": { "contractVersion": { "type": "string", "enum": ["1"] }, "titleKey": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,63}$" }, "label": { "type": "string", "minLength": 1, "maxLength": 256 }, "category": { "type": "string", "minLength": 1, "maxLength": 128 }, "scope": { "type": "string", "enum": ["global", "map"] }, "displayKind": { "type": "string", "enum": ["fixed", "map_pioneer", "map_name_suffix"] }, "color": { "nullable": true }, "icon": { "type": "string" }, "iconUrl": { "type": "string", "nullable": true }, "publicVisibility": { "type": "boolean" }, "gameVersion": { "type": "string", "nullable": true } }
    },
    "AdminTitleChallengeCreateRequest": {
     "type": "object", "additionalProperties": false, "required": ["contractVersion", "condition", "submissionMode", "status"],
@@ -3337,7 +3337,7 @@
     }
    },
    "AdminTitleUpdateRequest": {
-    "type": "object", "required": ["contractVersion"], "properties": { "contractVersion": { "type": "string", "enum": ["1"] }, "lifecycle": { "type": "string", "enum": ["draft", "active", "retired"] }, "publicVisibility": { "type": "boolean" }, "label": { "type": "string" }, "icon": { "type": "string" }, "category": { "type": "string" }, "scope": { "type": "string", "enum": ["global", "map"] }, "displayKind": { "type": "string", "enum": ["fixed", "map_pioneer", "map_name_suffix"] }, "color": { "nullable": true }, "restore": { "$ref": "#/components/schemas/AdminTitleCascade" } }
+    "type": "object", "required": ["contractVersion"], "properties": { "contractVersion": { "type": "string", "enum": ["1"] }, "lifecycle": { "type": "string", "enum": ["draft", "active", "retired"] }, "publicVisibility": { "type": "boolean" }, "label": { "type": "string" }, "icon": { "type": "string" }, "iconUrl": { "type": "string", "nullable": true }, "category": { "type": "string" }, "scope": { "type": "string", "enum": ["global", "map"] }, "displayKind": { "type": "string", "enum": ["fixed", "map_pioneer", "map_name_suffix"] }, "color": { "nullable": true }, "restore": { "$ref": "#/components/schemas/AdminTitleCascade" } }
    }
   },
   "parameters": {
