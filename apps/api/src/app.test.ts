@@ -112,10 +112,10 @@ const defaultServices: Partial<PlatformServices> = {
   verifyQqLogin: async () => ({ contractVersion: "1", status: "verified", environment: "test" }),
   getCurrentPlayer: async ({ sessionToken }) => sessionToken === "session-token" ? {
     contractVersion: "1",
-    player: { playerId: "1234", playerName: "Player", isAdmin: false, publicProfile: true },
+    player: { playerId: "1234", playerName: "Player", isAdmin: false, publicProfile: true, hideBattleTag: false },
     recentSubmissions: [{ submissionId: "00000000-0000-0000-0000-000000000003", status: "processing", mapName: "Test Map", createdAt: 2, updatedAt: 3 }],
   } : null,
-  updateCurrentPlayerProfileVisibility: async (input) => input.sessionToken === "session-token" ? { contractVersion: "1" as const, publicProfile: input.publicProfile } : (() => { throw new Error("UNAUTHENTICATED"); })(),
+  updateCurrentPlayerProfileVisibility: async (input) => input.sessionToken === "session-token" ? { contractVersion: "1" as const, publicProfile: input.publicProfile, hideBattleTag: input.hideBattleTag } : (() => { throw new Error("UNAUTHENTICATED"); })(),
   getPublicLeaderboard: async ({ board, mapId }) => mapId === "missing-map" ? null : { contractVersion: "1" as const, board, ...(mapId ? { mapId } : {}), ruleVersion: "leaderboard.v1", items: [{ rank: 1, score: 500, reachedAt: 100, player: { playerKey: "key-alpha", displayName: "Alpha", equippedTitle: null } }], page: 1, pageSize: 20, total: 1, hasMore: false },
   getPublicLeaderboardPlayer: async ({ playerKey }) => playerKey === "key-alpha" ? { contractVersion: "1" as const, publicProfile: true, player: { displayName: "Alpha", equippedTitle: null }, boards: { mastery: { rank: 1, score: 500 }, achievement: null }, perMapXp: [], mapCount: 0, titles: { map: [], general: [] } } : null,
   getCurrentPlayerLeaderboardRank: async ({ sessionToken, board, mapId }) => sessionToken !== "session-token" ? null : (() => { if (mapId === "missing-map") throw new Error("MAP_NOT_FOUND"); return { contractVersion: "1" as const, board, ...(mapId ? { mapId } : {}), ruleVersion: "leaderboard.v1", rank: 2, score: 300, reachedAt: 90, gapToNextRank: 200 }; })(),
@@ -386,7 +386,7 @@ describe("API", () => {
     const cacheApp = createTestApp({
       getCurrentPlayer: async ({ sessionToken }) => sessionToken === "player-session" ? {
         contractVersion: "1" as const,
-        player: { playerId: "p1", playerName: "Player", isAdmin: false, publicProfile: true },
+        player: { playerId: "p1", playerName: "Player", isAdmin: false, publicProfile: true, hideBattleTag: false },
         recentSubmissions: [],
       } : null,
       listChallenges: async () => [],
@@ -886,20 +886,20 @@ describe("API", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       contractVersion: "1",
-      player: { playerId: "1234", playerName: "Player", isAdmin: false, publicProfile: true },
+      player: { playerId: "1234", playerName: "Player", isAdmin: false, publicProfile: true, hideBattleTag: false },
       recentSubmissions: [{ submissionId: "00000000-0000-0000-0000-000000000003", status: "processing", mapName: "Test Map", createdAt: 2, updatedAt: 3 }],
     });
   });
 
   it("lets only the signed-in player update their public-profile visibility", async () => {
-    expect((await app.request("http://localhost/v1/me/profile/visibility", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "vis-unauth" }, body: JSON.stringify({ contractVersion: "1", publicProfile: false }) }, env)).status).toBe(401);
-    expect((await app.request("http://localhost/v1/me/profile/visibility", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=session-token" }, body: JSON.stringify({ contractVersion: "1", publicProfile: false }) }, env)).status).toBe(422);
+    expect((await app.request("http://localhost/v1/me/profile/visibility", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "vis-unauth" }, body: JSON.stringify({ contractVersion: "1", publicProfile: false, hideBattleTag: false }) }, env)).status).toBe(401);
+    expect((await app.request("http://localhost/v1/me/profile/visibility", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=session-token" }, body: JSON.stringify({ contractVersion: "1", publicProfile: false, hideBattleTag: false }) }, env)).status).toBe(422);
     expect((await app.request("http://localhost/v1/me/profile/visibility", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "vis-bad" }, body: JSON.stringify({ contractVersion: "1", publicProfile: "no" }) }, env)).status).toBe(422);
-    const response = await app.request("http://localhost/v1/me/profile/visibility", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "vis-off" }, body: JSON.stringify({ contractVersion: "1", publicProfile: false }) }, env);
+    const response = await app.request("http://localhost/v1/me/profile/visibility", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "vis-off" }, body: JSON.stringify({ contractVersion: "1", publicProfile: false, hideBattleTag: false }) }, env);
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("private, no-store");
-    expect(await response.json()).toEqual({ contractVersion: "1", publicProfile: false });
-    expect((await app.request("http://localhost/v1/me/profile/visibility", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=other-token", "idempotency-key": "vis-other" }, body: JSON.stringify({ contractVersion: "1", publicProfile: false }) }, env)).status).toBe(401);
+    expect(await response.json()).toEqual({ contractVersion: "1", publicProfile: false, hideBattleTag: false });
+    expect((await app.request("http://localhost/v1/me/profile/visibility", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=other-token", "idempotency-key": "vis-other" }, body: JSON.stringify({ contractVersion: "1", publicProfile: false, hideBattleTag: false }) }, env)).status).toBe(401);
   });
 
   it("serves paginated public leaderboard boards with privacy headers", async () => {
@@ -2094,7 +2094,7 @@ describe("API", () => {
       listLocalDevAccounts: async () => [{ accountId: "local-player-account", playerId: "local-player", playerName: "Local Player", isAdmin: false }],
       createLocalDevSession: async () => ({ sessionToken: "local-session" }),
       getPortalSessionIdentity: async ({ sessionToken }) => sessionToken === "local-session" ? { player: { playerId: "local-player", isAdmin: false } } : null,
-      getCurrentPlayer: async ({ sessionToken }) => sessionToken === "local-session" ? { contractVersion: "1", player: { playerId: "local-player", playerName: "Local Player", isAdmin: false, publicProfile: true }, recentSubmissions: [] } : null,
+      getCurrentPlayer: async ({ sessionToken }) => sessionToken === "local-session" ? { contractVersion: "1", player: { playerId: "local-player", playerName: "Local Player", isAdmin: false, publicProfile: true, hideBattleTag: false }, recentSubmissions: [] } : null,
     });
     const localApp = createApp({ authenticate: anonymousAuth, services: () => localServices });
     expect((await localApp.request("http://localhost/v1/__local/accounts", {}, env)).status).toBe(404);

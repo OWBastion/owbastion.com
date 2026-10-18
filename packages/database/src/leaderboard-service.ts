@@ -140,7 +140,12 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
     return { mastery: headlineStandings(mastery), achievement: headlineStandings(achievement) };
   };
 
-  const publicPlayerSummary = async (account: { id: string; playerName: string }) => {
+  // The BattleTag name is the only public display name; when a Player hides it
+  // the approved handle stands in, else the entry reads as anonymous.
+  const publicDisplayName = (account: { playerName: string; hideBattleTag: number }, handle: string | undefined) =>
+    account.hideBattleTag === 1 ? handle ?? "匿名玩家" : account.playerName;
+
+  const publicPlayerSummary = async (account: { id: string; playerName: string; hideBattleTag: number }, handle: string | undefined) => {
     const [mastery, achievement, perMapRows, mapTitleRows, generalTitleRows, equipped, mapCountRow] = await Promise.all([
       masteryRows().then(rankLeaderboardRows),
       achievementRows().then(rankLeaderboardRows),
@@ -187,7 +192,7 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
     return {
       contractVersion: "1" as const,
       publicProfile: true,
-      player: { displayName: account.playerName, equippedTitle: equipped.get(account.id) ?? null },
+      player: { displayName: publicDisplayName(account, handle), equippedTitle: equipped.get(account.id) ?? null },
       boards: { mastery: standingOf(mastery), achievement: standingOf(achievement) },
       perMapXp: perMapRows
         .sort((a, b) => b.xp - a.xp || a.mapId.localeCompare(b.mapId))
@@ -222,6 +227,7 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
         id: playerAccounts.id,
         playerName: playerAccounts.playerName,
         publicProfile: playerAccounts.publicProfile,
+        hideBattleTag: playerAccounts.hideBattleTag,
       }).from(playerAccounts).where(inArray(playerAccounts.id, accountIds));
       const accountById = new Map(accounts.map((account) => [account.id, account]));
       const publicIds = slice.filter((row) => accountById.get(row.playerAccountId)?.publicProfile === 1).map((row) => row.playerAccountId);
@@ -245,7 +251,7 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
           publicProfile,
           identity: {
             playerKey: await leaderboardPlayerKey(row.playerAccountId),
-            displayName: account?.playerName ?? "",
+            displayName: account ? publicDisplayName(account, handles.get(row.playerAccountId)) : "",
             equippedTitle: equipped.get(row.playerAccountId) ?? null,
             ...(handles.has(row.playerAccountId) ? { handle: handles.get(row.playerAccountId) } : {}),
           },
@@ -277,6 +283,7 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
         id: playerAccounts.id,
         playerName: playerAccounts.playerName,
         publicProfile: playerAccounts.publicProfile,
+        hideBattleTag: playerAccounts.hideBattleTag,
       }).from(playerAccounts);
       let account: (typeof accounts)[number] | undefined;
       for (const candidate of accounts) {
@@ -286,19 +293,19 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
       if (account.publicProfile !== 1) {
         return { contractVersion: "1" as const, publicProfile: false, player: null, boards: null, perMapXp: null, mapCount: null, titles: null };
       }
-      return publicPlayerSummary(account);
+      return publicPlayerSummary(account, (await loadActiveHandles([account.id])).get(account.id));
     },
 
     // Only an active handle of a public, non-banned Player resolves; every other
     // state is indistinguishable from an unknown handle.
     async getPublicPlayerByHandle(input) {
-      const row = await db.select({ id: playerAccounts.id, playerName: playerAccounts.playerName, handle: playerHandles.handle })
+      const row = await db.select({ id: playerAccounts.id, playerName: playerAccounts.playerName, hideBattleTag: playerAccounts.hideBattleTag, handle: playerHandles.handle })
         .from(playerHandles)
         .innerJoin(playerAccounts, eq(playerAccounts.id, playerHandles.playerAccountId))
         .where(and(eq(playerHandles.handle, input.handle), eq(playerHandles.status, "active"), eq(playerAccounts.publicProfile, 1), eq(playerAccounts.status, "active")))
         .get();
       if (!row) return null;
-      return { ...(await publicPlayerSummary(row)), handle: row.handle };
+      return { ...(await publicPlayerSummary(row, row.handle)), handle: row.handle };
     },
 
     async getCurrentPlayerLeaderboardRank(input) {
