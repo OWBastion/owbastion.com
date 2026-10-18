@@ -35,6 +35,7 @@ export const playerAccountsSchema = `CREATE TABLE player_accounts (
       is_admin INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'active',
       public_profile INTEGER NOT NULL DEFAULT 1,
+      hide_battletag INTEGER NOT NULL DEFAULT 0,
       banned_at INTEGER,
       banned_by TEXT,
       ban_reason TEXT,

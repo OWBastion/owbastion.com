@@ -328,7 +328,7 @@ export type PlatformServices = {
   listCurrentPlayerChallengeProgress(input: { sessionToken: string }): Promise<PlayerChallengeProgressListResponse | null>;
   getPortalSessionIdentity(input: { sessionToken: string }): Promise<{ player: { playerId: string; isAdmin: boolean } } | null>;
   getCurrentPlayer(input: { sessionToken: string }): Promise<CurrentPlayerResponse | null>;
-  updateCurrentPlayerProfileVisibility(input: { sessionToken: string; publicProfile: boolean }, idempotencyKey: string): Promise<PlayerProfileVisibilityResponse>;
+  updateCurrentPlayerProfileVisibility(input: { sessionToken: string; publicProfile: boolean; hideBattleTag: boolean }, idempotencyKey: string): Promise<PlayerProfileVisibilityResponse>;
   getPublicLeaderboard(input: { board: LeaderboardBoard; mapId?: string; seasonId?: string; page: number; pageSize: number }): Promise<LeaderboardResponse | null>;
   getPublicLeaderboardPlayer(input: { playerKey: string }): Promise<LeaderboardPlayerSummary | null>;
   getCurrentPlayerHandle(input: { sessionToken: string }): Promise<PlayerHandleStateResponse | null>;

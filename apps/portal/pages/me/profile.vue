@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { PlayerProfileVisibilityResponse } from "@owbastion/contracts";
 import { portalErrorDetails } from "~/utils/portal-error";
 import type { CurrentPlayerMasteryResponse, PlayerVerifiedRun, PortalMap } from "~/composables/usePortalApi";
 import { formatMasteryDuration } from "~/utils/mastery";
@@ -135,8 +136,8 @@ async function retryMastery() {
   }
 }
 
-function setPublicProfile(value: boolean) {
-  if (player.value) player.value.player.publicProfile = value;
+function setVisibility({ publicProfile, hideBattleTag }: PlayerProfileVisibilityResponse) {
+  if (player.value) Object.assign(player.value.player, { publicProfile, hideBattleTag });
 }
 
 onMounted(() => {
@@ -207,7 +208,7 @@ onMounted(() => {
 
       <section class="section-block" aria-labelledby="visibility-title">
         <PageSectionHeader title="公开主页" heading-id="visibility-title" />
-        <PlayerProfileVisibilityCard :public-profile="player.player.publicProfile" @updated="setPublicProfile">
+        <PlayerProfileVisibilityCard :public-profile="player.player.publicProfile" :hide-battle-tag="player.player.hideBattleTag" @updated="setVisibility">
           <PlayerHandleCard v-if="player.player.publicProfile" />
         </PlayerProfileVisibilityCard>
       </section>

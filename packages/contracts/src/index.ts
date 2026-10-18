@@ -1549,11 +1549,14 @@ export const currentPlayerResponseSchema = z.object({
     playerName: z.string().trim().min(1).max(64),
     isAdmin: z.boolean().default(false),
     publicProfile: z.boolean().default(true),
+    hideBattleTag: z.boolean().default(false),
   }),
   recentSubmissions: z.array(submissionStatusResponseSchema.omit({ contractVersion: true })).max(5),
 });
-export const playerProfileVisibilityRequestSchema = z.object({ contractVersion, publicProfile: z.boolean() }).strict();
-export const playerProfileVisibilityResponseSchema = z.object({ contractVersion, publicProfile: z.boolean() }).strict();
+// The whole visibility setting is replaced on each write. `hideBattleTag` keeps
+// the public profile but withholds the BattleTag name from other Players.
+export const playerProfileVisibilityRequestSchema = z.object({ contractVersion, publicProfile: z.boolean(), hideBattleTag: z.boolean() }).strict();
+export const playerProfileVisibilityResponseSchema = z.object({ contractVersion, publicProfile: z.boolean(), hideBattleTag: z.boolean() }).strict();
 
 // Player handles (#438): a maintainer-reviewed public address. The value is the
 // normalized form (NFKC, ASCII lowercase); validation rules live in the domain.
