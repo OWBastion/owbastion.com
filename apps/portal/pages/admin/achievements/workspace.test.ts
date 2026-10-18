@@ -6,6 +6,7 @@ import ChallengesPage from "./challenges.vue";
 import MapChallengesPage from "./map-challenges.vue";
 import TitlesPage from "./titles.vue";
 import LegacyIndexPage from "./index.vue";
+import { DEFAULT_EVIDENCE_RULE } from "~/components/admin/admin-achievement-types";
 
 const titleSummary = {
   titleKey: "FLAWLESS",
@@ -382,7 +383,7 @@ describe("achievement admin pages", () => {
     await form.trigger("submit");
     await flushPromises();
     const call = adminApi.mock.calls.find(([path, options]) => path === "/v1/titles/LIGHT_LOADOUT/challenges" && options?.method === "POST");
-    expect(call?.[1]?.body).toEqual(expect.objectContaining({ contractVersion: "1", enableTitle: true, status: "active" }));
+    expect(call?.[1]?.body).toEqual(expect.objectContaining({ contractVersion: "1", enableTitle: true, status: "active", evidenceRule: DEFAULT_EVIDENCE_RULE }));
   });
 
   it("sends saveMode new_challenge when qualification changes", async () => {

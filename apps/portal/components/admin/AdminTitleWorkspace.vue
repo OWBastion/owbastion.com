@@ -441,12 +441,12 @@ async function submitChallenge(payload: Record<string, unknown>) {
                 <td><StatusBadge :label="title.developerOnly && title.status !== 'draft' && title.status !== 'retired' ? '开发保留' : achievementStatusLabel(title.status)" :tone="title.developerOnly && title.status !== 'draft' && title.status !== 'retired' ? 'warning' : achievementStatusTone(title.status)" /></td>
                 <td>
                   <div class="table-actions">
-                    <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-pencil" label="编辑" :aria-label="`编辑${title.label}`" :disabled="savingKey === title.titleKey" @click="openEditTitle(title)" />
-                    <UButton v-if="title.lifecycle === 'draft'" size="sm" color="neutral" variant="outline" icon="i-lucide-play" label="启用" :aria-label="`启用${title.label}`" :loading="savingKey === title.titleKey" @click="mutateTitleLifecycle(title, 'active')" />
+                    <UButton size="sm" color="neutral" variant="outline" label="编辑" :aria-label="`编辑${title.label}`" :disabled="savingKey === title.titleKey" @click="openEditTitle(title)" />
+                    <UButton v-if="title.lifecycle === 'draft'" size="sm" color="neutral" variant="outline" label="启用" :aria-label="`启用${title.label}`" :loading="savingKey === title.titleKey" @click="mutateTitleLifecycle(title, 'active')" />
                     <template v-else>
-                      <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-send" label="发放" :aria-label="`发放${title.label}`" :to="grantHref(title)" />
-                      <UButton v-if="title.lifecycle === 'active'" size="sm" color="error" variant="soft" icon="i-lucide-square-stop" label="退休" :aria-label="`退休${title.label}`" :loading="savingKey === title.titleKey" @click="mutateTitleLifecycle(title, 'retired')" />
-                      <UButton v-else size="sm" color="neutral" variant="outline" icon="i-lucide-rotate-ccw" label="重开" :aria-label="`重开${title.label}`" :loading="savingKey === title.titleKey" @click="mutateTitleLifecycle(title, 'active')" />
+                      <UButton size="sm" color="neutral" variant="outline" label="发放" :aria-label="`发放${title.label}`" :to="grantHref(title)" />
+                      <UButton v-if="title.lifecycle === 'active'" size="sm" color="error" variant="soft" label="退休" :aria-label="`退休${title.label}`" :loading="savingKey === title.titleKey" @click="mutateTitleLifecycle(title, 'retired')" />
+                      <UButton v-else size="sm" color="neutral" variant="outline" label="重开" :aria-label="`重开${title.label}`" :loading="savingKey === title.titleKey" @click="mutateTitleLifecycle(title, 'active')" />
                     </template>
                   </div>
                 </td>
@@ -614,8 +614,8 @@ async function submitChallenge(payload: Record<string, unknown>) {
 .title-toolbar :deep(select), .title-toolbar :deep(button) { min-width: 8.5rem; }
 .table-meta { color: var(--quiet); font-size: var(--type-caption-size); }
 .title-cell-stack { display: grid; gap: 2px; }
-.title-num { font-variant-numeric: tabular-nums; }
-.table-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: flex-end; }
+.title-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.table-actions { display: flex; flex-wrap: nowrap; gap: var(--space-2); justify-content: flex-end; }
 
 .title-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
 .title-table th { padding: var(--space-2) var(--space-3); text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .025em; color: var(--quiet); border-bottom: 1px solid var(--line); white-space: nowrap; }

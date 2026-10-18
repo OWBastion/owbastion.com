@@ -159,7 +159,7 @@ function submit() {
     emit("submit", {
       contractVersion: "1",
       condition: form.condition.trim(),
-      ...(form.evidenceRule.trim() ? { evidenceRule: form.evidenceRule.trim() } : {}),
+      evidenceRule: form.evidenceRule.trim() || DEFAULT_EVIDENCE_RULE,
       submissionMode: form.submissionMode,
       status: form.status,
       ...(form.startsAt ? { startsAt: form.startsAt } : {}),
@@ -209,7 +209,7 @@ function submit() {
           <USelect v-model="form.progressMode" :items="progressModeItems" :disabled="saving" />
         </UFormField>
         <UFormField class="challenge-dialog-form__wide" label="完成条件" required>
-          <UTextarea v-model="form.condition" required maxlength="1024" :disabled="saving" />
+          <UTextarea v-model="form.condition" class="w-full" required maxlength="1024" :disabled="saving" />
         </UFormField>
 
         <template v-if="progressMode">
@@ -220,13 +220,13 @@ function submit() {
             <USelect v-model="form.progressDifficultyAtLeast" :items="progressDifficultyItems" :disabled="saving" />
           </UFormField>
           <UFormField v-if="form.progressScope === regularScope" class="challenge-dialog-form__wide" label="要求地图" required help="开放时间内每张地图各有一条已验证通关即完成。">
-            <USelect v-model="form.progressMapIds" multiple :items="mapItems" :disabled="saving" />
+            <USelect v-model="form.progressMapIds" class="w-full" multiple :items="mapItems" :disabled="saving" />
           </UFormField>
         </template>
 
         <template v-else>
           <UFormField class="challenge-dialog-form__wide" label="截图规则" help="留空使用默认规则。">
-            <UTextarea v-model="form.evidenceRule" :placeholder="DEFAULT_EVIDENCE_RULE" maxlength="2048" :disabled="saving" />
+            <UTextarea v-model="form.evidenceRule" class="w-full" :placeholder="DEFAULT_EVIDENCE_RULE" maxlength="2048" :disabled="saving" />
           </UFormField>
           <UFormField label="提交方式">
             <USelect v-model="form.submissionMode" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" :disabled="saving" />
