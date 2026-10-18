@@ -37,12 +37,13 @@ async function toggle(value: boolean) {
   <UCard class="visibility-card" variant="subtle">
     <div class="visibility-row">
       <div class="visibility-copy">
-        <strong>公开主页</strong>
-        <p>在排行榜公开显示你的昵称与称号。关闭后名次与分数照常保留，但昵称、头像、称号和地图明细不再公开，你会显示为匿名玩家。</p>
+        <strong>在排行榜公开我的主页</strong>
+        <p>关闭后你在排行榜显示为匿名玩家，名次与分数照常保留。</p>
         <p v-if="error" class="visibility-error" role="alert">{{ error }}</p>
       </div>
       <USwitch :model-value="draft" :disabled="saving" aria-label="公开主页" @update:model-value="toggle" />
     </div>
+    <div v-if="$slots.default" class="visibility-extra"><slot /></div>
   </UCard>
 </template>
 
@@ -51,5 +52,6 @@ async function toggle(value: boolean) {
 .visibility-copy { display: grid; min-width: 0; gap: var(--space-1); }
 .visibility-copy strong { color: var(--text); font-size: .85rem; }
 .visibility-copy p { margin: 0; color: var(--quiet); font-size: .73rem; }
+.visibility-extra { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
 .visibility-error { color: var(--danger) !important; }
 </style>
