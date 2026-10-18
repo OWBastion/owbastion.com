@@ -3,7 +3,7 @@
 export type ChallengeLifecycle = "draft" | "active" | "archived";
 export type AchievementStatus = ChallengeLifecycle;
 // The single status a row presents: stored lifecycle combined with the window.
-export type DerivedStatus = "draft" | "scheduled" | "active" | "sunsetting" | "ended" | "retired";
+export type DerivedStatus = "draft" | "scheduled" | "active" | "sunsetting" | "ended";
 
 export type MapAchievement = {
   challengeId: string;
@@ -44,7 +44,7 @@ export const DIFFICULTY_OPTIONS = ["简单", "一般", "困难", "专家", "传�
 
 // One coherent status per challenge row: an active challenge before its start
 // shows 未开放, one with an announced retiredVersion shows 即将结束, and a
-// lapsed window or archived lifecycle shows 已下线.
+// lapsed window, archived lifecycle or ended title shows 已结束.
 export const challengeDisplayStatus = (item: { status: ChallengeLifecycle; startsAt?: number | null; endsAt?: number | null; retiredVersion?: string | null }, timestamp = Date.now()): DerivedStatus => {
   if (item.status === "draft") return "draft";
   if (item.status === "archived") return "ended";
@@ -58,8 +58,7 @@ export const achievementStatusLabel = (status: DerivedStatus) =>
     : status === "scheduled" ? "未开放"
       : status === "active" ? "已开放"
         : status === "sunsetting" ? "即将结束"
-          : status === "retired" ? "已退休"
-            : "已下线";
+          : "已结束";
 
 export const achievementStatusTone = (status: DerivedStatus): StatusTone =>
   status === "active" ? "success"

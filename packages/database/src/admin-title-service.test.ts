@@ -142,7 +142,7 @@ describe("title-centric admin acquisition contract", () => {
     const retirement = { contractVersion: "1" as const, titleKey: "MULTI", lifecycle: "retired" as const };
     const retired = await services.updateAdminCatalogTitle(retirement, auth, "retire");
     expect(batch).toHaveBeenCalledTimes(1);
-    expect(retired).toMatchObject({ previousLifecycle: "active", title: { status: "retired" }, cascaded: { challenges: [{ challengeId: first.challengeId, status: "active", retiredVersion: "26.1101.1", startsAt: 1_000, endsAt: 3_000 }], mapTitleRules: [{ ruleId: "rule.test", status: "active", retiredVersion: "26.1201.1" }] } });
+    expect(retired).toMatchObject({ previousLifecycle: "active", title: { status: "ended" }, cascaded: { challenges: [{ challengeId: first.challengeId, status: "active", retiredVersion: "26.1101.1", startsAt: 1_000, endsAt: 3_000 }], mapTitleRules: [{ ruleId: "rule.test", status: "active", retiredVersion: "26.1201.1" }] } });
     const restored = await services.updateAdminCatalogTitle({ contractVersion: "1", titleKey: "MULTI", lifecycle: "active", restore: retired.cascaded }, auth, "restore");
     expect(restored).toMatchObject({ previousLifecycle: "retired", title: { status: "active" }, cascaded: { challenges: [], mapTitleRules: [] } });
     expect((await services.listAdminTitleChallenges({ titleKey: "MULTI" }, auth)).items[0]).toMatchObject(retired.cascaded.challenges[0]!);
@@ -166,7 +166,7 @@ describe("title-centric admin acquisition contract", () => {
     await services.updateAdminChallengeLifecycle({ contractVersion: "1", challengeId: sunset.challengeId, status: "active", retiredVersion: "26.1101.1" }, auth, "sunset-version");
     let response = await services.listAdminTitleSummaries(auth);
     expect(adminTitleSummaryListResponseSchema.safeParse(response).success).toBe(true);
-    expect(response.items.map(row => [row.titleKey, row.status])).toEqual([["DRAFT", "draft"], ["EMPTY", "ended"], ["MANUAL", "ended"], ["MULTI", "sunsetting"], ["RETIRED", "retired"], ["RULE", "active"]]);
+    expect(response.items.map(row => [row.titleKey, row.status])).toEqual([["DRAFT", "draft"], ["EMPTY", "ended"], ["MANUAL", "ended"], ["MULTI", "sunsetting"], ["RETIRED", "ended"], ["RULE", "active"]]);
     expect(response.items.find(row => row.titleKey === "MANUAL")!.acquisition).toEqual({ kind: "none" });
     expect((await services.listAdminTitleChallenges({ titleKey: "MANUAL" }, auth)).items).toEqual([]);
     await services.createAdminTitleChallenge(challengeInput, auth, "active");

@@ -960,7 +960,7 @@ export const adminTitleChallengeSchema = adminAchievementChallengeSchema.extend(
 });
 export const adminTitleChallengeResponseSchema = adminTitleChallengeSchema.extend({ contractVersion });
 export const adminTitleChallengeListResponseSchema = z.object({ contractVersion, items: z.array(adminTitleChallengeSchema) });
-export const derivedStatusSchema = z.enum(["draft", "scheduled", "active", "sunsetting", "ended", "retired"]);
+export const derivedStatusSchema = z.enum(["draft", "scheduled", "active", "sunsetting", "ended"]);
 export const adminTitleSummarySchema = z.object({
   titleKey: externalId, label: z.string(), icon: achievementIcon, iconUrl: z.string().url().nullable(), category: z.string(),
   scope: z.enum(["global", "map"]), displayKind: z.enum(["fixed", "map_pioneer", "map_name_suffix"]), color: titleColorSchema.nullable(),

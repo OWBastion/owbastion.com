@@ -54,7 +54,7 @@ export const createAdminTitleServices = ({ database, evidenceBucket, db, now, re
       color: JSON.parse(title.colorJson), publicVisibility: title.publicVisibility === 1,
       lifecycle: title.lifecycle as AdminTitleSummary["lifecycle"], gameVersion: title.gameVersion,
       developerOnly: title.category === "开发保留",
-      status: title.lifecycle === "draft" ? "draft" : title.lifecycle === "retired" ? "retired" : rule?.status === "active" ? "active" : deriveTitleAvailability(paths, now()),
+      status: title.lifecycle === "draft" ? "draft" : title.lifecycle === "retired" ? "ended" : rule?.status === "active" ? "active" : deriveTitleAvailability(paths, now()),
       acquisition: rule ? { kind: "map_rule", ruleId: rule.id, condition: rule.condition, scopeLabel: rule.defaultScope === "all_active" ? `适用于所有地图的${rule.mapVariant === "classic" ? "经典" : "默认"}版本` : "适用于指定地图版本" }
         : challenges.length ? { kind: "challenges", challengeCount: challenges.length, completableCount: title.lifecycle !== "active" ? 0 : paths.filter(path => {
           const status = publicTitleChallengeStatus(path.status, path.startsAt, path.endsAt, now(), path.gameVersion, path.retiredVersion);

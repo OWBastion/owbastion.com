@@ -46,10 +46,17 @@ const retiredSummary = {
   titleKey: "LUCKY",
   label: "福星高照",
   lifecycle: "retired",
-  status: "retired",
+  status: "ended",
   acquisition: { kind: "none" },
 };
-const summaries = [titleSummary, draftSummary, mapRuleSummary, retiredSummary];
+const lapsedSummary = {
+  ...titleSummary,
+  titleKey: "LAPSED",
+  label: "到此一游",
+  status: "ended",
+  acquisition: { kind: "challenges", challengeCount: 1, completableCount: 0 },
+};
+const summaries = [titleSummary, draftSummary, mapRuleSummary, retiredSummary, lapsedSummary];
 let summariesOverride: unknown[] | null = null;
 let pendingList = false;
 let listError = false;
@@ -241,7 +248,7 @@ describe("achievement admin pages", () => {
     expect(wrapper.text()).toContain("2 条挑战 · 1 条可完成");
     expect(wrapper.text()).toContain("地图称号规则");
     expect(wrapper.text()).toContain("无获取方式");
-    expect(wrapper.text()).toContain("已退休");
+    expect(wrapper.text()).toContain("已结束");
     expect(wrapper.text()).toContain("轻装上阵");
   });
 
@@ -266,10 +273,10 @@ describe("achievement admin pages", () => {
     expect(wrapper.findAll("a").some((link) => link.text() === "在地图挑战中管理")).toBe(true);
   });
 
-  it("shows the retired empty card for retired titles without challenges", async () => {
+  it("shows the ended empty card for ended titles without challenges", async () => {
     const wrapper = await mountPage("titles");
     await expand(wrapper, "福星高照");
-    expect(wrapper.text()).toContain("已退休，没有挑战。仍可手动发放给指定玩家。");
+    expect(wrapper.text()).toContain("已结束，没有挑战。仍可手动发放给指定玩家。");
     expect(wrapper.findAll("button").some((button) => button.text() === "添加挑战")).toBe(false);
   });
 
@@ -353,13 +360,21 @@ describe("achievement admin pages", () => {
     expect(navigateTo).toHaveBeenCalledWith({ path: "/admin/achievements/titles", query: { x: "1" } }, expect.objectContaining({ redirectCode: 302 }));
   });
 
-  it("retires a title immediately and undoes with the cascaded restore", async () => {
+  it("offers no 结束 button for a title whose acquisition window already lapsed", async () => {
     const wrapper = await mountPage("titles");
-    await wrapper.get('button[aria-label="退休守望先锋"]').trigger("click");
+    expect(wrapper.text()).toContain("到此一游");
+    expect(wrapper.find('button[aria-label="结束到此一游"]').exists()).toBe(false);
+    expect(wrapper.find('button[aria-label="重开到此一游"]').exists()).toBe(false);
+    expect(wrapper.find('a[aria-label="发放到此一游"], [aria-label="发放到此一游"]').exists()).toBe(true);
+  });
+
+  it("ends a title immediately and undoes with the cascaded restore", async () => {
+    const wrapper = await mountPage("titles");
+    await wrapper.get('button[aria-label="结束守望先锋"]').trigger("click");
     await flushPromises();
     const call = adminApi.mock.calls.find(([path, options]) => path === "/v1/titles/FLAWLESS" && options?.method === "PUT");
     expect(call?.[1]?.body).toEqual(expect.objectContaining({ lifecycle: "retired" }));
-    const toastEntry = toastAdd.mock.calls.find(([entry]) => entry.title === "已退休「守望先锋」");
+    const toastEntry = toastAdd.mock.calls.find(([entry]) => entry.title === "已结束「守望先锋」");
     expect(toastEntry?.[0]?.actions?.[0]?.label).toBe("撤销");
     adminApi.mockClear();
     toastEntry![0].actions[0].onClick();

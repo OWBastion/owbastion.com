@@ -924,11 +924,11 @@ describe("manual title grant batches", () => {
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'admin.title.revoke' AND entity_id = 'grant.revoke.race'").get()).toEqual({ count: 0 });
   });
 
-  it("allows an explicit manual grant for a retired title through its manual Challenge", async () => {
+  it.each(["draft", "retired"])("allows an explicit manual grant for a %s title through its manual Challenge", async (lifecycle) => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
     seedTitle(sqlite, "RETIRED_MANUAL");
-    sqlite.prepare("UPDATE title_catalog SET lifecycle = 'retired', scope = 'global', display_kind = 'fixed' WHERE key = 'RETIRED_MANUAL'").run();
+    sqlite.prepare("UPDATE title_catalog SET lifecycle = ?, scope = 'global', display_kind = 'fixed' WHERE key = 'RETIRED_MANUAL'").run(lifecycle);
     const playerId = "player.retired.manual";
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)").run(playerId, "retired-manual", "Retired Manual", "retired manual", now, now);
     const services = createPlatformServices(database);
@@ -937,7 +937,7 @@ describe("manual title grant batches", () => {
     const result = await services.createAdminManualTitleGrant({ contractVersion: "1", playerAccountId: playerId, titleKey: "RETIRED_MANUAL" }, auth, "retired-manual-grant");
 
     expect(result.grantId).toBeTruthy();
-    expect(sqlite.prepare("SELECT lifecycle FROM title_catalog WHERE key = 'RETIRED_MANUAL'").get()).toEqual({ lifecycle: "retired" });
+    expect(sqlite.prepare("SELECT lifecycle FROM title_catalog WHERE key = 'RETIRED_MANUAL'").get()).toEqual({ lifecycle });
     expect(sqlite.prepare("SELECT manual, status FROM challenges WHERE title_key = 'RETIRED_MANUAL'").get()).toEqual({ manual: 1, status: "active" });
     expect(sqlite.prepare("SELECT status, source_type FROM challenge_completions WHERE player_account_id = ?").get(playerId)).toEqual({ status: "active", source_type: "manual" });
     expect(sqlite.prepare("SELECT status, completion_id FROM player_title_grants WHERE player_account_id = ?").get(playerId)).toMatchObject({ status: "active", completion_id: expect.any(String) });
