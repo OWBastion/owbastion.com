@@ -25,7 +25,7 @@ export type AdminTitleSummary = {
   displayKind: "fixed" | "map_pioneer" | "map_name_suffix";
   color: AdminTitleColor;
   publicVisibility: boolean;
-  lifecycle: "draft" | "active" | "retired";
+  lifecycle: "draft" | "active";
   gameVersion: string | null;
   developerOnly: boolean;
   status: DerivedStatus;
@@ -57,28 +57,10 @@ export type AdminTitleChallenge = {
   replacedByChallengeId: string | null;
 };
 
-export type TitleCascadeRow = {
-  challengeId: string;
-  status: AdminTitleChallenge["status"];
-  retiredVersion: string | null;
-  startsAt: number | null;
-  endsAt: number | null;
-};
-
-export type TitleRuleCascadeRow = {
-  ruleId: string;
-  status: string;
-  retiredVersion: string | null;
-};
-
 export type AdminTitleUpdateResponse = {
   contractVersion: string;
   title: AdminTitleSummary;
   previousLifecycle: AdminTitleSummary["lifecycle"];
-  cascaded: {
-    challenges: TitleCascadeRow[];
-    mapTitleRules: TitleRuleCascadeRow[];
-  };
 };
 
 export type AdminChallengeLifecycleResponse = {

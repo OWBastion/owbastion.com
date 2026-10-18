@@ -18,7 +18,7 @@ const dialogOpen = computed({
   set: (open: boolean) => emit("update:open", open),
 });
 
-const statusItems = [{ label: "草稿", value: "draft" }, { label: "已开放", value: "active" }, { label: "已下线", value: "archived" }];
+const statusItems = [{ label: "草稿", value: "draft" }, { label: "已开放", value: "active" }, { label: "已结束", value: "archived" }];
 
 function setRetiredVersion(value: string) {
   if (props.item) props.item.retiredVersion = value || null;

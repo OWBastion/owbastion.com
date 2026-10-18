@@ -124,7 +124,7 @@ export const renderCatalogSchemaMigration = () => [
   "  label TEXT NOT NULL,",
   "  category TEXT NOT NULL,",
   "  condition TEXT NOT NULL,",
-  "  lifecycle TEXT NOT NULL DEFAULT 'active' CHECK (lifecycle IN ('draft', 'active', 'retired')),",
+  "  lifecycle TEXT NOT NULL DEFAULT 'active' CHECK (lifecycle IN ('draft', 'active')),",
   "  scope TEXT NOT NULL CHECK (scope IN ('global', 'map')),",
   "  display_kind TEXT NOT NULL CHECK (display_kind IN ('fixed', 'map_pioneer', 'map_name_suffix')),",
   "  color_json TEXT NOT NULL DEFAULT 'null',",

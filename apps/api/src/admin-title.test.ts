@@ -18,7 +18,7 @@ const endpoints = [
   ["POST", "/v1/admin/titles/MULTI/challenges", challengeBody],
   ["PUT", "/v1/admin/achievements/title.MULTI.random", editBody],
   ["PUT", "/v1/admin/achievements/title.MULTI.random/lifecycle", lifecycleBody],
-  ["PUT", "/v1/admin/titles/MULTI", { contractVersion: "1", lifecycle: "retired" }],
+  ["PUT", "/v1/admin/titles/MULTI", { contractVersion: "1", lifecycle: "draft" }],
 ] as const;
 const makeApp = (services: Partial<PlatformServices>, authenticate = async () => maintainer as typeof maintainer | null) => createApp({ services: () => services as PlatformServices, authenticate });
 const request = (app: ReturnType<typeof createApp>, method: string, path: string, body: unknown, key?: string) => app.request(`http://localhost${path}`, { method, headers: { "content-type": "application/json", ...(key ? { "idempotency-key": key } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) }, env);
@@ -34,7 +34,7 @@ describe("admin title HTTP contract", () => {
   it.each(endpoints.filter(([method]) => method !== "GET"))("requires an idempotency key for %s %s", async (method, path, body) => {
     expect((await request(makeApp({}), method, path, body)).status).toBe(422);
   });
-  it("forwards split writes, inferred achievement family, restore and null lifecycle fields", async () => {
+  it("forwards split writes, inferred achievement family and null lifecycle fields", async () => {
     const writes: unknown[] = [];
     const app = makeApp({
       listAdminTitleSummaries: async () => ({ contractVersion: "1", items: [title] }),
@@ -43,7 +43,7 @@ describe("admin title HTTP contract", () => {
       createAdminTitleChallenge: async (input, auth, key) => { writes.push({ input, actor: auth.subject, key }); return { contractVersion: "1", ...challenge }; },
       updateAdminChallenge: async (input, auth, key) => { writes.push({ input, actor: auth.subject, key }); return challenge; },
       updateAdminChallengeLifecycle: async (input, auth, key) => { writes.push({ input, actor: auth.subject, key }); return { contractVersion: "1", challenge, previous: { status: "draft", retiredVersion: null, startsAt: null, endsAt: null } }; },
-      updateAdminCatalogTitle: async (input, auth, key) => { writes.push({ input, actor: auth.subject, key }); return { contractVersion: "1", title, previousLifecycle: "retired", cascaded: { challenges: [], mapTitleRules: [] } }; },
+      updateAdminCatalogTitle: async (input, auth, key) => { writes.push({ input, actor: auth.subject, key }); return { contractVersion: "1", title, previousLifecycle: "draft" }; },
     });
     expect(await (await request(app, "GET", "/v1/admin/title-summaries", undefined)).json()).toEqual({ contractVersion: "1", items: [title] });
     expect(await (await request(app, "GET", "/v1/admin/titles/MULTI/challenges", undefined)).json()).toEqual({ contractVersion: "1", items: [challenge] });
@@ -53,16 +53,15 @@ describe("admin title HTTP contract", () => {
     expect((await request(app, "PUT", "/v1/admin/achievements/title.MULTI.random", inferredEdit, "edit")).status).toBe(200);
     const lifecycle = await request(app, "PUT", "/v1/admin/achievements/title.MULTI.random/lifecycle", lifecycleBody, "lifecycle");
     expect(await lifecycle.json()).toMatchObject({ contractVersion: "1", previous: { status: "draft", startsAt: null } });
-    const restore = { challenges: [{ challengeId: challenge.challengeId, status: "active", retiredVersion: null, startsAt: 1_000, endsAt: null }], mapTitleRules: [] };
-    const restored = await request(app, "PUT", "/v1/admin/titles/MULTI", { contractVersion: "1", lifecycle: "active", restore }, "restore");
-    expect(restored.status).toBe(200);
-    expect(await restored.json()).toMatchObject({ contractVersion: "1", previousLifecycle: "retired", cascaded: { challenges: [], mapTitleRules: [] } });
+    const enabled = await request(app, "PUT", "/v1/admin/titles/MULTI", { contractVersion: "1", lifecycle: "active" }, "enable");
+    expect(enabled.status).toBe(200);
+    expect(await enabled.json()).toMatchObject({ contractVersion: "1", previousLifecycle: "draft" });
     expect(writes).toMatchObject([
       { input: titleBody, actor: "admin", key: "title" },
       { input: { ...challengeBody, titleKey: "MULTI" }, key: "challenge" },
       { input: { ...editBody, challengeId: challenge.challengeId }, key: "edit" },
       { input: { ...lifecycleBody, challengeId: challenge.challengeId }, key: "lifecycle" },
-      { input: { restore, lifecycle: "active", titleKey: "MULTI" }, key: "restore" },
+      { input: { lifecycle: "active", titleKey: "MULTI" }, key: "enable" },
     ]);
     expect((await request(app, "PUT", "/v1/admin/achievements/title.MULTI.random", { ...editBody, saveMode: undefined }, "no-mode")).status).toBe(422);
     expect((await request(app, "PUT", "/v1/admin/achievements/title.MULTI.random", { ...editBody, scope: "global" }, "scope")).status).toBe(422);
@@ -71,11 +70,10 @@ describe("admin title HTTP contract", () => {
     ["POST", "/v1/admin/titles", titleBody, "createAdminTitle", "TITLE_KEY_CONFLICT", 409],
     ["GET", "/v1/admin/titles/MULTI/challenges", undefined, "listAdminTitleChallenges", "TITLE_NOT_FOUND", 404],
     ["POST", "/v1/admin/titles/MULTI/challenges", challengeBody, "createAdminTitleChallenge", "TITLE_NOT_FOUND", 404],
-    ["POST", "/v1/admin/titles/MULTI/challenges", challengeBody, "createAdminTitleChallenge", "TITLE_RETIRED", 409],
     ["POST", "/v1/admin/titles/MULTI/challenges", challengeBody, "createAdminTitleChallenge", "TITLE_MANAGED_BY_MAP_RULE", 409],
     ["POST", "/v1/admin/titles/MULTI/challenges", challengeBody, "createAdminTitleChallenge", "INVALID_MAP_SCOPE", 422],
     ["PUT", "/v1/admin/achievements/title.MULTI.random", editBody, "updateAdminChallenge", "CHALLENGE_QUALIFICATION_CHANGED", 422],
-    ["PUT", "/v1/admin/titles/MULTI", { contractVersion: "1", lifecycle: "active", restore: { challenges: [], mapTitleRules: [] } }, "updateAdminCatalogTitle", "INVALID_RESTORE", 422],
+    ["PUT", "/v1/admin/titles/MULTI", { contractVersion: "1", lifecycle: "active", scope: "map" }, "updateAdminCatalogTitle", "TITLE_SCOPE_LOCKED", 422],
   ] as const)("maps %s %s error %s", async (method, path, body, service, code, status) => {
     const response = await request(makeApp({ [service]: async () => { throw new Error(code); } }), method, path, body, "error");
     expect(response.status).toBe(status);

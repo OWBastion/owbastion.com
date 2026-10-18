@@ -165,7 +165,8 @@ const titleCatalogView = (row: typeof titleCatalog.$inferSelect): Omit<Title, "s
   condition: row.condition,
   lifecycle: row.lifecycle as Title["lifecycle"],
   publicVisibility: row.publicVisibility === 1,
-  availability: row.lifecycle === "retired" ? "retired" : "active",
+  // No stored retired state: whether a title is still obtainable is derived per path.
+  availability: "active",
   displayKind: row.displayKind as Title["displayKind"],
   color: titleColor(row.colorJson),
 });
@@ -309,7 +310,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     const title = await db.select({ key: titleCatalog.key, label: titleCatalog.label, scope: titleCatalog.scope, lifecycle: titleCatalog.lifecycle })
       .from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
     if (!title) throw new Error("TITLE_NOT_FOUND");
-    if (title.lifecycle === "draft") throw new Error("TITLE_NOT_ACTIVE");
     if (title.scope === "global" && (input.mapId || input.gameplayRevisionId)) throw new Error("GLOBAL_TITLE_CANNOT_HAVE_MAP");
     if (title.scope === "map" && !input.mapId) throw new Error("MAP_TITLE_REQUIRES_MAP");
     const manualChallengeId = `manual:${title.key}`;

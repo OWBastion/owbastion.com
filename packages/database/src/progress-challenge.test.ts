@@ -361,7 +361,6 @@ describe("verified-run progress challenges", () => {
     seedProgressReadRule(sqlite, { id: "mirror", startsAt: start, endsAt: end, rule: { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"], mode: "2026 镜中回响", difficultyAtLeast: "专家" } });
     seedProgressReadRule(sqlite, { id: "private", visibility: 0 });
     seedProgressReadRule(sqlite, { id: "retired-challenge", status: "archived" });
-    seedProgressReadRule(sqlite, { id: "retired-title", lifecycle: "retired" });
     seedProgressReadRule(sqlite, { id: "future", startsAt: end, rule: { type: "required_maps_completed", mapIds: ["map.alpha"] } });
     seedProgressReadRun(sqlite, { id: "at-start", createdAt: start });
     seedProgressReadRun(sqlite, { id: "before-start", createdAt: start - 1, difficulty: "专家" });

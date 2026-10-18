@@ -41,18 +41,25 @@ const mapRuleSummary = {
   displayKind: "map_name_suffix",
   acquisition: { kind: "map_rule", ruleId: "rule.conqueror", condition: "通关对应地图传奇难度。", scopeLabel: "适用于所有地图的默认版本" },
 };
-const retiredSummary = {
+const endedSummary = {
   ...titleSummary,
   titleKey: "LUCKY",
   label: "福星高照",
-  lifecycle: "retired",
-  status: "retired",
+  status: "ended",
   acquisition: { kind: "none" },
 };
-const summaries = [titleSummary, draftSummary, mapRuleSummary, retiredSummary];
+const lapsedSummary = {
+  ...titleSummary,
+  titleKey: "LAPSED",
+  label: "到此一游",
+  status: "ended",
+  acquisition: { kind: "challenges", challengeCount: 1, completableCount: 0 },
+};
+const summaries = [titleSummary, draftSummary, mapRuleSummary, endedSummary, lapsedSummary];
 let summariesOverride: unknown[] | null = null;
 let pendingList = false;
 let listError = false;
+let failLifecycleFor: string | null = null;
 const stateCache = new Map<string, unknown>();
 const asyncDataCache = new Map<string, unknown>();
 // useState/useAsyncData caches persist across mounts inside one test file; keep
@@ -102,6 +109,7 @@ const archivedChallenge = {
 };
 const draftChallenge = { ...activeChallenge, challengeId: "ch-3", titleKey: "LIGHT_LOADOUT", status: "draft" };
 const sunsettingChallenge = { ...activeChallenge, challengeId: "ch-sun", retiredVersion: "26.1101.1" };
+const scheduledChallenge = { ...activeChallenge, challengeId: "ch-sched", startsAt: Date.now() + 86_400_000 };
 
 const map = { challengeId: "map-1", family: "map", gameplayRevisionId: "revision:map.kings-row:initial", type: "map_completion", name: "国王大道挑战", mapId: "map.kings-row", mapName: "国王大道", difficulty: "困难", condition: "完成国王大道挑战。", evidenceRule: "完整截图", submissionMode: "manual", status: "active", gameVersion: "3.0.0", introducedVersion: "3.0.0", retiredVersion: null };
 const mapRule = { ruleId: "rule.conqueror", titleKey: "CONQUEROR", titleName: "征服者", kind: "conqueror", condition: "完成地图", evidenceRule: "完整截图", submissionMode: "manual", displayKind: "map_name_suffix", slot: "conqueror", defaultScope: "all_active", status: "active", introducedVersion: "3.1.0", retiredVersion: null };
@@ -116,7 +124,7 @@ const defaultChallengeLists: Record<string, unknown[]> = {
 };
 Object.assign(challengeLists, defaultChallengeLists);
 
-const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+const adminApiBase = (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
   if (path === "/v1/title-summaries") {
     if (pendingList) return new Promise(() => {});
     if (listError) {
@@ -136,6 +144,7 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record
   if (path === "/v1/maps/map.route-66/map-title-inheritance") return Promise.resolve({ items: [] });
   if (path === "/v1/maps/map.kings-row/map-title-rules/rule.conqueror/exception" && options?.method === "PUT") return Promise.resolve();
   const challengesMatch = path.match(/^\/v1\/titles\/([^/]+)\/challenges$/);
+  if (failLifecycleFor && path === `/v1/achievements/${failLifecycleFor}/lifecycle` && options?.method === "PUT") return Promise.reject(new Error("Request failed"));
   if (challengesMatch && !options?.method) return Promise.resolve({ items: challengeLists[challengesMatch[1]!] ?? [] });
   if (challengesMatch && options?.method === "POST") return Promise.resolve({ ...activeChallenge, challengeId: "ch-new", titleKey: challengesMatch[1], condition: String(options.body?.condition ?? "") });
   if (path === "/v1/achievements/ch-1/lifecycle" && options?.method === "PUT") {
@@ -149,6 +158,12 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record
   }
   if (path === "/v1/achievements/ch-1" && options?.method === "PUT") return Promise.resolve({ ...activeChallenge, ...options.body });
   if (path === "/v1/achievements/ch-2" && options?.method === "PUT") return Promise.resolve({ ...archivedChallenge, ...options.body });
+  if (path === "/v1/achievements/ch-sun/lifecycle" && options?.method === "PUT") {
+    return Promise.resolve({ contractVersion: "1", challenge: { ...sunsettingChallenge, status: options.body?.status }, previous: { status: "active", retiredVersion: "26.1101.1", startsAt: null, endsAt: null } });
+  }
+  if (path === "/v1/achievements/ch-sched/lifecycle" && options?.method === "PUT") {
+    return Promise.resolve({ contractVersion: "1", challenge: { ...scheduledChallenge, status: options.body?.status }, previous: { status: "active", retiredVersion: null, startsAt: scheduledChallenge.startsAt, endsAt: null } });
+  }
   if (path === "/v1/achievements/ch-sun" && options?.method === "PUT") return Promise.resolve({ ...sunsettingChallenge, ...options.body });
   if (path === "/v1/achievements/map-1" && options?.method === "PUT") return Promise.resolve({ ...map, ...options.body });
   const titleMatch = path.match(/^\/v1\/titles\/([^/]+)$/);
@@ -158,14 +173,14 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record
       contractVersion: "1",
       title: { ...before, lifecycle: options.body?.lifecycle ?? before.lifecycle },
       previousLifecycle: before.lifecycle,
-      cascaded: { challenges: [{ challengeId: "ch-1", status: "active", retiredVersion: null, startsAt: null, endsAt: null }], mapTitleRules: [] },
     });
   }
   if (path === "/v1/titles" && options?.method === "POST") {
     return Promise.resolve({ ...titleSummary, titleKey: String(options.body?.titleKey ?? "GENERATED"), label: String(options.body?.label ?? ""), lifecycle: "draft", status: "draft", acquisition: { kind: "none" } });
   }
   throw new Error(`Unexpected request: ${path}`);
-});
+};
+const adminApi = vi.fn(adminApiBase);
 mockNuxtImport("useAdminApi", () => () => adminApi);
 const toastAdd = vi.fn();
 mockNuxtImport("useToast", () => () => ({ add: toastAdd }));
@@ -179,7 +194,8 @@ const mountedWrappers: VueWrapper[] = [];
 const pages = { challenges: ChallengesPage, map: MapChallengesPage, titles: TitlesPage };
 
 async function mountPage(page: keyof typeof pages = "titles", options: { summaries?: unknown[] | null; pending?: boolean; error?: boolean } = {}): Promise<VueWrapper> {
-  adminApi.mockClear();
+  adminApi.mockReset();
+  adminApi.mockImplementation(adminApiBase);
   toastAdd.mockClear();
   stateCache.clear();
   asyncDataCache.clear();
@@ -217,6 +233,7 @@ afterEach(() => {
   summariesOverride = null;
   pendingList = false;
   listError = false;
+  failLifecycleFor = null;
   stateCache.clear();
   asyncDataCache.clear();
   for (const key of Object.keys(challengeLists)) delete challengeLists[key];
@@ -241,7 +258,7 @@ describe("achievement admin pages", () => {
     expect(wrapper.text()).toContain("2 条挑战 · 1 条可完成");
     expect(wrapper.text()).toContain("地图称号规则");
     expect(wrapper.text()).toContain("无获取方式");
-    expect(wrapper.text()).toContain("已退休");
+    expect(wrapper.text()).toContain("已结束");
     expect(wrapper.text()).toContain("轻装上阵");
   });
 
@@ -266,11 +283,11 @@ describe("achievement admin pages", () => {
     expect(wrapper.findAll("a").some((link) => link.text() === "在地图挑战中管理")).toBe(true);
   });
 
-  it("shows the retired empty card for retired titles without challenges", async () => {
+  it("shows the empty acquisition card for ended titles without challenges", async () => {
     const wrapper = await mountPage("titles");
     await expand(wrapper, "福星高照");
-    expect(wrapper.text()).toContain("已退休，没有挑战。仍可手动发放给指定玩家。");
-    expect(wrapper.findAll("button").some((button) => button.text() === "添加挑战")).toBe(false);
+    expect(wrapper.text()).toContain("还没有获取方式，玩家无法获得这个称号。");
+    expect(wrapper.findAll("button").some((button) => button.text() === "添加挑战")).toBe(true);
   });
 
   it("shows the empty acquisition card for titles without challenges", async () => {
@@ -353,22 +370,70 @@ describe("achievement admin pages", () => {
     expect(navigateTo).toHaveBeenCalledWith({ path: "/admin/achievements/titles", query: { x: "1" } }, expect.objectContaining({ redirectCode: 302 }));
   });
 
-  it("retires a title immediately and undoes with the cascaded restore", async () => {
+  it("offers no 结束 button for a title whose acquisition window already lapsed", async () => {
     const wrapper = await mountPage("titles");
-    await wrapper.get('button[aria-label="退休守望先锋"]').trigger("click");
+    expect(wrapper.text()).toContain("到此一游");
+    expect(wrapper.find('button[aria-label="结束到此一游"]').exists()).toBe(false);
+    expect(wrapper.find('button[aria-label="重开到此一游"]').exists()).toBe(false);
+    expect(wrapper.find('a[aria-label="发放到此一游"], [aria-label="发放到此一游"]').exists()).toBe(true);
+  });
+
+  it("ends a title by ending every open challenge and undoes each one", async () => {
+    const wrapper = await mountPage("titles");
+    await wrapper.get('button[aria-label="结束守望先锋"]').trigger("click");
     await flushPromises();
-    const call = adminApi.mock.calls.find(([path, options]) => path === "/v1/titles/FLAWLESS" && options?.method === "PUT");
-    expect(call?.[1]?.body).toEqual(expect.objectContaining({ lifecycle: "retired" }));
-    const toastEntry = toastAdd.mock.calls.find(([entry]) => entry.title === "已退休「守望先锋」");
+    // The title-level end composes per-challenge lifecycle calls; nothing
+    // writes a stored retired lifecycle to the title row.
+    const ended = adminApi.mock.calls.filter(([path, options]) => path === "/v1/achievements/ch-1/lifecycle" && options?.method === "PUT");
+    expect(ended).toHaveLength(1);
+    expect(ended[0]?.[1]?.body).toEqual(expect.objectContaining({ contractVersion: "1", status: "archived" }));
+    expect(adminApi.mock.calls.some(([path, options]) => path === "/v1/titles/FLAWLESS" && options?.method === "PUT")).toBe(false);
+    const toastEntry = toastAdd.mock.calls.find(([entry]) => entry.title === "已结束「守望先锋」");
     expect(toastEntry?.[0]?.actions?.[0]?.label).toBe("撤销");
     adminApi.mockClear();
     toastEntry![0].actions[0].onClick();
     await flushPromises();
-    const undo = adminApi.mock.calls.find(([path, options]) => path === "/v1/titles/FLAWLESS" && options?.method === "PUT");
+    const undo = adminApi.mock.calls.find(([path, options]) => path === "/v1/achievements/ch-1/lifecycle" && options?.method === "PUT");
     expect(undo?.[1]?.body).toEqual(expect.objectContaining({
-      lifecycle: "active",
-      restore: { challenges: [{ challengeId: "ch-1", status: "active", retiredVersion: null, startsAt: null, endsAt: null }], mapTitleRules: [] },
+      contractVersion: "1",
+      status: "active",
+      retiredVersion: null,
+      startsAt: null,
+      endsAt: null,
     }));
+  });
+
+  it("ends scheduled acquisition paths as well as open ones", async () => {
+    challengeLists.FLAWLESS = [activeChallenge, scheduledChallenge];
+    const wrapper = await mountPage("titles");
+    await wrapper.get('button[aria-label="结束守望先锋"]').trigger("click");
+    await flushPromises();
+    const ended = adminApi.mock.calls.filter(([path, options]) => path.endsWith("/lifecycle") && options?.method === "PUT" && options.body?.status === "archived").map(([path]) => path);
+    expect(ended.sort()).toEqual(["/v1/achievements/ch-1/lifecycle", "/v1/achievements/ch-sched/lifecycle"]);
+    const toastEntry = toastAdd.mock.calls.find(([entry]) => entry.title === "已结束「守望先锋」");
+    expect(toastEntry?.[0]?.actions?.[0]?.label).toBe("撤销");
+    adminApi.mockClear();
+    toastEntry![0].actions[0].onClick();
+    await flushPromises();
+    const restores = adminApi.mock.calls.filter(([path, options]) => path.endsWith("/lifecycle") && options?.method === "PUT");
+    expect(restores.map(([path]) => path).sort()).toEqual(["/v1/achievements/ch-1/lifecycle", "/v1/achievements/ch-sched/lifecycle"]);
+    expect(restores.find(([path]) => path === "/v1/achievements/ch-sched/lifecycle")?.[1]?.body).toEqual(expect.objectContaining({
+      status: "active",
+      startsAt: scheduledChallenge.startsAt,
+    }));
+  });
+
+  it("surfaces a partial failure when ending a title and does not claim success", async () => {
+    challengeLists.FLAWLESS = [activeChallenge, sunsettingChallenge];
+    failLifecycleFor = "ch-sun";
+    const wrapper = await mountPage("titles");
+    await wrapper.get('button[aria-label="结束守望先锋"]').trigger("click");
+    await flushPromises();
+    // ch-1 was ended, ch-sun failed: the error surfaces, the list reloads, and
+    // no success toast is shown.
+    expect(adminApi.mock.calls.filter(([path, options]) => path.endsWith("/lifecycle") && options?.method === "PUT")).toHaveLength(2);
+    expect(toastAdd.mock.calls.some(([entry]) => entry.title === "已结束「守望先锋」")).toBe(false);
+    expect(wrapper.text()).toContain("Request failed");
   });
 
   it("offers 同时启用称号 when adding an active challenge to a draft title", async () => {

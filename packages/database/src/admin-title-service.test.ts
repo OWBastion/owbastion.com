@@ -132,41 +132,47 @@ describe("title-centric admin acquisition contract", () => {
     await expect(services.updateAdminChallengeLifecycle({ contractVersion: "1", challengeId: first.challengeId, status: "active", startsAt: 4_000 }, auth, "invalid-window")).rejects.toThrow("INVALID_CHALLENGE_WINDOW");
   });
 
-  it("retires with prior challenge/rule states and restores only owned rows in one batch", async () => {
+  it("ends a title by ending its open challenges and keeps catalog updates to title fields", async () => {
     const { services, sqlite, database } = setup();
     await services.createAdminTitle(titleInput, auth, "title");
     const first = await services.createAdminTitleChallenge({ ...challengeInput, startsAt: 1_000, endsAt: 3_000 }, auth, "one");
     await services.updateAdminChallengeLifecycle({ contractVersion: "1", challengeId: first.challengeId, status: "active", retiredVersion: "26.1101.1" }, auth, "sunset");
     sqlite.exec("INSERT INTO map_title_rules (id,title_key,kind,condition,evidence_rule,display_kind,status,introduced_version,retired_version,created_at,updated_at) VALUES ('rule.test','MULTI','test','rule','evidence','fixed','active','26.1003.1','26.1201.1',1,1)");
     const batch = vi.spyOn(database, "batch");
-    const retirement = { contractVersion: "1" as const, titleKey: "MULTI", lifecycle: "retired" as const };
-    const retired = await services.updateAdminCatalogTitle(retirement, auth, "retire");
+    const updated = await services.updateAdminCatalogTitle({ contractVersion: "1", titleKey: "MULTI", label: "改名" }, auth, "rename");
     expect(batch).toHaveBeenCalledTimes(1);
-    expect(retired).toMatchObject({ previousLifecycle: "active", title: { status: "retired" }, cascaded: { challenges: [{ challengeId: first.challengeId, status: "active", retiredVersion: "26.1101.1", startsAt: 1_000, endsAt: 3_000 }], mapTitleRules: [{ ruleId: "rule.test", status: "active", retiredVersion: "26.1201.1" }] } });
-    const restored = await services.updateAdminCatalogTitle({ contractVersion: "1", titleKey: "MULTI", lifecycle: "active", restore: retired.cascaded }, auth, "restore");
-    expect(restored).toMatchObject({ previousLifecycle: "retired", title: { status: "active" }, cascaded: { challenges: [], mapTitleRules: [] } });
-    expect((await services.listAdminTitleChallenges({ titleKey: "MULTI" }, auth)).items[0]).toMatchObject(retired.cascaded.challenges[0]!);
+    // The map rule path dominates the derived status over the sunsetting challenge.
+    expect(updated).toMatchObject({ previousLifecycle: "active", title: { label: "改名", status: "active" } });
+    // No stored retired lifecycle: the update cannot change challenge or rule rows.
+    expect(sqlite.prepare("SELECT status,retired_version FROM title_challenges WHERE id=?").get(first.challengeId)).toEqual({ status: "active", retired_version: "26.1101.1" });
     expect(sqlite.prepare("SELECT status,retired_version FROM map_title_rules WHERE id='rule.test'").get()).toEqual({ status: "active", retired_version: "26.1201.1" });
-    expect(await services.updateAdminCatalogTitle(retirement, auth, "retire")).toEqual(retired);
-    await expect(services.updateAdminCatalogTitle({ contractVersion: "1", titleKey: "MULTI", lifecycle: "active", restore: retired.cascaded }, auth, "bad-restore")).rejects.toThrow("INVALID_RESTORE");
-    await services.updateAdminCatalogTitle(retirement, auth, "retire-again");
-    await expect(services.updateAdminCatalogTitle({ contractVersion: "1", titleKey: "MULTI", lifecycle: "active", restore: { challenges: [{ ...retired.cascaded.challenges[0]!, challengeId: "title.other" }], mapTitleRules: [] } }, auth, "foreign")).rejects.toThrow("INVALID_RESTORE");
+    // Ending every open challenge derives the title's ended status only once
+    // no active map-rule path remains; undo restores each challenge's previous
+    // window state individually.
+    const ended = await services.updateAdminChallengeLifecycle({ contractVersion: "1", challengeId: first.challengeId, status: "archived" }, auth, "end");
+    expect(ended.previous).toMatchObject({ status: "active", retiredVersion: "26.1101.1" });
+    expect((await services.listAdminTitleSummaries(auth)).items.find(row => row.titleKey === "MULTI")).toMatchObject({ status: "active" });
+    sqlite.exec("DELETE FROM map_title_rules WHERE id='rule.test'");
+    expect((await services.listAdminTitleSummaries(auth)).items.find(row => row.titleKey === "MULTI")).toMatchObject({ status: "ended" });
+    await services.updateAdminChallengeLifecycle({ contractVersion: "1", challengeId: first.challengeId, ...ended.previous }, auth, "undo-end");
+    expect((await services.listAdminTitleChallenges({ titleKey: "MULTI" }, auth)).items[0]).toMatchObject({ status: "active", retiredVersion: "26.1101.1", startsAt: 1_000, endsAt: 3_000 });
   });
 
-  it("derives draft/retired/empty/map-rule/multi-path states and excludes manual issuance", async () => {
+  it("derives draft/ended/empty/map-rule/multi-path states and excludes manual issuance", async () => {
     const { services, sqlite } = setup();
-    for (const [key, lifecycle] of [["DRAFT", "draft"], ["RETIRED", "retired"], ["EMPTY", "active"], ["RULE", "active"], ["MULTI", "active"], ["MANUAL", "active"]]) {
+    for (const [key, lifecycle] of [["DRAFT", "draft"], ["ENDED", "active"], ["EMPTY", "active"], ["RULE", "active"], ["MULTI", "active"], ["MANUAL", "active"]]) {
       seedTitle(sqlite, key!);
       sqlite.prepare("UPDATE title_catalog SET lifecycle=?,scope='global',category='测试',label=?,game_version='26.1003.1' WHERE key=?").run(lifecycle!, key!, key!);
     }
     sqlite.exec("INSERT INTO map_title_rules (id,title_key,kind,condition,evidence_rule,display_kind,status,introduced_version,created_at,updated_at) VALUES ('rule.test','RULE','test','rule condition','evidence','fixed','active','26.1003.1',1,1)");
     sqlite.exec("INSERT INTO challenges (id,source_family,source_id,title_key,status,manual,public_condition,condition_operator,conditions_json,condition,created_at,updated_at) VALUES ('manual:MANUAL','manual','manual:MANUAL','MANUAL','active',1,0,'and','[]','manual',1,1)");
+    sqlite.exec("INSERT INTO title_challenges (id,title_key,condition,evidence_rule,submission_mode,status,game_version,scope,created_at,updated_at) VALUES ('title.ENDED.one','ENDED','条件','证据','manual','archived','26.1003.1','global',1,1)");
     const scheduled = await services.createAdminTitleChallenge({ ...challengeInput, startsAt: 3_000 }, auth, "future");
     const sunset = await services.createAdminTitleChallenge(challengeInput, auth, "sunset");
     await services.updateAdminChallengeLifecycle({ contractVersion: "1", challengeId: sunset.challengeId, status: "active", retiredVersion: "26.1101.1" }, auth, "sunset-version");
     let response = await services.listAdminTitleSummaries(auth);
     expect(adminTitleSummaryListResponseSchema.safeParse(response).success).toBe(true);
-    expect(response.items.map(row => [row.titleKey, row.status])).toEqual([["DRAFT", "draft"], ["EMPTY", "ended"], ["MANUAL", "ended"], ["MULTI", "sunsetting"], ["RETIRED", "retired"], ["RULE", "active"]]);
+    expect(response.items.map(row => [row.titleKey, row.status])).toEqual([["DRAFT", "draft"], ["EMPTY", "ended"], ["ENDED", "ended"], ["MANUAL", "ended"], ["MULTI", "sunsetting"], ["RULE", "active"]]);
     expect(response.items.find(row => row.titleKey === "MANUAL")!.acquisition).toEqual({ kind: "none" });
     expect((await services.listAdminTitleChallenges({ titleKey: "MANUAL" }, auth)).items).toEqual([]);
     await services.createAdminTitleChallenge(challengeInput, auth, "active");
@@ -175,14 +181,22 @@ describe("title-centric admin acquisition contract", () => {
     expect(await services.listChallenges({ family: "achievement" })).toContainEqual(expect.objectContaining({ challengeId: scheduled.challengeId, status: "scheduled" }));
   });
 
-  it("rejects missing, retired, map-managed and invalid-scope targets", async () => {
-    const { services } = setup();
+  it("rejects missing, map-managed and invalid-scope targets, and still serves ended titles", async () => {
+    const { services, sqlite } = setup();
     await expect(services.listAdminTitleChallenges({ titleKey: "missing" }, auth)).rejects.toThrow("TITLE_NOT_FOUND");
     await expect(services.createAdminTitleChallenge(challengeInput, auth, "missing")).rejects.toThrow("TITLE_NOT_FOUND");
     await services.createAdminTitle(titleInput, auth, "title");
     await expect(services.createAdminTitleChallenge({ ...challengeInput, mapIds: [] }, auth, "scope")).rejects.toThrow("INVALID_MAP_SCOPE");
-    await services.updateAdminCatalogTitle({ contractVersion: "1", titleKey: "MULTI", lifecycle: "retired" }, auth, "retire");
-    await expect(services.createAdminTitleChallenge(challengeInput, auth, "retired")).rejects.toThrow("TITLE_RETIRED");
+    const first = await services.createAdminTitleChallenge(challengeInput, auth, "one");
+    // A title whose paths all ended still accepts new challenges and manual
+    // grant targeting; nothing stores a retired lifecycle to reopen.
+    await services.updateAdminChallengeLifecycle({ contractVersion: "1", challengeId: first.challengeId, status: "archived" }, auth, "end");
+    expect((await services.listAdminTitleSummaries(auth)).items.find(row => row.titleKey === "MULTI")).toMatchObject({ status: "ended" });
+    const reopened = await services.createAdminTitleChallenge({ ...challengeInput, condition: "新条件" }, auth, "two");
+    expect(reopened.status).toBe("active");
+    expect((await services.listAdminTitleSummaries(auth)).items.find(row => row.titleKey === "MULTI")).toMatchObject({ status: "active" });
+    sqlite.exec("INSERT INTO map_title_rules (id,title_key,kind,condition,evidence_rule,display_kind,status,introduced_version,created_at,updated_at) VALUES ('rule.managed','MULTI','test','rule','evidence','fixed','active','26.1003.1',1,1)");
+    await expect(services.createAdminTitleChallenge(challengeInput, auth, "managed")).rejects.toThrow("TITLE_MANAGED_BY_MAP_RULE");
   });
 });
 

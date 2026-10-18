@@ -453,16 +453,20 @@ describe("v1 platform contracts", () => {
   });
 
   it("keeps catalog-title updates to title definition fields", () => {
-    const input = { contractVersion: "1", lifecycle: "retired", label: "内部称号", icon: "wrench", category: "开发保留", scope: "global", displayKind: "fixed", color: { kind: "palette", name: "blue" } };
+    const input = { contractVersion: "1", lifecycle: "active", label: "内部称号", icon: "wrench", category: "开发保留", scope: "global", displayKind: "fixed", color: { kind: "palette", name: "blue" } };
     expect(adminCatalogTitleUpdateRequestSchema.safeParse(input).success).toBe(true);
     // Challenge lifecycle and schedule fields are not part of the catalog
     // contract; legacy dual-write keys are stripped rather than stored.
     const stripped = adminCatalogTitleUpdateRequestSchema.parse({ ...input, status: "active", condition: "完成挑战", startsAt: 2_000, endsAt: 3_000 });
     expect("status" in stripped).toBe(false);
     expect("startsAt" in stripped).toBe(false);
-    expect(stripped.lifecycle).toBe("retired");
+    expect(stripped.lifecycle).toBe("active");
     expect(adminCatalogTitleUpdateRequestSchema.safeParse({ ...input, lifecycle: "sunsetting" }).success).toBe(false);
     expect(adminCatalogTitleUpdateRequestSchema.safeParse({ ...input, lifecycle: "archived" }).success).toBe(false);
+    expect(adminCatalogTitleUpdateRequestSchema.safeParse({ ...input, lifecycle: "retired" }).success).toBe(false);
+    // The retired-lifecycle cascade is gone; a legacy restore payload is
+    // stripped rather than stored.
+    expect("restore" in adminCatalogTitleUpdateRequestSchema.parse({ ...input, restore: { challenges: [], mapTitleRules: [] } })).toBe(false);
   });
 
   it("keeps historical retirement version records readable", () => {

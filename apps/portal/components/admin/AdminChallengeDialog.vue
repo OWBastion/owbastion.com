@@ -99,7 +99,7 @@ watch(() => form.progressScope, (scope) => {
 const chipStatus = computed(() => {
   const title = props.title;
   if (!title) return "";
-  return `${title.lifecycle === "draft" ? "草稿" : title.lifecycle === "retired" ? "已退休" : "已启用"} · ${titleScopeLabel(title.scope)}`;
+  return `${title.lifecycle === "draft" ? "草稿" : title.status === "ended" ? "已结束" : "已启用"} · ${titleScopeLabel(title.scope)}`;
 });
 const dialogTitle = computed(() => props.mode === "edit" ? "编辑挑战" : "添加挑战");
 const showEnableTitle = computed(() => props.mode === "add" && props.title?.lifecycle === "draft" && form.status === "active");

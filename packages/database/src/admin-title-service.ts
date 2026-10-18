@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { deriveTitleAvailability, parseChallengeProgressRule, publicTitleChallengeStatus } from "@owbastion/domain";
 import type { AuthContext, ChallengeProgressRule, PlatformServices } from "@owbastion/domain";
-import type { AdminChallengeUpdateRequest, AdminTitleChallenge, AdminTitleSummary, AdminTitleCascade, AdminCatalogTitleUpdateResponse, AdminChallengeLifecycleResponse } from "@owbastion/contracts";
+import type { AdminChallengeUpdateRequest, AdminTitleChallenge, AdminTitleSummary, AdminCatalogTitleUpdateResponse, AdminChallengeLifecycleResponse } from "@owbastion/contracts";
 import { hashRequest } from "./portal-session";
 import { achievementChallengeMaps, mapTitleRules, titleCatalog, titleChallenges } from "./schema";
 import type { createChallengeCatalogServices } from "./challenge-catalog-service";
@@ -54,7 +54,7 @@ export const createAdminTitleServices = ({ database, evidenceBucket, db, now, re
       color: JSON.parse(title.colorJson), publicVisibility: title.publicVisibility === 1,
       lifecycle: title.lifecycle as AdminTitleSummary["lifecycle"], gameVersion: title.gameVersion,
       developerOnly: title.category === "开发保留",
-      status: title.lifecycle === "draft" ? "draft" : title.lifecycle === "retired" ? "retired" : rule?.status === "active" ? "active" : deriveTitleAvailability(paths, now()),
+      status: title.lifecycle === "draft" ? "draft" : rule?.status === "active" ? "active" : deriveTitleAvailability(paths, now()),
       acquisition: rule ? { kind: "map_rule", ruleId: rule.id, condition: rule.condition, scopeLabel: rule.defaultScope === "all_active" ? `适用于所有地图的${rule.mapVariant === "classic" ? "经典" : "默认"}版本` : "适用于指定地图版本" }
         : challenges.length ? { kind: "challenges", challengeCount: challenges.length, completableCount: title.lifecycle !== "active" ? 0 : paths.filter(path => {
           const status = publicTitleChallengeStatus(path.status, path.startsAt, path.endsAt, now(), path.gameVersion, path.retiredVersion);
@@ -98,7 +98,6 @@ export const createAdminTitleServices = ({ database, evidenceBucket, db, now, re
   };
   const previousState = (row: TitleChallenge) => ({ status: row.status as AdminTitleChallenge["status"], retiredVersion: row.retiredVersion, startsAt: row.startsAt, endsAt: row.endsAt });
   const assertWritableTitle = async (title: Title) => {
-    if (title.lifecycle === "retired") throw new Error("TITLE_RETIRED");
     if (await db.select({ id: mapTitleRules.id }).from(mapTitleRules).where(eq(mapTitleRules.titleKey, title.key)).get()) throw new Error("TITLE_MANAGED_BY_MAP_RULE");
   };
   return {
@@ -215,32 +214,19 @@ export const createAdminTitleServices = ({ database, evidenceBucket, db, now, re
       if (replay) return replay;
       const title = await loadTitle(input.titleKey);
       const lifecycle = input.lifecycle ?? title.lifecycle;
-      if (input.restore && !(title.lifecycle === "retired" && lifecycle === "active")) throw new Error("INVALID_RESTORE");
       const [rows, rules] = await Promise.all([db.select().from(titleChallenges).where(eq(titleChallenges.titleKey, title.key)), db.select().from(mapTitleRules).where(eq(mapTitleRules.titleKey, title.key))]);
       // Challenge/map assignments key off the title's scope at creation. A
       // stored acquisition path would silently mean the new scope, so the
       // scope is immutable once acquisition rows exist.
       if (input.scope !== undefined && input.scope !== title.scope && (rows.length || rules.length)) throw new Error("TITLE_SCOPE_LOCKED");
-      if (input.restore) {
-        if (new Set(input.restore.challenges.map(row => row.challengeId)).size !== input.restore.challenges.length || new Set(input.restore.mapTitleRules.map(row => row.ruleId)).size !== input.restore.mapTitleRules.length) throw new Error("INVALID_RESTORE");
-        for (const row of input.restore.challenges) if (!rows.some(stored => stored.id === row.challengeId) || (row.startsAt !== null && row.endsAt !== null && row.endsAt <= row.startsAt)) throw new Error("INVALID_RESTORE");
-        for (const rule of input.restore.mapTitleRules) if (!rules.some(stored => stored.id === rule.ruleId)) throw new Error("INVALID_RESTORE");
-      }
-      const retiring = lifecycle === "retired" && title.lifecycle !== "retired";
-      const cascaded: AdminTitleCascade = { challenges: retiring ? rows.filter(row => row.status !== "archived").map(row => ({ challengeId: row.id, ...previousState(row) })) : [], mapTitleRules: retiring ? rules.filter(rule => rule.status !== "archived").map(rule => ({ ruleId: rule.id, status: rule.status as "draft" | "active", retiredVersion: rule.retiredVersion })) : [] };
       const next = { ...title, lifecycle, publicVisibility: input.publicVisibility === undefined ? title.publicVisibility : Number(input.publicVisibility), label: input.label ?? title.label, icon: input.icon ?? title.icon, iconUrl: input.iconUrl === undefined ? title.iconUrl : input.iconUrl, iconObjectKey: input.iconUrl === undefined || input.iconUrl === title.iconUrl ? title.iconObjectKey : null, category: input.category ?? title.category, scope: input.scope ?? title.scope, displayKind: input.displayKind ?? title.displayKind, colorJson: input.color === undefined ? title.colorJson : JSON.stringify(input.color) };
-      const nextRows = rows.map(row => retiring && row.status !== "archived" ? { ...row, status: "archived", retiredVersion: null, startsAt: null, endsAt: null } : { ...row, ...input.restore?.challenges.find(state => state.challengeId === row.id) });
-      const nextRules = rules.map(rule => retiring && rule.status !== "archived" ? { ...rule, status: "archived", retiredVersion: null } : { ...rule, ...input.restore?.mapTitleRules.find(state => state.ruleId === rule.id) });
-      const response: AdminCatalogTitleUpdateResponse = { contractVersion: "1", title: await titleSummary(next, nextRows, nextRules), previousLifecycle: title.lifecycle as AdminTitleSummary["lifecycle"], cascaded };
+      const response: AdminCatalogTitleUpdateResponse = { contractVersion: "1", title: await titleSummary(next, rows, rules), previousLifecycle: title.lifecycle as AdminTitleSummary["lifecycle"] };
       await database.batch([
         database.prepare("UPDATE title_catalog SET lifecycle=?,public_visibility=?,label=?,icon=?,icon_url=?,icon_object_key=?,category=?,scope=?,display_kind=?,color_json=? WHERE key=?").bind(next.lifecycle, next.publicVisibility, next.label, next.icon, next.iconUrl, next.iconObjectKey, next.category, next.scope, next.displayKind, next.colorJson, title.key),
-        ...(retiring ? [database.prepare("UPDATE title_challenges SET status='archived',retired_version=NULL,starts_at=NULL,ends_at=NULL,updated_at=? WHERE title_key=? AND status!='archived'").bind(now(), title.key), database.prepare("UPDATE map_title_rules SET status='archived',retired_version=NULL,updated_at=? WHERE title_key=? AND status!='archived'").bind(now(), title.key)] : []),
-        ...(input.restore?.challenges ?? []).map(row => database.prepare("UPDATE title_challenges SET status=?,retired_version=?,starts_at=?,ends_at=?,updated_at=? WHERE id=? AND title_key=?").bind(row.status, row.retiredVersion, row.startsAt, row.endsAt, now(), row.challengeId, title.key)),
-        ...(input.restore?.mapTitleRules ?? []).map(rule => database.prepare("UPDATE map_title_rules SET status=?,retired_version=?,updated_at=? WHERE id=? AND title_key=?").bind(rule.status, rule.retiredVersion, now(), rule.ruleId, title.key)),
-        ...await mutationRecords(operation, input, response, auth, key, "title_catalog", title.key, { ...input, previousLifecycle: title.lifecycle, cascaded, previousPublicVisibility: title.publicVisibility === 1 }),
+        ...await mutationRecords(operation, input, response, auth, key, "title_catalog", title.key, { ...input, previousLifecycle: title.lifecycle, previousPublicVisibility: title.publicVisibility === 1 }),
       ]);
       if (title.iconObjectKey && next.iconObjectKey !== title.iconObjectKey && evidenceBucket) await evidenceBucket.delete(title.iconObjectKey);
-      if (lifecycle === "active") for (const row of nextRows) if (row.progressRule && row.status === "active") await reconcile(row.id, auth);
+      if (lifecycle === "active") for (const row of rows) if (row.progressRule && row.status === "active") await reconcile(row.id, auth);
       return response;
     },
   };

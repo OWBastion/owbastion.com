@@ -16,7 +16,7 @@ const storedRetirementVersion = z.string().trim().min(1).max(64);
 // One stored lifecycle for every Challenge entity; availability states such as
 // scheduled/sunsetting are derived from lifecycle + window + announced version.
 const challengeLifecycleStatus = z.enum(["draft", "active", "archived"]);
-const titleLifecycleStatus = z.enum(["draft", "active", "retired"]);
+const titleLifecycleStatus = z.enum(["draft", "active"]);
 // Derived obtainability on admin catalog rows; never a stored state.
 const titleAvailabilityStatus = z.enum(["scheduled", "active", "sunsetting", "ended"]);
 const playableChallengeStatus = z.enum(["active", "sunsetting"]);
@@ -670,7 +670,7 @@ export const titleSchema = z.object({
   titleKey: externalId,
   label: z.string().trim().min(1).max(256),
   ...titleDisplayFields,
-  lifecycle: z.enum(["draft", "active", "retired"]),
+  lifecycle: z.enum(["draft", "active"]),
   publicVisibility: z.boolean().optional(),
   availability: z.enum(["active", "retired"]),
   scope: z.enum(["global", "map"]),
@@ -960,7 +960,7 @@ export const adminTitleChallengeSchema = adminAchievementChallengeSchema.extend(
 });
 export const adminTitleChallengeResponseSchema = adminTitleChallengeSchema.extend({ contractVersion });
 export const adminTitleChallengeListResponseSchema = z.object({ contractVersion, items: z.array(adminTitleChallengeSchema) });
-export const derivedStatusSchema = z.enum(["draft", "scheduled", "active", "sunsetting", "ended", "retired"]);
+export const derivedStatusSchema = z.enum(["draft", "scheduled", "active", "sunsetting", "ended"]);
 export const adminTitleSummarySchema = z.object({
   titleKey: externalId, label: z.string(), icon: achievementIcon, iconUrl: z.string().url().nullable(), category: z.string(),
   scope: z.enum(["global", "map"]), displayKind: z.enum(["fixed", "map_pioneer", "map_name_suffix"]), color: titleColorSchema.nullable(),
@@ -981,11 +981,7 @@ export const adminChallengeLifecycleRequestSchema = z.object({
   if (value.startsAt != null && value.endsAt != null && value.endsAt <= value.startsAt) ctx.addIssue({ code: "custom", path: ["endsAt"], message: "The end time must be after the start time" });
 });
 export const adminChallengeLifecycleResponseSchema = z.object({ contractVersion, challenge: adminTitleChallengeSchema, previous: adminChallengePreviousStateSchema });
-export const adminTitleCascadeSchema = z.object({
-  challenges: z.array(adminChallengePreviousStateSchema.extend({ challengeId: externalId })),
-  mapTitleRules: z.array(z.object({ ruleId: externalId, status: challengeLifecycleStatus, retiredVersion: storedRetirementVersion.nullable() })),
-}).strict();
-export const adminCatalogTitleUpdateResponseSchema = z.object({ contractVersion, title: adminTitleSummarySchema, previousLifecycle: titleLifecycleStatus, cascaded: adminTitleCascadeSchema });
+export const adminCatalogTitleUpdateResponseSchema = z.object({ contractVersion, title: adminTitleSummarySchema, previousLifecycle: titleLifecycleStatus });
 export const adminCatalogTitleUpdateRequestSchema = z.object({
   contractVersion,
   lifecycle: titleLifecycleStatus.optional(),
@@ -997,7 +993,6 @@ export const adminCatalogTitleUpdateRequestSchema = z.object({
   scope: z.enum(["global", "map"]).optional(),
   displayKind: z.enum(["fixed", "map_pioneer", "map_name_suffix"]).optional(),
   color: titleColorSchema.nullable().optional(),
-  restore: adminTitleCascadeSchema.optional(),
 });
 
 export const playerUploadSessionRequestSchema = z.object({
@@ -2032,7 +2027,6 @@ export type AdminTitleCreateRequest = z.infer<typeof adminTitleCreateRequestSche
 export type AdminTitleChallengeCreateRequest = z.infer<typeof adminTitleChallengeCreateRequestSchema>;
 export type AdminTitleChallenge = z.infer<typeof adminTitleChallengeSchema>;
 export type AdminTitleSummary = z.infer<typeof adminTitleSummarySchema>;
-export type AdminTitleCascade = z.infer<typeof adminTitleCascadeSchema>;
 export type AdminChallengeLifecycleRequest = z.infer<typeof adminChallengeLifecycleRequestSchema>;
 export type AdminChallengeLifecycleResponse = z.infer<typeof adminChallengeLifecycleResponseSchema>;
 export type AdminCatalogTitleUpdateResponse = z.infer<typeof adminCatalogTitleUpdateResponseSchema>;

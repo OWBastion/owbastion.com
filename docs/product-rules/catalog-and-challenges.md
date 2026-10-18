@@ -6,11 +6,12 @@ Platform-owned metadata and its authoring rules. Lifecycle semantics:
 ## Titles and Challenges
 
 - The admin surface shows the full Title catalog (global and map-scoped) with
-  Challenges. A Title is `draft`/`active`/`retired` with independent public
+  Challenges. A Title is `draft`/`active` with independent public
   visibility; visibility never gates whether a Challenge can produce a Completion.
-- A Title is obtainable if at least one Challenge is currently completable. Retiring
-  stops ordinary acquisition and keeps Completions and Grants; a maintainer may still
-  issue it through its manual Challenge.
+- A Title is obtainable if at least one Challenge is currently completable. A Title
+  ends when every acquisition path ends (Challenge archived or window lapsed);
+  holders keep it and a maintainer may still issue it manually. Ending a Title in
+  Portal ends each of its open Challenges.
 - A Challenge awards exactly one Title; `draft`/`active`/`archived`, optional start/end,
   and a condition-visibility flag that never gates evaluation. Conditions are one
   top-level AND/OR list. A material qualification change creates a new Challenge and
@@ -48,7 +49,7 @@ Platform-owned metadata and its authoring rules. Lifecycle semantics:
   Portal prompts an idempotent selection (maintainers may manage the equipped set);
   both paths replace only the equipped selection after the same active-global
   validation.
-- Player title reads keep active Grants of retired definitions visible; retired
+- Player title reads keep active Grants of ended definitions visible; ended
   definitions stay out of ordinary acquisition and review issuance, but remain equippable
   when active and global.
 - Maintainers can rename a player's BattleTag display name (idempotent, audited, numeric

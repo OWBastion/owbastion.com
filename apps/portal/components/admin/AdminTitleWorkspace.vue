@@ -61,7 +61,7 @@ const filteredTitles = computed(() => {
     && (scopeFilter.value === "all" || title.scope === scopeFilter.value)
     && (statusFilter.value === "all" || title.status === statusFilter.value));
 });
-const statusOrder: Record<DerivedStatus, number> = { draft: 0, scheduled: 1, active: 2, sunsetting: 3, ended: 4, retired: 5 };
+const statusOrder: Record<DerivedStatus, number> = { draft: 0, scheduled: 1, active: 2, sunsetting: 3, ended: 4 };
 const sortedTitles = computed(() => {
   const items = [...filteredTitles.value];
   if (sortMode.value === "label") return items.sort((a, b) => a.label.localeCompare(b.label, "zh-CN"));
@@ -156,24 +156,17 @@ async function putTitle(title: AdminTitleSummary, body: Record<string, unknown>)
   });
 }
 
-async function mutateTitleLifecycle(title: AdminTitleSummary, lifecycle: AdminTitleSummary["lifecycle"], extra: Record<string, unknown> = {}) {
+async function enableTitle(title: AdminTitleSummary) {
   savingKey.value = title.titleKey;
   errorMessage.value = "";
   try {
-    const response = await putTitle(title, { ...titleBody(title), lifecycle, ...extra });
+    const response = await putTitle(title, { ...titleBody(title), lifecycle: "active" });
     await load();
-    // Undo: retire -> { lifecycle: "active", restore: cascaded }; enable -> { lifecycle: "draft" }; reopen -> { lifecycle: "retired" }.
-    const undoBody = lifecycle === "retired"
-      ? { lifecycle: "active", restore: response.cascaded }
-      : lifecycle === "active"
-        ? { lifecycle: response.previousLifecycle === "draft" ? "draft" : "retired" }
-        : null;
-    const resultText = lifecycle === "retired" ? `已退休「${title.label}」` : lifecycle === "active" ? `已启用「${title.label}」` : `已重开「${title.label}」`;
     toast.add({
-      title: resultText,
+      title: `已启用「${title.label}」`,
       color: "success",
       duration: 8000,
-      actions: undoBody ? [{ label: "撤销", color: "neutral", variant: "outline", onClick: () => void undoTitle(title, undoBody) }] : [],
+      actions: response.previousLifecycle === "draft" ? [{ label: "撤销", color: "neutral", variant: "outline", onClick: () => void disableTitle(title) }] : [],
     });
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法保存称号状态，请稍后重试。").description;
@@ -182,14 +175,72 @@ async function mutateTitleLifecycle(title: AdminTitleSummary, lifecycle: AdminTi
   }
 }
 
-async function undoTitle(title: AdminTitleSummary, body: Record<string, unknown>) {
+async function disableTitle(title: AdminTitleSummary) {
   savingKey.value = title.titleKey;
   try {
-    await putTitle(title, { ...titleBody(title), ...body });
+    await putTitle(title, { ...titleBody(title), lifecycle: "draft" });
     await load();
     toast.add({ title: "已撤销", color: "success" });
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法撤销，请稍后重试。").description;
+  } finally {
+    savingKey.value = null;
+  }
+}
+
+// A title ends by ending every still-open challenge path; undo restores each
+// challenge to the state its lifecycle response returned as `previous`.
+async function endTitle(title: AdminTitleSummary) {
+  savingKey.value = title.titleKey;
+  errorMessage.value = "";
+  try {
+    await loadChallenges(title.titleKey);
+    const open = challengesOf(title).filter((challenge) => ["active", "sunsetting", "scheduled"].includes(challengeDisplayStatus(challenge)));
+    const previous: AdminChallengeLifecycleResponse["previous"][] = [];
+    for (const challenge of open) {
+      const response = await api<AdminChallengeLifecycleResponse>(`/v1/achievements/${encodeURIComponent(challenge.challengeId)}/lifecycle`, {
+        method: "PUT",
+        headers: { "Idempotency-Key": createRequestId() },
+        body: { contractVersion: "1", status: "archived" },
+      });
+      previous.push(response.previous);
+    }
+    await loadChallenges(title.titleKey);
+    await load();
+    toast.add({
+      title: `已结束「${title.label}」`,
+      color: "success",
+      duration: 8000,
+      actions: previous.length ? [{ label: "撤销", color: "neutral", variant: "outline", onClick: () => void reopenTitle(title, open.map((challenge, index) => ({ challengeId: challenge.challengeId, previous: previous[index]! }))) }] : [],
+    });
+  } catch (error) {
+    const description = portalErrorDetails(error, "无法结束称号，请稍后重试。").description;
+    // Refresh first so the reload's onStart does not clear the surfaced error.
+    await loadChallenges(title.titleKey);
+    await load();
+    errorMessage.value = description;
+  } finally {
+    savingKey.value = null;
+  }
+}
+
+async function reopenTitle(title: AdminTitleSummary, states: { challengeId: string; previous: AdminChallengeLifecycleResponse["previous"] }[]) {
+  savingKey.value = title.titleKey;
+  try {
+    for (const { challengeId, previous } of states) {
+      await api(`/v1/achievements/${encodeURIComponent(challengeId)}/lifecycle`, {
+        method: "PUT",
+        headers: { "Idempotency-Key": createRequestId() },
+        body: { contractVersion: "1", status: previous.status, retiredVersion: previous.retiredVersion, startsAt: previous.startsAt, endsAt: previous.endsAt },
+      });
+    }
+    await loadChallenges(title.titleKey);
+    await load();
+    toast.add({ title: "已撤销", color: "success" });
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法撤销，请稍后重试。").description;
+    await loadChallenges(title.titleKey);
+    await load();
   } finally {
     savingKey.value = null;
   }
@@ -386,7 +437,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
         <UInput v-model="search" class="title-toolbar__search" aria-label="搜索称号或完成条件" placeholder="搜索称号或完成条件" icon="i-lucide-search" />
         <USelect v-model="categoryFilter" aria-label="筛选系列" :items="[{ label: '全部系列', value: 'all' }, ...categories.map((category) => ({ label: category, value: category }))]" />
         <USelect v-model="scopeFilter" aria-label="筛选范围" :items="[{ label: '全部范围', value: 'all' }, { label: '全局称号', value: 'global' }, { label: '地图称号', value: 'map' }]" />
-        <USelect v-model="statusFilter" aria-label="筛选称号状态" :items="[{ label: '全部状态', value: 'all' }, { label: '草稿', value: 'draft' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'ended' }, { label: '已退休', value: 'retired' }]" />
+        <USelect v-model="statusFilter" aria-label="筛选称号状态" :items="[{ label: '全部状态', value: 'all' }, { label: '草稿', value: 'draft' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已结束', value: 'ended' }]" />
         <USelect v-model="sortMode" aria-label="排序方式" :items="[{ label: '系列 · 称号', value: 'category_label' }, { label: '称号', value: 'label' }, { label: '状态', value: 'status' }]" />
       </div>
 
@@ -408,9 +459,9 @@ async function submitChallenge(payload: Record<string, unknown>) {
         <div class="title-state__chips"><StatusBadge v-for="chip in activeFilterChips" :key="chip" :label="chip" /></div>
         <UButton label="清除筛选" color="neutral" variant="outline" size="sm" @click="clearFilters" />
       </div>
-      <UAlert v-else-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
 
       <template v-if="sortedTitles.length">
+        <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
         <table class="title-table">
           <thead>
             <tr>
@@ -438,15 +489,14 @@ async function submitChallenge(payload: Record<string, unknown>) {
                   <span class="title-cell-stack"><span>{{ titleScopeLabel(title.scope) }}</span><small class="table-meta">{{ titleDisplayKindLabel(title.displayKind) }}</small></span>
                 </td>
                 <td class="title-num">{{ titleAcquisitionLabel(title.acquisition) }}</td>
-                <td><StatusBadge :label="title.developerOnly && title.status !== 'draft' && title.status !== 'retired' ? '开发保留' : achievementStatusLabel(title.status)" :tone="title.developerOnly && title.status !== 'draft' && title.status !== 'retired' ? 'warning' : achievementStatusTone(title.status)" /></td>
+                <td><StatusBadge :label="title.developerOnly && title.lifecycle === 'active' ? '开发保留' : achievementStatusLabel(title.status)" :tone="title.developerOnly && title.lifecycle === 'active' ? 'warning' : achievementStatusTone(title.status)" /></td>
                 <td>
                   <div class="table-actions">
                     <UButton size="sm" color="neutral" variant="outline" label="编辑" :aria-label="`编辑${title.label}`" :disabled="savingKey === title.titleKey" @click="openEditTitle(title)" />
-                    <UButton v-if="title.lifecycle === 'draft'" size="sm" color="neutral" variant="outline" label="启用" :aria-label="`启用${title.label}`" :loading="savingKey === title.titleKey" @click="mutateTitleLifecycle(title, 'active')" />
+                    <UButton v-if="title.lifecycle === 'draft'" size="sm" color="neutral" variant="outline" label="启用" :aria-label="`启用${title.label}`" :loading="savingKey === title.titleKey" @click="enableTitle(title)" />
                     <template v-else>
                       <UButton size="sm" color="neutral" variant="outline" label="发放" :aria-label="`发放${title.label}`" :to="grantHref(title)" />
-                      <UButton v-if="title.lifecycle === 'active'" size="sm" color="error" variant="soft" label="退休" :aria-label="`退休${title.label}`" :loading="savingKey === title.titleKey" @click="mutateTitleLifecycle(title, 'retired')" />
-                      <UButton v-else size="sm" color="neutral" variant="outline" label="重开" :aria-label="`重开${title.label}`" :loading="savingKey === title.titleKey" @click="mutateTitleLifecycle(title, 'active')" />
+                      <UButton v-if="title.acquisition.kind === 'challenges' && title.status !== 'ended'" size="sm" color="error" variant="soft" label="结束" :aria-label="`结束${title.label}`" :loading="savingKey === title.titleKey" @click="endTitle(title)" />
                     </template>
                   </div>
                 </td>
@@ -456,7 +506,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
                   <div class="title-panel">
                     <div class="title-panel__head">
                       <span class="type-caption title-panel__heading">获取方式</span>
-                      <UButton v-if="title.acquisition.kind !== 'map_rule' && title.lifecycle !== 'retired'" size="sm" color="neutral" variant="ghost" icon="i-lucide-plus" label="添加挑战" :aria-label="`为${title.label}添加挑战`" @click="openAddChallenge(title)" />
+                      <UButton v-if="title.acquisition.kind !== 'map_rule'" size="sm" color="neutral" variant="ghost" icon="i-lucide-plus" label="添加挑战" :aria-label="`为${title.label}添加挑战`" @click="openAddChallenge(title)" />
                     </div>
                     <div v-if="title.acquisition.kind === 'map_rule'" class="title-rule-card">
                       <span class="title-cell-stack">
@@ -466,10 +516,9 @@ async function submitChallenge(payload: Record<string, unknown>) {
                       <UButton size="sm" color="neutral" variant="outline" label="在地图挑战中管理" :to="{ path: '/admin/achievements/map-challenges', query: { ruleId: title.acquisition.ruleId } }" />
                     </div>
                     <template v-else>
-                      <p v-if="title.lifecycle === 'retired' && challengesOf(title).length" class="title-panel__note">称号已退休，下面的挑战不再产生新的获得记录；重开称号后恢复。</p>
+                      <p v-if="title.status === 'ended' && challengesOf(title).length" class="title-panel__note">称号的获取方式已全部结束，下面的挑战不再产生新的获得记录；仍可手动发放给指定玩家。</p>
                       <div v-if="challengesLoading.has(title.titleKey)" class="title-challenge title-challenge--loading" role="status">读取中…</div>
                       <UAlert v-else-if="challengesError.get(title.titleKey)" color="error" variant="subtle" :description="challengesError.get(title.titleKey)" />
-                      <div v-else-if="title.lifecycle === 'retired' && !challengesOf(title).length" class="title-empty-card">已退休，没有挑战。仍可手动发放给指定玩家。</div>
                       <div v-else-if="!challengesOf(title).length" class="title-empty-card">
                         <span>还没有获取方式，玩家无法获得这个称号。</span>
                         <UButton size="sm" color="neutral" variant="outline" label="添加第一条挑战" @click="openAddChallenge(title)" />
@@ -522,7 +571,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
                 <strong>{{ title.label }}</strong>
                 <small class="table-meta">{{ title.category }} · {{ titleAcquisitionLabel(title.acquisition) }}</small>
               </span>
-              <StatusBadge :label="title.developerOnly && title.status !== 'draft' && title.status !== 'retired' ? '开发保留' : achievementStatusLabel(title.status)" :tone="title.developerOnly && title.status !== 'draft' && title.status !== 'retired' ? 'warning' : achievementStatusTone(title.status)" />
+              <StatusBadge :label="title.developerOnly && title.lifecycle === 'active' ? '开发保留' : achievementStatusLabel(title.status)" :tone="title.developerOnly && title.lifecycle === 'active' ? 'warning' : achievementStatusTone(title.status)" />
             </button>
             <div v-if="expandedKeys.has(title.titleKey)" class="title-record__body">
               <div v-if="title.acquisition.kind === 'map_rule'" class="title-rule-card">
@@ -533,10 +582,9 @@ async function submitChallenge(payload: Record<string, unknown>) {
                 <UButton size="sm" color="neutral" variant="outline" label="在地图挑战中管理" :to="{ path: '/admin/achievements/map-challenges', query: { ruleId: title.acquisition.ruleId } }" />
               </div>
               <template v-else>
-                <p v-if="title.lifecycle === 'retired' && challengesOf(title).length" class="title-panel__note">称号已退休，下面的挑战不再产生新的获得记录；重开称号后恢复。</p>
+                <p v-if="title.status === 'ended' && challengesOf(title).length" class="title-panel__note">称号的获取方式已全部结束，下面的挑战不再产生新的获得记录；仍可手动发放给指定玩家。</p>
                 <div v-if="challengesLoading.has(title.titleKey)" role="status" class="table-meta">读取中…</div>
                 <UAlert v-else-if="challengesError.get(title.titleKey)" color="error" variant="subtle" :description="challengesError.get(title.titleKey)" />
-                <div v-else-if="title.lifecycle === 'retired' && !challengesOf(title).length" class="title-empty-card">已退休，没有挑战。仍可手动发放给指定玩家。</div>
                 <div v-else-if="!challengesOf(title).length" class="title-empty-card">还没有获取方式，玩家无法获得这个称号。</div>
                 <div v-for="challenge in challengesOf(title)" :key="challenge.challengeId" class="title-record__challenge">
                   <div class="title-record__challenge-head">
@@ -564,13 +612,12 @@ async function submitChallenge(payload: Record<string, unknown>) {
                 </div>
               </template>
               <div class="title-record__foot">
-                <UButton v-if="title.acquisition.kind !== 'map_rule' && title.lifecycle !== 'retired'" size="sm" color="neutral" variant="outline" icon="i-lucide-plus" label="添加挑战" @click="openAddChallenge(title)" />
+                <UButton v-if="title.acquisition.kind !== 'map_rule'" size="sm" color="neutral" variant="outline" icon="i-lucide-plus" label="添加挑战" @click="openAddChallenge(title)" />
                 <UButton size="sm" color="neutral" variant="outline" label="编辑称号" @click="openEditTitle(title)" />
-                <UButton v-if="title.lifecycle === 'draft'" size="sm" color="neutral" variant="outline" label="启用" :loading="savingKey === title.titleKey" @click="mutateTitleLifecycle(title, 'active')" />
+                <UButton v-if="title.lifecycle === 'draft'" size="sm" color="neutral" variant="outline" label="启用" :loading="savingKey === title.titleKey" @click="enableTitle(title)" />
                 <template v-else>
                   <UButton size="sm" color="neutral" variant="outline" label="发放" :to="grantHref(title)" />
-                  <UButton v-if="title.lifecycle === 'active'" size="sm" color="error" variant="soft" label="退休" :loading="savingKey === title.titleKey" @click="mutateTitleLifecycle(title, 'retired')" />
-                  <UButton v-else size="sm" color="neutral" variant="outline" label="重开" :loading="savingKey === title.titleKey" @click="mutateTitleLifecycle(title, 'active')" />
+                  <UButton v-if="title.acquisition.kind === 'challenges' && title.status !== 'ended'" size="sm" color="error" variant="soft" label="结束" :loading="savingKey === title.titleKey" @click="endTitle(title)" />
                 </template>
               </div>
             </div>

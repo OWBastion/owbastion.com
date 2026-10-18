@@ -41,3 +41,4 @@
 0100_upload_session_submission_timing.sql
 0101_challenge_lifecycle_convergence.sql
 0106_title_challenge_acquisition_paths.sql
+0107_title_lifecycle_draft_active.sql
