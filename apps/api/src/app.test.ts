@@ -2329,3 +2329,74 @@ describe("OCRKit result callbacks", () => {
     expect((await send({ contractVersion: "1", result: lowQuality })).status).toBe(204);
     expect(completeOcrJob).toHaveBeenLastCalledWith({ jobId, payload: { contractVersion: "1", result: lowQuality } });
   });
+
+describe("player handle routes", () => {
+  const json = { "content-type": "application/json" };
+  const state = { contractVersion: "1" as const, handle: null, pending: null, rejected: null };
+  const mapped = (code: string) => async () => { throw new Error(code); };
+
+  it("lets only a signed-in Player read, request, and withdraw, with an idempotency key and mapped rule errors", async () => {
+    const request = vi.fn(async (_input: { sessionToken: string; handle: string }, _key: string) => state);
+    const handleApp = createTestApp({
+      getCurrentPlayerHandle: async ({ sessionToken }) => sessionToken === "session-token" ? state : null,
+      requestCurrentPlayerHandle: request,
+      withdrawCurrentPlayerHandleRequest: mapped("HANDLE_REQUEST_NOT_FOUND"),
+    });
+    expect((await handleApp.request("http://localhost/v1/me/handle", {}, env)).status).toBe(401);
+    const signedIn = { ...json, cookie: "owb_session=session-token" };
+    const read = await handleApp.request("http://localhost/v1/me/handle", { headers: signedIn }, env);
+    expect(read.status).toBe(200);
+    expect(read.headers.get("cache-control")).toBe("private, no-store");
+    const put = (headers: Record<string, string>, body: unknown) => handleApp.request("http://localhost/v1/me/handle", { method: "PUT", headers, body: JSON.stringify(body) }, env);
+    expect((await put({ ...json }, { contractVersion: "1", handle: "tester" })).status).toBe(401);
+    expect((await put(signedIn, { contractVersion: "1", handle: "tester" })).status).toBe(422);
+    expect((await put({ ...signedIn, "idempotency-key": "h1" }, { contractVersion: "1" })).status).toBe(422);
+    expect((await put({ ...signedIn, "idempotency-key": "h1" }, { contractVersion: "1", handle: "tester" })).status).toBe(200);
+    expect(request).toHaveBeenCalledWith({ sessionToken: "session-token", handle: "tester" }, "h1");
+    expect((await handleApp.request("http://localhost/v1/me/handle/request", { method: "DELETE", headers: { ...signedIn, "idempotency-key": "w1" } }, env)).status).toBe(404);
+    for (const [code, status] of [["HANDLE_TAKEN", 409], ["HANDLE_UNCHANGED", 409], ["HANDLE_RESERVED", 422], ["HANDLE_INVALID_LENGTH", 422], ["HANDLE_INVALID_CHARACTERS", 422], ["HANDLE_ALL_DIGITS", 422], ["IDEMPOTENCY_CONFLICT", 409], ["UNAUTHENTICATED", 401]] as const) {
+      const failing = createTestApp({ requestCurrentPlayerHandle: mapped(code), getPortalSessionIdentity: async () => ({ player: { playerId: "1", isAdmin: false } }) });
+      const response = await failing.request("http://localhost/v1/me/handle", { method: "PUT", headers: { ...signedIn, "idempotency-key": "k" }, body: JSON.stringify({ contractVersion: "1", handle: "tester" }) }, env);
+      expect(response.status, code).toBe(status);
+      expect(await response.json()).toMatchObject({ error: { code } });
+    }
+  });
+
+  it("restricts the review queue and decisions to maintainers and requires idempotency keys", async () => {
+    const approve = vi.fn(async (_input: { handleId: string }, _auth: unknown, _key: string) => undefined);
+    const clear = vi.fn(async (_input: { playerAccountId: string }, _auth: unknown, _key: string) => undefined);
+    const overrides = {
+      listAdminPlayerHandles: async ({ status, page, pageSize }: { status: "pending" | "active"; page: number; pageSize: number }) => ({ contractVersion: "1" as const, status, items: [], page, pageSize, total: 0, hasMore: false }),
+      approveAdminPlayerHandleRequest: approve,
+      rejectAdminPlayerHandleRequest: mapped("HANDLE_REQUEST_NOT_FOUND"),
+      clearAdminPlayerHandle: clear,
+    };
+    const base = "http://localhost/v1/admin/player-handles";
+    const player = createTestApp(overrides);
+    expect((await player.request(base, {}, env)).status).toBe(403);
+    expect((await player.request(`${base}/r1/approve`, { method: "POST", headers: { "idempotency-key": "a" } }, env)).status).toBe(403);
+    expect((await player.request("http://localhost/v1/admin/player-accounts/p1/handle", { method: "DELETE", headers: { "idempotency-key": "c" } }, env)).status).toBe(403);
+    const maintainer = createTestApp(overrides, authenticateAsMaintainer);
+    expect((await maintainer.request(base, {}, env)).status).toBe(200);
+    expect((await maintainer.request(`${base}?status=active`, {}, env)).status).toBe(200);
+    expect((await maintainer.request(`${base}?status=rejected`, {}, env)).status).toBe(422);
+    expect((await maintainer.request(`${base}/r1/approve`, { method: "POST" }, env)).status).toBe(422);
+    expect((await maintainer.request(`${base}/r1/approve`, { method: "POST", headers: { "idempotency-key": "a1" } }, env)).status).toBe(204);
+    expect(approve).toHaveBeenCalledWith({ handleId: "r1" }, expect.objectContaining({ subject: "admin" }), "a1");
+    expect((await maintainer.request(`${base}/r1/reject`, { method: "POST", headers: { "idempotency-key": "r1" } }, env)).status).toBe(404);
+    expect((await maintainer.request("http://localhost/v1/admin/player-accounts/p1/handle", { method: "DELETE", headers: { "idempotency-key": "c1" } }, env)).status).toBe(204);
+    expect(clear).toHaveBeenCalledWith({ playerAccountId: "p1" }, expect.objectContaining({ subject: "admin" }), "c1");
+  });
+
+  it("serves public profiles by normalized handle without a session and 404s everything else", async () => {
+    const lookup = vi.fn(async ({ handle }: { handle: string }) => handle === "tester" ? { contractVersion: "1" as const, publicProfile: true, handle, player: { displayName: "Tester", equippedTitle: null }, boards: { mastery: null, achievement: null }, perMapXp: [], mapCount: 0, titles: { map: [], general: [] } } : null);
+    const publicApp = createTestApp({ getPublicPlayerByHandle: lookup });
+    const response = await publicApp.request("http://localhost/v1/public/players/TESTER", {}, env);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(lookup).toHaveBeenCalledWith({ handle: "tester" });
+    expect((await publicApp.request("http://localhost/v1/public/players/nobody", {}, env)).status).toBe(404);
+    await publicApp.request(`http://localhost/v1/public/players/${encodeURIComponent("速通达人")}`, {}, env);
+    expect(lookup).toHaveBeenLastCalledWith({ handle: "速通达人" });
+  });
+});

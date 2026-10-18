@@ -1555,6 +1555,36 @@ export const currentPlayerResponseSchema = z.object({
 export const playerProfileVisibilityRequestSchema = z.object({ contractVersion, publicProfile: z.boolean() }).strict();
 export const playerProfileVisibilityResponseSchema = z.object({ contractVersion, publicProfile: z.boolean() }).strict();
 
+// Player handles (#438): a maintainer-reviewed public address. The value is the
+// normalized form (NFKC, ASCII lowercase); validation rules live in the domain.
+export const playerHandleSchema = z.string().trim().min(2).max(9);
+export const playerHandleRequestSchema = z.object({ contractVersion, handle: z.string().trim().min(1).max(64) }).strict();
+export const playerHandleStateResponseSchema = z.object({
+  contractVersion,
+  handle: playerHandleSchema.nullable(),
+  pending: z.object({ requestId: z.string().uuid(), handle: playerHandleSchema, requestedAt: z.number().int() }).strict().nullable(),
+  rejected: z.object({ handle: playerHandleSchema, decidedAt: z.number().int() }).strict().nullable(),
+}).strict();
+export const adminPlayerHandleStatusSchema = z.enum(["pending", "active"]);
+export const adminPlayerHandleSchema = z.object({
+  handleId: z.string().uuid(),
+  playerAccountId: z.string().min(1).max(128),
+  playerName: z.string().trim().min(1).max(64),
+  handle: playerHandleSchema,
+  // The Player's active handle while this row is a pending request; null for active rows.
+  currentHandle: playerHandleSchema.nullable(),
+  requestedAt: z.number().int(),
+}).strict();
+export const adminPlayerHandleListResponseSchema = z.object({
+  contractVersion,
+  status: adminPlayerHandleStatusSchema,
+  items: z.array(adminPlayerHandleSchema).max(50),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive().max(50),
+  total: z.number().int().nonnegative(),
+  hasMore: z.boolean(),
+}).strict();
+
 // Public leaderboard field contract (#398): every row keeps rank and score.
 // `player` carries the public display identity and is null when the owning
 // Player's public-profile visibility is off; the equipped Title rides inside
@@ -1571,6 +1601,9 @@ export const leaderboardEntryPlayerSchema = z.object({
   playerKey: z.string().trim().min(1).max(64),
   displayName: z.string().trim().min(1).max(64),
   equippedTitle: leaderboardEntryTitleSchema.nullable(),
+  // The public player handle (#438); present only while the Player is public
+  // and has an approved handle, so it is the only link to /u/{handle}.
+  handle: playerHandleSchema.optional(),
 }).strict();
 export const leaderboardBoardSchema = z.enum(["mastery", "achievement"]);
 
@@ -1665,6 +1698,11 @@ export const leaderboardPlayerSummarySchema = z.object({
     general: z.array(leaderboardEntryTitleSchema).max(200),
   }).strict().nullable(),
 }).strict();
+
+// Public profile by handle (#438): the same public projection as the leaderboard
+// drawer plus the handle. A missing, pending-only, cleared, or non-public Player
+// 404s at the route layer, so `publicProfile` is always true here.
+export const publicPlayerProfileSchema = leaderboardPlayerSummarySchema.extend({ handle: playerHandleSchema }).strict();
 
 // Authenticated own-rank read (#399). `rank`, `reachedAt`, and `gapToNextRank`
 // are null when the Player has no standing; the gap is the score distance to
@@ -1863,6 +1901,11 @@ export type LeaderboardResponse = z.infer<typeof leaderboardResponseSchema>;
 export type LeaderboardPlayerMapXp = z.infer<typeof leaderboardPlayerMapXpSchema>;
 export type LeaderboardPlayerMapTitle = z.infer<typeof leaderboardPlayerMapTitleSchema>;
 export type LeaderboardPlayerSummary = z.infer<typeof leaderboardPlayerSummarySchema>;
+export type PlayerHandleRequest = z.infer<typeof playerHandleRequestSchema>;
+export type PlayerHandleStateResponse = z.infer<typeof playerHandleStateResponseSchema>;
+export type AdminPlayerHandle = z.infer<typeof adminPlayerHandleSchema>;
+export type AdminPlayerHandleListResponse = z.infer<typeof adminPlayerHandleListResponseSchema>;
+export type PublicPlayerProfile = z.infer<typeof publicPlayerProfileSchema>;
 export type CurrentPlayerLeaderboardRank = z.infer<typeof currentPlayerLeaderboardRankSchema>;
 export type SeasonStatus = z.infer<typeof seasonStatusSchema>;
 export type SeasonPhase = z.infer<typeof seasonPhaseSchema>;

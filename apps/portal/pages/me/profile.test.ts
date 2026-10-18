@@ -88,6 +88,7 @@ async function mountPage(): Promise<VueWrapper> {
         UEmpty: { props: ["title"], template: "<div>{{ title }}</div>" },
         USkeleton: { template: "<div class=\"skeleton\" />" },
         UIcon: { props: ["name"], template: "<i :data-icon=\"name\" />" },
+        PlayerHandleCard: { template: "<div data-handle=\"card\" />" },
         PlayerProfileVisibilityCard: { props: ["publicProfile"], template: "<div data-visibility=\"card\">{{ publicProfile }}</div>" },
       },
     },

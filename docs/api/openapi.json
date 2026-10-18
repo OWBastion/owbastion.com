@@ -380,6 +380,68 @@
     }
    }
   },
+  "/v1/me/handle": {
+   "get": {
+    "operationId": "getCurrentPlayerHandle",
+    "description": "Returns the authenticated Player's active handle, their single pending request (which reserves its normalized handle), and the last rejected request, if any.",
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   },
+   "put": {
+    "operationId": "requestCurrentPlayerHandle",
+    "description": "Requests a platform handle (first claim or change). Allowed: ASCII letters, digits, and CJK Unified Ideographs U+4E00-9FFF; 2-9 characters; not all digits; not a reserved route/system term as a whole, and no impersonation term (such as admin or 官方) contained. Normalized with NFKC and ASCII lowercase. A maintainer must approve it; the request replaces any earlier pending or rejected one and does not change the active handle. 409 HANDLE_TAKEN when another Player holds or has pending the normalized handle, HANDLE_UNCHANGED for the Player's own active handle; 422 HANDLE_INVALID_CHARACTERS, HANDLE_INVALID_LENGTH, HANDLE_ALL_DIGITS, or HANDLE_RESERVED.",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/idempotencyKey"
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     },
+     "409": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/me/handle/request": {
+   "delete": {
+    "operationId": "withdrawCurrentPlayerHandleRequest",
+    "description": "Withdraws the Player's pending handle request and releases its reserved handle; 404 when none is pending.",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/idempotencyKey"
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     },
+     "404": {
+      "$ref": "#/components/responses/Json"
+     },
+     "409": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
   "/v1/me/submissions/{submissionId}": {
    "get": {
     "operationId": "getPlayerSubmission",
@@ -520,6 +582,25 @@
     "parameters": [
      {
       "$ref": "#/components/parameters/leaderboardPlayerKey"
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "404": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/public/players/{handle}": {
+   "get": {
+    "operationId": "getPublicPlayerByHandle",
+    "description": "Public profile for /u/{handle}: the same public projection as the leaderboard player summary plus the handle. Only an active handle of a Player whose public-profile visibility is on and who is not banned resolves; unknown, pending-only, rejected, cleared, released, non-public, and banned all return the same 404. Never returns internal ids, BattleTag, or QQ identifiers.",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/playerHandle"
      }
     ],
     "responses": {
@@ -1492,6 +1573,119 @@
     "responses": {
      "204": {
       "description": "Updated"
+     }
+    }
+   }
+  },
+  "/v1/admin/player-accounts/{playerAccountId}/handle": {
+   "delete": {
+    "operationId": "clearAdminPlayerHandle",
+    "description": "Clears the Player's active handle; its URL stops resolving and the handle is released. The Player may then request a new one.",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/playerAccountId"
+     },
+     {
+      "$ref": "#/components/parameters/idempotencyKey"
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Cleared"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "404": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/admin/player-handles": {
+   "get": {
+    "operationId": "listAdminPlayerHandles",
+    "description": "Handle requests awaiting review (status=pending, default, oldest first) with the requested handle and the Player current handle, or active handles (status=active) for clearing.",
+    "parameters": [
+     {
+      "name": "status",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "enum": [
+        "pending",
+        "active"
+       ],
+       "default": "pending"
+      }
+     },
+     {
+      "$ref": "#/components/parameters/leaderboardPage"
+     },
+     {
+      "$ref": "#/components/parameters/leaderboardPageSize"
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/admin/player-handles/{handleId}/approve": {
+   "post": {
+    "operationId": "approveAdminPlayerHandleRequest",
+    "description": "Approves a pending request: the requested handle becomes the Player's active handle and the previous one is released immediately. No reason is required.",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/playerHandleId"
+     },
+     {
+      "$ref": "#/components/parameters/idempotencyKey"
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Approved"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "404": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/admin/player-handles/{handleId}/reject": {
+   "post": {
+    "operationId": "rejectAdminPlayerHandleRequest",
+    "description": "Rejects a pending request, leaving the Player's current handle unchanged and releasing the requested one. No reason is required.",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/playerHandleId"
+     },
+     {
+      "$ref": "#/components/parameters/idempotencyKey"
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Rejected"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "404": {
+      "$ref": "#/components/responses/Json"
      }
     }
    }
@@ -3769,6 +3963,26 @@
     "in": "query",
     "required": false,
     "description": "Scopes the mastery board to a public, published, started Season's window (both ends included) over the same Verified Runs; rejected on the achievement board. Combines with mapId.",
+    "schema": {
+     "type": "string",
+     "format": "uuid"
+    }
+   },
+   "playerHandle": {
+    "name": "handle",
+    "in": "path",
+    "required": true,
+    "description": "A player handle; case-insensitive (NFKC, ASCII lowercase).",
+    "schema": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 64
+    }
+   },
+   "playerHandleId": {
+    "name": "handleId",
+    "in": "path",
+    "required": true,
     "schema": {
      "type": "string",
      "format": "uuid"

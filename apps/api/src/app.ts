@@ -37,6 +37,7 @@ import { registerBindingInviteRoutes } from "./routes/binding-invites";
 import { registerPortalAuthenticationRoutes } from "./routes/portal-authentication";
 import { registerPublicCatalogRoutes } from "./routes/public-catalog";
 import { registerLeaderboardRoutes } from "./routes/leaderboard";
+import { registerPlayerHandleRoutes } from "./routes/player-handles";
 import { registerReviewRoutes } from "./routes/reviews";
 import { hasOnlyUniqueQueryNames, parsePagination } from "./query-params";
 
@@ -619,6 +620,17 @@ export const createApp = (dependencies: AppDependencies) => {
     services: dependencies.services,
     allowPortal,
     errorResponse,
+    requirePortalPlayer,
+    logServiceOperation,
+  });
+
+  registerPlayerHandleRoutes(app, {
+    services: dependencies.services,
+    requireMaintainer,
+    errorResponse,
+    errorGroup,
+    adminMutation,
+    allowPortal,
     requirePortalPlayer,
     logServiceOperation,
   });

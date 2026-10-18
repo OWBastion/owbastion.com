@@ -18,6 +18,7 @@ import { hashRequest, resolvePortalSession } from "./portal-session";
 import { createPlatformCache, instrumentDatabase } from "./platform-cache";
 import { createReviewServices } from "./review-service";
 import { createLeaderboardServices } from "./leaderboard-service";
+import { createPlayerHandleServices } from "./player-handle-service";
 import { createSeasonServices } from "./season-service";
 import { createAdminPlayerServices } from "./admin-player-service";
 import { createQqGroupServices } from "./qq-group-service";
@@ -3182,6 +3183,7 @@ if (verifiedRunPlan?.superseded) await reconcileVerifiedRunProgressChallenges({ 
       ...databaseServiceDependencies,
     }),
     ...createLeaderboardServices(db),
+    ...createPlayerHandleServices({ database, db, now, replayOrConflict: databaseServiceDependencies.replayOrConflict }),
     ...createSeasonServices({ database, db, now, replayOrConflict: databaseServiceDependencies.replayOrConflict }),
   };
 };

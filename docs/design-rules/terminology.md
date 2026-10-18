@@ -169,6 +169,7 @@
 | 术语 | 用法 |
 | --- | --- |
 | BattleTag / 战网 ID | 玩家身份，格式为“玩家名称#数字 ID”，例如 `玩家名称#1234`；界面始终写成一个整体，数字 ID 用 `quiet` 色，不写“战网 ID：1234”，不拆成两列。 |
+| 公开 ID | 玩家自定义的公开主页标识（`/u/{ID}`），由维护者审核；不是 BattleTag，界面写“公开 ID”，申请写“申请 ID / 申请更换”，不写“用户名”。 |
 | 邀请码 | 管理员为指定 BattleTag 生成的单次注册凭据；玩家用它建立 Player Account 并注册 Passkey。 |
 | Passkey | Portal 登录凭据；一个 Player Account 可以注册多个 Passkey。 |
 | QQ 渠道绑定 | 将现有 Player Account 关联到 QQBot 身份，用于 QQBot 功能；已绑定的帐号也可以用 QQ 群验证登录 Portal。 |

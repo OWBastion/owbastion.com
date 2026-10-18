@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { leaderboardPlayerKey } from "@owbastion/domain";
-import { leaderboardResponseSchema, leaderboardPlayerSummarySchema, currentPlayerLeaderboardRankSchema } from "@owbastion/contracts";
+import { leaderboardResponseSchema, leaderboardPlayerSummarySchema, currentPlayerLeaderboardRankSchema, publicPlayerProfileSchema } from "@owbastion/contracts";
 import { createD1 } from "./ocr-test-harness";
+import { playerHandlesSchema } from "../test/schema";
 import { createPlatformServices } from "./index";
 
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -24,6 +25,7 @@ const fixture = () => {
     CREATE TABLE audit_events (id TEXT PRIMARY KEY, correlation_id TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, operation TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, payload_json TEXT NOT NULL, created_at INTEGER NOT NULL);
     CREATE TABLE player_equipped_titles (grant_id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, equipped_at INTEGER NOT NULL);
   `);
+  harness.sqlite.exec(playerHandlesSchema);
   const { sqlite } = harness;
   const now = Date.now();
   const addPlayer = (id: string, name: string, publicProfile = 1) => {
@@ -256,6 +258,57 @@ describe("public leaderboard projections", () => {
     expect(page2).toMatchObject({ page: 2, pageSize: 2, total: 5, hasMore: true });
     expect(page2?.items.map((item) => item.rank)).toEqual([3, 4]);
     expect(await services.getPublicLeaderboard({ board: "mastery", page: 3, pageSize: 2 })).toMatchObject({ hasMore: false });
+  });
+});
+
+describe("public player profiles by handle", () => {
+  const withHandle = (sqlite: ReturnType<typeof fixture>["sqlite"], playerId: string, handle: string, status = "active") =>
+    sqlite.prepare("INSERT INTO player_handles (id, player_account_id, handle, status, requested_at) VALUES (?, ?, ?, ?, 1)").run(`h.${playerId}.${handle}`, playerId, handle, status);
+
+  it("resolves only an active handle of a public Player, with the public summary and no private data", async () => {
+    const { services, sqlite, addPlayer, addMap, addRevision, addRun } = fixture();
+    addPlayer("p1", "Alpha"); addMap("map.a", "Map A"); addRevision("rev.a1", "map.a", "default");
+    addRun("r1", "p1", "map.a", "rev.a1", 120, 100);
+    withHandle(sqlite, "p1", "alpha");
+    const profile = await services.getPublicPlayerByHandle({ handle: "alpha" });
+    expect(publicPlayerProfileSchema.parse(profile)).toMatchObject({ handle: "alpha", publicProfile: true, player: { displayName: "Alpha" }, boards: { mastery: { rank: 1, score: 120 } } });
+    expect(JSON.stringify(profile)).not.toMatch(/"p1"|playerKey|playerId|player_account/);
+    await expect(services.getPublicPlayerByHandle({ handle: "missing" })).resolves.toBeNull();
+  });
+
+  it.each([
+    ["pending-only", (sqlite: ReturnType<typeof fixture>["sqlite"]) => withHandle(sqlite, "p1", "alpha", "pending")],
+    ["rejected", (sqlite: ReturnType<typeof fixture>["sqlite"]) => withHandle(sqlite, "p1", "alpha", "rejected")],
+    ["publicProfile off", (sqlite: ReturnType<typeof fixture>["sqlite"]) => { withHandle(sqlite, "p1", "alpha"); sqlite.prepare("UPDATE player_accounts SET public_profile = 0").run(); }],
+    ["banned", (sqlite: ReturnType<typeof fixture>["sqlite"]) => { withHandle(sqlite, "p1", "alpha"); sqlite.prepare("UPDATE player_accounts SET status = 'banned'").run(); }],
+    ["cleared", (sqlite: ReturnType<typeof fixture>["sqlite"]) => { withHandle(sqlite, "p1", "alpha"); sqlite.prepare("DELETE FROM player_handles").run(); }],
+  ])("does not resolve a %s profile", async (_label, arrange) => {
+    const { services, sqlite, addPlayer } = fixture();
+    addPlayer("p1", "Alpha");
+    arrange(sqlite);
+    await expect(services.getPublicPlayerByHandle({ handle: "alpha" })).resolves.toBeNull();
+  });
+
+  it("follows publicProfile changes and a released handle", async () => {
+    const { services, sqlite, addPlayer } = fixture();
+    addPlayer("p1", "Alpha"); withHandle(sqlite, "p1", "alpha");
+    await expect(services.getPublicPlayerByHandle({ handle: "alpha" })).resolves.not.toBeNull();
+    sqlite.prepare("UPDATE player_accounts SET public_profile = 0").run();
+    await expect(services.getPublicPlayerByHandle({ handle: "alpha" })).resolves.toBeNull();
+    sqlite.prepare("UPDATE player_accounts SET public_profile = 1").run();
+    sqlite.prepare("DELETE FROM player_handles").run();
+    await expect(services.getPublicPlayerByHandle({ handle: "alpha" })).resolves.toBeNull();
+  });
+
+  it("links leaderboard rows only for public Players with an active handle", async () => {
+    const { services, sqlite, addPlayer, addMap, addRevision, addRun } = fixture();
+    addPlayer("pub", "Public"); addPlayer("anon", "Anon", 0); addPlayer("none", "Nohandle"); addPlayer("pend", "Pending");
+    addMap("map.a", "Map A"); addRevision("rev.a1", "map.a", "default");
+    for (const [index, id] of ["pub", "anon", "none", "pend"].entries()) addRun(`r.${id}`, id, "map.a", "rev.a1", 100 - index, 100);
+    withHandle(sqlite, "pub", "pubone"); withHandle(sqlite, "anon", "anonone"); withHandle(sqlite, "pend", "pendone", "pending");
+    const page = await services.getPublicLeaderboard({ board: "mastery", page: 1, pageSize: 10 });
+    expect(leaderboardResponseSchema.parse(page).items.map((item) => item.player?.handle ?? null)).toEqual(["pubone", null, null, null]);
+    expect(JSON.stringify(page)).not.toContain("anonone");
   });
 });
 

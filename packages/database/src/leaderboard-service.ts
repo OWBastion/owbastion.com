@@ -3,12 +3,13 @@ import { drizzle } from "drizzle-orm/d1";
 import type { PlatformServices } from "@owbastion/domain";
 import { leaderboardPlayerKey, leaderboardRuleVersion, projectLeaderboardEntry, rankLeaderboardRows, verifiedRunDifficulties, type VerifiedRunDifficulty } from "@owbastion/domain";
 import type { LeaderboardBoard, LeaderboardBoardStanding, LeaderboardEntry, LeaderboardEntryTitle, LeaderboardPlayerMapTitle } from "@owbastion/contracts";
-import { gameplayRevisions, mapTitleRewards, maps, playerAccounts, playerEquippedTitles, playerTitleGrants, seasons, titleCatalog, verifiedRuns } from "./schema";
+import { gameplayRevisions, mapTitleRewards, maps, playerAccounts, playerEquippedTitles, playerHandles, playerTitleGrants, seasons, titleCatalog, verifiedRuns } from "./schema";
 import { resolvePortalSession } from "./portal-session";
 
 type LeaderboardServices = Pick<PlatformServices,
   | "getPublicLeaderboard"
   | "getPublicLeaderboardPlayer"
+  | "getPublicPlayerByHandle"
   | "getCurrentPlayerLeaderboardRank"
 >;
 
@@ -126,10 +127,77 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
     return equipped;
   };
 
+  const loadActiveHandles = async (accountIds: string[]) => {
+    if (accountIds.length === 0) return new Map<string, string>();
+    const rows = await db.select({ playerAccountId: playerHandles.playerAccountId, handle: playerHandles.handle }).from(playerHandles)
+      .where(and(inArray(playerHandles.playerAccountId, accountIds), eq(playerHandles.status, "active")));
+    return new Map(rows.map((row) => [row.playerAccountId, row.handle]));
+  };
+
   const headlineBoardsForAnonymous = async (pageBoard: { board: LeaderboardBoard; mapId?: string; rows: Array<BoardRow & { rank: number }>; seasonal?: boolean; masteryAll?: Array<BoardRow & { rank: number }> | null }) => {
     const mastery = pageBoard.masteryAll ?? (pageBoard.board === "mastery" && !pageBoard.mapId && !pageBoard.seasonal ? pageBoard.rows : rankLeaderboardRows(await masteryRows()));
     const achievement = pageBoard.board === "achievement" ? pageBoard.rows : rankLeaderboardRows(await achievementRows());
     return { mastery: headlineStandings(mastery), achievement: headlineStandings(achievement) };
+  };
+
+  const publicPlayerSummary = async (account: { id: string; playerName: string }) => {
+    const [mastery, achievement, perMapRows, mapTitleRows, generalTitleRows, equipped, mapCountRow] = await Promise.all([
+      masteryRows().then(rankLeaderboardRows),
+      achievementRows().then(rankLeaderboardRows),
+      db.select({
+        mapId: verifiedRuns.mapId,
+        mapName: maps.name,
+        gameVersion: gameplayRevisions.gameVersion,
+        xp: sql<number>`sum(${verifiedRuns.awardedXp})`,
+        runCount: sql<number>`count(*)`,
+      }).from(verifiedRuns)
+        .innerJoin(gameplayRevisions, and(eq(gameplayRevisions.id, verifiedRuns.gameplayRevisionId), eq(gameplayRevisions.lifecycle, "default")))
+        .innerJoin(maps, eq(maps.id, verifiedRuns.mapId))
+        .where(and(eq(verifiedRuns.playerAccountId, account.id), eq(verifiedRuns.status, "active")))
+        .groupBy(verifiedRuns.mapId, maps.name),
+      db.select({ key: titleCatalog.key, label: titleCatalog.label, icon: titleCatalog.icon, iconUrl: titleCatalog.iconUrl, mapId: playerTitleGrants.mapId, mapName: maps.name, slot: mapTitleRewards.slot })
+        .from(playerTitleGrants)
+        .innerJoin(titleCatalog, eq(titleCatalog.key, playerTitleGrants.titleKey))
+        .innerJoin(maps, eq(maps.id, playerTitleGrants.mapId))
+        .leftJoin(mapTitleRewards, and(eq(mapTitleRewards.mapId, playerTitleGrants.mapId), eq(mapTitleRewards.titleKey, playerTitleGrants.titleKey)))
+        .where(and(
+          eq(playerTitleGrants.playerAccountId, account.id),
+          eq(playerTitleGrants.status, "active"),
+          eq(titleCatalog.scope, "map"),
+          sql`${titleCatalog.category} != '开发保留'`,
+          eq(titleCatalog.publicVisibility, 1),
+        )),
+      db.select({ key: titleCatalog.key, label: titleCatalog.label, icon: titleCatalog.icon, iconUrl: titleCatalog.iconUrl })
+        .from(playerTitleGrants)
+        .innerJoin(titleCatalog, eq(titleCatalog.key, playerTitleGrants.titleKey))
+        .where(and(
+          eq(playerTitleGrants.playerAccountId, account.id),
+          achievementGrantFilter,
+        )),
+      loadEquippedTitles([account.id]),
+      db.select({ count: sql<number>`count(*)` }).from(maps)
+        .innerJoin(gameplayRevisions, and(eq(gameplayRevisions.mapId, maps.id), eq(gameplayRevisions.lifecycle, "default")))
+        .where(eq(maps.status, "active")).get(),
+    ]);
+    const standingOf = (rows: Array<BoardRow & { rank: number }>) => {
+      const row = rows.find((entry) => entry.playerAccountId === account.id);
+      return row ? { rank: row.rank, score: row.score } : null;
+    };
+    const mapTitles: LeaderboardPlayerMapTitle[] = mapTitleRows.map((row) => ({ ...titleView(row), mapId: row.mapId!, mapName: row.mapName, slot: row.slot as LeaderboardPlayerMapTitle["slot"] }));
+    return {
+      contractVersion: "1" as const,
+      publicProfile: true,
+      player: { displayName: account.playerName, equippedTitle: equipped.get(account.id) ?? null },
+      boards: { mastery: standingOf(mastery), achievement: standingOf(achievement) },
+      perMapXp: perMapRows
+        .sort((a, b) => b.xp - a.xp || a.mapId.localeCompare(b.mapId))
+        .map((row) => ({ mapId: row.mapId, mapName: row.mapName, gameVersion: row.gameVersion, xp: row.xp, runCount: row.runCount })),
+      mapCount: mapCountRow?.count ?? 0,
+      titles: {
+        map: mapTitles.sort((a, b) => a.mapName.localeCompare(b.mapName) || a.titleKey.localeCompare(b.titleKey)),
+        general: generalTitleRows.map(titleView).sort((a, b) => a.titleKey.localeCompare(b.titleKey)),
+      },
+    };
   };
 
   return {
@@ -157,9 +225,10 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
       }).from(playerAccounts).where(inArray(playerAccounts.id, accountIds));
       const accountById = new Map(accounts.map((account) => [account.id, account]));
       const publicIds = slice.filter((row) => accountById.get(row.playerAccountId)?.publicProfile === 1).map((row) => row.playerAccountId);
-      const [equipped, latestTitles] = await Promise.all([
+      const [equipped, latestTitles, handles] = await Promise.all([
         loadEquippedTitles(publicIds),
         input.board === "achievement" ? loadLatestCountedTitles(publicIds) : new Map<string, LeaderboardEntryTitle>(),
+        loadActiveHandles(publicIds),
       ]);
       const anonymous = slice.filter((row) => accountById.get(row.playerAccountId)?.publicProfile !== 1);
       const boards = anonymous.length > 0
@@ -178,6 +247,7 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
             playerKey: await leaderboardPlayerKey(row.playerAccountId),
             displayName: account?.playerName ?? "",
             equippedTitle: equipped.get(row.playerAccountId) ?? null,
+            ...(handles.has(row.playerAccountId) ? { handle: handles.get(row.playerAccountId) } : {}),
           },
           boards: {
             mastery: standingFor(boards?.mastery),
@@ -216,63 +286,19 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
       if (account.publicProfile !== 1) {
         return { contractVersion: "1" as const, publicProfile: false, player: null, boards: null, perMapXp: null, mapCount: null, titles: null };
       }
-      const [mastery, achievement, perMapRows, mapTitleRows, generalTitleRows, equipped, mapCountRow] = await Promise.all([
-        masteryRows().then(rankLeaderboardRows),
-        achievementRows().then(rankLeaderboardRows),
-        db.select({
-          mapId: verifiedRuns.mapId,
-          mapName: maps.name,
-          gameVersion: gameplayRevisions.gameVersion,
-          xp: sql<number>`sum(${verifiedRuns.awardedXp})`,
-          runCount: sql<number>`count(*)`,
-        }).from(verifiedRuns)
-          .innerJoin(gameplayRevisions, and(eq(gameplayRevisions.id, verifiedRuns.gameplayRevisionId), eq(gameplayRevisions.lifecycle, "default")))
-          .innerJoin(maps, eq(maps.id, verifiedRuns.mapId))
-          .where(and(eq(verifiedRuns.playerAccountId, account.id), eq(verifiedRuns.status, "active")))
-          .groupBy(verifiedRuns.mapId, maps.name),
-        db.select({ key: titleCatalog.key, label: titleCatalog.label, icon: titleCatalog.icon, iconUrl: titleCatalog.iconUrl, mapId: playerTitleGrants.mapId, mapName: maps.name, slot: mapTitleRewards.slot })
-          .from(playerTitleGrants)
-          .innerJoin(titleCatalog, eq(titleCatalog.key, playerTitleGrants.titleKey))
-          .innerJoin(maps, eq(maps.id, playerTitleGrants.mapId))
-          .leftJoin(mapTitleRewards, and(eq(mapTitleRewards.mapId, playerTitleGrants.mapId), eq(mapTitleRewards.titleKey, playerTitleGrants.titleKey)))
-          .where(and(
-            eq(playerTitleGrants.playerAccountId, account.id),
-            eq(playerTitleGrants.status, "active"),
-            eq(titleCatalog.scope, "map"),
-            sql`${titleCatalog.category} != '开发保留'`,
-            eq(titleCatalog.publicVisibility, 1),
-          )),
-        db.select({ key: titleCatalog.key, label: titleCatalog.label, icon: titleCatalog.icon, iconUrl: titleCatalog.iconUrl })
-          .from(playerTitleGrants)
-          .innerJoin(titleCatalog, eq(titleCatalog.key, playerTitleGrants.titleKey))
-          .where(and(
-            eq(playerTitleGrants.playerAccountId, account.id),
-            achievementGrantFilter,
-          )),
-        loadEquippedTitles([account.id]),
-        db.select({ count: sql<number>`count(*)` }).from(maps)
-          .innerJoin(gameplayRevisions, and(eq(gameplayRevisions.mapId, maps.id), eq(gameplayRevisions.lifecycle, "default")))
-          .where(eq(maps.status, "active")).get(),
-      ]);
-      const standingOf = (rows: Array<BoardRow & { rank: number }>) => {
-        const row = rows.find((entry) => entry.playerAccountId === account!.id);
-        return row ? { rank: row.rank, score: row.score } : null;
-      };
-      const mapTitles: LeaderboardPlayerMapTitle[] = mapTitleRows.map((row) => ({ ...titleView(row), mapId: row.mapId!, mapName: row.mapName, slot: row.slot as LeaderboardPlayerMapTitle["slot"] }));
-      return {
-        contractVersion: "1" as const,
-        publicProfile: true,
-        player: { displayName: account.playerName, equippedTitle: equipped.get(account.id) ?? null },
-        boards: { mastery: standingOf(mastery), achievement: standingOf(achievement) },
-        perMapXp: perMapRows
-          .sort((a, b) => b.xp - a.xp || a.mapId.localeCompare(b.mapId))
-          .map((row) => ({ mapId: row.mapId, mapName: row.mapName, gameVersion: row.gameVersion, xp: row.xp, runCount: row.runCount })),
-        mapCount: mapCountRow?.count ?? 0,
-        titles: {
-          map: mapTitles.sort((a, b) => a.mapName.localeCompare(b.mapName) || a.titleKey.localeCompare(b.titleKey)),
-          general: generalTitleRows.map(titleView).sort((a, b) => a.titleKey.localeCompare(b.titleKey)),
-        },
-      };
+      return publicPlayerSummary(account);
+    },
+
+    // Only an active handle of a public, non-banned Player resolves; every other
+    // state is indistinguishable from an unknown handle.
+    async getPublicPlayerByHandle(input) {
+      const row = await db.select({ id: playerAccounts.id, playerName: playerAccounts.playerName, handle: playerHandles.handle })
+        .from(playerHandles)
+        .innerJoin(playerAccounts, eq(playerAccounts.id, playerHandles.playerAccountId))
+        .where(and(eq(playerHandles.handle, input.handle), eq(playerHandles.status, "active"), eq(playerAccounts.publicProfile, 1), eq(playerAccounts.status, "active")))
+        .get();
+      if (!row) return null;
+      return { ...(await publicPlayerSummary(row)), handle: row.handle };
     },
 
     async getCurrentPlayerLeaderboardRank(input) {

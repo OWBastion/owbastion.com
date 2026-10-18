@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 export const titleCatalogSchema = `CREATE TABLE title_catalog (
     key TEXT PRIMARY KEY NOT NULL,
     label TEXT NOT NULL,
@@ -387,3 +388,7 @@ export const qqSessionsSchema = `CREATE TABLE qq_sessions (
       expires_at INTEGER NOT NULL,
       created_at INTEGER NOT NULL
     );`;
+
+// The player handle table and its partial unique indexes, taken straight from the
+// migration so tests exercise the real concurrency guards.
+export const playerHandlesSchema = readFileSync(new URL("../../../migrations/0104_player_handles.sql", import.meta.url), "utf8");

@@ -53,6 +53,21 @@ export const playerAccounts = sqliteTable("player_accounts", {
   battleTag: uniqueIndex("player_accounts_battletag_idx").on(table.normalizedPlayerName, table.playerId),
 }));
 
+export const playerHandles = sqliteTable("player_handles", {
+  id: text("id").primaryKey(),
+  playerAccountId: text("player_account_id").notNull().references(() => playerAccounts.id),
+  handle: text("handle").notNull(),
+  status: text("status").notNull(),
+  requestedAt: integer("requested_at").notNull(),
+  decidedAt: integer("decided_at"),
+  decidedBy: text("decided_by"),
+}, (table) => ({
+  reserved: uniqueIndex("player_handles_reserved_idx").on(table.handle).where(sql`status IN ('pending', 'active')`),
+  activePlayer: uniqueIndex("player_handles_active_player_idx").on(table.playerAccountId).where(sql`status = 'active'`),
+  requestPlayer: uniqueIndex("player_handles_request_player_idx").on(table.playerAccountId).where(sql`status IN ('pending', 'rejected')`),
+  pending: index("player_handles_pending_idx").on(table.requestedAt).where(sql`status = 'pending'`),
+}));
+
 export const maps = sqliteTable("maps", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
