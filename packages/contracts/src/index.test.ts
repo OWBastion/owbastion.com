@@ -101,7 +101,7 @@ describe("v1 platform contracts", () => {
     const state = { contractVersion: "1", handle: "tester", pending: { requestId: "00000000-0000-4000-8000-000000000001", handle: "newone", requestedAt: 1 }, rejected: null };
     expect(playerHandleStateResponseSchema.safeParse(state).success).toBe(true);
     expect(playerHandleStateResponseSchema.safeParse({ ...state, playerAccountId: "p1" }).success).toBe(false);
-    const profile = { contractVersion: "1", publicProfile: true, handle: "tester", player: { displayName: "Tester", equippedTitle: null }, boards: { mastery: null, achievement: null }, perMapXp: [], mapCount: 0, titles: { map: [], general: [] } };
+    const profile = { contractVersion: "1", publicProfile: true, handle: "tester", player: { displayName: "Tester", equippedTitle: null }, boards: { mastery: null, achievement: null }, perMapXp: [], mapCount: 0, titles: { map: [], general: [] }, activity: [{ date: "2026-10-07", runCount: 2 }] };
     expect(publicPlayerProfileSchema.safeParse(profile).success).toBe(true);
     expect(publicPlayerProfileSchema.safeParse({ ...profile, playerId: "1234" }).success).toBe(false);
     expect(publicPlayerProfileSchema.safeParse({ ...profile, player: { displayName: "Tester", equippedTitle: null, qqOpenId: "q" } }).success).toBe(false);

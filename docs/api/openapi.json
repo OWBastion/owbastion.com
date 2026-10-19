@@ -622,7 +622,7 @@
   "/v1/public/players/{handle}": {
    "get": {
     "operationId": "getPublicPlayerByHandle",
-    "description": "Public profile for /u/{handle}: the same public projection as the leaderboard player summary plus the handle. Only an active handle of a Player whose public-profile visibility is on and who is not banned resolves; unknown, pending-only, rejected, cleared, released, non-public, and banned all return the same 404. Never returns internal ids, BattleTag, or QQ identifiers.",
+    "description": "Public profile for /u/{handle}: the same public projection as the leaderboard player summary plus the handle and `activity`, the same per-day Verified Run counts (UTC+8 date and run count over a bounded 371-day window) that /v1/me/activity returns. Only an active handle of a Player whose public-profile visibility is on and who is not banned resolves; unknown, pending-only, rejected, cleared, released, non-public, and banned all return the same 404. Never returns internal ids, BattleTag, or QQ identifiers.",
     "parameters": [
      {
       "$ref": "#/components/parameters/playerHandle"
