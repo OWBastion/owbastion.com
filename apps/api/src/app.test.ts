@@ -1999,6 +1999,13 @@ describe("API", () => {
     expect(seen[0]).toMatchObject({ mode: "regular" });
   });
 
+  it("passes the player account filter to the submission list", async () => {
+    const seen: unknown[] = [];
+    const listApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, listAdminSubmissions: (async (input: unknown) => { seen.push(input); return { contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }; }) as never }) });
+    expect((await listApp.request("http://localhost/v1/admin/submissions?playerAccountId=player-1&page=1&pageSize=20", {}, env)).status).toBe(200);
+    expect(seen[0]).toMatchObject({ playerAccountId: "player-1" });
+  });
+
   it("does not expose player or maintainer challenge selection routes", async () => {
     const playerConfirm = await app.request("http://localhost/v1/player/submissions/00000000-0000-0000-0000-000000000000/challenge", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", challengeId: "title.hero" }) });
     const adminOptions = await app.request("http://localhost/v1/admin/submissions/00000000-0000-0000-0000-000000000000/challenges");

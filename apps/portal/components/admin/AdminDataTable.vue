@@ -82,6 +82,7 @@ const controls = useTemplateRef<HTMLElement>("controls");
 const scrollContainer = useTemplateRef<HTMLElement>("scrollContainer");
 const tableViewport = useTemplateRef<HTMLElement>("tableViewport");
 const slots = useSlots();
+const NuxtLink = resolveComponent("NuxtLink");
 const tableSlots = Object.fromEntries(Object.entries(slots).filter(([name]) => !["filters", "mobile-primary", "mobile-secondary"].includes(name)));
 const tableUi = { root: "overflow-visible", thead: "after:content-none" };
 const tableColumns = computed(() => {
@@ -349,7 +350,7 @@ onBeforeUnmount(() => {
         <ul v-else class="admin-data-table__mobile-records">
           <li v-for="item in mobileData" :key="rowIdentity(item)" class="admin-data-table__mobile-record">
             <component
-              :is="props.mobileRowLink ? 'NuxtLink' : props.mobileRowAction ? 'button' : 'div'"
+              :is="props.mobileRowLink ? NuxtLink : props.mobileRowAction ? 'button' : 'div'"
               :class="props.mobileRowLink || props.mobileRowAction ? 'admin-data-table__mobile-primary-link pressable-soft' : 'admin-data-table__mobile-primary'"
               :to="props.mobileRowLink?.(item)"
               :type="props.mobileRowAction && !props.mobileRowLink ? 'button' : undefined"
