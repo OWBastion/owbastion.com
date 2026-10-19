@@ -25,8 +25,8 @@ defineProps<{
 <style>
 .admin-workspace { display: grid; gap: clamp(1rem, 2vw, 1.25rem); padding-block: clamp(1.5rem, 4vh, 2.5rem) 3rem; }
 .admin-workspace__header { position: relative; display: flex; align-items: end; justify-content: space-between; gap: 1.25rem; padding-bottom: var(--space-4); border-bottom: 1px solid var(--line); }
-/* Status rail: a short signal-coloured segment marks admin pages apart from the player site. */
-.admin-workspace__header::after { position: absolute; bottom: -1px; left: 0; width: 3rem; height: 2px; background: var(--signal); content: ""; }
+/* Status rail: a short accent-coloured segment marks admin pages apart from the player site. */
+.admin-workspace__header::after { position: absolute; bottom: -1px; left: 0; width: 3rem; height: 2px; background: var(--accent); content: ""; }
 .admin-workspace__heading { display: grid; gap: var(--space-2); min-width: 0; }
 .admin-workspace__title-row { display: flex; align-items: baseline; gap: 0.75rem; min-width: 0; }
 .admin-workspace__header h1 { margin: 0; font-family: var(--font-display); font-size: clamp(1.75rem, 3vw, 2.25rem); font-weight: 700; letter-spacing: -.01em; line-height: 1.1; overflow-wrap: anywhere; }
