@@ -277,6 +277,25 @@ describe("public player profiles by handle", () => {
     await expect(services.getPublicPlayerByHandle({ handle: "missing" })).resolves.toBeNull();
   });
 
+  it("includes per-day active run counts on the UTC+8 calendar within the activity window", async () => {
+    const { services, sqlite, addPlayer, addMap, addRevision, addRun } = fixture();
+    addPlayer("p1", "Alpha"); addPlayer("p2", "Beta"); addMap("map.a", "Map A"); addRevision("rev.a1", "map.a", "default");
+    withHandle(sqlite, "p1", "alpha");
+    // 2026-10-06T16:30Z and 2026-10-07T15:00Z are both 2026-10-07 in UTC+8; 2026-10-06T15:59Z is 2026-10-06.
+    const recent = Date.now() - 2 * 86_400_000;
+    const day = new Date(recent).toISOString().slice(0, 10);
+    const at = (iso: string) => Date.parse(iso) - Date.parse("2026-10-07T00:00:00Z") + Date.parse(`${day}T00:00:00Z`);
+    addRun("r1", "p1", "map.a", "rev.a1", 10, at("2026-10-06T16:30:00Z"));
+    addRun("r2", "p1", "map.a", "rev.a1", 10, at("2026-10-07T15:00:00Z"));
+    addRun("r3", "p1", "map.a", "rev.a1", 10, at("2026-10-06T15:59:00Z"));
+    addRun("r4", "p1", "map.a", "rev.a1", 10, at("2026-10-07T01:00:00Z"), "invalidated");
+    addRun("r5", "p2", "map.a", "rev.a1", 10, at("2026-10-07T01:00:00Z"));
+    addRun("r6", "p1", "map.a", "rev.a1", 10, 100);
+    const previous = new Date(Date.parse(`${day}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+    const profile = await services.getPublicPlayerByHandle({ handle: "alpha" });
+    expect(publicPlayerProfileSchema.parse(profile).activity).toEqual([{ date: previous, runCount: 1 }, { date: day, runCount: 2 }]);
+  });
+
   it.each([
     ["pending-only", (sqlite: ReturnType<typeof fixture>["sqlite"]) => withHandle(sqlite, "p1", "alpha", "pending")],
     ["rejected", (sqlite: ReturnType<typeof fixture>["sqlite"]) => withHandle(sqlite, "p1", "alpha", "rejected")],

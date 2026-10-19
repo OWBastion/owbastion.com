@@ -1731,9 +1731,10 @@ export const leaderboardPlayerSummarySchema = z.object({
 }).strict();
 
 // Public profile by handle (#438): the same public projection as the leaderboard
-// drawer plus the handle. A missing, pending-only, cleared, or non-public Player
-// 404s at the route layer, so `publicProfile` is always true here.
-export const publicPlayerProfileSchema = leaderboardPlayerSummarySchema.extend({ handle: playerHandleSchema }).strict();
+// drawer plus the handle and the per-day run counts `/v1/me/activity` returns.
+// A missing, pending-only, cleared, or non-public Player 404s at the route
+// layer, so `publicProfile` is always true here.
+export const publicPlayerProfileSchema = leaderboardPlayerSummarySchema.extend({ handle: playerHandleSchema, activity: z.array(playerActivityDaySchema) }).strict();
 
 // Authenticated own-rank read (#399). `rank`, `reachedAt`, and `gapToNextRank`
 // are null when the Player has no standing; the gap is the score distance to

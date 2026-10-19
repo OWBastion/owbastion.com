@@ -29,7 +29,7 @@ import { createMapRevisionServices, pioneerExceptionHasValidWindow } from "./map
 import { createPlayerTitleServices, type ManualTitleGrantResolution } from "./player-title-service";
 import { createBindingServices } from "./binding-service";
 import { createPortalAuthenticationServices } from "./portal-authentication-service";
-import { activeMasteryProfiles, asVerifiedRun, loadActiveVerifiedRuns, loadPlayerMasteryHistory, loadVerifiedRunXpContext, masteryConflictFields, playerMasteryProfileView, playerVerifiedRunView, prepareVerifiedRun } from "./mastery-query";
+import { activeMasteryProfiles, asVerifiedRun, loadActiveVerifiedRuns, loadPlayerMasteryHistory, loadVerifiedRunXpContext, masteryConflictFields, playerMasteryProfileView, playerActivityDays, playerVerifiedRunView, prepareVerifiedRun } from "./mastery-query";
 import { pageResult, paginate } from "./page-result";
 import { createChallengeSnapshotServices, type MapTitleRuleSnapshot } from "./challenge-snapshot-service";
 import { createChallengeCatalogServices } from "./challenge-catalog-service";
@@ -2975,19 +2975,7 @@ if (verifiedRunPlan?.superseded) await reconcileVerifiedRunProgressChallenges({ 
     async getCurrentPlayerActivity(input) {
       const access = await getCurrentPortalPlayer(input.sessionToken);
       if (!access) return null;
-      const utc8DayMs = 86_400_000;
-      const utc8OffsetMs = 8 * 3_600_000;
-      const todayStartMs = Math.floor((now() + utc8OffsetMs) / utc8DayMs) * utc8DayMs - utc8OffsetMs;
-      const windowStartMs = todayStartMs - 370 * utc8DayMs;
-      const rows = await db.select({ acceptedAt: verifiedRuns.acceptedAt }).from(verifiedRuns)
-        .where(and(eq(verifiedRuns.playerAccountId, access.player.id), eq(verifiedRuns.status, "active"), gte(verifiedRuns.acceptedAt, windowStartMs)));
-      const counts = new globalThis.Map<string, number>();
-      for (const { acceptedAt } of rows) {
-        // acceptedAt + 8h floored to the day boundary is 08:00 UTC on the run's UTC+8 calendar date.
-        const date = new Date(Math.floor((acceptedAt + utc8OffsetMs) / utc8DayMs) * utc8DayMs).toISOString().slice(0, 10);
-        counts.set(date, (counts.get(date) ?? 0) + 1);
-      }
-      return { days: [...counts.entries()].map(([date, runCount]) => ({ date, runCount })).sort((a, b) => a.date.localeCompare(b.date)) };
+      return { days: await playerActivityDays(db, access.player.id, now()) };
     },
 
     // Per-map progress for aggregate Challenges, derived from active Verified

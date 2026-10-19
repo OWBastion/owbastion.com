@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
-import { playerReviewResponseSchema, publicReviewSummaryResponseSchema } from "@owbastion/contracts";
+import { playerReviewResponseSchema, publicReviewSummaryResponseSchema, publicPlayerProfileSchema } from "@owbastion/contracts";
 import { createApp, type RuntimeEnv } from "./app";
 import { withPublicCache } from "./public-cache";
 
@@ -2472,11 +2472,12 @@ describe("player handle routes", () => {
   });
 
   it("serves public profiles by normalized handle without a session and 404s everything else", async () => {
-    const lookup = vi.fn(async ({ handle }: { handle: string }) => handle === "tester" ? { contractVersion: "1" as const, publicProfile: true, handle, player: { displayName: "Tester", equippedTitle: null }, boards: { mastery: null, achievement: null }, perMapXp: [], mapCount: 0, titles: { map: [], general: [] } } : null);
+    const lookup = vi.fn(async ({ handle }: { handle: string }) => handle === "tester" ? { contractVersion: "1" as const, publicProfile: true, handle, player: { displayName: "Tester", equippedTitle: null }, boards: { mastery: null, achievement: null }, perMapXp: [], mapCount: 0, titles: { map: [], general: [] }, activity: [{ date: "2026-10-07", runCount: 2 }] } : null);
     const publicApp = createTestApp({ getPublicPlayerByHandle: lookup });
     const response = await publicApp.request("http://localhost/v1/public/players/TESTER", {}, env);
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(publicPlayerProfileSchema.parse(await response.json()).activity).toEqual([{ date: "2026-10-07", runCount: 2 }]);
     expect(lookup).toHaveBeenCalledWith({ handle: "tester" });
     expect((await publicApp.request("http://localhost/v1/public/players/nobody", {}, env)).status).toBe(404);
     await publicApp.request(`http://localhost/v1/public/players/${encodeURIComponent("速通达人")}`, {}, env);

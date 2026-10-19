@@ -191,3 +191,21 @@ export const findConflictingVerifiedRun = (db: Database, input: { playerAccountI
     input.activeOnly ? eq(verifiedRuns.status, "active") : undefined,
     ne(verifiedRuns.id, input.exceptRunId),
   )).get();
+
+// Per-day active Verified Run counts bucketed by UTC+8 calendar date over a
+// bounded 371-day window, shared by the own-activity read and public profiles.
+export const playerActivityDays = async (db: Database, playerAccountId: string, timestamp: number) => {
+  const utc8DayMs = 86_400_000;
+  const utc8OffsetMs = 8 * 3_600_000;
+  const todayStartMs = Math.floor((timestamp + utc8OffsetMs) / utc8DayMs) * utc8DayMs - utc8OffsetMs;
+  const windowStartMs = todayStartMs - 370 * utc8DayMs;
+  const rows = await db.select({ acceptedAt: verifiedRuns.acceptedAt }).from(verifiedRuns)
+    .where(and(eq(verifiedRuns.playerAccountId, playerAccountId), eq(verifiedRuns.status, "active"), gte(verifiedRuns.acceptedAt, windowStartMs)));
+  const counts = new globalThis.Map<string, number>();
+  for (const { acceptedAt } of rows) {
+    // acceptedAt + 8h floored to the day boundary is 08:00 UTC on the run's UTC+8 calendar date.
+    const date = new Date(Math.floor((acceptedAt + utc8OffsetMs) / utc8DayMs) * utc8DayMs).toISOString().slice(0, 10);
+    counts.set(date, (counts.get(date) ?? 0) + 1);
+  }
+  return [...counts.entries()].map(([date, runCount]) => ({ date, runCount })).sort((a, b) => a.date.localeCompare(b.date));
+};
