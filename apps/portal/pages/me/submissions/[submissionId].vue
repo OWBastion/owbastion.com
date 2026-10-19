@@ -19,7 +19,8 @@ const manualReviewRequested = shallowRef(false);
 const manualReviewError = shallowRef("");
 const refreshError = shallowRef("");
 const actionMessage = shallowRef("");
-let ocrPollTimer: ReturnType<typeof setInterval> | null = null;
+const pollTimedOut = shallowRef(false);
+let ocrPollTimer: ReturnType<typeof setTimeout> | null = null;
 const evidenceState = shallowRef<"loading" | "ready" | "missing" | "failed">("loading");
 const resubmissionTips = [
   { icon: "i-lucide-panels-top-left", title: "保留完整通关数据", description: "确保通关时间、击杀数和其他关键数据清晰可见。" },
@@ -64,6 +65,7 @@ const refreshSubmission = async () => {
   if (refreshingStatus.value || fetchStatus.value === "pending") return;
   refreshingStatus.value = true;
   refreshError.value = "";
+  pollTimedOut.value = false;
   actionMessage.value = "";
   try {
     // Explicit refresh keeps the current detail on failure instead of replacing the page with the route error state.
@@ -81,20 +83,41 @@ const markEvidenceFailed = () => {
 
 const loadEvidence = () => { evidenceState.value = hasEvidenceSource.value ? "ready" : "missing"; };
 
-onMounted(() => {
-  if (data.value?.status !== "processing") return;
-  ocrPollTimer = setInterval(async () => {
-    if (document.visibilityState === "hidden") return;
-    if (fetchStatus.value === "pending" || mutationBusy.value) return;
-    try { await refresh(); } catch { return; }
-    if (data.value?.status !== "processing" && ocrPollTimer) {
-      clearInterval(ocrPollTimer);
-      ocrPollTimer = null;
+const ocrProcessing = computed(() => data.value?.status === "processing");
+const ocrPollInitialMs = 2000;
+const ocrPollMaxIntervalMs = 16_000;
+const ocrPollLimitMs = 120_000;
+function stopOcrPoll() {
+  if (ocrPollTimer) clearTimeout(ocrPollTimer);
+  ocrPollTimer = null;
+}
+watch(ocrProcessing, (processing) => {
+  stopOcrPoll();
+  if (pollTimedOut.value) {
+    pollTimedOut.value = false;
+    refreshError.value = "";
+  }
+  if (!processing || !import.meta.client) return;
+  const startedAt = Date.now();
+  let delayMs = ocrPollInitialMs;
+  async function poll() {
+    ocrPollTimer = null;
+    if (Date.now() - startedAt >= ocrPollLimitMs) {
+      pollTimedOut.value = true;
+      refreshError.value = "仍在处理中，请稍后点击「刷新状态」查看最新进度。";
+      return;
     }
-  }, 2000);
-});
+    if (document.visibilityState !== "hidden" && fetchStatus.value !== "pending" && !mutationBusy.value) {
+      try { await refresh(); } catch { /* A failed tick keeps the backoff cadence. */ }
+      if (!ocrProcessing.value) return;
+    }
+    delayMs = Math.min(delayMs * 2, ocrPollMaxIntervalMs);
+    ocrPollTimer = setTimeout(poll, delayMs);
+  }
+  ocrPollTimer = setTimeout(poll, delayMs);
+}, { immediate: true });
 onMounted(() => { void loadEvidence(); });
-onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
+onBeforeUnmount(stopOcrPoll);
 </script>
 
 <template>
@@ -130,7 +153,7 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
         aria-atomic="true"
       >
         <UAlert v-if="manualReviewError" color="error" variant="subtle" title="无法申请人工核对" :description="manualReviewError" />
-        <UAlert v-else-if="refreshError" color="error" variant="subtle" title="无法刷新状态" :description="refreshError" />
+        <UAlert v-else-if="refreshError" :color="pollTimedOut ? 'warning' : 'error'" variant="subtle" :title="pollTimedOut ? '自动更新已停止' : '无法刷新状态'" :description="refreshError" />
         <UAlert v-else-if="actionMessage" color="success" variant="subtle" :title="actionMessage" />
       </div>
 

@@ -1,6 +1,6 @@
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import SubmissionPage from "./[submissionId].vue";
 
 const baseSubmission = {
@@ -297,5 +297,88 @@ describe("submission detail page", () => {
     api.mockImplementation(() => Promise.resolve({ ...baseSubmission, status: "completed", reason: undefined }));
     const wrapper = await mountSubmission("/me/submissions/submission-no-feedback");
     expect(wrapper.find('[aria-label="识别反馈"]').exists()).toBe(false);
+  });
+
+  describe("status polling", () => {
+    const processingSubmission = {
+      submissionId: "submission-processing",
+      status: "processing",
+      mapName: "花村",
+      createdAt: 0,
+      updatedAt: 1,
+      evidenceUrl: "https://example.test/evidence.png",
+    };
+    const processingPath = "/v1/me/submissions/submission-processing";
+    const mountProcessing = async () => {
+      const mounting = mountSubmission("/me/submissions/submission-processing");
+      // Route navigation waits on a 100ms repaint-guard timeout, which sits on the faked clock.
+      await vi.advanceTimersByTimeAsync(150);
+      return mounting;
+    };
+
+    afterEach(() => { vi.useRealTimers(); });
+
+    it("spaces automatic status polls further apart while processing", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+      const requestedAt: number[] = [];
+      api.mockImplementation((path?: string, options?: { method?: string }) => {
+        if (path === processingPath && !options?.method) requestedAt.push(Date.now());
+        return Promise.resolve({ ...processingSubmission });
+      });
+      await mountProcessing();
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      // A fixed 2s cadence would have produced about 30 requests in 60s.
+      expect(requestedAt.length).toBeLessThanOrEqual(8);
+      const gaps = requestedAt.slice(1).map((time, index) => time - requestedAt[index]);
+      expect(gaps.length).toBeGreaterThanOrEqual(3);
+      for (let index = 1; index < gaps.length; index += 1) expect(gaps[index]).toBeGreaterThanOrEqual(gaps[index - 1]);
+      expect(gaps[gaps.length - 1]).toBeGreaterThan(gaps[0]);
+    });
+
+    it("stops polling after the overall limit and keeps manual refresh available", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+      let detailRequests = 0;
+      api.mockImplementation((path?: string, options?: { method?: string }) => {
+        if (path === processingPath && !options?.method) detailRequests += 1;
+        return Promise.resolve({ ...processingSubmission });
+      });
+      const wrapper = await mountProcessing();
+      await vi.advanceTimersByTimeAsync(140_000);
+
+      const requestsAtLimit = detailRequests;
+      expect(requestsAtLimit).toBeLessThanOrEqual(12);
+      const liveRegion = wrapper.get('[aria-live="polite"]');
+      expect(liveRegion.text()).toContain("自动更新已停止");
+      expect(liveRegion.text()).toContain("仍在处理中");
+      expect(wrapper.text()).toContain("处理中");
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(detailRequests).toBe(requestsAtLimit);
+
+      await wrapper.get('button[aria-label="刷新状态"]').trigger("click");
+      await flushPromises();
+      expect(detailRequests).toBe(requestsAtLimit + 1);
+    });
+
+    it("stops polling once the submission reaches a final state", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+      let detailRequests = 0;
+      api.mockImplementation((path?: string, options?: { method?: string }) => {
+        if (path === processingPath && !options?.method) {
+          detailRequests += 1;
+          return Promise.resolve(detailRequests >= 3 ? { ...processingSubmission, status: "completed" } : { ...processingSubmission });
+        }
+        return Promise.resolve({});
+      });
+      const wrapper = await mountProcessing();
+      await vi.advanceTimersByTimeAsync(20_000);
+
+      expect(wrapper.text()).toContain("已完成");
+      const settledRequests = detailRequests;
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(detailRequests).toBe(settledRequests);
+      expect(wrapper.find('[aria-live="polite"]').exists()).toBe(false);
+    });
   });
 });
