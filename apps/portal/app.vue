@@ -17,7 +17,7 @@ useHead({
   <UApp :locale="zhCN">
     <div class="app-root" data-vaul-drawer-wrapper>
       <NuxtLayout>
-        <NuxtPage :page-key="(route) => route.fullPath" />
+        <NuxtPage :page-key="(route) => route.path" />
       </NuxtLayout>
     </div>
   </UApp>
