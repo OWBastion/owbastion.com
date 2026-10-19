@@ -36,7 +36,9 @@ Platform-owned metadata and its authoring rules. Lifecycle semantics:
   product), and historical migration each record a manual or migration Completion, then
   the linked Grant. Batch uses the Title's manual Challenge, created or reused.
 - Global Titles have no map context; map Titles need a map title rule, Challenge, or
-  reward association. Retired Titles are issuable only explicitly. Historical migration
+  reward association; a lapsed or disabled Pioneer window still counts — the window
+  gates submissions, not manual issuance. Retired Titles are issuable only explicitly.
+  Historical migration
   `/bulk` is separate.
 - A maintainer can migrate one historical holder snapshot, or all its unclaimed records,
   to an account, and revoke any Grant with a recorded reason. Names are never matched

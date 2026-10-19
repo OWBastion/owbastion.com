@@ -200,7 +200,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     toTitleChallengeBase,
     validateChallengeMapScope,
   } = createChallengeCatalogServices({ db, now, platformCache, pioneerExceptionIsSubmittable, publicTitleChallengeStatus });
-  const { batchResolveAutomaticSnapshots, resolveLegacyProjection, resolveMapTitleProjection, resolveMapTitleProjections, selectGameplayRevision, snapshotTitleChallenge } = createChallengeSnapshotServices({ db, now, pioneerExceptionIsSubmittable });
+  const { batchResolveAutomaticSnapshots, resolveLegacyProjection, resolveMapTitleProjection, resolveMapTitleProjections, selectGameplayRevision, snapshotTitleChallenge } = createChallengeSnapshotServices({ db, now, pioneerExceptionIsSubmittable, pioneerExceptionHasValidWindow });
   const databaseServiceDependencies = {
     now,
     platformCache,
@@ -322,7 +322,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
 
     const rule = await db.select({ ruleId: mapTitleRules.id }).from(mapTitleRules)
       .where(and(eq(mapTitleRules.titleKey, title.key), ne(mapTitleRules.status, "archived"))).get();
-    const projection = rule ? await resolveMapTitleProjection(rule.ruleId, input.mapId, revision.id) : null;
+    const projection = rule ? await resolveMapTitleProjection(rule.ruleId, input.mapId, revision.id, now(), { allowLapsedPioneerWindow: true }) : null;
     if (projection) return { title, mapId: input.mapId, gameplayRevisionId: revision.id, slot: projection.slot, manualChallengeId };
 
     const titleChallengeRows = await db.select({ challenge: titleChallenges, catalog: titleCatalog }).from(titleChallenges)

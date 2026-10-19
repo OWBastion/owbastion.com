@@ -39,9 +39,10 @@ type Dependencies = {
   db: ReturnType<typeof drizzle>;
   now: () => number;
   pioneerExceptionIsSubmittable: (enabled: number, startsAt: number | null, endsAt: number | null, timestamp: number) => boolean;
+  pioneerExceptionHasValidWindow: (startsAt: number | null, endsAt: number | null) => boolean;
 };
 
-export const createChallengeSnapshotServices = ({ db, now, pioneerExceptionIsSubmittable }: Dependencies) => {
+export const createChallengeSnapshotServices = ({ db, now, pioneerExceptionIsSubmittable, pioneerExceptionHasValidWindow }: Dependencies) => {
   const toMapTitleRuleSnapshot = (
     rule: typeof mapTitleRules.$inferSelect,
     mapId: string,
@@ -49,10 +50,16 @@ export const createChallengeSnapshotServices = ({ db, now, pioneerExceptionIsSub
     assignment: typeof gameplayRevisionChallengeAssignments.$inferSelect | undefined,
     exception: typeof mapTitleRuleExceptions.$inferSelect | undefined,
     eligibilityAt: number,
+    allowLapsedPioneerWindow = false,
   ): MapTitleRuleSnapshot | null => {
     if (!assignment || assignment.enabled === 0 || rule.status !== "active") return null;
     const pioneer = rule.kind.trim().toLocaleLowerCase() === "pioneer";
-    if (pioneer && (rule.defaultScope !== "explicit" || !pioneerExceptionIsSubmittable(exception?.enabled ?? 0, exception?.startsAt ?? null, exception?.endsAt ?? null, eligibilityAt))) return null;
+    // The window gates submission eligibility, not manual issuance: once a map ran a
+    // bounded Pioneer window, maintainers may still grant the title after it ends.
+    const pioneerWindowOk = allowLapsedPioneerWindow
+      ? exception !== undefined && pioneerExceptionHasValidWindow(exception.startsAt, exception.endsAt)
+      : pioneerExceptionIsSubmittable(exception?.enabled ?? 0, exception?.startsAt ?? null, exception?.endsAt ?? null, eligibilityAt);
+    if (pioneer && (rule.defaultScope !== "explicit" || !pioneerWindowOk)) return null;
     const activeException = exception?.enabled === 1 ? exception : null;
     return {
       ruleId: rule.id,
@@ -128,6 +135,7 @@ export const createChallengeSnapshotServices = ({ db, now, pioneerExceptionIsSub
     mapId: string,
     gameplayRevisionId?: string | null,
     eligibilityAt = now(),
+    options?: { allowLapsedPioneerWindow?: boolean },
   ): Promise<MapTitleRuleSnapshot | null> => {
     // Step 1: check map status.
     const map = await db.select({ id: maps.id, status: maps.status }).from(maps).where(eq(maps.id, mapId)).get();
@@ -144,7 +152,7 @@ export const createChallengeSnapshotServices = ({ db, now, pioneerExceptionIsSub
     const exception = await db.select().from(mapTitleRuleExceptions)
       .where(and(eq(mapTitleRuleExceptions.ruleId, ruleId), eq(mapTitleRuleExceptions.mapId, mapId)))
       .get();
-    return toMapTitleRuleSnapshot(rule, mapId, revision, assignment, exception, eligibilityAt);
+    return toMapTitleRuleSnapshot(rule, mapId, revision, assignment, exception, eligibilityAt, options?.allowLapsedPioneerWindow);
   };
 
   // Resolve a compat-mapped legacy challenge ID through the rule model.
