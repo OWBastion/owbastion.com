@@ -28,9 +28,8 @@ const showFooter = computed(() => !route.path.startsWith("/admin"));
 
 <style scoped>
 .app-shell { min-height: 100svh; }
-.app-main { display: flex; min-width: 0; min-height: 100svh; flex-direction: column; padding-left: var(--sidebar-width); }
+.app-main { display: flex; min-width: 0; min-height: calc(100svh - 3.5rem); flex-direction: column; padding-left: var(--sidebar-width); }
 .app-main--tabbed { padding-bottom: var(--tab-bar-height); }
-@media (max-width: 63.99rem) { .app-main { min-height: calc(100svh - 3.5rem); } }
 .site-footer { margin-top: auto; border-top: 1px solid var(--line); background: color-mix(in oklch, var(--page) 70%, transparent); }
 .site-footer__inner { display: grid; grid-template-columns: 1fr auto; gap: var(--space-4) var(--space-8); width: min(100% - 3rem, 90rem); margin: 0 auto; padding-block: var(--space-8); color: var(--quiet); font-size: var(--type-caption-size); }
 .site-footer__brand { display: grid; gap: var(--space-1); }
