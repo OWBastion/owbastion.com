@@ -38,7 +38,7 @@ const noteOf = (challenge: PublicAchievement) => challenge.status === "scheduled
     <UModal v-model:open="sheetOpen" :title="selected?.titleName ?? ''" :description="selected ? noteOf(selected) : undefined">
       <template #body>
         <div v-if="selected" class="sheet">
-          <AchievementIcon class="sheet__icon" :url="selected.iconUrl" :icon="selected.icon" earned />
+          <AchievementIcon class="sheet__icon" entrance :url="selected.iconUrl" :icon="selected.icon" earned />
           <p class="sheet__condition">{{ selected.condition }}</p>
           <p v-if="titles && stateOf(selected) !== 'none'" class="sheet__owned"><UIcon name="i-lucide-check" aria-hidden="true" />已获得</p>
         </div>
