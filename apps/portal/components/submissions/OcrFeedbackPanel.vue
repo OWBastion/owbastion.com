@@ -27,7 +27,7 @@ const mark = async (accuracy: AccuracyMark) => {
       headers: { "Idempotency-Key": createRequestId() },
       body: { contractVersion: "1", ocrResultId: props.feedback.ocrResultId, accuracy },
     });
-    message.value = "已记录标记，感谢核对。标记不会影响挑战核对结果。";
+    message.value = "已记录";
     emit("recorded");
   } catch (cause) {
     const details = portalErrorDetails(cause, "无法记录标记，请稍后重试。");
@@ -40,52 +40,35 @@ const mark = async (accuracy: AccuracyMark) => {
 </script>
 
 <template>
-  <div class="ocr-feedback">
-    <div v-if="message" class="feedback-live" role="status" aria-live="polite">
-      <UAlert color="success" variant="subtle" :description="message" />
-    </div>
-    <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" class="feedback-error" />
-
-    <UCard class="feedback-card elevation-2" :aria-busy="busy || undefined" :inert="busy || undefined">
-      <template #header>
-        <div class="card-heading">
-          <h2>识别是否准确</h2>
-        </div>
-      </template>
-      <p class="feedback-hint">只用于改进识别，不影响审核结果。</p>
-      <div class="feedback-actions">
-        <UButton
-          label="识别准确"
-          icon="i-lucide-check"
-          :aria-pressed="feedback.accuracy === 'accurate'"
-          :color="feedback.accuracy === 'accurate' ? 'primary' : 'neutral'"
-          :variant="feedback.accuracy === 'accurate' ? 'solid' : 'outline'"
-          size="sm"
-          :loading="busy"
-          :disabled="busy"
-          @click="mark('accurate')"
-        />
-        <UButton
-          label="识别有误"
-          icon="i-lucide-flag"
-          :aria-pressed="feedback.accuracy === 'inaccurate'"
-          :color="feedback.accuracy === 'inaccurate' ? 'primary' : 'neutral'"
-          :variant="feedback.accuracy === 'inaccurate' ? 'solid' : 'outline'"
-          size="sm"
-          :loading="busy"
-          :disabled="busy"
-          @click="mark('inaccurate')"
-        />
-      </div>
-    </UCard>
+  <div class="ocr-feedback" :aria-busy="busy || undefined">
+    <span class="ocr-feedback__ask">识别准确吗</span>
+    <UButton
+      icon="i-lucide-thumbs-up"
+      aria-label="识别准确"
+      :aria-pressed="feedback.accuracy === 'accurate'"
+      :color="feedback.accuracy === 'accurate' ? 'primary' : 'neutral'"
+      :variant="feedback.accuracy === 'accurate' ? 'soft' : 'ghost'"
+      size="sm"
+      :disabled="busy"
+      @click="mark('accurate')"
+    />
+    <UButton
+      icon="i-lucide-thumbs-down"
+      aria-label="识别有误"
+      :aria-pressed="feedback.accuracy === 'inaccurate'"
+      :color="feedback.accuracy === 'inaccurate' ? 'primary' : 'neutral'"
+      :variant="feedback.accuracy === 'inaccurate' ? 'soft' : 'ghost'"
+      size="sm"
+      :disabled="busy"
+      @click="mark('inaccurate')"
+    />
+    <span class="ocr-feedback__note" :class="{ 'is-error': errorMessage }" role="status" aria-live="polite">{{ errorMessage || message }}</span>
   </div>
 </template>
 
 <style scoped>
-.ocr-feedback { display: grid; gap: var(--space-3); }
-.feedback-live { display: grid; }
-.feedback-error { margin: 0; }
-.feedback-card { border-color: var(--line); }
-.feedback-hint { margin: 0 0 var(--space-3); color: var(--muted); font-size: .8rem; line-height: 1.6; }
-.feedback-actions { display: flex; gap: var(--space-2); }
+.ocr-feedback { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
+.ocr-feedback__ask { margin-right: var(--space-2); color: var(--muted); font-size: var(--type-label-sm-size); }
+.ocr-feedback__note { margin-left: var(--space-2); color: var(--accent); font-size: var(--type-caption-size); }
+.ocr-feedback__note.is-error { color: var(--danger); }
 </style>

@@ -1,15 +1,13 @@
 <script setup lang="ts">
 import type { PublicAchievement } from "~/components/AchievementCatalog.vue";
 import type { OwnedTitle } from "~/types/title";
-import { findOwnedTitle } from "~/utils/achievement-status";
 import { portalErrorDetails } from "~/utils/portal-error";
 
 useSeoMeta({ title: "成就 · 躲避堡垒 3", description: "查看已发布的成就挑战与完成条件。" });
 
 const { data: catalog, pending: loading, error: catalogError } = await useAsyncData("public-achievement-directory", () => usePublicCatalog<{ items: PublicAchievement[] }>("achievements"));
 const challenges = computed(() => catalog.value?.items ?? []);
-const seriesCount = computed(() => new Set(challenges.value.map((challenge) => challenge.category)).size);
-const { player, refresh: refreshPlayer } = useCurrentPlayer();
+const { refresh: refreshPlayer } = useCurrentPlayer();
 const { refresh: refreshTitles } = usePlayerTitles();
 const titles = shallowRef<OwnedTitle[]>();
 onMounted(async () => {
@@ -17,17 +15,12 @@ onMounted(async () => {
     if (await refreshPlayer()) titles.value = await refreshTitles();
   } catch { titles.value = undefined; }
 });
-const ownedCount = computed(() => challenges.value.filter((challenge) => findOwnedTitle(titles.value, challenge)).length);
 const error = computed(() => catalogError.value ? portalErrorDetails(catalogError.value, "无法读取成就，请稍后重试。").description : "");
 </script>
 
 <template>
   <main class="achievements-page directory-page page-shell">
-    <PageMasthead title-id="achievements-title" eyebrow="Achievements" title="成就" description="完成挑战即可获得对应称号。登录后可以看到自己已获得的成就。">
-      <MastheadStat label="成就" :value="loading ? null : challenges.length" />
-      <MastheadStat label="系列" :value="loading ? null : seriesCount" />
-      <MastheadStat v-if="titles" label="已获得" :value="ownedCount" />
-    </PageMasthead>
+    <PageMasthead title="成就" />
     <section v-if="loading" class="achievement-directory" aria-label="读取中…" role="status">
       <div class="achievement-skeleton-groups" aria-hidden="true">
         <section v-for="group in 2" :key="group" class="achievement-skeleton-section">

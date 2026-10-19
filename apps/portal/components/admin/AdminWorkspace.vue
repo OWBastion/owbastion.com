@@ -1,25 +1,14 @@
 <script setup lang="ts">
-import { adminSectionForPath } from "~/utils/admin-sections";
-
 defineProps<{
   title: string;
   count?: string;
 }>();
-const route = useRoute();
-const location = computed(() => adminSectionForPath(route.path));
 </script>
 
 <template>
   <main class="admin-workspace page-shell page-shell--wide">
     <header class="admin-workspace__header">
       <div class="admin-workspace__heading">
-        <nav class="admin-workspace__crumbs" aria-label="位置">
-          <NuxtLink to="/admin">Admin</NuxtLink>
-          <template v-if="location">
-            <span aria-hidden="true">/</span><span>{{ location.group.label }}</span>
-            <template v-if="location.section.label !== title"><span aria-hidden="true">/</span><NuxtLink :to="location.section.to">{{ location.section.label }}</NuxtLink></template>
-          </template>
-        </nav>
         <div class="admin-workspace__title-row">
           <h1>{{ title }}</h1>
           <span v-if="count" class="admin-workspace__count num">{{ count }}</span>
@@ -39,9 +28,6 @@ const location = computed(() => adminSectionForPath(route.path));
 /* Status rail: a short signal-coloured segment marks admin pages apart from the player site. */
 .admin-workspace__header::after { position: absolute; bottom: -1px; left: 0; width: 3rem; height: 2px; background: var(--signal); content: ""; }
 .admin-workspace__heading { display: grid; gap: var(--space-2); min-width: 0; }
-.admin-workspace__crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--quiet); font-family: var(--font-display); font-size: var(--type-caption-size); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
-.admin-workspace__crumbs a { color: var(--signal); text-decoration: none; }
-.admin-workspace__crumbs a:hover { text-decoration: underline; }
 .admin-workspace__title-row { display: flex; align-items: baseline; gap: 0.75rem; min-width: 0; }
 .admin-workspace__header h1 { margin: 0; font-family: var(--font-display); font-size: clamp(1.75rem, 3vw, 2.25rem); font-weight: 700; letter-spacing: -.01em; line-height: 1.1; overflow-wrap: anywhere; }
 .admin-workspace__count { padding: 0 var(--space-2); border: 1px solid var(--line-strong); border-radius: calc(var(--radius-control) / 1.5); color: var(--muted); font-size: var(--type-caption-size); font-weight: 600; line-height: 1.7; white-space: nowrap; }

@@ -10,7 +10,7 @@ onMounted(() => { void refresh(); });
 <template>
   <main class="settings-page page-shell--narrow">
     <NuxtLink to="/me" class="back-link pressable"><UIcon name="i-lucide-arrow-left" aria-hidden="true" />玩家中心</NuxtLink>
-    <PageMasthead eyebrow="Settings" title="个人设置" description="帐号身份与登录方式。" />
+    <PageMasthead title="设置" />
 
     <template v-if="player">
       <section class="settings-section" aria-labelledby="account-title">

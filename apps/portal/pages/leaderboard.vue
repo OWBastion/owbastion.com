@@ -9,7 +9,6 @@ import type {
 } from "@owbastion/contracts";
 import { verifiedRunXpRuleV3 } from "@owbastion/domain";
 import { portalErrorDetails } from "~/utils/portal-error";
-import { daysLeft, formatSeasonDate, seasonWeeks } from "~/utils/season";
 
 useSeoMeta({
   title: "排行榜 · 躲避堡垒 3",
@@ -26,42 +25,20 @@ const board = ref<LeaderboardBoard>(route.query.board === "achievement" ? "achie
 const mapId = ref<string | undefined>(typeof route.query.mapId === "string" ? route.query.mapId : undefined);
 const seasonId = ref<string | undefined>(typeof route.query.seasonId === "string" ? route.query.seasonId : undefined);
 const page = ref(1);
-const fetchedAt = ref<number | null>(null);
 
 const { data: catalog } = await useAsyncData("leaderboard-map-catalog", () => usePublicCatalog<{ items: Map[] }>("maps"));
 const maps = computed(() => catalog.value?.items ?? []);
-
-const chipsEl = ref<HTMLElement | null>(null);
-const chipsOverflow = ref(false);
-const canScrollPrev = ref(false);
-const canScrollNext = ref(false);
-function updateChipsScroll() {
-  const el = chipsEl.value;
-  if (!el) return;
-  chipsOverflow.value = el.scrollWidth > el.clientWidth + 1;
-  canScrollPrev.value = el.scrollLeft > 0;
-  canScrollNext.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
-}
-function scrollChips(direction: -1 | 1) {
-  chipsEl.value?.scrollBy({ left: direction * chipsEl.value.clientWidth * 0.8, behavior: "smooth" });
-}
-// The row only exists on the mastery board, so observe it whenever it mounts.
-watch(chipsEl, (el, _previous, onCleanup) => {
-  if (!el) return;
-  const observer = new ResizeObserver(updateChipsScroll);
-  observer.observe(el);
-  onCleanup(() => observer.disconnect());
-  updateChipsScroll();
-}, { flush: "post" });
-watch(maps, () => nextTick(updateChipsScroll));
 
 // Seasons are an optional scope: a failed read just hides the season controls.
 const { data: seasonCatalog } = await useAsyncData("leaderboard-seasons", () => api<PublicSeasonListResponse>("/v1/public/seasons").catch(() => ({ contractVersion: "1" as const, items: [] })), { getCachedData: () => undefined });
 const seasonList = computed(() => seasonCatalog.value?.items ?? []);
 if (seasonId.value && !seasonList.value.some((season) => season.seasonId === seasonId.value)) seasonId.value = undefined;
 const activeSeasonId = computed(() => board.value === "mastery" ? seasonId.value : undefined);
-const selectedSeason = computed(() => seasonList.value.find((season) => season.seasonId === activeSeasonId.value));
-const seasonItems = computed(() => seasonList.value.map((season) => ({ label: season.name, value: season.seasonId })));
+// One select carries both scopes; "all" stands for all-time because a select item needs a value.
+const seasonItems = computed(() => [{ label: "全部时间", value: "all" }, ...seasonList.value.map((season) => ({ label: season.name, value: season.seasonId }))]);
+const seasonValue = computed({ get: () => seasonId.value ?? "all", set: (value: string) => setSeasonScope(value === "all" ? undefined : value) });
+const mapItems = computed(() => [{ label: "全部地图", value: "all" }, ...maps.value.map((map) => ({ label: map.mapName, value: map.mapId }))]);
+const mapValue = computed({ get: () => mapId.value ?? "all", set: (value: string) => setMap(value === "all" ? undefined : value) });
 
 // Reactive key: board/map/page changes are distinct fetches. Rankings change
 // underneath navigation, so payload reuse is off — each key fetches live.
@@ -73,7 +50,6 @@ const { data: boardData, pending: loading, error: boardError, refresh: refreshBo
     if (board.value === "mastery" && mapId.value) params.set("mapId", mapId.value);
     if (activeSeasonId.value) params.set("seasonId", activeSeasonId.value);
     const response = await api<LeaderboardResponse>(`/v1/public/leaderboard?${params}`);
-    fetchedAt.value = Date.now();
     return response;
   },
   { getCachedData: () => undefined },
@@ -85,33 +61,6 @@ const error = computed(() => boardError.value ? portalErrorDetails(boardError.va
 const setBoard = (next: LeaderboardBoard) => { if (board.value !== next) { board.value = next; page.value = 1; } };
 const setMap = (next: string | undefined) => { if (mapId.value !== next) { mapId.value = next; page.value = 1; } };
 const setSeasonScope = (season: string | undefined) => { if (seasonId.value !== season) { seasonId.value = season; page.value = 1; } };
-const selectedMap = computed(() => maps.value.find((map) => map.mapId === mapId.value));
-
-const boardTitle = computed(() => {
-  if (board.value === "achievement") return "成就排行榜";
-  const prefix = selectedSeason.value ? `${selectedSeason.value.name} · ` : "";
-  return `${prefix}${mapId.value && selectedMap.value ? `${selectedMap.value.mapName} 精通排行榜` : "地图精通排行榜"}`;
-});
-const seasonRunning = computed(() => selectedSeason.value?.phase === "running");
-const seasonProgress = computed(() => {
-  const season = selectedSeason.value;
-  if (!season) return null;
-  const weeks = seasonWeeks(season);
-  const done = season.phase === "running" ? Math.min(weeks, Math.floor((Date.now() - season.startsAt) / (7 * 86_400_000))) : weeks;
-  return { weeks, done, meta: `${formatSeasonDate(season.startsAt)} – ${formatSeasonDate(season.endsAt)} · ${season.phase === "running" ? `还剩 ${daysLeft(season.endsAt, Date.now())} 天` : "排名已定"}` };
-});
-const boardMeta = computed(() => {
-  const total = boardData.value?.total ?? 0;
-  const stamp = fetchedAt.value ? formatDateTime(fetchedAt.value) : "…";
-  return `${total} 名玩家 · 更新于 ${stamp}`;
-});
-const mapNote = computed(() => {
-  if (board.value !== "mastery") return "";
-  if (!mapId.value) return "所有地图、所有版本获得的精通 XP 总和";
-  const version = boardData.value?.mapGameVersion ?? selectedMap.value?.gameVersion ?? "";
-  return `当前版本 ${version}，地图更新后重新累计`;
-});
-
 /* Own standing: a signed-in Player's rank rides the same board and scope. */
 const mine = shallowRef<CurrentPlayerLeaderboardRank | null>(null);
 const minePending = ref(false);
@@ -135,14 +84,6 @@ onMounted(async () => {
   await loadMine();
 });
 watch([board, mapId, activeSeasonId], () => { if (import.meta.client) void loadMine(); });
-
-const mineGap = computed(() => {
-  const standing = mine.value;
-  if (!standing?.rank) return "";
-  if (standing.gapToNextRank === null) return "你是第一名";
-  if (standing.gapToNextRank === 0) return "与上一名同分";
-  return board.value === "mastery" ? `距上一名差 ${standing.gapToNextRank.toLocaleString()} XP` : `距上一名差 ${standing.gapToNextRank} 个`;
-});
 
 /* Jump-to-me only scrolls after the explicit "查看" click; loading or paging
    alone must never move the scroll position. */
@@ -174,413 +115,109 @@ const selectedEntry = shallowRef<LeaderboardEntry | null>(null);
 const sheetOpen = ref(false);
 const openPlayer = (entry: LeaderboardEntry) => { selectedEntry.value = entry; sheetOpen.value = true; };
 
-const podium = computed(() => (page.value === 1 ? items.value.slice(0, 3) : []));
-const { style: tiltStyle, handlers: tiltHandlers } = useIconTilt(6);
-
 const totalPages = computed(() => Math.max(1, Math.ceil((boardData.value?.total ?? 0) / PAGE_SIZE)));
-const pageNumbers = computed(() => {
-  const pages = totalPages.value;
-  const current = page.value;
-  const marks: Array<number | "…"> = [];
-  for (let index = 1; index <= pages; index += 1) {
-    if (index === 1 || index === pages || Math.abs(index - current) <= 1) marks.push(index);
-    else if (marks[marks.length - 1] !== "…") marks.push("…");
-  }
-  return marks;
-});
-const pageRange = computed(() => {
-  const total = boardData.value?.total ?? 0;
-  if (!total) return "";
-  const start = (page.value - 1) * PAGE_SIZE + 1;
-  return `第 ${start}–${Math.min(total, page.value * PAGE_SIZE)} 名，共 ${total} 名`;
-});
-
-const scoreUnit = computed(() => board.value === "mastery" ? "XP" : "个成就");
-const formatScore = (score: number) => board.value === "mastery" ? score.toLocaleString() : String(score);
-const formatDate = (timestamp: number) => {
-  const date = new Date(timestamp);
-  return `${date.getMonth() + 1}月${date.getDate()}日`;
-};
-const formatDateTime = (timestamp: number) => {
-  const date = new Date(timestamp);
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getMonth() + 1}月${date.getDate()}日 ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-};
 const difficultyTiers = (Object.entries(verifiedRunXpRuleV3.baseDifficultyXp) as Array<[string, number]>).filter(([, xp]) => xp > 0);
 const ratingTiers = Object.entries(verifiedRunXpRuleV3.mapRatingBonus) as Array<[string, number]>;
-const entryInitial = (entry: LeaderboardEntry) => entry.player ? entry.player.displayName.charAt(0) : "?";
 const entryName = (entry: LeaderboardEntry) => entry.player?.displayName ?? "匿名玩家";
 const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.rank === mine.value?.rank;
 </script>
 
 <template>
-  <main class="leaderboard-page directory-page page-shell">
-    <PageMasthead title-id="leaderboard-title" eyebrow="Leaderboard" title="排行榜" description="上传通关截图、审核通过后获得精通 XP，满足条件还会解锁成就。精通 XP 和成就会一直保留，不会清零。" />
-
-    <div class="controls">
-      <div class="ctl-row">
-        <div class="seg" role="group" aria-label="排行榜">
-          <button type="button" :aria-pressed="board === 'mastery'" @click="setBoard('mastery')">地图精通</button>
-          <button type="button" :aria-pressed="board === 'achievement'" @click="setBoard('achievement')">成就</button>
-        </div>
-        <div v-if="board === 'mastery' && seasonList.length" class="seg" role="group" aria-label="时间范围">
-          <button type="button" :aria-pressed="!seasonId" @click="setSeasonScope(undefined)">全部时间</button>
-          <button type="button" :aria-pressed="Boolean(seasonId)" @click="setSeasonScope(seasonList[0]!.seasonId)">赛季</button>
-        </div>
-        <select v-if="board === 'mastery' && seasonId" class="sel" aria-label="选择赛季" :value="seasonId" @change="setSeasonScope(($event.target as HTMLSelectElement).value)">
-          <option v-for="season in seasonItems" :key="season.value" :value="season.value">{{ season.label }}</option>
-        </select>
+  <main class="lb page-shell">
+    <header class="lb-head">
+      <h1 class="lb-title">排行榜</h1>
+      <div class="seg" role="group" aria-label="排行榜">
+        <button type="button" :aria-pressed="board === 'mastery'" @click="setBoard('mastery')">精通</button>
+        <button type="button" :aria-pressed="board === 'achievement'" @click="setBoard('achievement')">成就</button>
       </div>
-      <div v-if="board === 'mastery'" class="ctl-row">
-        <div class="chips-wrap" :class="{ 'chips-wrap--overflow': chipsOverflow }">
-          <button type="button" class="chips-arrow" aria-label="向左滑动地图" :disabled="!canScrollPrev" @click="scrollChips(-1)"><UIcon name="i-lucide-chevron-left" aria-hidden="true" /></button>
-          <div ref="chipsEl" class="chips" role="group" aria-label="地图" @scroll.passive="updateChipsScroll">
-            <button type="button" class="chip pressable" :aria-pressed="!mapId" @click="setMap(undefined)">全部地图</button>
-            <button
-              v-for="map in maps"
-              :key="map.mapId"
-              type="button"
-              class="chip pressable"
-              :aria-pressed="mapId === map.mapId"
-              @click="setMap(map.mapId)"
-            >{{ map.mapName }}</button>
-          </div>
-          <button type="button" class="chips-arrow" aria-label="向右滑动地图" :disabled="!canScrollNext" @click="scrollChips(1)"><UIcon name="i-lucide-chevron-right" aria-hidden="true" /></button>
-        </div>
-        <span class="note">{{ mapNote }}</span>
-      </div>
-    </div>
+    </header>
 
-    <section v-if="selectedSeason && seasonProgress" class="season surface-card" aria-label="当前赛季">
-      <span class="season-name">{{ selectedSeason.name }}<span class="season-badge" :class="{ running: seasonRunning }">{{ seasonRunning ? "进行中" : "已结束" }}</span></span>
-      <div class="segbar" :style="{ '--n': seasonProgress.weeks }" role="img" :aria-label="`已进行 ${seasonProgress.done} / ${seasonProgress.weeks} 周`">
-        <i v-for="week in seasonProgress.weeks" :key="week" :class="{ on: week <= seasonProgress.done }" />
-      </div>
-      <span class="note num">{{ seasonProgress.meta }}</span>
-    </section>
-
-    <div class="leaderboard-grid">
-      <section ref="boardSection" :aria-busy="loading || undefined">
-        <div class="section-head">
-          <h2 class="section-title">{{ boardTitle }}</h2>
-          <span class="note num">{{ boardMeta }}</span>
-        </div>
-
-        <section class="mine surface-card" aria-label="你的排名">
-          <template v-if="minePending"><USkeleton class="mine-skeleton" /></template>
-          <template v-else-if="!player">
-            <span class="mine-rank">—</span>
-            <span class="mine-text"><NuxtLink to="/login" class="mine-login">登录</NuxtLink>后可以看到你的排名</span>
-          </template>
-          <template v-else-if="!mine?.rank">
-            <span class="mine-rank">—</span>
-            <span class="mine-text">{{ board === "achievement" ? "你还没有上榜，解锁第一个成就就能出现在这里" : selectedSeason && !seasonRunning ? "你在这个赛季没有上榜" : "你还没有上榜，上传一张通关截图就能出现在这里" }}</span>
-          </template>
-          <template v-else>
-            <span class="mine-rank num">#{{ mine.rank }}</span>
-            <span class="mine-text">你的排名 · <b class="num">{{ board === "mastery" ? `${mine.score.toLocaleString()} 精通 XP` : `${mine.score} 个成就` }}</b><template v-if="mineGap"> · {{ mineGap }}</template></span>
-            <button type="button" class="btn pressable" @click="jumpToMe">查看</button>
-          </template>
-        </section>
-
-        <div v-if="loading && !items.length" class="board-skeletons" role="status" aria-label="读取中…">
-          <USkeleton v-for="index in 8" :key="index" class="board-skeleton-row" />
-        </div>
-        <UAlert v-else-if="error" color="error" variant="subtle" role="alert" title="无法读取排行榜" :description="error">
-          <template #actions>
-            <UButton label="重试" color="neutral" variant="outline" size="sm" @click="refreshBoard()" />
-          </template>
-        </UAlert>
-        <template v-else>
-          <div v-if="podium.length" class="podium">
-            <button
-              v-for="entry in podium"
-              :key="entry.rank"
-              type="button"
-              class="pod pressable"
-              :class="[`p${entry.rank}`, { anon: !entry.player }]"
-              v-on="entry.rank === 1 ? tiltHandlers : {}"
-              :style="entry.rank === 1 ? tiltStyle : undefined"
-              @click="openPlayer(entry)"
-            >
-              <span v-if="entry.rank === 1" class="big num" aria-hidden="true">1</span>
-              <span class="rk"><UIcon :name="entry.rank === 1 ? 'i-lucide-crown' : 'i-lucide-medal'" aria-hidden="true" />第 {{ entry.rank }} 名</span>
-              <span class="av" aria-hidden="true">{{ entryInitial(entry) }}</span>
-              <span class="nm">{{ entryName(entry) }}</span>
-              <span class="ttl"><span v-if="entry.player?.equippedTitle" class="title-pill">{{ entry.player.equippedTitle.label }}</span></span>
-              <span class="v num">{{ formatScore(entry.score) }}<small>{{ scoreUnit }}</small></span>
-            </button>
-          </div>
-
-          <section class="board surface-card">
-            <table>
-              <thead>
-                <tr v-if="board === 'mastery'">
-                  <th>名次</th><th>玩家</th><th>精通 XP</th><th class="c-hide">通关次数</th><th class="c-hide">最高难度</th>
-                </tr>
-                <tr v-else>
-                  <th>名次</th><th>玩家</th><th>成就</th><th class="c-hide">最近解锁</th><th class="c-hide">精通 XP</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="!items.length"><td colspan="5" class="empty">{{ selectedSeason ? "这个赛季还没有人上榜" : "这里还没有人上榜" }}</td></tr>
-                <tr
-                  v-for="entry in items"
-                  :key="entry.rank"
-                  class="board-row"
-                  :class="{ me: isMe(entry) }"
-                  @click="openPlayer(entry)"
-                >
-                  <td class="rank num">
-                    <span v-if="entry.rank <= 3" class="rmark" :class="`m${entry.rank}`">{{ entry.rank }}</span>
-                    <template v-else>{{ entry.rank }}</template>
-                  </td>
-                  <td>
-                    <div class="pl">
-                      <span class="mini" aria-hidden="true">{{ entryInitial(entry) }}</span>
-                      <div class="pn">
-                        <div class="n">{{ entryName(entry) }}<span v-if="isMe(entry)" class="you">你</span></div>
-                        <div v-if="entry.player?.equippedTitle" class="t">{{ entry.player.equippedTitle.label }}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <template v-if="board === 'mastery'">
-                    <td class="num"><span class="prim">{{ entry.score.toLocaleString() }}</span></td>
-                    <td class="num c-hide">{{ entry.runCount ?? 0 }}</td>
-                    <td class="c-hide">{{ entry.topDifficulty ?? "—" }}</td>
-                  </template>
-                  <template v-else>
-                    <td class="num"><span class="prim">{{ entry.score }}</span></td>
-                    <td class="num c-hide"><span class="sec">{{ entry.latestTitle ? `${entry.latestTitle.label} · ` : "" }}{{ formatDate(entry.reachedAt) }}</span></td>
-                    <td class="num c-hide">{{ (entry.masteryXp ?? 0).toLocaleString() }}</td>
-                  </template>
-                </tr>
-              </tbody>
-            </table>
-            <div v-if="items.length" class="pager">
-              <span class="num">{{ pageRange }}</span>
-              <div class="pg">
-                <button type="button" :disabled="page === 1" aria-label="上一页" @click="page -= 1">‹</button>
-                <button
-                  v-for="(mark, index) in pageNumbers"
-                  :key="index"
-                  type="button"
-                  :disabled="mark === '…'"
-                  :aria-current="mark === page || undefined"
-                  @click="typeof mark === 'number' && (page = mark)"
-                >{{ mark }}</button>
-                <button type="button" :disabled="page >= totalPages" aria-label="下一页" @click="page += 1">›</button>
-              </div>
+    <div v-if="board === 'mastery'" class="lb-filters">
+      <USelect v-model="mapValue" :items="mapItems" aria-label="地图" class="lb-select" />
+      <USelect v-if="seasonList.length" v-model="seasonValue" :items="seasonItems" aria-label="时间范围" class="lb-select" />
+      <UPopover :content="{ align: 'end' }">
+        <UButton icon="i-lucide-circle-help" color="neutral" variant="ghost" aria-label="精通 XP 怎么算" class="lb-help" />
+        <template #content>
+          <div class="rules">
+            <div class="rules__base num">
+              <div v-for="[difficulty, xp] in difficultyTiers" :key="difficulty"><span>{{ difficulty }}</span><b>{{ xp }}</b></div>
             </div>
-          </section>
+            <p class="num">成就 +{{ Math.round(verifiedRunXpRuleV3.achievementBonus * 100) }}% · 每日首通 +{{ Math.round(verifiedRunXpRuleV3.dailyFirstClearBonus * 100) }}%</p>
+            <p class="num">评级 <span v-for="[rating, bonus] in ratingTiers" :key="rating">{{ rating }} {{ bonus ? `+${Math.round(bonus * 100)}%` : "—" }} </span></p>
+          </div>
         </template>
-      </section>
-
-      <aside class="side">
-        <div v-if="selectedSeason" class="card surface-card">
-          <h3>赛季怎么算</h3>
-          <p>{{ selectedSeason.name }}只统计 {{ formatSeasonDate(selectedSeason.startsAt) }} – {{ formatSeasonDate(selectedSeason.endsAt) }} 期间获得的精通 XP。</p>
-          <ul>
-            <li>你的精通 XP 不会清零，切到「全部时间」可以看到</li>
-            <li>成就永久持有，不分赛季</li>
-            <li>赛季结束后，排名保留为最终结果</li>
-          </ul>
-        </div>
-        <div v-if="board === 'mastery'" class="card surface-card">
-          <h3>精通 XP 怎么算</h3>
-          <div class="xp-base num" aria-label="基础 XP，仅传奇和地狱计入">
-            <div v-for="[difficulty, xp] in difficultyTiers" :key="difficulty"><span>{{ difficulty }}</span><b>{{ xp }}</b><small>XP</small></div>
-          </div>
-          <p class="xp-hint">简单到专家只记录通关</p>
-          <div class="xp-tags num">
-            <span class="xp-tag"><UIcon name="i-lucide-trophy" aria-hidden="true" />成就 +{{ Math.round(verifiedRunXpRuleV3.achievementBonus * 100) }}%<small>每个</small></span>
-            <span class="xp-tag" title="北京时间 0 点刷新"><UIcon name="i-lucide-sun" aria-hidden="true" />每日首通 +{{ Math.round(verifiedRunXpRuleV3.dailyFirstClearBonus * 100) }}%</span>
-          </div>
-          <div class="xp-tags xp-tags--rating num" aria-label="地图评级加成">
-            <span v-for="[rating, bonus] in ratingTiers" :key="rating" class="xp-tag xp-tag--rating">{{ rating }}<small>{{ bonus ? `+${Math.round(bonus * 100)}%` : "—" }}</small></span>
-          </div>
-          <p class="xp-formula num">基础 XP × （1 + 加成之和）</p>
-          <p class="xp-foot"><UIcon name="i-lucide-copy-x" aria-hidden="true" />重复上传只算一次<UIcon name="i-lucide-timer" aria-hidden="true" />同分先到者在前</p>
-        </div>
-        <div v-else class="card surface-card">
-          <h3>成就排行怎么算</h3>
-          <p>按你解锁的通用成就数量排名。地图称号算在地图精通里，开发者称号不参与任何排名。</p>
-          <ul>
-            <li>成就解锁后永久持有，不按赛季统计</li>
-            <li>数量相同时，先解锁最后一个成就的玩家排在前面</li>
-            <li>成就排行和地图精通排行互不影响</li>
-          </ul>
-        </div>
-      </aside>
+      </UPopover>
     </div>
+
+    <section ref="boardSection" class="lb-board" :aria-busy="loading || undefined" aria-label="排名">
+      <button v-if="player && mine?.rank" type="button" class="mine pressable" @click="jumpToMe">
+        <span class="num">#{{ mine.rank }}</span>
+        <span>你</span>
+        <b class="num">{{ mine.score.toLocaleString() }}</b>
+      </button>
+      <NuxtLink v-else-if="!player && !minePending" to="/login" class="mine mine--login">登录看排名</NuxtLink>
+
+      <div v-if="loading && !items.length" class="board-skeletons" role="status" aria-label="读取中…">
+        <USkeleton v-for="index in 8" :key="index" class="board-skeleton-row" />
+      </div>
+      <UAlert v-else-if="error" color="error" variant="subtle" role="alert" title="无法读取排行榜">
+        <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" @click="refreshBoard()" /></template>
+      </UAlert>
+      <p v-else-if="!items.length" class="lb-empty">还没有人上榜</p>
+      <ol v-else class="rows">
+        <li v-for="entry in items" :key="entry.rank">
+          <button type="button" class="row board-row" :class="{ me: isMe(entry), [`top${entry.rank}`]: entry.rank <= 3 }" @click="openPlayer(entry)">
+            <span class="row__rank num">{{ entry.rank }}</span>
+            <span class="row__name">{{ entryName(entry) }}</span>
+            <span class="row__score num">{{ entry.score.toLocaleString() }}<small>{{ board === "mastery" ? "XP" : "" }}</small></span>
+          </button>
+        </li>
+      </ol>
+      <div v-if="totalPages > 1" class="pager">
+        <UButton icon="i-lucide-chevron-left" color="neutral" variant="ghost" aria-label="上一页" :disabled="page === 1" @click="page -= 1" />
+        <span class="num">{{ page }} / {{ totalPages }}</span>
+        <UButton icon="i-lucide-chevron-right" color="neutral" variant="ghost" aria-label="下一页" :disabled="page >= totalPages" @click="page += 1" />
+      </div>
+    </section>
 
     <LeaderboardPlayerSheet v-model:open="sheetOpen" :entry="selectedEntry" />
   </main>
 </template>
 
 <style scoped>
-.num { font-variant-numeric: tabular-nums; }
-.note { color: var(--quiet); font-size: var(--type-caption-size); }
-
-/* controls */
-.controls { display: grid; gap: var(--space-3); margin-bottom: var(--space-5); }
-.ctl-row { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; min-width: 0; }
+.lb { display: grid; align-content: start; gap: var(--space-6); max-width: 44rem; padding-block: clamp(3rem, 10vh, 6rem) 4.5rem; }
+.lb-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.lb-title { margin: 0; font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3rem); font-weight: 700; letter-spacing: -.02em; line-height: 1; }
 .seg { display: inline-flex; gap: 0.125rem; padding: 0.1875rem; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-raised); }
 .seg button { min-height: var(--control-md); padding: 0 var(--space-4); border: 0; border-radius: calc(var(--radius-control) / 1.5); background: none; color: var(--muted); font-size: var(--type-body-sm-size); font-weight: 500; white-space: nowrap; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: var(--elevation-1); }
-.chips { display: flex; flex: 1 1 0; gap: var(--space-2); min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
-.chips::-webkit-scrollbar { display: none; }
-/* A hidden-scrollbar row cannot be scrolled with a mouse wheel, so pointer devices get arrow buttons. */
-.chips-wrap { display: flex; flex: 1 1 100%; align-items: center; gap: var(--space-1); min-width: 0; }
-.chips-arrow { display: none; flex: none; place-items: center; width: var(--control-sm); height: var(--control-sm); padding: 0; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--surface); color: var(--muted); cursor: pointer; }
-.chips-arrow:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
-.chips-arrow:disabled { opacity: 0.4; cursor: default; }
-@media (hover: hover) and (pointer: fine) { .chips-wrap--overflow .chips-arrow { display: grid; } }
-.chip { min-height: var(--control-sm); padding: 0 var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-pill); background: var(--surface); color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 500; white-space: nowrap; cursor: pointer; }
-.chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-surface); color: var(--text); font-weight: 600; }
-
-.leaderboard-grid { display: grid; grid-template-columns: minmax(0, 1fr) 18.5rem; gap: var(--space-6); align-items: start; }
-@media (max-width: 63.99rem) { .leaderboard-grid { grid-template-columns: 1fr; } }
-.section-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-3); flex-wrap: wrap; }
-.section-title { margin: 0; font-size: var(--type-card-title-size); font-weight: 600; letter-spacing: -0.01em; }
-
-.sel { min-height: var(--control-md); padding: 0 var(--space-8) 0 var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-control); background: var(--surface); color: var(--text); font-size: var(--type-body-sm-size); appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%; background-size: 5px 5px; background-repeat: no-repeat; }
-
-/* season */
-.season { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--space-2) var(--space-4); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-5); }
-.season-name { display: flex; align-items: center; gap: var(--space-2); font-size: var(--type-label-size); font-weight: 600; white-space: nowrap; }
-.season-badge { padding: 0 var(--space-2); border-radius: var(--radius-pill); background: var(--disabled-surface); color: var(--disabled-text); font-size: var(--type-caption-size); font-weight: 600; line-height: 1.6; }
-.season-badge.running { background: var(--info-surface); color: var(--info); }
-.segbar { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 0.1875rem; }
-.segbar i { height: 0.375rem; border-radius: var(--radius-pill); background: var(--line); }
-.segbar i.on { background: var(--accent); }
-@media (max-width: 47.99rem) { .season { grid-template-columns: 1fr; } .season .segbar { grid-row: 3; } }
-
-/* your position */
-.mine { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-3) var(--space-3) var(--space-5); margin-bottom: var(--space-5); }
-.mine-rank { font-size: var(--type-headline-size); font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; color: var(--accent); min-width: 3.5rem; }
-.mine-text { flex: 1; min-width: 0; color: var(--muted); font-size: var(--type-body-sm-size); }
-.mine-text b { color: var(--text); font-weight: 600; }
-.mine-login { color: var(--accent); font-weight: 600; }
-.mine-skeleton { width: 100%; height: 2.5rem; border-radius: var(--radius-control); }
-.btn { min-height: var(--control-md); padding: 0 var(--space-4); border: 1px solid var(--line-strong); border-radius: var(--radius-control); background: var(--surface); font-size: var(--type-body-sm-size); font-weight: 600; white-space: nowrap; cursor: pointer; color: var(--text); }
-
-/* podium: accent intensity ladder 7% / 14% / 24%; only #1 gets the radial gradient and glow */
-.podium { display: grid; grid-template-columns: 1fr 1.2fr 1fr; align-items: end; gap: var(--space-3); margin-bottom: var(--space-5); }
-/* Podium and top-three marks carry medal colours instead of the brand accent. */
-.pod, .rmark { --medal: var(--accent); }
-.pod.p1, .rmark.m1 { --medal: oklch(84% 0.15 85); }
-.pod.p2, .rmark.m2 { --medal: oklch(83% 0.025 250); }
-.pod.p3, .rmark.m3 { --medal: oklch(70% 0.11 52); }
-.pod { position: relative; display: grid; justify-items: center; gap: var(--space-1); padding: var(--space-5) var(--space-4); border: 1px solid var(--line-strong); border-radius: var(--radius-card); text-align: center; color: var(--text); cursor: pointer; }
-.pod .rk { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--medal); font-size: var(--type-label-sm-size); font-weight: 600; }
-.pod .rk svg, .pod .rk [class*="i-lucide-"] { width: 1rem; height: 1rem; }
-.pod .av { display: grid; place-items: center; width: 3.5rem; height: 3.5rem; margin: var(--space-2) 0; border: 2px solid color-mix(in oklch, var(--medal) 45%, var(--line-strong)); border-radius: 50%; background: var(--surface); color: var(--medal); font-size: 1.4rem; font-weight: 700; }
-.pod .nm { max-width: 100%; font-size: var(--type-card-title-size); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pod .ttl { min-height: 1.4rem; max-width: 100%; }
-.pod .v { margin-top: var(--space-2); font-size: var(--type-headline-size); font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
-.pod .v small { margin-left: var(--space-1); color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; letter-spacing: 0; }
-.pod.p3 { order: 3; border-color: color-mix(in oklch, var(--medal) 32%, var(--line-strong)); background: color-mix(in oklch, var(--medal) 7%, var(--surface)); }
-.pod.p2 { order: 1; border-color: color-mix(in oklch, var(--medal) 58%, var(--line-strong)); background: color-mix(in oklch, var(--medal) 14%, var(--surface)); }
-.pod.p1 { order: 2; padding: var(--space-6) var(--space-5); border-color: var(--medal);
-  background: radial-gradient(120% 90% at 50% 0%, color-mix(in oklch, var(--medal) 24%, transparent), transparent 62%), var(--surface);
-  box-shadow: var(--elevation-2), 0 0 2.5rem -0.5rem color-mix(in oklch, var(--medal) 34%, transparent);
-  transition: transform 150ms ease-out;
-  transform: perspective(60rem) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)); }
-/* #1 only: a foil card (design-direction exception). The light sweeps the upper
-   half on its own; reduced motion keeps it still at the top-left and tilt off. */
-@property --mx { syntax: "<percentage>"; inherits: true; initial-value: 22%; }
-@property --my { syntax: "<percentage>"; inherits: true; initial-value: 8%; }
-.pod.p1 { isolation: isolate; overflow: hidden; animation: foil 5s ease-in-out infinite alternate; }
-@keyframes foil { from { --mx: 14%; --my: 6%; } to { --mx: 86%; --my: 30%; } }
-@media (prefers-reduced-motion: reduce) { .pod.p1 { animation: none; } }
-.pod.p1 > * { position: relative; z-index: 2; }
-.pod.p1::before, .pod.p1::after { content: ""; position: absolute; inset: 0; z-index: 1; border-radius: inherit; pointer-events: none; transition: opacity 200ms ease-out; }
-.pod.p1::before {
-  background:
-    repeating-linear-gradient(115deg, transparent 0 3px, color-mix(in oklch, white 45%, transparent) 3px 4px, transparent 4px 7px),
-    linear-gradient(115deg, oklch(84% .12 90), var(--medal) 30%, oklch(80% .12 65) 50%, oklch(86% .1 75) 70%, var(--medal));
-  background-size: 100% 100%, 300% 300%; background-position: 0 0, calc(var(--mx) * 1.2) calc(var(--my) * 1.2);
-  -webkit-mask: radial-gradient(48% 58% at var(--mx) var(--my), black, transparent 100%); mask: radial-gradient(48% 58% at var(--mx) var(--my), black, transparent 100%);
-  opacity: .7; }
-.pod.p1::after { background: radial-gradient(38% 46% at var(--mx) var(--my), color-mix(in oklch, white 38%, transparent), transparent 70%); mix-blend-mode: soft-light; opacity: 1; }
-:global(html.dark .pod.p1::after) { mix-blend-mode: screen; opacity: .5; }
-.pod.p1 .big { position: absolute; z-index: 0; left: -0.08em; top: -0.12em; font-size: 13rem; font-weight: 700; line-height: 1; letter-spacing: -0.06em; color: transparent;
-  -webkit-text-stroke: 2px color-mix(in oklch, var(--medal) 30%, transparent);
-  background: radial-gradient(60% 50% at var(--mx) var(--my), color-mix(in oklch, var(--medal) 40%, transparent), transparent 75%); background-size: 100% 100%;
-  -webkit-background-clip: text; background-clip: text; pointer-events: none; user-select: none; }
-.pod.p1 .av { width: 5rem; height: 5rem; border-color: var(--medal); background: var(--accent-surface); font-size: 2rem; box-shadow: 0 0 1.5rem color-mix(in oklch, var(--medal) 30%, transparent); }
-.pod.p1 .nm { font-size: var(--type-headline-size); font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
-.pod.p1 .v { font-size: var(--type-title-size); color: var(--medal); letter-spacing: -0.03em; line-height: 1; }
-.pod.p1 .rk { font-size: var(--type-label-size); }
-.pod.p1 .rk svg, .pod.p1 .rk [class*="i-lucide-"] { width: 1.25rem; height: 1.25rem; }
-.pod.anon .av { border-color: var(--line-strong); background: var(--surface-raised); color: var(--quiet); box-shadow: none; }
-.title-pill { display: inline-block; max-width: 100%; padding: 0 var(--space-2); border: 1px solid color-mix(in oklch, var(--medal) 32%, var(--line-strong)); border-radius: var(--radius-pill); background: color-mix(in oklch, var(--medal) 7%, var(--surface)); color: var(--text); font-size: var(--type-caption-size); font-weight: 600; line-height: 1.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
-@media (max-width: 47.99rem) {
-  .podium { grid-template-columns: 1fr; gap: var(--space-2); }
-  .pod.p1 { order: 1; }
-  .pod.p2 { order: 2; }
-  .pod.p3 { order: 3; }
-  .pod:not(.p1) { grid-template-columns: 4.5rem auto 1fr auto; justify-items: start; align-items: center; gap: 0 var(--space-3); padding: var(--space-3) var(--space-4); text-align: left; }
-  .pod:not(.p1) .av { width: 2.75rem; height: 2.75rem; margin: 0; font-size: 1.1rem; }
-  .pod:not(.p1) .ttl { display: none; }
-  .pod:not(.p1) .nm { width: 100%; }
-  .pod:not(.p1) .v { margin: 0; font-size: var(--type-card-title-size); }
-}
-
-/* table */
-.board { overflow: hidden; }
-.board table { width: 100%; border-collapse: collapse; }
-.board th { padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; text-align: right; white-space: nowrap; }
-.board th:nth-child(-n+2) { text-align: left; }
-.board td { padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; font-size: var(--type-body-sm-size); }
-.board td:nth-child(-n+2) { text-align: left; }
-.board-row { cursor: pointer; }
-.board-row:hover td { background: color-mix(in oklch, var(--surface-raised) 60%, var(--surface)); }
-.board-row.me td { background: var(--accent-surface) !important; }
-.rank { width: 3.5rem; font-weight: 600; color: var(--muted); }
-.rmark { display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; border: 1px solid var(--line-strong); border-radius: var(--radius-control); color: var(--medal); font-size: var(--type-label-sm-size); font-weight: 700; }
-.rmark.m1 { border-color: var(--medal); background: color-mix(in oklch, var(--medal) 24%, var(--surface)); }
-.rmark.m2 { border-color: color-mix(in oklch, var(--medal) 58%, var(--line-strong)); background: color-mix(in oklch, var(--medal) 14%, var(--surface)); }
-.rmark.m3 { border-color: color-mix(in oklch, var(--medal) 32%, var(--line-strong)); background: color-mix(in oklch, var(--medal) 7%, var(--surface)); }
-.pl { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
-.mini { display: grid; place-items: center; flex: none; width: 2rem; height: 2rem; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--surface-raised); color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 600; }
-.pn .n { display: flex; align-items: center; gap: var(--space-2); font-size: var(--type-label-size); font-weight: 600; }
-.pn .t { color: var(--quiet); font-size: var(--type-caption-size); }
-.you { padding: 0 var(--space-2); border-radius: var(--radius-pill); background: var(--accent); color: var(--on-accent); font-size: var(--type-caption-size); font-weight: 600; line-height: 1.6; }
-.prim { font-size: var(--type-label-size); font-weight: 600; color: var(--text); }
-.sec { color: var(--muted); }
-.empty { padding: var(--space-12) var(--space-4) !important; text-align: center !important; color: var(--muted); white-space: normal !important; }
-.pager { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); color: var(--quiet); font-size: var(--type-caption-size); }
-.pager .pg { display: flex; gap: var(--space-1); }
-.pager button { min-width: var(--control-md); height: var(--control-md); padding: 0 var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); color: var(--text); font-size: var(--type-label-sm-size); cursor: pointer; }
-.pager button[disabled] { color: var(--disabled-text); cursor: default; }
-.pager button[aria-current="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
-@media (max-width: 47.99rem) { .c-hide { display: none; } .board td, .board th { padding: var(--space-3); } }
+.lb-filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: calc(-1 * var(--space-2)); }
+.lb-select { min-width: 9rem; }
+.lb-help { margin-left: auto; }
+.rules { display: grid; gap: var(--space-2); max-width: 18rem; padding: var(--space-4); font-size: var(--type-caption-size); }
+.rules p { margin: 0; color: var(--muted); }
+.rules__base { display: flex; gap: var(--space-4); }
+.rules__base div { display: grid; }
+.rules__base span { color: var(--quiet); }
+.rules__base b { color: var(--accent); font-size: 1.125rem; }
+.lb-board { display: grid; gap: var(--space-3); }
+.mine { display: flex; align-items: baseline; gap: var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid color-mix(in oklch, var(--accent) 50%, var(--line)); border-radius: var(--radius-card); background: var(--accent-surface); color: var(--text); font: inherit; text-align: left; text-decoration: none; cursor: pointer; }
+.mine > .num:first-child { color: var(--accent); font-family: var(--font-display); font-weight: 700; }
+.mine b { margin-left: auto; }
+.mine--login { justify-content: center; color: var(--accent); font-weight: 600; }
+.rows { display: grid; margin: 0; padding: 0; list-style: none; }
+.rows > li + li { border-top: 1px solid var(--line); }
+.row { display: grid; grid-template-columns: 2.5rem minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); width: 100%; min-height: 3.25rem; padding: 0 var(--space-2); border: 0; border-radius: var(--radius-control); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.row:hover, .row:focus-visible { background: var(--surface-raised); }
+.row.me { background: var(--accent-surface); }
+.row__rank { color: var(--quiet); font-family: var(--font-display); font-weight: 700; }
+.row.top1 .row__rank, .row.top2 .row__rank, .row.top3 .row__rank { color: var(--accent); font-size: 1.125rem; }
+.row__name { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.row__score { font-weight: 700; }
+.row__score small { margin-left: var(--space-1); color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; }
+.lb-empty { margin: 0; padding: var(--space-12) 0; color: var(--quiet); text-align: center; }
 .board-skeletons { display: grid; gap: var(--space-2); }
-.board-skeleton-row { height: 3.5rem; border-radius: var(--radius-card); }
-
-/* side */
-.side { display: grid; gap: var(--space-3); position: sticky; top: 5.5rem; }
-@media (max-width: 63.99rem) { .side { position: static; } }
-.card { padding: var(--space-4) var(--space-5); }
-.card h3 { margin: 0 0 var(--space-2); font-size: var(--type-label-size); font-weight: 600; }
-.card p, .card li { margin: 0; color: var(--muted); font-size: var(--type-body-sm-size); }
-.card ul { display: grid; gap: var(--space-1); margin: var(--space-3) 0 0; padding-left: var(--space-5); }
-.xp-base { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
-.xp-base div { display: flex; flex-direction: column; align-items: center; padding: var(--space-2); border: 1px solid color-mix(in oklch, var(--accent) 32%, var(--line-strong)); border-radius: var(--radius-control); background: color-mix(in oklch, var(--accent) 7%, var(--surface)); }
-.xp-base div:last-child { border-color: var(--accent); background: color-mix(in oklch, var(--accent) 14%, var(--surface)); }
-.xp-base span { color: var(--muted); font-size: var(--type-caption-size); }
-.xp-base b { font-size: var(--type-headline-size); font-weight: 700; line-height: 1.1; }
-.xp-base small, .xp-tag small { color: var(--quiet); font-size: var(--type-caption-size); }
-.card .xp-hint { margin-top: var(--space-2); text-align: center; font-size: var(--type-caption-size); color: var(--quiet); }
-.xp-tags { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-3); }
-.xp-tag { display: inline-flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-2); border: 1px solid var(--line-strong); border-radius: var(--radius-pill); background: var(--surface); color: var(--text); font-size: var(--type-caption-size); font-weight: 600; line-height: 1.8; white-space: nowrap; }
-.xp-tag :deep(svg), .xp-foot :deep(svg) { width: 0.9rem; height: 0.9rem; flex: none; color: var(--accent); }
-.xp-tags--rating { margin-top: var(--space-2); }
-.xp-tag--rating { color: var(--muted); font-weight: 500; }
-.card .xp-formula { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); text-align: center; color: var(--text); font-weight: 600; }
-.card .xp-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--space-1) var(--space-2); margin-top: var(--space-2); font-size: var(--type-caption-size); color: var(--quiet); }
-
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.board-skeleton-row { height: 3.25rem; border-radius: var(--radius-control); }
+.pager { display: flex; align-items: center; justify-content: center; gap: var(--space-3); color: var(--muted); font-size: var(--type-label-sm-size); }
+@media (max-width: 47.99rem) { .lb { padding-block: var(--space-8) var(--space-12); } }
 </style>

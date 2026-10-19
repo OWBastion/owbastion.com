@@ -205,7 +205,7 @@ const confirmField = (key: string) => toggleFieldConfirmation(key, true);
 
 <template>
   <div class="fields">
-    <AdminSignalPanel :kicker="modelVersion || undefined" title="识别核对" title-id="check-title">
+    <AdminSignalPanel :kicker="modelVersion || undefined" title="字段" title-id="check-title">
       <template #aside>
         <StatusBadge :label="ocrStatusLabel(submission.ocrStatus ?? 'not_started')" :tone="ocrStatusTone(submission.ocrStatus ?? 'not_started')" />
       </template>
@@ -229,7 +229,7 @@ const confirmField = (key: string) => toggleFieldConfirmation(key, true);
           </button>
         </li>
         <li v-if="extraFieldCount">
-          <UButton type="button" size="sm" color="neutral" variant="ghost" :icon="showExtraFields ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" :label="showExtraFields ? '收起' : `更多字段（${extraFieldCount}）`" :aria-expanded="showExtraFields" @click="showExtraFields = !showExtraFields" />
+          <UButton type="button" size="sm" color="neutral" variant="ghost" :icon="showExtraFields ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" :label="showExtraFields ? '收起' : `+${extraFieldCount}`" :aria-expanded="showExtraFields" @click="showExtraFields = !showExtraFields" />
         </li>
       </ul>
       <div v-if="openRow" :id="`check-editor-${openRow.key}`" class="check-editor" role="group" :aria-label="`${openRow.label}核对`">
@@ -242,12 +242,12 @@ const confirmField = (key: string) => toggleFieldConfirmation(key, true);
           </span>
         </div>
         <div class="check-editor__control">
-          <USelectMenu v-if="openRow.key === 'achievement_titles'" v-model="selectedTitles" multiple :items="withCurrent(titleNames, selectedTitles)" :aria-label="`截图中的${openRow.label}完整值`" placeholder="选择截图中的全部成就（截图没有成就则留空并确认）" :disabled="disabled" @update:model-value="confirmField(openRow.key)" />
-          <UInputMenu v-else-if="openRow.key === 'run_code'" :model-value="correctionInputs[openRow.key] ?? ''" :items="preview?.matchCodeCandidates ?? []" create-item :aria-label="`截图中的${openRow.label}`" placeholder="选择已有对局码或输入截图中的对局码" :disabled="disabled" @update:model-value="correctionInputs[openRow.key] = String($event ?? ''); confirmField(openRow.key)" @create="correctionInputs[openRow.key] = String($event).trim(); confirmField(openRow.key)" />
+          <USelectMenu v-if="openRow.key === 'achievement_titles'" v-model="selectedTitles" multiple :items="withCurrent(titleNames, selectedTitles)" :aria-label="`截图中的${openRow.label}完整值`" placeholder="截图中的成就（无则留空）" :disabled="disabled" @update:model-value="confirmField(openRow.key)" />
+          <UInputMenu v-else-if="openRow.key === 'run_code'" :model-value="correctionInputs[openRow.key] ?? ''" :items="preview?.matchCodeCandidates ?? []" create-item :aria-label="`截图中的${openRow.label}`" placeholder="对局码" :disabled="disabled" @update:model-value="correctionInputs[openRow.key] = String($event ?? ''); confirmField(openRow.key)" @create="correctionInputs[openRow.key] = String($event).trim(); confirmField(openRow.key)" />
           <UInput v-else-if="openRow.key in typedFieldPlaceholder" v-model="correctionInputs[openRow.key]" :inputmode="['duration_seconds', 'deaths', 'skips'].includes(openRow.key) ? 'numeric' : 'text'" :aria-label="`截图中的${openRow.label}`" :placeholder="typedFieldPlaceholder[openRow.key]" :disabled="disabled" @update:model-value="confirmField(openRow.key)" />
-          <USelect v-else v-model="correctionInputs[openRow.key]" :items="fieldChoices(openRow.key)" :aria-label="`截图中的${openRow.label}完整值`" :placeholder="`选择截图中的${openRow.label}`" :disabled="disabled" @update:model-value="confirmField(openRow.key)" />
-          <UButton v-if="!openRow.attested" type="button" icon="i-lucide-check" label="确认无误" size="sm" color="neutral" variant="outline" :aria-label="`核对${openRow.label}`" :disabled="disabled || (openRow.key !== 'achievement_titles' && !(correctionInputs[openRow.key] ?? '').trim())" @click="confirmField(openRow.key)" />
-          <UButton v-else type="button" icon="i-lucide-undo-2" label="撤销核对" size="sm" color="neutral" variant="ghost" :aria-label="`撤销核对${openRow.label}`" :disabled="disabled" @click="toggleFieldConfirmation(openRow.key, false)" />
+          <USelect v-else v-model="correctionInputs[openRow.key]" :items="fieldChoices(openRow.key)" :aria-label="`截图中的${openRow.label}完整值`" :placeholder="openRow.label" :disabled="disabled" @update:model-value="confirmField(openRow.key)" />
+          <UButton v-if="!openRow.attested" type="button" icon="i-lucide-check" label="确认" size="sm" color="neutral" variant="outline" :aria-label="`核对${openRow.label}`" :disabled="disabled || (openRow.key !== 'achievement_titles' && !(correctionInputs[openRow.key] ?? '').trim())" @click="confirmField(openRow.key)" />
+          <UButton v-else type="button" icon="i-lucide-undo-2" label="撤销" size="sm" color="neutral" variant="ghost" :aria-label="`撤销核对${openRow.label}`" :disabled="disabled" @click="toggleFieldConfirmation(openRow.key, false)" />
         </div>
       </div>
       <details v-if="ocrPayload" class="ocr-detail">
@@ -258,9 +258,9 @@ const confirmField = (key: string) => toggleFieldConfirmation(key, true);
         <dl v-if="runtimeEvidence.length || eventEvidence.length" class="detail-grid" aria-label="对局环境识别结果">
           <div v-for="field in [...runtimeEvidence, ...eventEvidence]" :key="field.key" class="detail-grid__row"><dt>{{ field.label }}</dt><dd>{{ field.value }}</dd></div>
         </dl>
-        <details><summary>查看原始识别数据</summary><pre>{{ JSON.stringify(ocrPayload, null, 2) }}</pre></details>
+        <details><summary>原始数据</summary><pre>{{ JSON.stringify(ocrPayload, null, 2) }}</pre></details>
       </details>
-      <p v-else class="signal-empty">暂无 OCR 结果，可逐项填写截图中的实际值。</p>
+      <p v-else class="signal-empty">无识别结果</p>
     </AdminSignalPanel>
   </div>
 </template>

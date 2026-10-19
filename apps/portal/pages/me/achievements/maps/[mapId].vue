@@ -58,9 +58,8 @@ watch(mapId, () => { void loadPlayerData(); });
       <header class="map-hero">
         <span class="map-hero__initial font-display" aria-hidden="true">{{ map.mapName.slice(0, 1) }}</span>
         <div class="map-hero__copy">
-          <p class="eyebrow">Map mastery</p>
           <h1 class="map-hero__title">{{ map.mapName }}</h1>
-          <NuxtLink :to="`/maps?mapId=${encodeURIComponent(map.mapId)}`" class="map-hero__link">地图介绍与评价<UIcon name="i-lucide-arrow-up-right" aria-hidden="true" /></NuxtLink>
+          <NuxtLink :to="`/maps?mapId=${encodeURIComponent(map.mapId)}`" class="map-hero__link">地图介绍<UIcon name="i-lucide-arrow-up-right" aria-hidden="true" /></NuxtLink>
         </div>
         <div class="map-hero__stats">
           <MastheadStat label="精通 XP" :value="profile ? profile.totalXp : overviewLoading ? null : 0" />
@@ -75,10 +74,9 @@ watch(mapId, () => { void loadPlayerData(); });
             <li v-for="challenge in row.challenges" :key="challenge.challengeId" :class="{ earned: earnedIds.has(challenge.challengeId) }">
               <span class="map-challenge-list__mark" aria-hidden="true"><UIcon :name="earnedIds.has(challenge.challengeId) ? 'i-lucide-check' : 'i-lucide-lock'" /></span>
               <span class="map-challenge-list__name">{{ challenge.name }}<small v-if="challenge.status === 'sunsetting'">即将结束</small></span>
-              <span class="map-challenge-list__state">{{ earnedIds.has(challenge.challengeId) ? "已获得" : "未获得" }}</span>
             </li>
           </ul>
-          <p v-else class="map-panel__empty">这张地图暂无成就。</p>
+          <p v-else class="map-panel__empty">暂无</p>
         </section>
 
         <div class="map-panel map-panel--mastery">
@@ -113,14 +111,12 @@ watch(mapId, () => { void loadPlayerData(); });
 .map-panel__title { margin: 0; font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; }
 .map-panel__empty { margin: 0; color: var(--muted); font-size: var(--type-body-sm-size); }
 .map-challenge-list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
-.map-challenge-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); color: var(--muted); }
+.map-challenge-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); color: var(--muted); }
 .map-challenge-list__mark { display: grid; width: 2rem; height: 2rem; place-items: center; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: var(--surface-raised); color: var(--quiet); }
 .map-challenge-list__name { min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
 .map-challenge-list__name small { display: block; color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; }
-.map-challenge-list__state { color: var(--quiet); font-size: var(--type-caption-size); }
 .map-challenge-list li.earned { border-color: color-mix(in oklch, var(--accent) 45%, var(--line)); color: var(--text); }
 .map-challenge-list li.earned .map-challenge-list__mark { background: var(--accent); color: var(--on-accent); }
-.map-challenge-list li.earned .map-challenge-list__state { color: var(--accent); }
 .map-achievement-loading { display: grid; gap: var(--space-3); }
 @media (max-width: 63.99rem) { .map-achievement-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 47.99rem) {

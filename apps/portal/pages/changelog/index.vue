@@ -16,9 +16,7 @@ const entries = computed(() => releases.value.map((release) => ({ path: release.
 <template>
   <main class="editorial-page page-shell--readable">
     <div class="editorial-list-frame">
-      <PageMasthead title-id="changelog-title" eyebrow="Patch notes" title="版本更新" description="每个已发布版本带来的内容与规则变化。">
-        <MastheadStat label="已发布版本" :value="status === 'pending' ? null : entries.length" />
-      </PageMasthead>
+      <PageMasthead title-id="changelog-title" title="版本更新" />
 
       <section aria-label="版本更新列表">
         <div v-if="status === 'pending'" class="editorial-loading" role="status">读取中…</div>

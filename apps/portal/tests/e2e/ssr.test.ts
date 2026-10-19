@@ -66,8 +66,8 @@ describe("Portal SSR", async () => {
   it("renders the home page from the built Nuxt server", async () => {
     const html = await $fetch("/");
 
-    expect(html).toMatch(/<h1[^>]*id="hero-title"[^>]*>躲避堡垒 <span[^>]*>3<\/span><\/h1>/);
-    expect(html).toContain("轮换挑战未开放");
+    expect(html).toMatch(/<h1[^>]*>躲避堡垒 <span[^>]*>3<\/span><\/h1>/);
+    expect(html).toContain('href="/login"');
     expect(html).toContain('href="/achievements"');
     expect(html).toContain('href="/changelog"');
   });

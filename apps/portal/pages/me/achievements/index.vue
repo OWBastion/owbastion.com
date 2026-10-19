@@ -2,7 +2,7 @@
 import type { PublicAchievement } from "~/components/AchievementCatalog.vue";
 import MyAchievementOverview from "~/components/MyAchievementOverview.vue";
 import type { PortalMap } from "~/composables/usePortalApi";
-import { buildMapProgressRows, type MapProgressChallenge } from "~/utils/map-progress";
+import type { MapProgressChallenge } from "~/utils/map-progress";
 import { portalErrorDetails } from "~/utils/portal-error";
 
 definePageMeta({ middleware: "auth" });
@@ -22,9 +22,6 @@ const { data: catalog, pending: loading, error: catalogError } = await useAsyncD
 const challenges = computed(() => catalog.value?.challenges ?? []);
 const maps = computed(() => catalog.value?.maps ?? []);
 const mapChallenges = computed(() => catalog.value?.mapChallenges ?? []);
-const equippedCount = computed(() => ownedTitles.value.filter((title) => title.scope === "global" && title.equipped).length);
-const mapTotals = computed(() => buildMapProgressRows({ maps: maps.value, challenges: mapChallenges.value, titles: ownedTitles.value })
-  .reduce((totals, row) => ({ earned: totals.earned + row.earnedChallenges.length, total: totals.total + row.challenges.length }), { earned: 0, total: 0 }));
 const playerError = shallowRef("");
 const error = computed(() => catalogError.value
   ? portalErrorDetails(catalogError.value, "无法读取成就，请稍后重试。").description
@@ -58,11 +55,7 @@ const updateEquipped = async (grantId: string) => {
 
 <template>
   <main class="achievements-page directory-page page-shell">
-    <PageMasthead title-id="achievements-title" eyebrow="My collection" title="我的成就" description="佩戴的称号会在游戏内可用，修改会在后续游戏版本同步后生效。">
-      <MastheadStat label="已获得称号" :value="player ? ownedTitles.length : null" />
-      <MastheadStat label="地图成就" :value="player && mapTotals.total ? `${mapTotals.earned}/${mapTotals.total}` : null" />
-      <MastheadStat label="已佩戴" :value="player ? `${equippedCount}/10` : null" />
-    </PageMasthead>
+    <PageMasthead title="我的成就" />
     <section v-if="loading" class="achievement-directory" aria-label="读取中…" role="status">
       <div class="achievement-skeleton-groups" aria-hidden="true">
         <section v-for="group in 2" :key="group" class="achievement-skeleton-section">
