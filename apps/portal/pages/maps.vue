@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import MapDirectorySkeleton from "../components/maps/MapDirectorySkeleton.vue";
 import type { Map, MapChallenge } from "~/types/challenge";
 import type { OwnedTitle } from "~/types/title";
 import MapDirectory from "../components/maps/MapDirectory.vue";
@@ -37,16 +38,7 @@ onMounted(async () => {
     <PageMasthead title="地图" />
     <section class="map-directory-panel" aria-label="地图列表">
       <LoadingReveal>
-        <div v-if="loading" class="map-skeleton-grid directory-grid" role="status" aria-label="读取中…">
-          <div v-for="index in 6" :key="index" class="map-skeleton-card interactive-card interactive-card--static" aria-hidden="true">
-            <USkeleton class="map-skeleton-visual" />
-            <div class="map-skeleton-body">
-              <div class="map-skeleton-heading"><USkeleton class="map-skeleton-title" /><USkeleton class="map-skeleton-version" /></div>
-              <div class="map-skeleton-facts"><div class="map-skeleton-fact"><USkeleton class="map-skeleton-label" /><USkeleton class="map-skeleton-value" /></div><div class="map-skeleton-fact"><USkeleton class="map-skeleton-label" /><USkeleton class="map-skeleton-value" /></div><div class="map-skeleton-fact map-skeleton-fact-last"><USkeleton class="map-skeleton-label" /><USkeleton class="map-skeleton-value" /></div></div>
-              <div class="map-skeleton-footer"><USkeleton class="map-skeleton-tag" /><USkeleton class="map-skeleton-tag map-skeleton-tag-short" /></div>
-            </div>
-          </div>
-        </div>
+        <MapDirectorySkeleton v-if="loading" role="status" aria-label="读取中…" />
         <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取地图" :description="error" />
         <MapDirectory v-else :maps="maps" :challenges="challenges" :authenticated="Boolean(player)" :titles="titles" :selected-map-id="selectedMapId" />
       </LoadingReveal>
@@ -56,29 +48,4 @@ onMounted(async () => {
 
 <style scoped>
 .map-directory-panel { padding: 0; }
-.map-skeleton-card { container-type: inline-size; display: grid; min-width: 0; overflow: hidden; border-radius: var(--radius-card); }
-.map-skeleton-visual { min-height: 138px; border-radius: 0; }
-.map-skeleton-body { display: grid; gap: var(--space-4); padding: var(--space-4) var(--space-4) var(--space-4); }
-.map-skeleton-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
-.map-skeleton-title { width: 58%; height: 24px; }
-.map-skeleton-version { width: 24%; height: 14px; }
-.map-skeleton-facts { display: grid; gap: var(--space-2); margin: 0; }
-.map-skeleton-fact { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding-top: var(--space-2); border-top: 1px solid var(--line); }
-.map-skeleton-label { width: 28%; height: 12px; }
-.map-skeleton-value { width: 32%; height: 13px; }
-.map-skeleton-footer { display: flex; flex-wrap: wrap; gap: var(--space-1); }
-.map-skeleton-tag { width: 52px; height: 20px; border-radius: var(--radius-pill); }
-.map-skeleton-tag-short { width: 42px; }
-@media (max-width: 47.99rem) {
-}
-@container (max-width: 23.99rem) {
-  .map-skeleton-visual { min-height: 108px; }
-  .map-skeleton-body { gap: var(--space-3); padding: var(--space-3); }
-  .map-skeleton-heading { align-items: flex-start; flex-direction: column; gap: var(--space-1); }
-  .map-skeleton-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
-  .map-skeleton-fact { min-width: 0; align-items: flex-start; flex-direction: column; gap: var(--space-1); padding-top: var(--space-2); }
-  .map-skeleton-fact-last { grid-column: 1 / -1; align-items: center; flex-direction: row; }
-  .map-skeleton-label, .map-skeleton-value { max-width: 100%; }
-  .map-skeleton-footer { display: grid; grid-template-columns: 1fr; }
-}
 </style>
