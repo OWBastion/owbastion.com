@@ -227,9 +227,6 @@ const entryMeta = (entry: LeaderboardEntry) => board.value === "mastery"
 .lb { display: grid; align-content: start; gap: var(--space-6); max-width: 44rem; padding-block: clamp(3rem, 10vh, 6rem) 4.5rem; }
 .lb-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4); }
 .lb-title { margin: 0; font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3rem); font-weight: 700; letter-spacing: -.02em; line-height: 1; }
-.seg { display: inline-flex; gap: 0.125rem; padding: 0.1875rem; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-raised); }
-.seg button { min-height: var(--control-md); padding: 0 var(--space-4); border: 0; border-radius: calc(var(--radius-control) / 1.5); background: none; color: var(--muted); font-size: var(--type-body-sm-size); font-weight: 500; white-space: nowrap; cursor: pointer; }
-.seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: var(--elevation-1); }
 .lb-filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: calc(-1 * var(--space-2)); }
 .lb-select { min-width: 9rem; }
 .lb-help { margin-left: auto; }
