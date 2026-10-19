@@ -399,9 +399,9 @@ onBeforeUnmount(() => {
 .admin-data-table { container-type: inline-size; overflow: visible; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); scroll-margin-top: var(--sticky-chrome-top, 0px); }
 .admin-data-table--row-link :deep(tbody tr) { cursor: pointer; transition: background-color 120ms ease-out; }
 .admin-data-table--row-link :deep(tbody tr:hover),
-.admin-data-table--row-link :deep(tbody tr:focus-within) { background: color-mix(in oklch, var(--surface-raised) 72%, transparent); }
+.admin-data-table--row-link :deep(tbody tr:focus-within) { background: color-mix(in oklch, var(--surface-raised) 72%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
 .admin-data-table--row-link :deep(tbody tr:active) { background: color-mix(in oklch, var(--surface-raised) 88%, transparent); }
-.admin-data-table__controls { position: sticky; z-index: 3; top: var(--sticky-chrome-top, 0px); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: var(--radius-card) var(--radius-card) 0 0; background: var(--surface); }
+.admin-data-table__controls { position: sticky; z-index: 3; top: var(--sticky-chrome-top, 0px); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); border-radius: var(--radius-card) var(--radius-card) 0 0; background: var(--surface); }
 .admin-data-table__loading-bar {
   position: absolute;
   right: 0;
@@ -468,9 +468,11 @@ onBeforeUnmount(() => {
 }
 .admin-data-table :deep([data-slot="th"]) {
   color: var(--quiet);
+  font-family: var(--font-display);
   font-size: .72rem;
-  font-weight: 700;
-  letter-spacing: .025em;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
 }
 .admin-data-table :deep([data-slot="th"]), .admin-data-table :deep([data-slot="td"]) { padding: var(--space-3) var(--space-3); }
 .admin-data-table :deep([data-slot="td"]) { vertical-align: middle; white-space: normal !important; }
