@@ -26,14 +26,13 @@ const noteOf = (challenge: PublicAchievement) => challenge.status === "scheduled
 
 <template>
   <div v-if="groups.length" class="catalog">
-    <section v-for="group in groups" :key="group.anchor" class="series" :aria-labelledby="`${group.anchor}-title`">
-      <h2 :id="`${group.anchor}-title`" class="series__title">{{ group.category }}<span class="num">{{ group.obtained === null ? group.challenges.length : `${group.obtained}/${group.challenges.length}` }}</span></h2>
-      <ul class="tiles">
-        <li v-for="challenge in group.challenges" :key="challenge.challengeId">
-          <AchievementTile :name="challenge.titleName" :icon-url="challenge.iconUrl" :icon="challenge.icon" :earned="challenge.status !== 'scheduled' && (!titles || stateOf(challenge) !== 'none')" :checked="Boolean(titles) && stateOf(challenge) !== 'none'" check-label="已获得" @click="selected = challenge" />
+    <AchievementWall>
+      <AchievementShelf v-for="(group, groupIndex) in groups" :key="group.anchor" :title="group.category" :heading-id="`${group.anchor}-title`" :count="group.obtained === null ? String(group.challenges.length) : `${group.obtained}/${group.challenges.length}`">
+        <li v-for="(challenge, index) in group.challenges" :key="challenge.challengeId">
+          <AchievementTile :name="challenge.titleName" :icon-url="challenge.iconUrl" :icon="challenge.icon" :earned="challenge.status !== 'scheduled' && (!titles || stateOf(challenge) !== 'none')" :checked="Boolean(titles) && stateOf(challenge) !== 'none'" check-label="已获得" :shine-delay="groupIndex * .8 + index * .22" @click="selected = challenge" />
         </li>
-      </ul>
-    </section>
+      </AchievementShelf>
+    </AchievementWall>
 
     <UModal v-model:open="sheetOpen" :title="selected?.titleName ?? ''" :description="selected ? noteOf(selected) : undefined">
       <template #body>
@@ -50,10 +49,6 @@ const noteOf = (challenge: PublicAchievement) => challenge.status === "scheduled
 
 <style scoped>
 .catalog { display: grid; gap: var(--space-12); }
-.series { display: grid; gap: var(--space-4); }
-.series__title { display: flex; align-items: baseline; gap: var(--space-3); margin: 0; font-size: 1.0625rem; font-weight: 600; }
-.series__title .num { color: var(--quiet); font-size: var(--type-label-sm-size); font-weight: 500; }
-.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr)); gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .sheet { display: grid; justify-items: center; gap: var(--space-4); text-align: center; }
 .sheet__icon { --achievement-icon-size: 7rem; }
 .sheet__condition { margin: 0; color: var(--muted); }
