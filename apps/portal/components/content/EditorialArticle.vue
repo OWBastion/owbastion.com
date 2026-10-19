@@ -63,12 +63,13 @@ const showToc = computed(() => props.toc.length >= 3);
 <style scoped>
 .editorial-layout { min-width: 0; }
 .editorial-article { min-width: 0; }
-.editorial-article-header { display: grid; gap: var(--space-4); padding-bottom: var(--space-8); }
+.editorial-article-header { position: relative; display: grid; gap: var(--space-4); margin-bottom: var(--space-8); padding-bottom: var(--space-8); border-bottom: 1px solid var(--line); }
+.editorial-article-header::after { content: ""; position: absolute; left: 0; bottom: -1px; width: 6rem; height: 2px; background: var(--accent); }
 .editorial-kicker { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; }
 .editorial-kind { color: var(--accent); font-weight: 600; }
 .editorial-date { font-variant-numeric: tabular-nums; }
 .editorial-minutes::before { content: "·"; margin-right: var(--space-3); }
-.editorial-title { margin: 0; font-size: var(--type-title-size); font-weight: 700; letter-spacing: var(--type-title-tracking); line-height: 1.12; text-wrap: balance; overflow-wrap: anywhere; }
+.editorial-title { margin: 0; font-family: var(--font-display); font-size: var(--type-title-size); font-weight: 700; letter-spacing: var(--type-title-tracking); line-height: 1.12; text-wrap: balance; overflow-wrap: anywhere; }
 .editorial-article-description { margin: 0; color: var(--muted); font-size: 1.125rem; line-height: 1.7; }
 .editorial-tags { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .editorial-tags li { padding: 0 var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-pill); color: var(--muted); font-size: var(--type-caption-size); line-height: 1.9; }
@@ -79,7 +80,7 @@ const showToc = computed(() => props.toc.length >= 3);
 
 .editorial-article-body { color: var(--text); font-size: var(--type-body-size); line-height: 1.85; overflow-wrap: anywhere; }
 .editorial-article-body :deep(:where(h2, h3, h4)) { margin: 2.4em 0 .7em; color: var(--text); line-height: 1.3; scroll-margin-top: calc(var(--sticky-chrome-top) + 1rem); }
-.editorial-article-body :deep(h2) { padding-top: 1.4em; border-top: 1px solid var(--line); font-size: 1.375rem; font-weight: 700; letter-spacing: -0.01em; }
+.editorial-article-body :deep(h2) { padding-top: 1.4em; border-top: 1px solid var(--line); font-family: var(--font-display); font-size: 1.375rem; font-weight: 700; letter-spacing: -0.01em; }
 .editorial-article-body :deep(h2:first-child) { margin-top: 0; padding-top: 0; border-top: 0; }
 /* h2 section → h3 group (accent bar) → h4 item (small, muted): each level reads as a step down. */
 .editorial-article-body :deep(h3) { padding-left: .7rem; border-left: 3px solid var(--accent); font-size: 1.1875rem; font-weight: 600; }
@@ -111,12 +112,12 @@ const showToc = computed(() => props.toc.length >= 3);
 .editorial-article-body :deep(pre code) { padding: 0; background: transparent; }
 .editorial-article-body :deep(.katex-display) { max-width: 100%; overflow-x: auto; overflow-y: hidden; padding-block: .2rem; }
 
-.changelog-version { display: inline-flex; align-items: center; min-height: 2rem; margin: 0; padding: var(--space-1) var(--space-3); border: 1px solid color-mix(in oklch, var(--accent) 42%, var(--line)); border-radius: var(--radius-pill); background: var(--accent-surface); color: var(--accent); font-size: var(--type-caption-size); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; line-height: 1; }
-.changelog-title { margin: 0; overflow-wrap: anywhere; text-wrap: balance; }
+.changelog-version { flex: 1 1 100%; margin: 0 0 var(--space-2); color: transparent; font-family: var(--font-display); font-size: clamp(2.75rem, 8vw, 4.5rem); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; -webkit-text-stroke: 1.5px var(--accent); }
+.changelog-title { margin: 0; font-family: var(--font-display); font-size: clamp(1.625rem, 3.4vw, 2.25rem); overflow-wrap: anywhere; text-wrap: balance; }
 .editorial-article--changelog .editorial-article-header { padding-bottom: var(--space-6); }
 /* A release note is dense and scanned: tighter than an essay, but with the same section rhythm. */
 .editorial-article--changelog .editorial-article-body { line-height: 1.75; }
-.editorial-article--changelog .editorial-article-body :deep(h2) { font-size: var(--type-headline-size); font-weight: 600; letter-spacing: var(--type-headline-tracking); line-height: var(--type-headline-leading); }
+.editorial-article--changelog .editorial-article-body :deep(h2) { font-family: var(--font-display); font-size: var(--type-headline-size); font-weight: 600; letter-spacing: var(--type-headline-tracking); line-height: var(--type-headline-leading); }
 /* Changelog spacing is tighter than an essay's; the heading look is shared with the base rules. */
 .editorial-article--changelog .editorial-article-body :deep(h3) { margin: 1.75rem 0 .6rem; line-height: 1.35; }
 .editorial-article--changelog .editorial-article-body :deep(h4) { margin: 1.25rem 0 .35rem; line-height: 1.4; }
@@ -134,7 +135,7 @@ const showToc = computed(() => props.toc.length >= 3);
   .editorial-article-description { font-size: 1.0625rem; }
 }
 @media (prefers-contrast: more) {
-  .changelog-version { border-color: var(--accent); }
+  .changelog-version { color: var(--accent); -webkit-text-stroke: 0; }
   .editorial-article-body :deep(blockquote) { border-left-color: var(--text); }
 }
 </style>
