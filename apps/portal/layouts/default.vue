@@ -7,6 +7,7 @@ const showFooter = computed(() => !route.path.startsWith("/admin"));
 
 <template>
   <div class="app-shell">
+    <GridGlow />
     <AppHeader />
     <div class="app-main" :class="{ 'app-main--tabbed': showFooter }">
       <slot />
