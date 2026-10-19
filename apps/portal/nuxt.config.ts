@@ -68,6 +68,8 @@ export default defineNuxtConfig({
         { name: "theme-color", content: "#0c1310" },
         { property: "og:image", content: `${siteUrl}/og-image.png` },
         { name: "twitter:card", content: "summary_large_image" },
+        // next.owbastion.com is a preview of the main site; keep it out of search results.
+        { name: "robots", content: "noindex" },
       ],
       link: [
         { rel: "icon", href: "/favicon.ico", sizes: "48x48" },
