@@ -913,6 +913,38 @@ describe("map title rule model – locked invariants", () => {
       await expect(services.listChallenges({ family: "map" })).resolves.not.toContainEqual(expect.objectContaining({ titleKey: "PIONEER", mapId: "map.paris" }));
     });
 
+    it.each([{ enabled: 1 }, { enabled: 0 }] as const)("issues a manual grant after the Pioneer window lapses (enabled=$enabled)", async ({ enabled }) => {
+      const { database, sqlite } = createTestDatabase("map.grim");
+      seedTitle(sqlite, "PIONEER");
+      seedRule(sqlite, "rule.pioneer", "PIONEER", "pioneer", { slot: "pioneer", defaultScope: "explicit" });
+      seedException(sqlite, "exception.pioneer.grim", "rule.pioneer", "map.grim", { enabled, startsAt: now - 172_800_000, endsAt: now - 86_400_000 });
+      if (!enabled) sqlite.prepare("UPDATE gameplay_revision_challenge_assignments SET enabled = 1 WHERE map_id = 'map.grim' AND challenge_family = 'map_title_rule' AND challenge_id = 'rule.pioneer'").run();
+      const playerAccountId = "33333333-3333-4333-8333-333333333333";
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES (?, '1001', 'Pioneer Player', 'pioneer player', ?, ?)").run(playerAccountId, now, now);
+      const services = createPlatformServices(database);
+      const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+
+      const result = await services.createAdminManualTitleGrantBatch({
+        contractVersion: "1",
+        playerAccountIds: [playerAccountId],
+        targets: [{ titleKey: "PIONEER", mapId: "map.grim" }],
+      }, auth, `manual-lapsed-pioneer-${enabled}`);
+
+      expect(result.items).toEqual([expect.objectContaining({
+        playerAccountId,
+        titleKey: "PIONEER",
+        mapId: "map.grim",
+        gameplayRevisionId: "revision:map.grim:initial",
+        status: "created",
+      })]);
+      expect(sqlite.prepare("SELECT title_key, map_id, gameplay_revision_id, slot FROM player_title_grants WHERE player_account_id = ?").get(playerAccountId)).toEqual({
+        title_key: "PIONEER",
+        map_id: "map.grim",
+        gameplay_revision_id: "revision:map.grim:initial",
+        slot: "pioneer",
+      });
+    });
+
     it("uses submission.createdAt for Pioneer OCR after the window ends", async () => {
       const { database, sqlite } = createTestDatabase("map.paris");
       seedTitle(sqlite, "PIONEER");
