@@ -8,6 +8,7 @@ crons = ["*/5 * * * *"]
 
 [vars]
 PORTAL_ORIGIN = "https://owbastion.com"
+PORTAL_PREVIEW_ORIGINS = "https://next.owbastion.com"
 OCRKIT_BASE_URL = "https://ocr.owbastion.com"
 EVIDENCE_PUBLIC_ORIGIN = "https://evidence.owbastion.codes"
 OCR_AUTO_REVIEW_SAMPLE_RATE = "0"

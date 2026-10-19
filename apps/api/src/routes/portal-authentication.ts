@@ -38,10 +38,14 @@ export const registerPortalAuthenticationRoutes = (app: ApiApp, dependencies: Po
     const requestOrigin = c.req.header("origin");
     const configuredOrigin = c.env.PORTAL_ORIGIN ?? "https://owbastion.com";
     const localOrigin = c.env.LOCAL_DEV_AUTH === "true" && requestOrigin && /^http:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0):3000$/.test(requestOrigin) ? requestOrigin : undefined;
-    const expectedOrigin = localOrigin ?? new URL(configuredOrigin).origin;
-    if (!requestOrigin || requestOrigin !== expectedOrigin) return null;
-    const parsed = new URL(expectedOrigin);
-    return { origin: expectedOrigin, rpId: parsed.hostname };
+    if (localOrigin) return { origin: localOrigin, rpId: new URL(localOrigin).hostname };
+    // Preview Portals on subdomains share the production RP ID, so existing Passkeys work there.
+    const rpId = new URL(configuredOrigin).hostname;
+    const allowed = [new URL(configuredOrigin).origin, ...(c.env.PORTAL_PREVIEW_ORIGINS ?? "").split(",").map((value: string) => value.trim()).filter(Boolean)];
+    if (!requestOrigin || !allowed.includes(requestOrigin)) return null;
+    const { hostname } = new URL(requestOrigin);
+    if (hostname !== rpId && !hostname.endsWith(`.${rpId}`)) return null;
+    return { origin: requestOrigin, rpId };
   };
   const passkeyError = (c: any, error: unknown) => {
     const code = error instanceof Error ? error.message : "PASSKEY_VERIFICATION_FAILED";
