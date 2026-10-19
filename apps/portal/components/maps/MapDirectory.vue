@@ -13,6 +13,17 @@ const props = defineProps<{
   selectedMapId?: string;
 }>();
 
+const query = shallowRef("");
+const tierFilter = shallowRef<string | null>(null);
+const sort = shallowRef<"default" | "tier" | "name">("default");
+const tiers = computed(() => [...new Set(props.maps.flatMap((map) => map.difficultyRating ? [map.difficultyRating] : []))].sort());
+const visibleMaps = computed(() => {
+  const text = query.value.trim();
+  const list = props.maps.filter((map) => (!text || map.mapName.includes(text)) && (!tierFilter.value || map.difficultyRating === tierFilter.value));
+  if (sort.value === "name") return [...list].sort((left, right) => left.mapName.localeCompare(right.mapName, "zh-CN"));
+  if (sort.value === "tier") return [...list].sort((left, right) => (right.difficultyRating ?? "").localeCompare(left.difficultyRating ?? ""));
+  return list;
+});
 const selectedMap = shallowRef<Map | null>(null);
 const modalOpen = shallowRef(false);
 const reviewSummaries = useReviewSummaries("map", () => props.maps.map((map) => map.mapId), () => props.maps.map((map) => map.defaultGameplayRevisionId ?? null));
@@ -68,14 +79,26 @@ watch(modalOpen, (open) => {
 
 <template>
   <section class="map-directory" aria-label="地图列表">
-    <div v-if="props.maps.length" class="map-grid"><MapCard v-for="map in props.maps" :key="map.mapId" :map="map" :challenges="props.challenges" :review-summary="reviewSummaries.summaryFor(map.mapId, map.defaultGameplayRevisionId)" :review-loading="reviewLoading" :review-error="reviewError" @select="openMap(map)" /></div>
-    <UEmpty v-else title="暂无地图" variant="naked" />
+    <div v-if="props.maps.length" class="map-toolbar">
+      <UInput v-model="query" class="map-toolbar__search" size="lg" icon="i-lucide-search" placeholder="搜索地图" aria-label="搜索地图" />
+      <div class="map-toolbar__tiers" role="group" aria-label="按地图评级筛选">
+        <FilterChip label="全部" :pressed="tierFilter === null" @toggle="tierFilter = null" />
+        <FilterChip v-for="value in tiers" :key="value" :label="value" :pressed="tierFilter === value" @toggle="tierFilter = tierFilter === value ? null : value" />
+      </div>
+      <USelect v-model="sort" class="map-toolbar__sort" size="lg" :items="[{ label: '默认顺序', value: 'default' }, { label: '评级从高到低', value: 'tier' }, { label: '名称', value: 'name' }]" aria-label="地图排序" />
+    </div>
+    <div v-if="visibleMaps.length" class="map-grid"><MapCard v-for="map in visibleMaps" :key="map.mapId" :map="map" :challenges="props.challenges" :review-summary="reviewSummaries.summaryFor(map.mapId, map.defaultGameplayRevisionId)" :review-loading="reviewLoading" :review-error="reviewError" @select="openMap(map)" /></div>
+    <UEmpty v-else :title="props.maps.length ? '没有符合条件的地图' : '暂无地图'" variant="naked" />
     <MapDetailModal v-model:open="modalOpen" :map="selectedMap" :challenges="props.challenges" :authenticated="props.authenticated" :titles="props.titles" @review-changed="refreshReviewSummaries" />
   </section>
 </template>
 
 <style scoped>
 .map-directory { display: grid; gap: var(--space-6); }
-/* 17rem minimum track, capped at three columns. */
-.map-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, max(17rem, calc((100% - 2 * var(--space-4)) / 3))), 1fr)); gap: var(--space-4); }
+.map-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-4); }
+.map-toolbar__search { flex: 1 1 14rem; max-width: 22rem; }
+.map-toolbar__tiers { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.map-toolbar__sort { margin-left: auto; min-width: 10rem; }
+/* 17rem minimum track, capped at four columns. */
+.map-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, max(17rem, calc((100% - 3 * var(--space-4)) / 4))), 1fr)); gap: var(--space-4); }
 </style>

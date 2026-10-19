@@ -34,10 +34,10 @@ onMounted(async () => {
 
 <template>
   <main class="maps-page directory-page page-shell">
-    <section class="page-intro" aria-labelledby="maps-title">
-      <h1 id="maps-title" class="page-title">地图</h1>
-      <p v-if="!loading && !player" class="body-copy">登录后可评价地图。</p>
-    </section>
+    <PageMasthead title-id="maps-title" eyebrow="Maps" title="地图" :description="!loading && !player ? '地图评级、挑战与机制一览。登录后可评价地图。' : '地图评级、挑战与机制一览。'">
+      <MastheadStat label="地图" :value="loading ? null : maps.length" />
+      <MastheadStat label="地图挑战" :value="loading ? null : challenges.length" />
+    </PageMasthead>
     <section class="map-directory-panel" aria-label="地图列表">
       <div v-if="loading" class="map-skeleton-grid directory-grid" role="status" aria-label="读取中…">
         <div v-for="index in 6" :key="index" class="map-skeleton-card interactive-card interactive-card--static" aria-hidden="true">
@@ -56,8 +56,6 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.page-intro { margin-bottom: var(--space-8); }
-.page-intro .body-copy { margin: var(--space-2) 0 0; }
 .map-directory-panel { padding: 0; }
 .map-skeleton-card { container-type: inline-size; display: grid; min-width: 0; overflow: hidden; border-radius: var(--radius-card); }
 .map-skeleton-visual { min-height: 138px; border-radius: 0; }
@@ -73,7 +71,6 @@ onMounted(async () => {
 .map-skeleton-tag { width: 52px; height: 20px; border-radius: var(--radius-pill); }
 .map-skeleton-tag-short { width: 42px; }
 @media (max-width: 47.99rem) {
-  .page-intro { margin-bottom: var(--space-5); }
 }
 @container (max-width: 23.99rem) {
   .map-skeleton-visual { min-height: 108px; }
