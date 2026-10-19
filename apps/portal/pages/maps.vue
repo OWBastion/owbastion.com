@@ -34,10 +34,7 @@ onMounted(async () => {
 
 <template>
   <main class="maps-page directory-page page-shell">
-    <PageMasthead title-id="maps-title" eyebrow="Maps" title="地图" :description="!loading && !player ? '地图评级、挑战与机制一览。登录后可评价地图。' : '地图评级、挑战与机制一览。'">
-      <MastheadStat label="地图" :value="loading ? null : maps.length" />
-      <MastheadStat label="地图挑战" :value="loading ? null : challenges.length" />
-    </PageMasthead>
+    <PageMasthead title="地图" />
     <section class="map-directory-panel" aria-label="地图列表">
       <div v-if="loading" class="map-skeleton-grid directory-grid" role="status" aria-label="读取中…">
         <div v-for="index in 6" :key="index" class="map-skeleton-card interactive-card interactive-card--static" aria-hidden="true">

@@ -208,7 +208,7 @@ useSeoMeta({ title: () => `${pageTitle.value} · 躲避堡垒 3` });
 
 <template>
   <AdminWorkspace :title="pageTitle">
-    <template #actions><UButton :to="queuePath" label="返回队列" icon="i-lucide-arrow-left" color="neutral" variant="ghost" /></template>
+    <template #actions><UButton :to="queuePath" icon="i-lucide-arrow-left" color="neutral" variant="ghost" aria-label="返回队列" /></template>
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /><USkeleton v-else-if="loading" class="detail-loading" /><UAlert v-if="refreshError" color="warning" variant="subtle" :description="refreshError" role="status" /></template>
     <AdminSubmissionReviewDetail v-if="submission" :submission="submission" :evidence-src="evidenceSrc" :evidence-error="evidenceError" :review-error="reviewError || spotCheckError" :action-loading="actionLoading" :ocr-retry-error="ocrRetryError" :ocr-retry-loading="ocrRetryLoading" :ocr-accuracy-error="ocrAccuracyError" :ocr-accuracy-loading="ocrAccuracyLoading" :preview="preview" :preview-loading="previewLoading" :preview-error="previewError" :preview-current="previewKey === reviewInputKey" @review="review" @review-input="updateReviewInput" @retry-preview="loadPreview" @spot-check="resolveSpotCheck" @reopen="reopenSubmission" @retry-ocr="retryOcr" @ocr-accuracy="markOcrAccuracy" @evidence-error="evidenceError = true" />
     <UEmpty v-else-if="!loading" title="找不到该提交" />
