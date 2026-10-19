@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { introductionPages } from "~/utils/introduction-pages";
+import { adminPathActive, adminSectionGroups } from "~/utils/admin-sections";
 
 const { player, loaded, refresh, logout } = useCurrentPlayer();
 const loggingOut = ref(false);
@@ -14,39 +15,14 @@ function menuFocusableElements(panel: HTMLElement): HTMLElement[] {
     .filter((element) => !element.hasAttribute("disabled") && element.getAttribute("aria-hidden") !== "true");
 }
 const isAdminPage = computed(() => route.path.startsWith("/admin"));
-const adminPathActive = (to: string, exact = false) => exact ? route.path === to : route.path === to || route.path.startsWith(`${to}/`);
-const adminNavigationItems = computed(() => {
-  const group = (label: string, icon: string, children: Array<{ label: string; description: string; icon: string; to: string; active: boolean }>) => {
+const adminNavigationItems = computed(() => [
+  { label: "总览", icon: "i-lucide-layout-dashboard", to: "/admin", active: route.path === "/admin" },
+  ...adminSectionGroups.map((group) => {
+    const children = group.sections.map((section) => ({ ...section, active: adminPathActive(route.path, section.to) }));
     const active = children.some((child) => child.active);
-    return { label, icon, active, defaultOpen: active, children };
-  };
-  return [
-    { label: "总览", icon: "i-lucide-layout-dashboard", to: "/admin", active: route.path === "/admin" },
-    group("内容", "i-lucide-layers", [
-      { label: "地图", description: "地图与玩法修订", icon: "i-lucide-map", to: "/admin/maps", active: adminPathActive("/admin/maps") },
-      { label: "随机事件", description: "事件与平衡元数据", icon: "i-lucide-zap", to: "/admin/events", active: adminPathActive("/admin/events") },
-      { label: "独立模式", description: "限时模式的地图、事件池与权重", icon: "i-lucide-flip-horizontal-2", to: "/admin/modes", active: adminPathActive("/admin/modes") },
-      { label: "称号与挑战", description: "称号获取方式与地图挑战", icon: "i-lucide-award", to: "/admin/achievements/titles", active: adminPathActive("/admin/achievements") },
-    ]),
-    group("称号运营", "i-lucide-send", [
-      { label: "手动授予", description: "批量通过手动挑战授予称号", icon: "i-lucide-send", to: "/admin/grants", active: adminPathActive("/admin/grants") },
-      { label: "称号迁移", description: "历史数据关联与修复", icon: "i-lucide-history", to: "/admin/title-migration", active: adminPathActive("/admin/title-migration") },
-    ]),
-    group("审核", "i-lucide-scan-eye", [
-      { label: "截图审核", description: "待审核的提交", icon: "i-lucide-scan-eye", to: "/admin/reviews", active: adminPathActive("/admin/reviews") },
-      { label: "截图集", description: "OCR 样本与标注", icon: "i-lucide-images", to: "/admin/screenshot-sets", active: adminPathActive("/admin/screenshot-sets") },
-      { label: "评价审核", description: "玩家评价处理", icon: "i-lucide-message-square-quote", to: "/admin/player-reviews", active: adminPathActive("/admin/player-reviews") },
-      { label: "通关记录", description: "查询与冲突处理", icon: "i-lucide-trophy", to: "/admin/verified-runs", active: adminPathActive("/admin/verified-runs") },
-    ]),
-    group("玩家", "i-lucide-users", [
-      { label: "玩家列表", description: "身份、称号与进度", icon: "i-lucide-user-round", to: "/admin/players", active: adminPathActive("/admin/players") },
-      { label: "玩家 ID", description: "自定义 ID 的申请与清除", icon: "i-lucide-at-sign", to: "/admin/player-handles", active: adminPathActive("/admin/player-handles") },
-      { label: "绑定与邀请", description: "冲突、换绑与首次注册", icon: "i-lucide-link", to: "/admin/bindings", active: adminPathActive("/admin/bindings") },
-      { label: "QQ 群组策略", description: "绑定渠道接入", icon: "i-lucide-radio", to: "/admin/channels", active: adminPathActive("/admin/channels") },
-      { label: "赛季", description: "排行榜赛季的排期与可见性", icon: "i-lucide-calendar-range", to: "/admin/seasons", active: adminPathActive("/admin/seasons") },
-    ]),
-  ];
-});
+    return { label: group.label, icon: group.icon, active, defaultOpen: active, children };
+  }),
+]);
 
 const pathActive = (to: string) => route.path === to || route.path.startsWith(`${to}/`);
 // Signed-out visitors see the public introduction pages. Signed-in players default to their own
