@@ -249,7 +249,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.profile-page { padding-block: clamp(4rem, 9vh, 6.5rem) 4.5rem; }
+.profile-page { padding-block: clamp(2rem, 6vh, 4rem) 4.5rem; }
 .profile-alert { margin-bottom: var(--space-5); }
 .map-records { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr)); gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
 .map-records > li { min-width: 0; }
@@ -264,6 +264,7 @@ onMounted(() => {
 .recent-runs { container-type: inline-size; display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .recent-runs > li { min-width: 0; }
 .recent-run { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); min-width: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
+.recent-run { border-left: 3px solid var(--accent); }
 .recent-run-copy { display: grid; min-width: 0; gap: var(--space-1); }
 .recent-run-copy strong { overflow-wrap: anywhere; color: var(--text); font-size: .85rem; }
 .recent-run-copy span { color: var(--quiet); font-size: .73rem; }
