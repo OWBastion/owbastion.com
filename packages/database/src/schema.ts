@@ -48,10 +48,12 @@ export const playerAccounts = sqliteTable("player_accounts", {
   bannedAt: integer("banned_at"),
   bannedBy: text("banned_by"),
   banReason: text("ban_reason"),
+  leaderboardKey: text("leaderboard_key"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, (table) => ({
   battleTag: uniqueIndex("player_accounts_battletag_idx").on(table.normalizedPlayerName, table.playerId),
+  leaderboardKey: uniqueIndex("player_accounts_leaderboard_key_idx").on(table.leaderboardKey),
 }));
 
 export const playerHandles = sqliteTable("player_handles", {

@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray, isNull, lte, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
+import { leaderboardPlayerKey } from "@owbastion/domain";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
 import { createHistoricalTitleMigrationService } from "./historical-title-migration-service";
 import {
@@ -99,6 +100,13 @@ export const createBindingServices = (dependencies: BindingServicesDependencies)
   } = dependencies;
 
   const migrateAuthorizedHistoricalTitles = createHistoricalTitleMigrationService({ database, db, now, recordAudit });
+
+  // The public leaderboard key is stored at creation so the new account is
+  // resolvable by its playerKey immediately.
+  const newPlayerAccount = async (claim: { playerId: string; playerName: string; normalizedPlayerName: string }, timestamp: number) => {
+    const id = crypto.randomUUID();
+    return { id, playerId: claim.playerId, playerName: claim.playerName, normalizedPlayerName: claim.normalizedPlayerName, isAdmin: 0, status: "active" as const, bannedAt: null, bannedBy: null, banReason: null, leaderboardKey: await leaderboardPlayerKey(id), createdAt: timestamp, updatedAt: timestamp };
+  };
 
   return {
     async createAdminBindingInvite(input, auth, idempotencyKey) {
@@ -336,7 +344,7 @@ export const createBindingServices = (dependencies: BindingServicesDependencies)
       const cleanFirstBinding = !targetBinding && memberBindings.length === 0;
 
       if (cleanFirstBinding) {
-        const playerAccount = account ?? { id: crypto.randomUUID(), playerId: claim.playerId, playerName: claim.playerName, normalizedPlayerName: claim.normalizedPlayerName, isAdmin: 0, status: "active" as const, bannedAt: null, bannedBy: null, banReason: null, createdAt: timestamp, updatedAt: timestamp };
+        const playerAccount = account ?? await newPlayerAccount(claim, timestamp);
         const identityId = crypto.randomUUID();
         const bindingId = crypto.randomUUID();
         const statements: [any, ...any[]] = [
@@ -469,7 +477,7 @@ export const createBindingServices = (dependencies: BindingServicesDependencies)
       } else {
         const existingAccount = await db.select().from(playerAccounts).where(and(eq(playerAccounts.normalizedPlayerName, claim.normalizedPlayerName), eq(playerAccounts.playerId, claim.playerId))).get();
         if (existingAccount && existingAccount.status !== "active") throw new Error("PLAYER_BANNED");
-        const account = existingAccount ?? { id: crypto.randomUUID(), playerId: claim.playerId, playerName: claim.playerName, normalizedPlayerName: claim.normalizedPlayerName, isAdmin: 0, status: "active" as const, bannedAt: null, bannedBy: null, banReason: null, createdAt: timestamp, updatedAt: timestamp };
+        const account = existingAccount ?? await newPlayerAccount(claim, timestamp);
         const old = await db.select().from(bindings).where(and(eq(bindings.status, "active"), or(eq(bindings.playerAccountId, account.id), eq(bindings.memberOpenId, claim.memberOpenId))));
         const identityId = crypto.randomUUID();
         const bindingId = crypto.randomUUID();

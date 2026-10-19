@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { leaderboardPlayerKey } from "@owbastion/domain";
 import { leaderboardResponseSchema, leaderboardPlayerSummarySchema, currentPlayerLeaderboardRankSchema, publicPlayerProfileSchema } from "@owbastion/contracts";
 import { createD1 } from "./ocr-test-harness";
@@ -11,7 +11,8 @@ const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(valu
 const fixture = () => {
   const harness = createD1();
   harness.sqlite.exec(`
-    CREATE TABLE player_accounts (id TEXT PRIMARY KEY, player_id TEXT NOT NULL, player_name TEXT NOT NULL, normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, public_profile INTEGER NOT NULL DEFAULT 1, hide_battletag INTEGER NOT NULL DEFAULT 0, banned_at INTEGER, banned_by TEXT, ban_reason TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE player_accounts (id TEXT PRIMARY KEY, player_id TEXT NOT NULL, player_name TEXT NOT NULL, normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, public_profile INTEGER NOT NULL DEFAULT 1, hide_battletag INTEGER NOT NULL DEFAULT 0, banned_at INTEGER, banned_by TEXT, ban_reason TEXT, leaderboard_key TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE UNIQUE INDEX player_accounts_leaderboard_key_idx ON player_accounts (leaderboard_key);
     CREATE TABLE portal_sessions (id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, token_hash TEXT NOT NULL, expires_at INTEGER NOT NULL);
     CREATE TABLE maps (id TEXT PRIMARY KEY, name TEXT NOT NULL, game_version TEXT NOT NULL, status TEXT NOT NULL, introduced_version TEXT NOT NULL, retired_version TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE gameplay_revisions (id TEXT PRIMARY KEY, map_id TEXT NOT NULL REFERENCES maps(id), lifecycle TEXT NOT NULL, legacy_map_variant TEXT, mode TEXT, copied_from_revision_id TEXT, reset_reason TEXT, game_version TEXT NOT NULL, spatial_config_json TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
@@ -410,5 +411,101 @@ describe("leaderboard query budget", () => {
     resetPreparedStatementCount();
     await services.getPublicLeaderboard({ board: "mastery", seasonId, page: 1, pageSize: 20 });
     expect(preparedStatementCount()).toBe(smallSeason);
+  });
+});
+
+describe("leaderboard playerKey and page cache cost bounds", () => {
+  const recordStatements = (database: D1Database) => {
+    const statements: string[] = [];
+    const originalPrepare = database.prepare.bind(database);
+    database.prepare = ((sql: string) => { statements.push(sql); return originalPrepare(sql); }) as D1Database["prepare"];
+    return statements;
+  };
+
+  const expectNoAccountScan = (sqlite: ReturnType<typeof fixture>["sqlite"], statements: string[]) => {
+    const accountReads = statements.filter((sql) => /^\s*select\b/i.test(sql) && /player_accounts/i.test(sql));
+    expect(accountReads.length).toBeGreaterThan(0);
+    for (const sql of accountReads) {
+      const binds = Array((sql.match(/\?/g) ?? []).length).fill("x");
+      const plan = (sqlite.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...binds) as Array<{ detail: string }>).map((row) => row.detail).join(" | ");
+      expect(plan).not.toMatch(/scan\s+(?:table\s+)?player_accounts\b/i);
+    }
+  };
+
+  it("resolves a stored playerKey by index without a player_accounts scan or repair write", async () => {
+    const { services, sqlite, database, addPlayer, addMap, addRevision, addRun } = fixture();
+    addPlayer("stored", "Stored");
+    addMap("map.a", "Map A"); addRevision("rev.a1", "map.a", "default"); addRun("r1", "stored", "map.a", "rev.a1", 100, 100);
+    // Accounts created after migration 0108 carry the key at insert time.
+    sqlite.prepare("UPDATE player_accounts SET leaderboard_key = ? WHERE id = 'stored'").run(await leaderboardPlayerKey("stored"));
+    const statements = recordStatements(database);
+    expect(await services.getPublicLeaderboardPlayer({ playerKey: await leaderboardPlayerKey("stored") })).toMatchObject({ publicProfile: true, player: { displayName: "Stored" } });
+    expectNoAccountScan(sqlite, statements);
+    expect(statements.filter((sql) => /^\s*(?:update|insert|replace)\b/i.test(sql) && /player_accounts/i.test(sql))).toEqual([]);
+  });
+
+  it("backfills pre-migration rows once, returns the same summary, and leaves only indexed lookups behind", async () => {
+    const { services, sqlite, database, addPlayer, addMap, addRevision, addRun } = fixture();
+    addPlayer("legacy.a", "Legacy A"); addPlayer("legacy.b", "Legacy B");
+    addMap("map.a", "Map A"); addRevision("rev.a1", "map.a", "default"); addRun("r1", "legacy.a", "map.a", "rev.a1", 100, 100);
+
+    const firstStatements = recordStatements(database);
+    const key = await leaderboardPlayerKey("legacy.a");
+    expect(await services.getPublicLeaderboardPlayer({ playerKey: key })).toMatchObject({ publicProfile: true, player: { displayName: "Legacy A" } });
+    expectNoAccountScan(sqlite, firstStatements);
+    // One miss repairs every pending row, so later lookups — hit or miss —
+    // stay on the index with no row-by-row hashing at all.
+    expect(sqlite.prepare("SELECT id, leaderboard_key FROM player_accounts ORDER BY id").all()).toEqual([
+      { id: "legacy.a", leaderboard_key: await leaderboardPlayerKey("legacy.a") },
+      { id: "legacy.b", leaderboard_key: await leaderboardPlayerKey("legacy.b") },
+    ]);
+
+    const secondStatements = recordStatements(database);
+    expect(await services.getPublicLeaderboardPlayer({ playerKey: key })).toMatchObject({ player: { displayName: "Legacy A" } });
+    expect(await services.getPublicLeaderboardPlayer({ playerKey: "0".repeat(24) })).toBeNull();
+    expectNoAccountScan(sqlite, secondStatements);
+    expect(secondStatements.filter((sql) => /^\s*(?:update|insert|replace)\b/i.test(sql) && /player_accounts/i.test(sql))).toEqual([]);
+  });
+
+  it("serves repeated board reads without new D1 statements inside the 60 second TTL and reloads after expiry", async () => {
+    const { database, preparedStatementCount, resetPreparedStatementCount, addPlayer, addMap, addRevision, addRun } = fixture();
+    addPlayer("p1", "Alpha");
+    addMap("map.a", "Map A"); addRevision("rev.a1", "map.a", "default"); addRun("r1", "p1", "map.a", "rev.a1", 500, 100);
+    const store = new Map<string, string>();
+    const makeKv = () => ({
+      get: async (key: string) => store.get(key) ?? null,
+      put: async (key: string, value: string) => { store.set(key, value); },
+    }) as unknown as KVNamespace;
+    const isolate = makeKv();
+    const servicesFor = (kv: KVNamespace) => createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, undefined, undefined, kv);
+    const input = { board: "mastery" as const, page: 1, pageSize: 20 };
+
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-10-20T00:00:00Z"));
+      const first = await servicesFor(isolate).getPublicLeaderboard(input);
+      expect(first?.total).toBe(1);
+
+      resetPreparedStatementCount();
+      // Warm reads in the same isolate and in a second isolate over the same
+      // namespace both serve the cached page instead of querying D1.
+      expect(await servicesFor(isolate).getPublicLeaderboard(input)).toEqual(first);
+      expect(await servicesFor(makeKv()).getPublicLeaderboard(input)).toEqual(first);
+      expect(preparedStatementCount()).toBe(0);
+
+      // A different parameter combination is a different cache entry.
+      await servicesFor(isolate).getPublicLeaderboard({ ...input, page: 2 });
+      expect(preparedStatementCount()).toBeGreaterThan(0);
+
+      // After the TTL the page is recomputed and observes the new run.
+      vi.setSystemTime(new Date("2026-10-20T00:01:01Z"));
+      addRun("r2", "p1", "map.a", "rev.a1", 700, 200);
+      resetPreparedStatementCount();
+      const fresh = await servicesFor(isolate).getPublicLeaderboard(input);
+      expect(preparedStatementCount()).toBeGreaterThan(0);
+      expect(fresh?.items[0]?.score).toBe(1200);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

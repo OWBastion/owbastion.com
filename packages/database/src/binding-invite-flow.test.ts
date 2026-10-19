@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { leaderboardPlayerKey } from "@owbastion/domain";
 import { createTestD1 } from "../test/d1";
 import { createPlatformServices } from "./index";
 import { resolvePortalSession } from "./portal-session";
@@ -22,7 +23,7 @@ const createD1 = (failBatchNumbers: number[] = []) => {
     CREATE TABLE player_equipped_titles (grant_id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, equipped_at INTEGER NOT NULL);
     CREATE TABLE binding_invite_historical_title_grants (id TEXT PRIMARY KEY, invite_id TEXT NOT NULL, historical_title_grant_id TEXT NOT NULL, authorized_by TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'authorized', player_title_grant_id TEXT, last_error TEXT, created_at INTEGER NOT NULL, processed_at INTEGER);
     CREATE TABLE binding_claims (id TEXT PRIMARY KEY, invite_id TEXT NOT NULL, token_hash TEXT NOT NULL, code_hash TEXT NOT NULL UNIQUE, player_name TEXT NOT NULL, normalized_player_name TEXT NOT NULL, player_id TEXT NOT NULL, status TEXT NOT NULL, member_open_id TEXT, group_open_id TEXT, message_id TEXT, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL, verified_at INTEGER, decided_at INTEGER, decided_by TEXT, decision_reason TEXT);
-    CREATE TABLE player_accounts (id TEXT PRIMARY KEY, player_id TEXT NOT NULL, player_name TEXT NOT NULL, normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'active', public_profile INTEGER NOT NULL DEFAULT 1, hide_battletag INTEGER NOT NULL DEFAULT 0, banned_at INTEGER, banned_by TEXT, ban_reason TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE player_accounts (id TEXT PRIMARY KEY, player_id TEXT NOT NULL, player_name TEXT NOT NULL, normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'active', public_profile INTEGER NOT NULL DEFAULT 1, hide_battletag INTEGER NOT NULL DEFAULT 0, banned_at INTEGER, banned_by TEXT, ban_reason TEXT, leaderboard_key TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE UNIQUE INDEX player_accounts_battletag_idx ON player_accounts(normalized_player_name, player_id);
     CREATE TABLE portal_sessions (id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, token_hash TEXT NOT NULL, passkey_challenge_id TEXT, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);
     CREATE TABLE identities (id TEXT PRIMARY KEY, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
@@ -281,11 +282,33 @@ describe("invitation binding flow", () => {
 
     await services.verifyBindingClaim({ contractVersion: "1", provider: "qq", code: claim.code, groupOpenId: "group.1", memberOpenId: "member.new", messageId: "message.1" }, auth, "verify.new-player");
 
-    const account = sqlite.prepare("SELECT id, player_id, player_name FROM player_accounts").get() as { id: string; player_id: string; player_name: string };
+    const account = sqlite.prepare("SELECT id, player_id, player_name, leaderboard_key FROM player_accounts").get() as { id: string; player_id: string; player_name: string; leaderboard_key: string };
     expect(account).toMatchObject({ player_id: "5678", player_name: "New Player" });
+    expect(account.leaderboard_key).toBe(await leaderboardPlayerKey(account.id));
     expect(sqlite.prepare("SELECT player_account_id, provider, member_open_id FROM bindings").get()).toEqual({ player_account_id: account.id, provider: "qq", member_open_id: "member.new" });
     const session = await services.exchangeBindingClaimSession({ claimId: claim.claimId, claimToken: claim.claimToken });
     expect(await resolvePortalSession(database, session.sessionToken)).toMatchObject({ player: { id: account.id, playerId: "5678" } });
+  });
+
+  it("stores the leaderboard key on an account created by an approved review", async () => {
+    const { database, sqlite } = createD1();
+    const now = Date.now();
+    // An existing binding on the same QQ member routes the claim to review;
+    // the approval then creates the new account row.
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.other', '9999', 'Other', 'other', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO identities (id, created_at, updated_at) VALUES ('identity.1', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.1', 'identity.1', 'player.other', 'qq', 'group.old', 'member.1', ?)").run(now);
+    seedActiveVerificationGroup(sqlite, now);
+    sqlite.prepare("INSERT INTO binding_invites (id, code_hash, player_name, normalized_player_name, player_id, created_by, created_at, expires_at) VALUES ('invite.review', ?, 'Player', 'player', '1234', 'admin', ?, ?)").run(hashRequest("REVIEW123456"), now, now + 60_000);
+    const services = createPlatformServices(database);
+    const claim = await services.redeemBindingInvite({ contractVersion: "1", code: "REVIEW123456" });
+    await services.verifyBindingClaim({ contractVersion: "1", provider: "qq", code: claim.code, groupOpenId: "group.1", memberOpenId: "member.1", messageId: "message.1" }, auth, "verify.review");
+    expect(sqlite.prepare("SELECT status FROM binding_claims").get()).toEqual({ status: "pending_review" });
+
+    await services.decideAdminBindingClaim({ claimId: claim.claimId, contractVersion: "1", decision: "approved" }, { ...auth, actorType: "user", subject: "admin.1", roles: ["admin"] }, "decision.review");
+
+    const account = sqlite.prepare("SELECT id, leaderboard_key FROM player_accounts WHERE player_id = '1234'").get() as { id: string; leaderboard_key: string };
+    expect(account.leaderboard_key).toBe(await leaderboardPlayerKey(account.id));
   });
 
   it("prunes only expired confirmation claims and preserves claims used by review workflows", async () => {

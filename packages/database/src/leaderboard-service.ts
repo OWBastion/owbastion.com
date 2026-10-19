@@ -1,9 +1,10 @@
-import { and, eq, gte, inArray, lte, ne, notInArray, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lte, ne, notInArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { PlatformServices } from "@owbastion/domain";
 import { leaderboardPlayerKey, leaderboardRuleVersion, projectLeaderboardEntry, rankLeaderboardRows, verifiedRunDifficulties, type VerifiedRunDifficulty } from "@owbastion/domain";
 import type { LeaderboardBoard, LeaderboardBoardStanding, LeaderboardEntry, LeaderboardEntryTitle, LeaderboardPlayerMapTitle } from "@owbastion/contracts";
 import { gameplayRevisions, mapTitleRewards, maps, playerAccounts, playerEquippedTitles, playerHandles, playerTitleGrants, seasons, titleCatalog, verifiedRuns } from "./schema";
+import type { PlatformCache } from "./platform-cache";
 import { resolvePortalSession } from "./portal-session";
 
 type LeaderboardServices = Pick<PlatformServices,
@@ -33,7 +34,12 @@ const titleView = (title: { key: string; label: string; icon: string; iconUrl: s
   iconUrl: title.iconUrl ?? undefined,
 });
 
-export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): LeaderboardServices => {
+// Public boards accept a short staleness window (product decision, #466), so a
+// page composition is reused instead of re-running its aggregate queries per
+// request. KV's minimum expiration is 60s.
+const publicLeaderboardCacheTtlSeconds = 60;
+
+export const createLeaderboardServices = (db: ReturnType<typeof drizzle>, platformCache: PlatformCache): LeaderboardServices => {
   const developerAccounts = db.select({ playerAccountId: playerTitleGrants.playerAccountId }).from(playerTitleGrants)
     .innerJoin(titleCatalog, eq(titleCatalog.key, playerTitleGrants.titleKey))
     .where(and(eq(titleCatalog.category, "开发保留"), eq(playerTitleGrants.status, "active")));
@@ -205,8 +211,7 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
     };
   };
 
-  return {
-    async getPublicLeaderboard(input) {
+  const loadPublicLeaderboard = async (input: Parameters<LeaderboardServices["getPublicLeaderboard"]>[0]) => {
       const window = input.seasonId ? await visibleSeasonWindow(input.seasonId) : undefined;
       let revision: Awaited<ReturnType<typeof defaultRevision>>;
       if (input.mapId) {
@@ -276,20 +281,39 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>): Leade
         total,
         hasMore: input.page * input.pageSize < total,
       };
+  };
+
+  return {
+    async getPublicLeaderboard(input) {
+      return platformCache.cachedTtl(
+        `leaderboard:${input.board}:${input.mapId ?? ""}:${input.seasonId ?? ""}:${input.page}:${input.pageSize}`,
+        publicLeaderboardCacheTtlSeconds,
+        () => loadPublicLeaderboard(input),
+      );
     },
 
     async getPublicLeaderboardPlayer(input) {
-      const accounts = await db.select({
+      const accountFields = {
         id: playerAccounts.id,
         playerName: playerAccounts.playerName,
         publicProfile: playerAccounts.publicProfile,
         hideBattleTag: playerAccounts.hideBattleTag,
-      }).from(playerAccounts);
-      let account: (typeof accounts)[number] | undefined;
-      for (const candidate of accounts) {
-        if (await leaderboardPlayerKey(candidate.id) === input.playerKey) { account = candidate; break; }
+      };
+      let account = await db.select(accountFields).from(playerAccounts).where(eq(playerAccounts.leaderboardKey, input.playerKey)).get();
+      if (!account) {
+        // Rows predating the stored key resolve through the index's NULL
+        // range; each is hashed and backfilled once so the pending set
+        // converges to empty instead of being re-hashed per lookup.
+        const pending = await db.select(accountFields).from(playerAccounts).where(isNull(playerAccounts.leaderboardKey));
+        const repairs = [];
+        for (const candidate of pending) {
+          const key = await leaderboardPlayerKey(candidate.id);
+          repairs.push(db.update(playerAccounts).set({ leaderboardKey: key }).where(eq(playerAccounts.id, candidate.id)));
+          if (key === input.playerKey) account = candidate;
+        }
+        if (repairs.length > 0) await db.batch(repairs as [typeof repairs[number], ...typeof repairs]);
+        if (!account) return null;
       }
-      if (!account) return null;
       if (account.publicProfile !== 1) {
         return { contractVersion: "1" as const, publicProfile: false, player: null, boards: null, perMapXp: null, mapCount: null, titles: null };
       }

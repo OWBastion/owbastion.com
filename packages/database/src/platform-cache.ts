@@ -40,6 +40,7 @@ type Loader<T> = () => Promise<T>;
 
 export type PlatformCache = {
   cached: <T>(scope: PlatformCacheScope, name: string, loader: Loader<T>) => Promise<T>;
+  cachedTtl: <T>(name: string, ttlSeconds: number, loader: Loader<T>) => Promise<T>;
   invalidate: (scope: PlatformCacheScope) => Promise<void>;
 };
 
@@ -85,13 +86,20 @@ const recallEntry = (state: IsolateCacheState, key: string): string | undefined 
   return serialized;
 };
 
+const forgetEntry = (state: IsolateCacheState, key: string) => {
+  const previous = state.entries.get(key);
+  if (previous === undefined) return;
+  state.entries.delete(key);
+  state.entryBytes -= previous.length;
+};
+
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
 
 export const createPlatformCache = (kv?: KVNamespace): PlatformCache => {
   const shared = kv ? isolateStateFor(kv) : undefined;
   // Pinned per instance so one request reads a single consistent version.
   const versions = new Map<PlatformCacheScope, string | null>();
-  const memos = new Map<PlatformCacheScope, Map<string, Promise<unknown>>>();
+  const memos = new Map<string, Map<string, Promise<unknown>>>();
 
   const enterBypass = (state: IsolateCacheState) => {
     state.bypassUntil = Date.now() + KV_BYPASS_MS;
@@ -175,6 +183,67 @@ export const createPlatformCache = (kv?: KVNamespace): PlatformCache => {
     return promise;
   };
 
+  // Fixed-TTL entries for volatile reads whose freshness contract is a short
+  // wall-clock window instead of version-bump invalidation. The stored `exp`
+  // is authoritative so KV's own lazy expiry cannot stretch the window.
+  const cachedTtl = <T>(name: string, ttlSeconds: number, loader: Loader<T>): Promise<T> => {
+    if (!kv || !shared) return loader();
+    let scopeMemos = memos.get("ttl");
+    if (!scopeMemos) {
+      scopeMemos = new Map();
+      memos.set("ttl", scopeMemos);
+    }
+    const memoized = scopeMemos.get(name);
+    if (memoized) return memoized as Promise<T>;
+    const promise = (async () => {
+      const key = `owb:v1:ttl:${name}`;
+      const now = Date.now();
+      const live = (stored: string | null | undefined): { v: T } | undefined => {
+        if (stored === null || stored === undefined) return undefined;
+        try {
+          const entry = JSON.parse(stored) as { v: T; exp: number };
+          return entry.exp > now ? entry : undefined;
+        } catch {
+          return undefined;
+        }
+      };
+      const remembered = recallEntry(shared, key);
+      const rememberedEntry = live(remembered);
+      if (rememberedEntry) return rememberedEntry.v;
+      if (remembered !== undefined) forgetEntry(shared, key);
+      let kvAvailable = shared.bypassUntil <= now;
+      if (kvAvailable) {
+        try {
+          const stored = await kv.get(key, "text");
+          const entry = live(stored);
+          if (entry) {
+            rememberEntry(shared, key, stored!);
+            return entry.v;
+          }
+        } catch (error) {
+          kvAvailable = false;
+          enterBypass(shared);
+          logCacheEvent("entry_read_failed", { scope: "ttl", name, error: errorMessage(error) });
+        }
+      }
+      const value = await loader();
+      const serialized = JSON.stringify({ v: value, exp: Date.now() + ttlSeconds * 1000 });
+      rememberEntry(shared, key, serialized);
+      if (kvAvailable) {
+        try {
+          await kv.put(key, serialized, { expirationTtl: Math.max(ttlSeconds, 60) });
+        } catch (error) {
+          enterBypass(shared);
+          logCacheEvent("entry_write_failed", { scope: "ttl", name, error: errorMessage(error) });
+        }
+      }
+      return value;
+    })();
+    scopeMemos.set(name, promise);
+    promise.catch(() => scopeMemos.delete(name));
+    return promise;
+  };
+
   const invalidate = async (scope: PlatformCacheScope): Promise<void> => {
     // Bump on every write, not once per instance: a second write after reads
     // cached the intermediate state would otherwise leave stale entries valid
@@ -199,7 +268,7 @@ export const createPlatformCache = (kv?: KVNamespace): PlatformCache => {
     }
   };
 
-  return { cached, invalidate };
+  return { cached, cachedTtl, invalidate };
 };
 
 const CATALOG_TABLES = new Set([

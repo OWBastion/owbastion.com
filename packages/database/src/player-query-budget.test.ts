@@ -9,7 +9,7 @@ const fixture = () => {
       id TEXT PRIMARY KEY, player_id TEXT NOT NULL, player_name TEXT NOT NULL,
       normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL, public_profile INTEGER NOT NULL DEFAULT 1, hide_battletag INTEGER NOT NULL DEFAULT 0,
-      banned_at INTEGER, banned_by TEXT, ban_reason TEXT,
+      banned_at INTEGER, banned_by TEXT, ban_reason TEXT, leaderboard_key TEXT,
       created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
     );
     CREATE TABLE bindings (
@@ -21,10 +21,10 @@ const fixture = () => {
     INSERT INTO submissions VALUES ('s1', 'alpha', 'ready_for_review'), ('s2', 'alpha', 'ocr_review_required'), ('s3', 'alpha', 'approved'), ('s4', 'beta', 'awaiting_player_confirmation');
     CREATE UNIQUE INDEX bindings_single_active_player_idx ON bindings(player_account_id) WHERE status = 'active';
     INSERT INTO player_accounts VALUES
-      ('alpha', '101', 'Alpha', 'alpha', 0, 'active', 1, 0, NULL, NULL, NULL, 1, 40),
-      ('beta', '202', 'Beta', 'beta', 0, 'banned', 1, 0, 1, 'admin', NULL, 1, 30),
-      ('gamma', '303', 'Gamma', 'gamma', 0, 'active', 1, 0, NULL, NULL, NULL, 1, 20),
-      ('delta', '404', 'Delta', 'delta', 0, 'active', 1, 0, NULL, NULL, NULL, 1, 10);
+      ('alpha', '101', 'Alpha', 'alpha', 0, 'active', 1, 0, NULL, NULL, NULL, NULL, 1, 40),
+      ('beta', '202', 'Beta', 'beta', 0, 'banned', 1, 0, 1, 'admin', NULL, NULL, 1, 30),
+      ('gamma', '303', 'Gamma', 'gamma', 0, 'active', 1, 0, NULL, NULL, NULL, NULL, 1, 20),
+      ('delta', '404', 'Delta', 'delta', 0, 'active', 1, 0, NULL, NULL, NULL, NULL, 1, 10);
     INSERT INTO bindings VALUES
       ('alpha-1', 'identity-a1', 'alpha', 'qq', 'shared-group', 'member-alpha', 'active', NULL, NULL, 1),
       ('alpha-old', 'identity-a3', 'alpha', 'qq', 'retired-group', 'retired-alpha', 'revoked', 1, 'admin', 1),
@@ -67,7 +67,7 @@ describe("admin player directory", () => {
 
   it("keeps database statement count bounded as the result page grows", async () => {
     const { services, sqlite, preparedStatementCount, resetPreparedStatementCount } = fixture();
-    const insert = sqlite.prepare("INSERT INTO player_accounts VALUES (?, ?, ?, ?, 0, 'active', 1, 0, NULL, NULL, NULL, 1, ?)");
+    const insert = sqlite.prepare("INSERT INTO player_accounts VALUES (?, ?, ?, ?, 0, 'active', 1, 0, NULL, NULL, NULL, NULL, 1, ?)");
     for (let index = 0; index < 40; index += 1) insert.run(`scale-${index}`, `id-${index}`, `Player ${index}`, `player ${index}`, 100 + index);
     for (const query of [undefined, "Player"]) {
       resetPreparedStatementCount();
