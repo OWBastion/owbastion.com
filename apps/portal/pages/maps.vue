@@ -36,18 +36,20 @@ onMounted(async () => {
   <main class="maps-page directory-page page-shell">
     <PageMasthead title="地图" />
     <section class="map-directory-panel" aria-label="地图列表">
-      <div v-if="loading" class="map-skeleton-grid directory-grid" role="status" aria-label="读取中…">
-        <div v-for="index in 6" :key="index" class="map-skeleton-card interactive-card interactive-card--static" aria-hidden="true">
-          <USkeleton class="map-skeleton-visual" />
-          <div class="map-skeleton-body">
-            <div class="map-skeleton-heading"><USkeleton class="map-skeleton-title" /><USkeleton class="map-skeleton-version" /></div>
-            <div class="map-skeleton-facts"><div class="map-skeleton-fact"><USkeleton class="map-skeleton-label" /><USkeleton class="map-skeleton-value" /></div><div class="map-skeleton-fact"><USkeleton class="map-skeleton-label" /><USkeleton class="map-skeleton-value" /></div><div class="map-skeleton-fact map-skeleton-fact-last"><USkeleton class="map-skeleton-label" /><USkeleton class="map-skeleton-value" /></div></div>
-            <div class="map-skeleton-footer"><USkeleton class="map-skeleton-tag" /><USkeleton class="map-skeleton-tag map-skeleton-tag-short" /></div>
+      <LoadingReveal>
+        <div v-if="loading" class="map-skeleton-grid directory-grid" role="status" aria-label="读取中…">
+          <div v-for="index in 6" :key="index" class="map-skeleton-card interactive-card interactive-card--static" aria-hidden="true">
+            <USkeleton class="map-skeleton-visual" />
+            <div class="map-skeleton-body">
+              <div class="map-skeleton-heading"><USkeleton class="map-skeleton-title" /><USkeleton class="map-skeleton-version" /></div>
+              <div class="map-skeleton-facts"><div class="map-skeleton-fact"><USkeleton class="map-skeleton-label" /><USkeleton class="map-skeleton-value" /></div><div class="map-skeleton-fact"><USkeleton class="map-skeleton-label" /><USkeleton class="map-skeleton-value" /></div><div class="map-skeleton-fact map-skeleton-fact-last"><USkeleton class="map-skeleton-label" /><USkeleton class="map-skeleton-value" /></div></div>
+              <div class="map-skeleton-footer"><USkeleton class="map-skeleton-tag" /><USkeleton class="map-skeleton-tag map-skeleton-tag-short" /></div>
+            </div>
           </div>
         </div>
-      </div>
-      <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取地图" :description="error" />
-      <MapDirectory v-else :maps="maps" :challenges="challenges" :authenticated="Boolean(player)" :titles="titles" :selected-map-id="selectedMapId" />
+        <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取地图" :description="error" />
+        <MapDirectory v-else :maps="maps" :challenges="challenges" :authenticated="Boolean(player)" :titles="titles" :selected-map-id="selectedMapId" />
+      </LoadingReveal>
     </section>
   </main>
 </template>
