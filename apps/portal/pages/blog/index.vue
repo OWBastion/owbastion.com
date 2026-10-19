@@ -16,9 +16,7 @@ const entries = computed(() => posts.value.map((post) => ({ path: post.path, tit
 <template>
   <main class="editorial-page page-shell--readable">
     <div class="editorial-list-frame">
-      <PageMasthead title-id="blog-title" eyebrow="Dev log" title="开发日志" description="玩法、系统和平台的开发记录，写给想知道“为什么这样改”的人。">
-        <MastheadStat label="篇日志" :value="status === 'pending' ? null : entries.length" />
-      </PageMasthead>
+      <PageMasthead title-id="blog-title" title="开发日志" />
 
       <section aria-label="开发日志列表">
         <div v-if="status === 'pending'" class="editorial-loading" role="status">读取中…</div>

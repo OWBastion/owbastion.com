@@ -2,7 +2,7 @@
 import { createReusableTemplate, useMediaQuery, usePreferredReducedMotion } from "@vueuse/core";
 import type { Map, MapChallenge } from "~/types/challenge";
 import type { OwnedTitle } from "~/types/title";
-import { achievementState, findOwnedTitle } from "~/utils/achievement-status";
+import { findOwnedTitle } from "~/utils/achievement-status";
 import PlayerReviewPanel from "../reviews/PlayerReviewPanel.vue";
 
 const props = defineProps<{
@@ -27,7 +27,6 @@ const mapChallenges = computed(() => {
     return rank(left.difficulty) - rank(right.difficulty) || left.name.localeCompare(right.name, "zh-CN");
   });
 });
-const difficultyLabel = computed(() => mapChallenges.value.map((challenge) => challenge.difficulty).filter(Boolean).join("、") || "暂无记录");
 const mapIndex = computed(() => props.map?.mapId.split(".").at(-1)?.slice(0, 2).toUpperCase() ?? "");
 const tier = computed(() => Number(/^T(\d)$/.exec(props.map?.difficultyRating ?? "")?.[1] ?? 0));
 const challengeStatusLabel = (status: MapChallenge["status"]) => status === "sunsetting" ? "即将结束" : "";
@@ -46,25 +45,17 @@ onMounted(() => { hydrated.value = true; });
       <div class="detail-hero" aria-hidden="true">
         <img v-if="map.coverUrl" :src="map.coverUrl" alt="" />
         <span v-else class="detail-hero__index">{{ mapIndex }}</span>
-        <span class="detail-hero__tier num" :data-tier="tier">{{ map.difficultyRating ?? "—" }}</span>
+        <span v-if="map.difficultyRating" class="detail-hero__tier num" :data-tier="tier">{{ map.difficultyRating }}</span>
       </div>
       <div class="detail-content">
-        <section class="detail-section" aria-labelledby="map-overview-title">
-          <h3 id="map-overview-title" class="sr-only">地图概览</h3>
-          <dl class="detail-stats">
-            <div><dt>地图评级</dt><dd class="num">{{ map.difficultyRating ?? "暂无记录" }}</dd></div>
-            <div><dt>挑战</dt><dd class="num">{{ mapChallenges.length }} 项</dd></div>
-            <div><dt>挑战难度</dt><dd>{{ difficultyLabel }}</dd></div>
-          </dl>
-          <div v-if="map.mechanics?.length" class="mechanics-row"><span>特殊机制</span><div class="mechanics"><UBadge v-for="mechanic in map.mechanics" :key="mechanic" :label="mechanic" color="neutral" variant="subtle" /></div></div>
-        </section>
+        <div v-if="map.mechanics?.length" class="detail-section mechanics"><UBadge v-for="mechanic in map.mechanics" :key="mechanic" :label="mechanic" color="neutral" variant="subtle" /></div>
         <section v-if="mapChallenges.length" class="detail-section" aria-labelledby="map-challenges-title">
-          <div class="section-title"><h3 id="map-challenges-title">挑战</h3></div>
+          <h3 id="map-challenges-title" class="sr-only">挑战</h3>
           <ul class="challenge-list stacked-list">
             <li v-for="challenge in mapChallenges" :key="challenge.challengeId">
+              <UIcon v-if="titles && challenge.titleKey && findOwnedTitle(titles, { titleKey: challenge.titleKey, mapId: challenge.mapId, gameplayRevisionId: challenge.gameplayRevisionId })" name="i-lucide-check" class="challenge-done" aria-label="已获得" />
               <strong>{{ challenge.name }}</strong>
-              <AchievementStatus v-if="titles && challenge.titleKey" :state="achievementState(findOwnedTitle(titles, { titleKey: challenge.titleKey, mapId: challenge.mapId, gameplayRevisionId: challenge.gameplayRevisionId }))" />
-              <span>{{ [challenge.difficulty, challengeStatusLabel(challenge.status)].filter(Boolean).join(" · ") || "—" }}</span>
+              <span>{{ [challenge.difficulty, challengeStatusLabel(challenge.status)].filter(Boolean).join(" · ") }}</span>
             </li>
           </ul>
         </section>
@@ -78,7 +69,6 @@ onMounted(() => { hydrated.value = true; });
       v-if="isDesktop"
       v-model:open="open"
       :title="map?.mapName ?? '地图详情'"
-      :description="map ? `版本 ${map.gameVersion}` : undefined"
       scrollable
       close
       :transition="allowMotion"
@@ -94,7 +84,6 @@ onMounted(() => { hydrated.value = true; });
       v-model:open="open"
       direction="bottom"
       :title="map?.mapName ?? '地图详情'"
-      :description="map ? `版本 ${map.gameVersion}` : undefined"
       close
       :should-scale-background="false"
       :set-background-color-on-scale="false"
@@ -114,9 +103,6 @@ onMounted(() => { hydrated.value = true; });
 .detail-content { display: grid; gap: 0; padding-inline: clamp(var(--space-4), 4vw, var(--space-6)); }
 .detail-section { display: grid; gap: var(--space-4); padding: var(--space-5) 0; border-top: 1px solid var(--line); }
 .detail-section:first-child { padding-top: var(--space-5); border-top: 0; }
-.section-title { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-.section-title h3 { margin: 0; color: var(--text); font-size: 1rem; letter-spacing: -.025em; }
-.section-title > span { color: var(--quiet); font-size: .75rem; }
 .detail-hero { position: relative; display: grid; place-items: center; aspect-ratio: 21 / 8; overflow: hidden; color: var(--accent); background: repeating-linear-gradient(135deg, transparent 0 10px, color-mix(in oklch, var(--accent) 7%, transparent) 10px 11px), radial-gradient(80% 90% at 70% 0%, color-mix(in oklch, var(--accent) 16%, transparent), transparent 70%), var(--surface-raised); }
 .detail-hero img { width: 100%; height: 100%; object-fit: cover; }
 .detail-hero__index { font-family: var(--font-display); font-size: clamp(4rem, 18cqi, 8rem); font-weight: 700; opacity: .2; }
@@ -126,11 +112,8 @@ onMounted(() => { hydrated.value = true; });
 .detail-hero__tier[data-tier="3"] { background: oklch(84% 0.15 80); }
 .detail-hero__tier[data-tier="4"] { background: oklch(76% 0.16 55); }
 .detail-hero__tier[data-tier="5"] { color: oklch(98% 0.01 30); background: oklch(62% 0.2 28); }
-.detail-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; border: 1px solid var(--line); border-radius: var(--radius-control); }
-.detail-stats > div { display: grid; gap: 2px; padding: var(--space-3) var(--space-4); min-width: 0; }
-.detail-stats > div + div { border-left: 1px solid var(--line); }
-.detail-stats dt { color: var(--quiet); font-size: var(--type-caption-size); }
-.detail-stats dd { margin: 0; overflow-wrap: anywhere; color: var(--text); font-size: .9375rem; font-weight: 600; }
+.mechanics { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.challenge-done { flex: none; color: var(--accent); }
 .challenge-list { gap: 0; }
 .challenge-list li + li { border-top: 1px solid var(--line); }
 .challenge-list li { display: flex; align-items: center; padding-block: var(--space-3); justify-content: space-between; gap: var(--space-3); }
@@ -140,9 +123,7 @@ onMounted(() => { hydrated.value = true; });
   .detail-content { padding-inline: max(var(--space-4), env(safe-area-inset-left)) max(var(--space-4), env(safe-area-inset-right)); }
   .detail-section { gap: var(--space-3); padding: var(--space-4) 0; }
   .detail-section:first-child { padding-top: var(--space-4); }
-  .detail-stats { grid-template-columns: 1fr; }
-  .detail-stats > div + div { border-top: 1px solid var(--line); border-left: 0; }
-}
+    }
 @media (prefers-reduced-motion: reduce) { .detail-card :deep(*) { scroll-behavior: auto; } }
 </style>
 

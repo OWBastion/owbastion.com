@@ -8,7 +8,7 @@ import { reviewQueueStatuses } from "~/utils/reviewQueue";
 import { createRequestId } from "~/utils/request-id";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
-useSeoMeta({ title: "截图审核 · 躲避堡垒 3" });
+useSeoMeta({ title: "审核 · 躲避堡垒 3" });
 const route = useRoute();
 const router = useRouter();
 const api = useAdminApi();
@@ -70,6 +70,8 @@ const reviewOrderOptions = [{ label: "等待最久优先", value: "oldest" }, { 
 const spotCheckOptions = [{ label: "全部抽检", value: "all" }, { label: "待抽检", value: "pending" }, { label: "已确认", value: "confirmed" }, { label: "已撤销", value: "revoked" }];
 const spotCheckLabel = (submission: AdminSubmission) => submission.spotCheck?.status === "pending" ? "待抽检" : submission.spotCheck?.status === "confirmed" ? "已确认" : submission.spotCheck?.status === "revoked" ? "已撤销" : "—";
 const spotCheckTone = (submission: AdminSubmission) => submission.spotCheck?.status === "pending" ? "warning" : "default";
+// Non-default secondary filters, counted on the filter button so a narrowed list never looks complete.
+const extraFilterCount = computed(() => [spotCheckFilter.value !== "all", modeFilter.value !== "all", orderOverride.value !== null].filter(Boolean).length);
 const ocrPayload = (submission: AdminSubmission) => submission.ocr as OcrPayload | null;
 const ocrMapName = (submission: AdminSubmission) => {
   const mapName = ocrPayload(submission)?.data?.map_name;
@@ -83,10 +85,6 @@ const ocrAchievementTitles = (submission: AdminSubmission) => {
   const names = titles.filter((title): title is string => typeof title === "string" && Boolean(title.trim()));
   return names.length ? names.join("、") : "无";
 };
-const ocrConfidence = (submission: AdminSubmission, field: string) => {
-  const confidence = ocrPayload(submission)?.fields?.[field]?.confidence;
-  return typeof confidence === "number" ? `${Math.round(confidence * 100)}%` : "—";
-};
 // The server order (reviewOrder) is the default; column sorting only reorders the current page.
 const defaultReviewSorting: SortingState = [];
 const reviewSorting = shallowRef<SortingState>([...defaultReviewSorting]);
@@ -99,12 +97,9 @@ const reviewSortingOptions = [
 const columns: TableColumn<AdminSubmission>[] = [
   { id: "select", header: "", enableHiding: false },
   { accessorFn: (row) => ocrMapName(row), id: "ocrContent", header: "OCR识别" },
-  { id: "ocrConfidence", header: "置信度" },
   { accessorKey: "playerName", header: "玩家" },
   { accessorKey: "status", header: "状态" },
-  { id: "spotCheck", header: "抽检" },
   { accessorKey: "updatedAt", header: "最近更新" },
-  { id: "actions", header: "", enableHiding: false },
 ];
 const toast = useToast();
 const selected = ref<string[]>([]);
@@ -185,20 +180,17 @@ watch(() => route.fullPath, (path) => { queuePath.value = path; }, { immediate: 
 </script>
 
 <template>
-  <AdminWorkspace title="截图审核" :count="loading ? '读取中…' : `${total} 条`">
+  <AdminWorkspace title="审核" :count="loading ? undefined : String(total)">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
-    <section aria-label="提交记录"><AdminDataTable v-model:sorting="reviewSorting" :sorting-options="reviewSortingOptions" :default-sorting="defaultReviewSorting" :data="submissions" :columns="columns" :mobile-columns="[{ id: 'ocrContent', priority: 'primary', order: 0 }, { id: 'status', priority: 'primary', order: 1 }, { id: 'playerName', priority: 'detail', order: 2 }, { id: 'spotCheck', priority: 'detail', order: 3 }]" row-key="submissionId" :mobile-row-link="(row) => `/admin/reviews/${encodeURIComponent(row.submissionId)}`" :loading="loading" empty="暂无提交记录。" table-key="reviews" :reset-scroll-key="`${page}-${reviewStatus}-${spotCheckFilter}-${reviewOrder}`" class="admin-table">
-      <template #filters><div class="review-filters"><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /><USelect v-model="spotCheckFilter" aria-label="筛选抽检状态" :items="spotCheckOptions" /><USelect v-model="modeFilter" aria-label="筛选识别模式" :items="modeOptions" /><USelect v-model="reviewOrder" aria-label="队列顺序" :items="reviewOrderOptions" /><template v-if="selected.length"><span class="table-meta">已选 {{ selected.length }} 条</span><UButton v-if="reevaluable.length" :label="`重新评估（${reevaluable.length}）`" size="sm" color="neutral" variant="outline" :loading="bulkRunning" @click="runBulk('reevaluate')" /><UButton v-if="reopenable.length" :label="`重新打开核对（${reopenable.length}）`" size="sm" color="neutral" variant="outline" :disabled="bulkRunning" @click="reopenConfirmOpen = true" /></template></div></template>
-      <template #mobile-secondary><div class="review-filters"><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /><USelect v-model="spotCheckFilter" aria-label="筛选抽检状态" :items="spotCheckOptions" /><USelect v-model="modeFilter" aria-label="筛选识别模式" :items="modeOptions" /><USelect v-model="reviewOrder" aria-label="队列顺序" :items="reviewOrderOptions" /><template v-if="selected.length"><span class="table-meta">已选 {{ selected.length }} 条</span><UButton v-if="reevaluable.length" :label="`重新评估（${reevaluable.length}）`" size="sm" color="neutral" variant="outline" :loading="bulkRunning" @click="runBulk('reevaluate')" /><UButton v-if="reopenable.length" :label="`重新打开核对（${reopenable.length}）`" size="sm" color="neutral" variant="outline" :disabled="bulkRunning" @click="reopenConfirmOpen = true" /></template></div></template>
+    <section aria-label="提交记录"><AdminDataTable v-model:sorting="reviewSorting" :sorting-options="reviewSortingOptions" :default-sorting="defaultReviewSorting" :data="submissions" :columns="columns" :mobile-columns="[{ id: 'ocrContent', priority: 'primary', order: 0 }, { id: 'status', priority: 'primary', order: 1 }, { id: 'playerName', priority: 'detail', order: 2 }]" row-key="submissionId" :mobile-row-link="(row) => `/admin/reviews/${encodeURIComponent(row.submissionId)}`" :loading="loading" empty="没有待办" table-key="reviews" :reset-scroll-key="`${page}-${reviewStatus}-${spotCheckFilter}-${reviewOrder}`" class="admin-table">
+      <template #filters><div class="review-filters"><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /><UPopover><UButton icon="i-lucide-sliders-horizontal" :label="extraFilterCount ? String(extraFilterCount) : undefined" color="neutral" :variant="extraFilterCount ? 'soft' : 'ghost'" aria-label="更多筛选" /><template #content><div class="review-filters__more"><USelect v-model="spotCheckFilter" aria-label="筛选抽检状态" :items="spotCheckOptions" /><USelect v-model="modeFilter" aria-label="筛选识别模式" :items="modeOptions" /><USelect v-model="reviewOrder" aria-label="队列顺序" :items="reviewOrderOptions" /></div></template></UPopover><template v-if="selected.length"><span class="table-meta">{{ selected.length }}</span><UButton v-if="reevaluable.length" :label="`重新评估 ${reevaluable.length}`" size="sm" color="neutral" variant="outline" :loading="bulkRunning" @click="runBulk('reevaluate')" /><UButton v-if="reopenable.length" :label="`重新打开 ${reopenable.length}`" size="sm" color="neutral" variant="outline" :disabled="bulkRunning" @click="reopenConfirmOpen = true" /></template></div></template>
+      <template #mobile-secondary><div class="review-filters"><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /><UPopover><UButton icon="i-lucide-sliders-horizontal" :label="extraFilterCount ? String(extraFilterCount) : undefined" color="neutral" :variant="extraFilterCount ? 'soft' : 'ghost'" aria-label="更多筛选" /><template #content><div class="review-filters__more"><USelect v-model="spotCheckFilter" aria-label="筛选抽检状态" :items="spotCheckOptions" /><USelect v-model="modeFilter" aria-label="筛选识别模式" :items="modeOptions" /><USelect v-model="reviewOrder" aria-label="队列顺序" :items="reviewOrderOptions" /></div></template></UPopover><template v-if="selected.length"><span class="table-meta">{{ selected.length }}</span><UButton v-if="reevaluable.length" :label="`重新评估 ${reevaluable.length}`" size="sm" color="neutral" variant="outline" :loading="bulkRunning" @click="runBulk('reevaluate')" /><UButton v-if="reopenable.length" :label="`重新打开 ${reopenable.length}`" size="sm" color="neutral" variant="outline" :disabled="bulkRunning" @click="reopenConfirmOpen = true" /></template></div></template>
       <template #select-header><UCheckbox :model-value="allSelected" aria-label="选择本页全部提交" @update:model-value="toggleAll(Boolean($event))" /></template>
       <template #select-cell="{ row }"><UCheckbox :model-value="selected.includes(row.original.submissionId)" :aria-label="`选择 ${row.original.playerName} 的提交`" @update:model-value="toggleOne(row.original.submissionId, Boolean($event))" /></template>
-      <template #ocrContent-cell="{ row }"><strong>{{ ocrMapName(row.original) }}</strong><small class="table-meta">成就挑战：{{ ocrAchievementTitles(row.original) }}</small></template>
-      <template #ocrConfidence-cell="{ row }"><span class="table-meta">地图 {{ ocrConfidence(row.original, "map_name") }}</span><span class="table-meta">成就 {{ ocrConfidence(row.original, "achievement_titles") }}</span></template>
+      <template #ocrContent-cell="{ row }"><NuxtLink class="review-link" :to="`/admin/reviews/${encodeURIComponent(row.original.submissionId)}`"><strong>{{ ocrMapName(row.original) }}</strong><small class="table-meta">{{ ocrAchievementTitles(row.original) }}</small></NuxtLink></template>
       <template #playerName-cell="{ row }"><NuxtLink class="accent-link" :to="`/admin/players/${encodeURIComponent(row.original.playerAccountId)}`">{{ row.original.playerName }}</NuxtLink></template>
-      <template #status-cell="{ row }"><StatusBadge :label="formatStatus(row.original.status)" :tone="submissionStatusTone(row.original.status)" /></template>
-      <template #spotCheck-cell="{ row }"><StatusBadge v-if="row.original.spotCheck" :label="spotCheckLabel(row.original)" :tone="spotCheckTone(row.original)" /><span v-else class="table-meta">—</span></template>
+      <template #status-cell="{ row }"><span class="status-stack"><StatusBadge :label="formatStatus(row.original.status)" :tone="submissionStatusTone(row.original.status)" /><StatusBadge v-if="row.original.spotCheck" :label="spotCheckLabel(row.original)" :tone="spotCheckTone(row.original)" /></span></template>
       <template #updatedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.updatedAt) }}</span></template>
-      <template #actions-cell="{ row }"><div class="table-actions"><UButton :to="`/admin/reviews/${encodeURIComponent(row.original.submissionId)}`" label="查看" size="sm" color="neutral" variant="outline" /></div></template>
     </AdminDataTable><UPagination v-if="total > 20" v-model:page="page" :total="total" :items-per-page="20" class="pagination" /></section>
     <AdminResponsiveDialog v-model:open="reopenConfirmOpen" title="重新打开所选提交？" :description="`将撤销所选 ${reopenable.length} 条已通过提交产生的称号和通关记录（手动发放的称号不受影响），并回到待核对。之后需要逐条重新通过，系统会按截图重新判定。`" size="md" :dismissible="!bulkRunning">
       <template #footer>
@@ -210,7 +202,11 @@ watch(() => route.fullPath, (path) => { queuePath.value = path; }, { immediate: 
 </template>
 
 <style scoped>
-.review-filters { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.review-filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.review-filters__more { display: grid; gap: var(--space-2); padding: var(--space-3); }
+.review-link { display: grid; color: inherit; text-decoration: none; }
+.review-link:hover strong { color: var(--accent); }
+.status-stack { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
 .table-meta { display: block; color: var(--quiet); font-size: var(--type-caption-size); }
 @media (max-width: 48rem) { .review-filters { display: grid; grid-template-columns: 1fr; width: 100%; } }
 </style>
