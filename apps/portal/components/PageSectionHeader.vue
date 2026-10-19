@@ -27,7 +27,7 @@ defineProps<{
 .section-header { container-type: inline-size; margin-bottom: var(--space-4); }
 .section-header__row { display: flex; align-items: end; justify-content: space-between; gap: var(--space-4); }
 .section-header .eyebrow { margin-bottom: var(--space-1); }
-.section-header__title { margin: 0; font-size: var(--type-headline-size); font-weight: 600; letter-spacing: var(--type-headline-tracking); line-height: var(--type-headline-leading); }
+.section-header__title { margin: 0; font-family: var(--font-display); font-size: var(--type-headline-size); font-weight: 700; letter-spacing: var(--type-headline-tracking); line-height: var(--type-headline-leading); }
 .section-header--card .section-header__title { font-size: var(--type-card-title-size); line-height: var(--type-card-title-leading); letter-spacing: var(--type-card-title-tracking); }
 .section-header__meta { display: flex; align-items: center; gap: var(--space-3); color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; white-space: nowrap; }
 @container (max-width: 23.99rem) { .section-header__row { align-items: flex-start; flex-direction: column; gap: var(--space-2); } }
