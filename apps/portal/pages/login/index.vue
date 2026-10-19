@@ -39,20 +39,8 @@ async function handleLocalLogin() {
 </script>
 
 <template>
-  <main class="login-page page-shell">
-    <aside class="login-brand" aria-hidden="true">
-      <svg class="login-brand__mark" viewBox="0 0 32 32">
-        <path d="M16 2 28 8v9c0 6.5-5 11.5-12 13C9 28.5 4 23.5 4 17V8z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" />
-        <path d="M11 11h7.5a3 3 0 0 1 0 6H11zm0 6h8.5a3 3 0 0 1 0 6H11z" fill="currentColor" opacity=".9" />
-      </svg>
-      <p class="eyebrow">Player account</p>
-      <p class="login-brand__title">躲避堡垒<em>3</em></p>
-      <ul class="login-brand__list">
-        <li><UIcon name="i-lucide-upload" />提交通关截图，审核后获得精通 XP</li>
-        <li><UIcon name="i-lucide-award" />查看已获得的成就与称号</li>
-        <li><UIcon name="i-lucide-trophy" />在排行榜上找到自己的名次</li>
-      </ul>
-    </aside>
+  <main class="login-page auth-layout page-shell">
+    <AuthBrandPanel eyebrow="Player account" :points="[{ icon: 'i-lucide-upload', text: '提交通关截图，审核后获得精通 XP' }, { icon: 'i-lucide-award', text: '查看已获得的成就与称号' }, { icon: 'i-lucide-trophy', text: '在排行榜上找到自己的名次' }]" />
     <section class="login-card" aria-labelledby="login-title">
       <h1 id="login-title" class="login-title">登录玩家帐号</h1>
 
@@ -124,14 +112,6 @@ async function handleLocalLogin() {
 </template>
 
 <style scoped>
-.login-page { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 28rem); align-items: center; gap: clamp(2rem, 6vw, 6rem); min-height: calc(100svh - 10rem); padding-block: clamp(3rem, 9vh, 6rem); }
-.login-brand { position: relative; display: grid; align-content: center; gap: var(--space-4); min-height: 26rem; padding: clamp(var(--space-6), 4vw, var(--space-12)); overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-card); background: radial-gradient(70% 80% at 0% 100%, color-mix(in oklch, var(--accent) 16%, transparent), transparent 70%), var(--surface); }
-.login-brand__mark { position: absolute; right: -3rem; bottom: -3rem; width: 22rem; height: 22rem; color: color-mix(in oklch, var(--accent) 22%, transparent); }
-.login-brand__title { margin: 0; font-family: var(--font-display); font-size: clamp(2.5rem, 5vw, 4rem); font-weight: 700; letter-spacing: -.03em; line-height: 1; }
-.login-brand__title em { margin-left: .15em; color: var(--accent); font-style: normal; }
-.login-brand__list { position: relative; display: grid; gap: var(--space-3); margin: var(--space-4) 0 0; padding: 0; color: var(--muted); list-style: none; }
-.login-brand__list li { display: flex; align-items: center; gap: var(--space-3); }
-.login-brand__list [class*="i-lucide-"] { flex: none; width: 1.125rem; height: 1.125rem; color: var(--accent); }
 .login-card { display: grid; width: 100%; gap: var(--space-6); }
 .login-title { margin: 0; font-family: var(--font-display); font-size: var(--type-headline-size); font-weight: 700; }
 .methods { display: flex; flex-direction: column; gap: var(--space-5); }
@@ -153,14 +133,7 @@ async function handleLocalLogin() {
 .local-dev-panel { display: grid; gap: var(--space-3); padding: var(--space-5); border: 1px dashed var(--line-strong); border-radius: var(--radius-card); background: color-mix(in oklch, var(--surface) 82%, var(--accent-surface)); }
 .local-dev-copy { margin: 0; font-size: .82rem; font-weight: 600; }
 .local-dev-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
-@media (max-width: 63.99rem) {
-  .login-page { grid-template-columns: minmax(0, 1fr); max-width: 32rem; min-height: 0; }
-  .login-brand { min-height: 0; padding: var(--space-6); }
-  .login-brand__list { display: none; }
-  .login-brand__mark { width: 12rem; height: 12rem; right: -2rem; bottom: -2.5rem; }
-}
 @media (max-width: 47.99rem) {
-  .login-page { padding-block: var(--space-6) var(--space-12); }
   .challenge-actions, .local-dev-actions { align-items: stretch; flex-direction: column; }
   .challenge-actions :deep(button), .local-dev-actions :deep(button), .local-dev-actions > * { width: 100%; }
 }
