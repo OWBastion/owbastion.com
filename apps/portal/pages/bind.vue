@@ -2,10 +2,17 @@
 import { qqVerificationCommand } from "~/utils/binding-invite";
 
 const { state, invite, confirmationCode, errorMessage, refreshing, refreshStatus, submit } = useBindingInvite();
+const turnstile = useTurnstile();
 const inviteCode = shallowRef("");
 const showForm = computed(() => state.value === "ready" || (state.value === "failed" && !invite.value) || (state.value === "expired" && !inviteCode.value.trim()));
+const needsTurnstile = computed(() => showForm.value || (state.value === "expired" && Boolean(inviteCode.value.trim())));
 const copied = shallowRef(false);
 useSeoMeta({ title: "QQ 绑定 · 躲避堡垒 3" });
+
+async function redeem() {
+  await submit(inviteCode.value, turnstile.token.value);
+  turnstile.reset();
+}
 
 async function copyCommand() {
   if (!confirmationCode.value || !navigator.clipboard) return;
@@ -22,11 +29,11 @@ async function copyCommand() {
     </section>
 
     <UCard class="binding-card" variant="subtle" aria-live="polite">
-      <form v-if="showForm" class="binding-state" @submit.prevent="submit(inviteCode)">
+      <form v-if="showForm" class="binding-state" @submit.prevent="redeem">
         <UInput v-model="inviteCode" label="邀请码" placeholder="请输入管理员发送的邀请码" aria-label="邀请码" autocomplete="off" />
         <p v-if="state === 'failed'" class="binding-note error-note" role="alert">{{ errorMessage }}</p>
         <p v-else-if="state === 'expired'" class="binding-note warning-note">确认码已过期，请重新输入邀请码。</p>
-        <div class="action-row"><UButton type="submit" label="下一步" :disabled="!inviteCode.trim()" /></div>
+        <div class="action-row"><UButton type="submit" label="下一步" :disabled="!inviteCode.trim() || !turnstile.token.value" /></div>
       </form>
 
       <section v-else-if="state === 'submitting'" class="binding-state"><p class="binding-note">读取绑定邀请中…</p></section>
@@ -44,10 +51,15 @@ async function copyCommand() {
         <UAlert v-if="errorMessage && state !== 'failed'" color="error" variant="subtle" :description="errorMessage" />
         <div v-if="['waiting', 'expired', 'review', 'failed'].includes(state)" class="action-row">
           <UButton v-if="state === 'waiting'" :label="copied ? '已复制' : '复制指令'" @click="copyCommand" />
-          <UButton v-if="state === 'expired' && inviteCode" label="重新生成确认码" @click="submit(inviteCode)" />
+          <UButton v-if="state === 'expired' && inviteCode" label="重新生成确认码" :disabled="!turnstile.token.value" @click="redeem" />
           <UButton v-if="['waiting', 'review', 'failed'].includes(state)" label="刷新状态" color="neutral" variant="outline" :loading="refreshing" :disabled="refreshing" @click="refreshStatus" />
         </div>
       </section>
+
+      <div v-show="needsTurnstile" class="turnstile-slot">
+        <div :ref="turnstile.element" class="turnstile-widget"></div>
+        <p v-if="turnstile.failed.value" class="binding-note error-note">人机验证加载失败，请刷新页面重试。</p>
+      </div>
     </UCard>
   </main>
 </template>
@@ -59,6 +71,8 @@ async function copyCommand() {
 .binding-heading { margin: 0 0 var(--space-2); font-size: clamp(1.7rem, 5vw, 2.4rem); letter-spacing: -.035em; overflow-wrap: anywhere; }
 .binding-code { margin: var(--space-2) 0; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-control); overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: clamp(1.1rem, 4vw, 1.5rem); font-weight: 700; letter-spacing: .03em; background: var(--surface-raised); }
 .binding-note { margin: 0; color: var(--muted); font-size: .88rem; line-height: 1.6; }
+.turnstile-slot { display: grid; gap: var(--space-3); justify-items: center; margin-top: var(--space-3); min-height: 65px; }
+.turnstile-widget { min-height: 65px; }
 .warning-note { color: var(--warning); }
 .error-note { color: var(--danger); }
 @media (max-width: 47.99rem) {

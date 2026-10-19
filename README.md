@@ -56,6 +56,10 @@ pnpm dev:local
 `BINDING_INVITE_CODE_ENCRYPTION_KEY` 写入被 `.gitignore` 忽略的 `.dev.vars`。
 活动邀请仍需要重新复制期间，不要更换此密钥。
 
+`wrangler.local.toml` 已配置 Turnstile 恒通过的公开测试密钥；改用
+`pnpm dev:api` 时，把同样的测试值 `TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA`
+写入 `.dev.vars`，否则未认证写端点按 fail-closed 拒绝。
+
 也可以分别启动服务：
 
 ```bash

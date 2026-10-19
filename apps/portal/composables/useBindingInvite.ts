@@ -74,7 +74,7 @@ export function useBindingInvite() {
     finally { refreshing.value = false; }
   };
 
-  const submit = async (inviteCode: string) => {
+  const submit = async (inviteCode: string, turnstileToken: string) => {
     const code = inviteCode.trim().toUpperCase();
     if (!code) {
       errorMessage.value = "请输入管理员发送的邀请码。";
@@ -84,7 +84,7 @@ export function useBindingInvite() {
     state.value = "submitting";
     errorMessage.value = "";
     try {
-      const response = await api<{ code: string; claimId: string; claimToken: string; playerName: string; playerId: string; expiresAt: number }>("/v1/public/binding-invites/redeem", { method: "POST", body: { contractVersion: "1", code } });
+      const response = await api<{ code: string; claimId: string; claimToken: string; playerName: string; playerId: string; expiresAt: number }>("/v1/public/binding-invites/redeem", { method: "POST", headers: { "cf-turnstile-response": turnstileToken }, body: { contractVersion: "1", code } });
       invite.value = { playerName: response.playerName, playerId: response.playerId };
       confirmationCode.value = response.code;
       claimStatus.value = "pending_confirmation";
@@ -94,7 +94,7 @@ export function useBindingInvite() {
       void pollStatus();
     } catch (error) {
       const details = portalErrorDetails(error, "无法打开绑定邀请，请稍后重试。");
-      errorMessage.value = details.code === "INVITE_INVALID" ? "邀请码不可用，可能已过期、撤销或使用过。" : details.description;
+      errorMessage.value = details.code === "INVITE_INVALID" ? "邀请码不可用，可能已过期、撤销或使用过。" : turnstileErrorMessage(details.code, details.description);
       state.value = "failed";
     }
   };

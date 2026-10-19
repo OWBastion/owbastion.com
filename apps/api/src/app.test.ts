@@ -136,6 +136,7 @@ const services = makeServices();
 const createTestApp = (overrides: Partial<PlatformServices> = {}, authenticate: Authenticator<RuntimeEnv> = auth) => createApp({
   authenticate,
   services: () => makeServices(overrides),
+  turnstile: async () => undefined,
 });
 
 const app = createTestApp();
@@ -876,6 +877,77 @@ describe("API", () => {
     expect(response.status).toBe(201);
     expect(await response.json()).toEqual({ contractVersion: "1", recoveryUrl: `https://owbastion.com/recover#token=${"r".repeat(64)}`, expiresAt: 1_800_000_000_000 });
     expect(issued).toEqual([{ input: { contractVersion: "1", identityVerified: true, playerAccountId: "player.1" }, auth: { actorType: "user", subject: "admin.1", roles: ["maintainer"], provider: "test" }, idempotencyKey: "recovery.1" }]);
+  });
+
+  describe("Turnstile guard on unauthenticated writes", () => {
+    const turnstileEnv = { ...env, TURNSTILE_SECRET_KEY: "test-secret" };
+    const loginAttemptBody = JSON.stringify({ contractVersion: "1", provider: "qq" });
+    const jsonHeaders = { "content-type": "application/json" };
+    const guardedApp = (overrides: Partial<PlatformServices> = {}) => createApp({ authenticate: auth, services: () => makeServices(overrides) });
+
+    it("rejects the three endpoints without a token before any service call", async () => {
+      const createQqLoginAttempt = vi.fn();
+      const redeemBindingInvite = vi.fn();
+      const createPasskeyLoginOptions = vi.fn();
+      const siteverify = vi.fn();
+      vi.stubGlobal("fetch", siteverify);
+      const guarded = guardedApp({ createQqLoginAttempt, redeemBindingInvite, createPasskeyLoginOptions });
+      const requests: Array<[string, RequestInit]> = [
+        ["http://localhost/v1/auth/qq/login-attempt", { method: "POST", headers: jsonHeaders, body: loginAttemptBody }],
+        ["http://localhost/v1/public/binding-invites/redeem", { method: "POST", headers: jsonHeaders, body: JSON.stringify({ contractVersion: "1", code: "ABCDEFGHIJKL" }) }],
+        ["https://api.owbastion.com/v1/auth/passkeys/login/options", { method: "POST", headers: { ...jsonHeaders, origin: "https://owbastion.com" }, body: JSON.stringify({ contractVersion: "1" }) }],
+      ];
+      for (const [url, init] of requests) {
+        const response = await guarded.request(url, init, turnstileEnv);
+        expect(response.status).toBe(422);
+        expect(await response.json()).toMatchObject({ error: { code: "TURNSTILE_TOKEN_REQUIRED" } });
+      }
+      expect(siteverify).not.toHaveBeenCalled();
+      for (const service of [createQqLoginAttempt, redeemBindingInvite, createPasskeyLoginOptions]) expect(service).not.toHaveBeenCalled();
+    });
+
+    it("fails closed when the Turnstile secret is not configured", async () => {
+      const createQqLoginAttempt = vi.fn();
+      const siteverify = vi.fn();
+      vi.stubGlobal("fetch", siteverify);
+      const response = await guardedApp({ createQqLoginAttempt }).request("http://localhost/v1/auth/qq/login-attempt", { method: "POST", headers: { ...jsonHeaders, "cf-turnstile-response": "widget-token" }, body: loginAttemptBody }, env);
+      expect(response.status).toBe(503);
+      expect(await response.json()).toMatchObject({ error: { code: "TURNSTILE_UNAVAILABLE" } });
+      expect(siteverify).not.toHaveBeenCalled();
+      expect(createQqLoginAttempt).not.toHaveBeenCalled();
+    });
+
+    it("rejects a token the verifier refuses without writing", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => Response.json({ success: false })));
+      const createQqLoginAttempt = vi.fn();
+      const response = await guardedApp({ createQqLoginAttempt }).request("http://localhost/v1/auth/qq/login-attempt", { method: "POST", headers: { ...jsonHeaders, "cf-turnstile-response": "stale-token" }, body: loginAttemptBody }, turnstileEnv);
+      expect(response.status).toBe(403);
+      expect(await response.json()).toMatchObject({ error: { code: "TURNSTILE_VERIFICATION_FAILED" } });
+      expect(createQqLoginAttempt).not.toHaveBeenCalled();
+    });
+
+    it("fails closed when the verifier is unreachable", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("network down"); }));
+      const redeemBindingInvite = vi.fn();
+      const response = await guardedApp({ redeemBindingInvite }).request("http://localhost/v1/public/binding-invites/redeem", { method: "POST", headers: { ...jsonHeaders, "cf-turnstile-response": "widget-token" }, body: JSON.stringify({ contractVersion: "1", code: "ABCDEFGHIJKL" }) }, turnstileEnv);
+      expect(response.status).toBe(503);
+      expect(await response.json()).toMatchObject({ error: { code: "TURNSTILE_UNAVAILABLE" } });
+      expect(redeemBindingInvite).not.toHaveBeenCalled();
+    });
+
+    it("verifies the token with siteverify before accepting a write", async () => {
+      const siteverify = vi.fn<typeof fetch>(async () => Response.json({ success: true }));
+      vi.stubGlobal("fetch", siteverify);
+      const createPasskeyLoginOptions = vi.fn(async () => ({ contractVersion: "1" as const, challengeId: "00000000-0000-4000-8000-000000000011", options: { challenge: "challenge" } }));
+      const response = await guardedApp({ createPasskeyLoginOptions }).request("https://api.owbastion.com/v1/auth/passkeys/login/options", { method: "POST", headers: { ...jsonHeaders, origin: "https://owbastion.com", "cf-turnstile-response": "widget-token" }, body: JSON.stringify({ contractVersion: "1" }) }, turnstileEnv);
+      expect(response.status).toBe(201);
+      expect(siteverify).toHaveBeenCalledOnce();
+      const [url, init] = siteverify.mock.calls[0]!;
+      expect(url).toBe("https://challenges.cloudflare.com/turnstile/v0/siteverify");
+      expect(String(init?.body)).toContain("secret=test-secret");
+      expect(String(init?.body)).toContain("response=widget-token");
+      expect(createPasskeyLoginOptions).toHaveBeenCalledOnce();
+    });
   });
 
   it("requires a valid portal session and returns only player-facing fields", async () => {

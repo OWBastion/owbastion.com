@@ -23,8 +23,22 @@
   "/v1/auth/qq/login-attempt": {
    "post": {
     "operationId": "createQqLoginAttempt",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/turnstileToken"
+     }
+    ],
     "responses": {
      "201": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     },
+     "503": {
       "$ref": "#/components/responses/Json"
      }
     }
@@ -493,11 +507,22 @@
    "post": {
     "operationId": "createPasskeyLoginOptions",
     "description": "Creates a discoverable Passkey authentication challenge. Requests require the configured Portal Origin.",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/turnstileToken"
+     }
+    ],
     "responses": {
      "201": {
       "$ref": "#/components/responses/Json"
      },
      "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     },
+     "503": {
       "$ref": "#/components/responses/Json"
      }
     }
@@ -1072,8 +1097,22 @@
   "/v1/public/binding-invites/redeem": {
    "post": {
     "operationId": "redeemBindingInvite",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/turnstileToken"
+     }
+    ],
     "responses": {
      "201": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     },
+     "503": {
       "$ref": "#/components/responses/Json"
      }
     }
@@ -3816,6 +3855,15 @@
      "type": "string",
      "minLength": 32
     }
+   },
+   "turnstileToken": {
+    "name": "cf-turnstile-response",
+    "in": "header",
+    "required": true,
+    "schema": {
+     "type": "string"
+    },
+    "description": "Cloudflare Turnstile token verified with siteverify before the request writes; missing or refused tokens are rejected, and verification failure never produces a write"
    },
    "agentPage": {
     "name": "page",

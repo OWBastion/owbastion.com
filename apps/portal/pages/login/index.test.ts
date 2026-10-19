@@ -15,6 +15,7 @@ mockNuxtImport("useLoginAttempt", () => () => ({
   safeReturnTo: (value: unknown) => typeof value === "string" ? value : "/me",
 }));
 mockNuxtImport("useLocalDevAuth", () => () => ({ accounts: ref([]), selectedAccountId: ref(""), loading: ref(false), errorMessage: ref(""), enabled: ref(false), load: vi.fn(), login: vi.fn() }));
+mockNuxtImport("useTurnstile", () => () => ({ element: ref(), token: ref("turnstile-token"), failed: ref(false), reset: vi.fn() }));
 
 const stubs = {
   UButton: { props: ["label", "disabled"], emits: ["click"], template: '<button type="button" :disabled="disabled" @click="$emit(\'click\')">{{ label }}</button>' },
@@ -38,10 +39,10 @@ describe("login page", () => {
     expect(buttons.map((button) => button.text())).toEqual(["使用 Passkey 登录", "使用 QQ 验证登录"]);
 
     await buttons[0]!.trigger("click");
-    expect(loginWithPasskey).toHaveBeenCalledTimes(1);
+    expect(loginWithPasskey).toHaveBeenCalledWith("/me", "turnstile-token");
     expect(startQqLogin).not.toHaveBeenCalled();
     await buttons[1]!.trigger("click");
-    expect(startQqLogin).toHaveBeenCalledTimes(1);
+    expect(startQqLogin).toHaveBeenCalledWith("/me", "turnstile-token");
   });
 
   it("shows the QQ verification command in place while a QQ attempt is waiting", async () => {

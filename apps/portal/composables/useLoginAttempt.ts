@@ -72,19 +72,20 @@ export function useLoginAttempt() {
     }
   };
 
-  const start = async (returnTo: string) => {
+  const start = async (returnTo: string, turnstileToken: string) => {
     if (state.value === "creating" || state.value === "waiting") return;
     clearAttempt();
     state.value = "creating";
     message.value = "";
     try {
-      attempt.value = await api<StoredAttempt>("/v1/auth/qq/login-attempt", { method: "POST", body: { contractVersion: "1", provider: "qq" } });
+      attempt.value = await api<StoredAttempt>("/v1/auth/qq/login-attempt", { method: "POST", headers: { "cf-turnstile-response": turnstileToken }, body: { contractVersion: "1", provider: "qq" } });
       state.value = "waiting";
       persist();
       scheduleCountdown();
       void poll(returnTo);
     } catch (error) {
-      message.value = portalErrorDetails(error, "无法创建验证码，请稍后重试。").description;
+      const details = portalErrorDetails(error, "无法创建验证码，请稍后重试。");
+      message.value = turnstileErrorMessage(details.code, details.description);
       state.value = "failed";
     }
   };
