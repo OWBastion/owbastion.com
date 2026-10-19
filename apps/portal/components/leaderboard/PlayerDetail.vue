@@ -9,7 +9,6 @@ const props = defineProps<{
 }>();
 
 const MAP_SHOW = 5;
-const ACHIEVEMENT_SHOW = 10;
 // Tier ladder, lowest to highest; the index is the accent step (t1..t3).
 const tiers: Array<{ slot: NonNullable<LeaderboardPlayerMapTitle["slot"]>; label: string }> = [
   { slot: "pioneer", label: "开拓者" },
@@ -17,7 +16,6 @@ const tiers: Array<{ slot: NonNullable<LeaderboardPlayerMapTitle["slot"]>; label
   { slot: "dominator", label: "主宰" },
 ];
 const mapsExpanded = ref(false);
-const achievementsExpanded = ref(false);
 
 const mapRows = computed(() => {
   const titles = props.summary?.titles?.map ?? [];
@@ -41,7 +39,6 @@ const tierSummary = computed(() => [...tiers].reverse().map((tier) => ({
 })));
 const shownMaps = computed(() => mapsExpanded.value ? mapRows.value : mapRows.value.slice(0, MAP_SHOW));
 const achievements = computed(() => props.summary?.titles?.general ?? []);
-const shownAchievements = computed(() => achievementsExpanded.value ? achievements.value : achievements.value.slice(0, ACHIEVEMENT_SHOW));
 
 </script>
 
@@ -77,14 +74,8 @@ const shownAchievements = computed(() => achievementsExpanded.value ? achievemen
     </template>
     <p v-else class="notice">还没有通关记录</p>
 
-    <h4 class="player-sheet-section">成就 · {{ achievements.length }}</h4>
-    <template v-if="achievements.length">
-      <div class="player-sheet-titles">
-        <span v-for="title in shownAchievements" :key="title.titleKey" class="title-pill">{{ title.label }}</span>
-      </div>
-      <button v-if="achievements.length > ACHIEVEMENT_SHOW && !achievementsExpanded" type="button" class="more" @click="achievementsExpanded = true">展开其余 {{ achievements.length - ACHIEVEMENT_SHOW }} 个</button>
-    </template>
-    <p v-else class="notice">还没有解锁成就</p>
+    <h4 class="player-sheet-section">成就</h4>
+    <PlayerMedalCase :titles="achievements" />
   </template>
 </template>
 
@@ -110,7 +101,5 @@ const shownAchievements = computed(() => achievementsExpanded.value ? achievemen
 .more { margin-top: var(--space-2); padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: var(--type-label-sm-size); font-weight: 600; cursor: pointer; }
 .more:hover { text-decoration: underline; }
 .sec { color: var(--muted); }
-.player-sheet-titles { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.title-pill { display: inline-block; max-width: 100%; padding: 0 var(--space-2); border: 1px solid color-mix(in oklch, var(--accent) 32%, var(--line-strong)); border-radius: var(--radius-pill); background: color-mix(in oklch, var(--accent) 7%, var(--surface)); color: var(--text); font-size: var(--type-caption-size); font-weight: 600; line-height: 1.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
 .notice { margin: 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-control); background: var(--surface-raised); color: var(--muted); font-size: var(--type-body-sm-size); }
 </style>
