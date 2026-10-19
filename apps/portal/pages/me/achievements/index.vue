@@ -11,7 +11,7 @@ useSeoMeta({ title: "我的成就 · 躲避堡垒 3" });
 const { player, refresh } = useCurrentPlayer();
 const { items: ownedTitles, allTitles, refresh: refreshTitles, replaceEquipped } = usePlayerTitles();
 const { items: challengeProgress, refresh: refreshChallengeProgress } = usePlayerChallengeProgress();
-const { data: catalog, pending: loading, error: catalogError } = useAsyncData("public-achievement-directory", async () => {
+const { data: catalog, pending: loading, error: catalogError } = useAsyncData("my-achievement-directory", async () => {
   const [achievementResponse, mapResponse, mapChallengeResponse] = await Promise.all([
     usePublicCatalog<{ items: PublicAchievement[] }>("achievements"),
     usePublicCatalog<{ items: PortalMap[] }>("maps"),
