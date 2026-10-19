@@ -167,9 +167,25 @@ const entryMeta = (entry: LeaderboardEntry) => board.value === "mastery"
 
     <section ref="boardSection" class="lb-board" :aria-busy="loading || undefined" aria-label="排名">
       <LoadingReveal>
-        <div v-if="loading && !items.length" class="board-skeletons" role="status" aria-label="读取中…">
-          <USkeleton class="board-skeleton-podium" />
-          <USkeleton v-for="index in 6" :key="index" class="board-skeleton-row" />
+        <!-- Same podium and ladder classes as the loaded board, with placeholders in place of names and scores. -->
+        <div v-if="loading && !items.length" class="lb-results board-skeleton" role="status" aria-label="读取中…">
+          <ol class="podium" aria-hidden="true">
+            <li v-for="place in [2, 1, 3]" :key="place" :class="`podium__spot place${place}`">
+              <span class="podium__player"><USkeleton class="podium__badge rounded-full" /><USkeleton class="board-skeleton__name" /><USkeleton class="board-skeleton__score" /></span>
+              <span class="podium__plinth" />
+            </li>
+          </ol>
+          <ol class="ladder" aria-hidden="true">
+            <li v-for="index in 6" :key="index">
+              <span class="rung">
+                <USkeleton class="rung__rank board-skeleton__rank" />
+                <USkeleton class="rung__badge" />
+                <span class="rung__who"><USkeleton class="board-skeleton__name" /><USkeleton class="board-skeleton__meta" /></span>
+                <USkeleton class="rung__score board-skeleton__score" />
+                <span class="rung__bar" />
+              </span>
+            </li>
+          </ol>
         </div>
         <UAlert v-else-if="error" color="error" variant="subtle" role="alert" title="无法读取排行榜">
           <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" @click="refreshBoard()" /></template>
@@ -292,9 +308,14 @@ const entryMeta = (entry: LeaderboardEntry) => board.value === "mastery"
 .mine__label + b { margin-left: auto; }
 .mine--login { justify-content: center; color: var(--accent); font-weight: 600; }
 .lb-empty { margin: 0; padding: var(--space-12) 0; color: var(--quiet); text-align: center; }
-.board-skeletons { display: grid; gap: var(--space-2); }
-.board-skeleton-podium { height: 13rem; border-radius: var(--radius-card); }
-.board-skeleton-row { height: 3.75rem; border-radius: var(--radius-control); }
+.board-skeleton .podium__badge, .board-skeleton .rung__badge { border: 0; }
+.board-skeleton .podium__badge::before, .board-skeleton .podium__badge::after { display: none; }
+.board-skeleton .podium__plinth { opacity: .35; }
+.board-skeleton .rung__who { gap: var(--space-1); }
+.board-skeleton__rank { justify-self: center; width: 1.25rem; height: 1.25rem; }
+.board-skeleton__name { width: 5rem; height: 1rem; }
+.board-skeleton__meta { width: 3.5rem; height: .75rem; }
+.board-skeleton__score { width: 3.5rem; height: 1.125rem; }
 .pager { display: flex; align-items: center; justify-content: center; gap: var(--space-3); color: var(--muted); font-size: var(--type-label-sm-size); }
 @media (max-width: 47.99rem) { .lb { padding-block: var(--space-8) var(--space-12); } }
 </style>
