@@ -2,6 +2,8 @@
 import type { PlayerSubmissionDetail } from "@owbastion/contracts";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { verifiedRunOutcomePresentation } from "~/utils/mastery";
+import OcrFeedbackPanel from "~/components/submissions/OcrFeedbackPanel.vue";
+import SubmissionProgress from "~/components/submissions/SubmissionProgress.vue";
 
 definePageMeta({ middleware: "auth" });
 useSeoMeta({ title: "提交详情 · 躲避堡垒 3" });
@@ -122,15 +124,16 @@ onBeforeUnmount(stopOcrPoll);
 
 <template>
   <main class="submission-page page-shell">
-    <nav class="breadcrumb" aria-label="面包屑">
-      <UButton to="/me" label="玩家中心" icon="i-lucide-arrow-left" color="neutral" variant="ghost" class="breadcrumb-link" />
-      <span aria-hidden="true">/</span>
-      <span>提交详情</span>
-    </nav>
+    <NuxtLink to="/me" class="back-link pressable"><UIcon name="i-lucide-arrow-left" aria-hidden="true" />玩家中心</NuxtLink>
 
-    <div class="page-heading">
-      <h1 class="page-title">{{ data?.mapName ?? "提交进度" }}</h1>
-    </div>
+    <header class="sub-hero">
+      <div class="sub-hero__copy">
+        <p class="eyebrow">Submission</p>
+        <h1 class="sub-hero__title">{{ data?.mapName ?? "提交进度" }}<small v-if="data?.difficulty">{{ data.difficulty }}</small></h1>
+        <p v-if="data" class="sub-hero__meta"><span>提交于 {{ formatTime(data.createdAt) }}</span><span>最后更新 {{ formatTime(data.updatedAt) }}</span></p>
+      </div>
+      <StatusBadge v-if="data" class="sub-hero__status" :label="playerSubmissionStatusLabel(data.status, data.resubmissionRequired)" :tone="playerSubmissionStatusTone(data.status, data.resubmissionRequired)" />
+    </header>
 
     <p v-if="error && !data" class="message" role="alert">找不到这条提交记录。</p>
     <p v-else-if="fetchStatus === 'pending' && !data" class="message" role="status">读取提交详情…</p>
@@ -138,7 +141,6 @@ onBeforeUnmount(stopOcrPoll);
       <!-- Steady submission state: visible only, never live-announced on poll/refresh. -->
       <UAlert
         v-if="statusAlert"
-        class="status-alert"
         :icon="statusAlert.color === 'warning' ? 'i-lucide-triangle-alert' : statusAlert.color === 'success' ? 'i-lucide-badge-check' : 'i-lucide-scan-line'"
         :color="statusAlert.color"
         variant="subtle"
@@ -146,23 +148,18 @@ onBeforeUnmount(stopOcrPoll);
         :description="statusAlert.description"
       />
       <!-- Single live region for ephemeral mutation feedback only (one visible + announced path). -->
-      <div
-        v-if="manualReviewError || refreshError || actionMessage"
-        class="status-live"
-        aria-live="polite"
-        aria-atomic="true"
-      >
+      <div v-if="manualReviewError || refreshError || actionMessage" class="status-live" aria-live="polite" aria-atomic="true">
         <UAlert v-if="manualReviewError" color="error" variant="subtle" title="无法申请人工核对" :description="manualReviewError" />
         <UAlert v-else-if="refreshError" :color="pollTimedOut ? 'warning' : 'error'" variant="subtle" :title="pollTimedOut ? '自动更新已停止' : '无法刷新状态'" :description="refreshError" />
         <UAlert v-else-if="actionMessage" color="success" variant="subtle" :title="actionMessage" />
       </div>
 
+      <SubmissionProgress :status="data.status" :updated-at="data.updatedAt" :resubmission-required="data.resubmissionRequired" />
+
       <section class="submission-layout">
         <div class="evidence-col">
-          <UCard class="evidence-card elevation-3">
-            <template #header>
-              <div class="card-heading"><h2>提交截图</h2></div>
-            </template>
+          <section class="evidence-frame" aria-labelledby="evidence-title">
+            <h2 id="evidence-title" class="sr-only">提交截图</h2>
             <img
               v-if="evidenceDisplaySrc && evidenceState !== 'failed' && evidenceState !== 'missing'"
               :src="evidenceDisplaySrc"
@@ -171,37 +168,22 @@ onBeforeUnmount(stopOcrPoll);
               @error="markEvidenceFailed"
             />
             <p v-else-if="evidenceState === 'loading'" class="evidence-message" role="status">读取中…</p>
-            <p v-else-if="evidenceState === 'missing'" class="evidence-message" role="status">暂无截图</p>
-            <p v-else class="evidence-message" role="alert">无法读取截图，请稍后重试。</p>
-          </UCard>
+            <p v-else-if="evidenceState === 'missing'" class="evidence-message" role="status"><UIcon name="i-lucide-image-off" aria-hidden="true" />暂无截图</p>
+            <p v-else class="evidence-message" role="alert"><UIcon name="i-lucide-image-off" aria-hidden="true" />无法读取截图，请稍后重试。</p>
+          </section>
         </div>
 
         <div class="info-col">
-          <UCard class="overview-card elevation-2">
-            <template #header>
-              <div class="card-heading">
-                <h2>提交概览</h2>
-                <StatusBadge :label="playerSubmissionStatusLabel(data.status, data.resubmissionRequired)" :tone="playerSubmissionStatusTone(data.status, data.resubmissionRequired)" />
-              </div>
-            </template>
+          <section class="panel" aria-labelledby="overview-title">
+            <h2 id="overview-title" class="panel__title">提交概览</h2>
             <dl class="detail-grid">
-              <div class="detail-grid__row"><dt>提交编号</dt><dd>{{ data.submissionId }}</dd></div>
-              <div class="detail-grid__row"><dt>提交时间</dt><dd>{{ formatTime(data.createdAt) }}</dd></div>
-              <div class="detail-grid__row" v-if="data.difficulty"><dt>难度</dt><dd>{{ data.difficulty }}</dd></div>
-              <div class="detail-grid__row" v-if="data.reason && !data.resubmissionRequired"><dt>说明</dt><dd>{{ data.reason }}</dd></div>
-              <div class="detail-grid__row"><dt>最后更新</dt><dd>{{ formatTime(data.updatedAt) }}</dd></div>
+              <div class="detail-grid__row"><dt>提交编号</dt><dd class="mono">{{ data.submissionId }}</dd></div>
+              <div v-if="data.difficulty" class="detail-grid__row"><dt>难度</dt><dd>{{ data.difficulty }}</dd></div>
+              <div v-if="data.reason && !data.resubmissionRequired" class="detail-grid__row"><dt>说明</dt><dd>{{ data.reason }}</dd></div>
             </dl>
-            <UAlert v-if="verifiedRunOutcome" class="mastery-outcome" :color="data.verifiedRunOutcome?.status === 'created' || data.verifiedRunOutcome?.status === 'reused' ? 'success' : 'neutral'" variant="subtle" :title="verifiedRunOutcome.title" :description="verifiedRunOutcome.description || undefined" />
+            <UAlert v-if="verifiedRunOutcome" :color="data.verifiedRunOutcome?.status === 'created' || data.verifiedRunOutcome?.status === 'reused' ? 'success' : 'neutral'" variant="subtle" :title="verifiedRunOutcome.title" :description="verifiedRunOutcome.description || undefined" />
             <div class="overview-actions">
-              <UButton
-                v-if="data.resubmissionRequired"
-                to="/me/submissions/new"
-                label="重新提交截图"
-                icon="i-lucide-upload"
-                color="primary"
-                :disabled="mutationBusy"
-                block
-              />
+              <UButton v-if="data.resubmissionRequired" to="/me/submissions/new" label="重新提交截图" icon="i-lucide-upload" color="primary" size="lg" :disabled="mutationBusy" block />
               <UButton
                 v-if="manualReviewEligible && !manualReviewRequested"
                 label="申请人工核对"
@@ -211,232 +193,104 @@ onBeforeUnmount(stopOcrPoll);
                 :loading="requestingManualReview"
                 :disabled="requestingManualReview || mutationBusy"
                 aria-label="申请人工核对"
-                @click="handleRequestManualReview"
                 block
+                @click="handleRequestManualReview"
               />
               <UButton
                 label="刷新状态"
                 icon="i-lucide-refresh-cw"
                 color="neutral"
-                variant="outline"
+                variant="ghost"
                 aria-label="刷新状态"
                 :loading="refreshingStatus || fetchStatus === 'pending'"
                 :disabled="refreshingStatus || fetchStatus === 'pending' || requestingManualReview"
-                @click="refreshSubmission"
                 block
+                @click="refreshSubmission"
               />
             </div>
-          </UCard>
+          </section>
 
-          <SubmissionProgress :status="data.status" :updated-at="data.updatedAt" :resubmission-required="data.resubmissionRequired" />
-
-          <UCard v-if="data.ocr" class="ocr-card elevation-2">
-            <template #header>
-              <div class="card-heading"><h2>识别摘要</h2></div>
-            </template>
+          <section v-if="data.ocr" class="panel" aria-labelledby="ocr-title">
+            <h2 id="ocr-title" class="panel__title"><UIcon name="i-lucide-scan-line" aria-hidden="true" />识别摘要</h2>
             <dl class="detail-grid">
               <div class="detail-grid__row"><dt>地图</dt><dd>{{ ocrValue(data.ocr.mapName) }}</dd></div>
               <div class="detail-grid__row"><dt>难度</dt><dd>{{ ocrValue(data.ocr.difficulty) }}</dd></div>
               <div class="detail-grid__row"><dt>玩家</dt><dd>{{ ocrValue(data.ocr.playerName) }}</dd></div>
               <div class="detail-grid__row"><dt>通关标记</dt><dd>{{ ocrValue(data.ocr.challengeCompleted) }}</dd></div>
-              <div class="detail-grid__row" v-if="data.ocr.achievementTitles?.length"><dt>识别到的成就</dt><dd>{{ data.ocr.achievementTitles.join('、') }}</dd></div>
-              <div class="detail-grid__row" v-if="data.ocr.modelVersion"><dt>识别模型</dt><dd>{{ data.ocr.modelVersion }}</dd></div>
+              <div v-if="data.ocr.achievementTitles?.length" class="detail-grid__row"><dt>识别到的成就</dt><dd>{{ data.ocr.achievementTitles.join('、') }}</dd></div>
+              <div v-if="data.ocr.modelVersion" class="detail-grid__row"><dt>识别模型</dt><dd class="mono">{{ data.ocr.modelVersion }}</dd></div>
             </dl>
-          </UCard>
+          </section>
 
-          <OcrFeedbackPanel
-            v-if="data.feedback"
-            :submission-id="data.submissionId"
-            :feedback="data.feedback"
-            @recorded="refreshSubmission"
-            @stale="refreshSubmission"
-          />
+          <OcrFeedbackPanel v-if="data.feedback" :submission-id="data.submissionId" :feedback="data.feedback" @recorded="refreshSubmission" @stale="refreshSubmission" />
         </div>
       </section>
 
-      <UCard v-if="data.resubmissionRequired" class="resubmission-card elevation-2" aria-labelledby="resubmission-title">
-        <template #header>
-          <div class="card-heading"><h2 id="resubmission-title">重新提交建议</h2></div>
-        </template>
+      <section v-if="data.resubmissionRequired" class="panel" aria-labelledby="resubmission-title">
+        <h2 id="resubmission-title" class="panel__title">重新提交建议</h2>
         <div class="resubmission-grid">
           <div v-for="item in resubmissionTips" :key="item.title" class="resubmission-tip">
             <span class="tip-icon"><UIcon :name="item.icon" aria-hidden="true" /></span>
-            <div>
-              <strong>{{ item.title }}</strong>
-              <p>{{ item.description }}</p>
-            </div>
+            <div><strong>{{ item.title }}</strong><p>{{ item.description }}</p></div>
           </div>
         </div>
-      </UCard>
+      </section>
     </template>
 
-    <section v-else class="submission-layout submission-skeleton" role="status" aria-label="读取中…">
-      <div class="info-col" aria-hidden="true">
-        <UCard class="overview-card elevation-2 submission-skeleton-card">
-          <template #header>
-            <div class="card-heading">
-              <USkeleton class="submission-skeleton-heading submission-skeleton-heading--overview" />
-              <USkeleton class="submission-skeleton-status" />
-            </div>
-          </template>
-          <div class="submission-skeleton-list">
-            <div v-for="row in 4" :key="row" class="submission-skeleton-row">
-              <USkeleton class="submission-skeleton-label" />
-              <USkeleton class="submission-skeleton-value" />
-            </div>
-          </div>
-          <div class="submission-skeleton-actions">
-            <USkeleton class="submission-skeleton-action" />
-            <USkeleton class="submission-skeleton-action" />
-          </div>
-        </UCard>
-        <UCard class="overview-card elevation-2 submission-skeleton-card">
-          <template #header>
-            <div class="card-heading">
-              <USkeleton class="submission-skeleton-heading submission-skeleton-heading--progress" />
-              <USkeleton class="submission-skeleton-updated" />
-            </div>
-          </template>
-          <div class="submission-skeleton-progress">
-            <div v-for="step in 4" :key="step" class="submission-skeleton-progress-item">
-              <USkeleton class="submission-skeleton-marker" />
-              <div class="submission-skeleton-progress-copy">
-                <USkeleton class="submission-skeleton-progress-title" />
-                <USkeleton class="submission-skeleton-progress-detail" />
-              </div>
-            </div>
-          </div>
-        </UCard>
+    <div v-else class="submission-skeleton" role="status" aria-label="读取中…">
+      <USkeleton class="submission-skeleton__bar" />
+      <div class="submission-layout" aria-hidden="true">
+        <USkeleton class="submission-skeleton__evidence" />
+        <USkeleton class="submission-skeleton__panel" />
       </div>
-      <div class="evidence-col" aria-hidden="true">
-        <UCard class="evidence-card elevation-3 submission-skeleton-card">
-          <template #header>
-            <div class="card-heading"><USkeleton class="submission-skeleton-heading" /></div>
-          </template>
-          <USkeleton class="submission-skeleton-evidence" />
-        </UCard>
-      </div>
-    </section>
+    </div>
   </main>
 </template>
 
 <style scoped>
-.submission-page { padding-block: clamp(4rem, 9vh, 6.5rem) 4.5rem; }
-.breadcrumb { display: flex; align-items: center; gap: var(--space-2); margin-bottom: clamp(var(--space-6), 4vw, var(--space-12)); color: var(--quiet); font-size: var(--type-caption-size); }
-.breadcrumb-link { margin: 0; padding-inline: 0; }
-.page-heading { margin-bottom: var(--space-6); }
-.page-heading .page-title { max-width: 14ch; }
-.status-alert { margin-bottom: var(--space-3); }
-.status-live { display: grid; gap: var(--space-2); margin-bottom: var(--space-4); }
-.status-alert + .status-live { margin-top: calc(var(--space-1) * -1); }
-.status-alert { margin: 0; }
-.submission-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-  gap: clamp(var(--space-4), 2.4vw, var(--space-6));
-  width: 100%;
-}
+.submission-page { display: grid; gap: var(--space-5); padding-block: var(--space-8) 4.5rem; }
+.sub-hero { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-4) var(--space-8); padding-bottom: var(--space-5); border-bottom: 1px solid var(--line); }
+.sub-hero__copy { display: grid; gap: var(--space-2); min-width: 0; }
+.sub-hero__copy .eyebrow { margin: 0; }
+.sub-hero__title { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-4); margin: 0; font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3.25rem); font-weight: 700; letter-spacing: -.02em; line-height: 1.05; }
+.sub-hero__title small { padding: 0 var(--space-3); border: 1px solid color-mix(in oklch, var(--accent) 50%, var(--line)); border-radius: var(--radius-control); color: var(--accent); font-size: var(--type-label-sm-size); font-weight: 600; letter-spacing: 0; line-height: 1.9; }
+.sub-hero__meta { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin: 0; color: var(--quiet); font-size: var(--type-caption-size); }
+.sub-hero__status { transform: scale(1.15); transform-origin: right bottom; }
+.status-live { display: grid; gap: var(--space-2); }
+.submission-layout { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: var(--space-5); }
 .evidence-col, .info-col { min-width: 0; }
 .info-col { display: grid; gap: var(--space-4); }
-.overview-card, .evidence-card, .ocr-card, .resubmission-card { border-color: var(--line); }
-.mastery-outcome { margin-top: var(--space-4); }
-.overview-actions { display: grid; gap: var(--space-2); margin-top: var(--space-5); }
-.evidence-image { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: var(--radius-control); }
-.evidence-message, .message { margin: 0; padding: var(--space-16) 0; color: var(--muted); font-size: .88rem; text-align: center; }
-.resubmission-card { display: grid; margin-top: clamp(var(--space-4), 2.4vw, var(--space-6)); }
+/* Viewer frame: corner brackets around the screenshot. */
+.evidence-frame { position: relative; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-card); background: color-mix(in oklch, var(--page) 70%, black); }
+.evidence-frame::before, .evidence-frame::after { position: absolute; width: 1.25rem; height: 1.25rem; border: 2px solid var(--accent); content: ""; pointer-events: none; }
+.evidence-frame::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; border-top-left-radius: var(--radius-card); }
+.evidence-frame::after { right: -1px; bottom: -1px; border-top: 0; border-left: 0; border-bottom-right-radius: var(--radius-card); }
+.evidence-image { display: block; width: 100%; height: auto; border-radius: var(--radius-control); }
+.evidence-message, .message { display: flex; align-items: center; justify-content: center; gap: var(--space-2); margin: 0; padding: var(--space-16) 0; color: var(--muted); font-size: var(--type-body-sm-size); text-align: center; }
+.panel { display: grid; gap: var(--space-4); min-width: 0; padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
+.panel__title { display: flex; align-items: center; gap: var(--space-2); margin: 0; font-family: var(--font-display); font-size: 1.0625rem; font-weight: 700; }
+.panel__title svg { color: var(--accent); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--type-caption-size); overflow-wrap: anywhere; }
+.overview-actions { display: grid; gap: var(--space-2); }
 .resubmission-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
-.resubmission-tip { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: start; gap: var(--space-2); }
-.tip-icon {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  place-items: center;
-  border: 1px solid color-mix(in oklch, var(--accent) 30%, var(--line));
-  border-radius: var(--radius-control);
-  color: var(--accent);
-  background: var(--accent-surface);
-}
-.tip-icon > svg { width: 17px; height: 17px; }
-.resubmission-tip strong { display: block; color: var(--text); font-size: .82rem; }
-.resubmission-tip p { margin: var(--space-1) 0 0; color: var(--muted); font-size: .76rem; line-height: 1.5; }
-.submission-skeleton { align-items: start; }
-.submission-skeleton-card { border-color: var(--line); }
-.submission-skeleton-heading { width: 104px; height: 18px; }
-.submission-skeleton-heading--overview { width: 96px; }
-.submission-skeleton-heading--progress { width: 82px; }
-.submission-skeleton-status { width: 72px; height: 24px; border-radius: var(--radius-pill); }
-.submission-skeleton-evidence { width: 100%; aspect-ratio: 4 / 3; }
-.submission-skeleton-list { display: grid; gap: 0; }
-.submission-skeleton-row {
-  display: grid;
-  grid-template-columns: 7.5rem minmax(0, 1fr);
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--line);
-}
-.submission-skeleton-row:last-child { padding-bottom: 0; border-bottom: 0; }
-.submission-skeleton-label { width: 30%; height: 12px; }
-.submission-skeleton-value { width: 42%; height: 14px; }
-.submission-skeleton-actions { display: grid; gap: var(--space-2); margin-top: var(--space-5); }
-.submission-skeleton-action { width: 100%; height: 40px; border-radius: var(--radius-pill); }
-.submission-skeleton-updated { width: 92px; height: 12px; }
-.submission-skeleton-progress { display: grid; gap: 0; }
-.submission-skeleton-progress-item {
-  position: relative;
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
-  gap: var(--space-3);
-  min-height: 68px;
-}
-.submission-skeleton-progress-item:not(:last-child)::after {
-  position: absolute;
-  top: 32px;
-  bottom: 0;
-  left: 15px;
-  width: 1px;
-  background: var(--line);
-  content: "";
-}
-.submission-skeleton-marker { position: relative; z-index: 1; width: 32px; height: 32px; border-radius: 50%; }
-.submission-skeleton-progress-copy { display: grid; align-content: start; gap: var(--space-2); padding: var(--space-1) 0 var(--space-4); }
-.submission-skeleton-progress-title { width: 68%; height: 14px; }
-.submission-skeleton-progress-detail { width: 92%; height: 12px; }
+.resubmission-tip { display: grid; grid-template-columns: 2.25rem minmax(0, 1fr); align-items: start; gap: var(--space-3); }
+.tip-icon { display: grid; width: 2.25rem; height: 2.25rem; place-items: center; border: 1px solid color-mix(in oklch, var(--accent) 30%, var(--line)); border-radius: var(--radius-control); color: var(--accent); background: var(--accent-surface); }
+.resubmission-tip strong { display: block; font-size: var(--type-label-sm-size); }
+.resubmission-tip p { margin: var(--space-1) 0 0; color: var(--muted); font-size: var(--type-caption-size); line-height: 1.5; }
+.submission-skeleton { display: grid; gap: var(--space-5); }
+.submission-skeleton__bar { height: 7rem; border-radius: var(--radius-card); }
+.submission-skeleton__evidence { aspect-ratio: 16 / 9; border-radius: var(--radius-card); }
+.submission-skeleton__panel { height: 16rem; border-radius: var(--radius-card); }
 @media (min-width: 64rem) {
-  .submission-layout {
-    grid-template-columns: minmax(0, 1.7fr) minmax(300px, .9fr);
-  }
-  .evidence-col {
-    grid-column: 1;
-    grid-row: 1;
-    position: sticky;
-    top: var(--sticky-chrome-top);
-  }
-  .info-col {
-    grid-column: 2;
-    grid-row: 1;
-  }
+  .submission-layout { grid-template-columns: minmax(0, 1.7fr) minmax(18rem, .9fr); }
+  .evidence-col { position: sticky; top: var(--sticky-chrome-top); }
 }
-@media (max-width: 63.99rem) {
-  .resubmission-grid { grid-template-columns: minmax(0, 1fr); }
-}
+@media (max-width: 63.99rem) { .resubmission-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 47.99rem) {
-  .submission-page { padding-block: var(--space-12) var(--space-12); }
-  .page-heading .page-title { max-width: none; }
-  .breadcrumb { margin-bottom: var(--space-8); }
-  .overview-actions :deep(button) { min-height: 44px; }
-  .submission-skeleton-row {
-    grid-template-columns: 1fr;
-    gap: var(--space-1);
-  }
-  .submission-skeleton-label, .submission-skeleton-value { width: 62%; }
+  .submission-page { padding-block: var(--space-5) var(--space-12); }
+  .sub-hero__status { transform: none; }
+  .panel { padding: var(--space-4); }
+  .overview-actions :deep(button) { min-height: 2.75rem; }
 }
-@media (prefers-reduced-transparency: reduce) {
-  .overview-card, .evidence-card, .ocr-card, .resubmission-card { box-shadow: none; }
-  .tip-icon { background: var(--surface); }
-}
-@media (prefers-contrast: more) {
-  .overview-card, .evidence-card, .ocr-card, .resubmission-card { border-color: var(--text); }
-}
+@media (prefers-contrast: more) { .panel, .evidence-frame { border-color: var(--text); } }
 </style>

@@ -55,48 +55,46 @@ const progressItems = computed(() => steps.map((step, index) => {
 </script>
 
 <template>
-  <UCard class="progress-card elevation-2" aria-labelledby="submission-progress-title">
-    <template #header><div class="card-heading"><h2 id="submission-progress-title">{{ status === undefined ? "获得称号流程" : "提交进度" }}</h2></div></template>
+  <section class="progress-host" aria-labelledby="submission-progress-title">
+    <h2 id="submission-progress-title" class="progress-heading">{{ status === undefined ? "获得称号流程" : "提交进度" }}</h2>
     <ol class="progress-list">
       <li v-for="(step, index) in progressItems" :key="step.key" class="progress-item" :class="`progress-item--${step.state}`">
-        <div v-if="status === undefined" class="progress-marker" aria-hidden="true">{{ index + 1 }}</div>
+        <div v-if="status === undefined" class="progress-marker num" aria-hidden="true">{{ index + 1 }}</div>
         <div v-else class="progress-marker" role="img" :aria-label="`${step.title}：${step.stateLabel}`"><UIcon :name="step.icon" aria-hidden="true" /></div>
         <div class="progress-copy"><div class="progress-title"><strong>{{ step.title }}</strong><span v-if="status !== undefined">{{ step.stateLabel }}</span></div><p>{{ step.detail }}</p></div>
       </li>
     </ol>
-  </UCard>
+  </section>
 </template>
 
 <style scoped>
-.progress-card { border-color: var(--line); }
+.progress-host { container-type: inline-size; display: grid; gap: var(--space-4); padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
+.progress-heading { margin: 0; font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; }
 .progress-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
-.progress-item { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: var(--space-3); min-height: 68px; }
-.progress-item:not(:last-child)::after { position: absolute; top: 32px; bottom: 0; left: 15px; width: 1px; background: var(--line); content: ""; }
-.progress-marker {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  color: var(--quiet);
-  background: var(--surface-raised);
-  transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
-}
-.progress-marker > svg { width: 16px; height: 16px; }
+.progress-item { position: relative; display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: var(--space-3); min-height: 4.25rem; }
+/* Connector: vertical by default, horizontal once the steps sit in a row. */
+.progress-item:not(:last-child)::after { position: absolute; top: 2rem; bottom: 0; left: calc(1rem - 1px); width: 2px; background: var(--line); content: ""; }
+.progress-item--complete:not(:last-child)::after { background: var(--accent); }
+.progress-marker { position: relative; z-index: 1; display: grid; width: 2rem; height: 2rem; place-items: center; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--quiet); background: var(--surface-raised); font-size: .8rem; font-weight: 700; transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease; }
+.progress-marker > svg { width: 1rem; height: 1rem; }
 .progress-copy { min-width: 0; padding: var(--space-1) 0 var(--space-4); }
 .progress-title { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
-.progress-title strong { color: var(--text); font-size: .86rem; font-weight: 600; transition: color 160ms ease; }
-.progress-title span { color: var(--quiet); font-size: .7rem; white-space: nowrap; transition: color 160ms ease; }
-.progress-copy p { margin: var(--space-1) 0 0; color: var(--muted); font-size: .76rem; line-height: 1.45; }
-.progress-item--complete .progress-marker { border-color: color-mix(in oklch, var(--accent) 38%, var(--line)); color: var(--accent); background: var(--accent-surface); }
+.progress-title strong { color: var(--text); font-size: var(--type-label-sm-size); font-weight: 600; }
+.progress-title span { color: var(--quiet); font-size: var(--type-caption-size); white-space: nowrap; }
+.progress-copy p { margin: var(--space-1) 0 0; color: var(--muted); font-size: var(--type-caption-size); line-height: 1.5; }
+.progress-item--complete .progress-marker { border-color: color-mix(in oklch, var(--accent) 45%, var(--line)); color: var(--accent); background: var(--accent-surface); }
 .progress-item--complete .progress-title span { color: var(--accent); }
-.progress-item--current .progress-marker { border-color: var(--accent); color: var(--on-accent); background: var(--accent); box-shadow: 0 4px 14px -8px var(--accent); }
+.progress-item--current .progress-marker { border-color: var(--accent); color: var(--on-accent); background: var(--accent); box-shadow: 0 0 0 4px color-mix(in oklch, var(--accent) 22%, transparent); }
 .progress-item--current .progress-title strong, .progress-item--current .progress-title span { color: var(--accent); }
 .progress-item--failed .progress-marker { border-color: color-mix(in oklch, var(--warning) 58%, var(--line)); color: var(--warning); background: color-mix(in oklch, var(--warning) 12%, var(--surface)); }
 .progress-item--failed .progress-title strong, .progress-item--failed .progress-title span { color: var(--warning); }
-@media (prefers-reduced-transparency: reduce) { .progress-item--complete .progress-marker, .progress-item--failed .progress-marker { background: var(--surface); } }
-@media (prefers-contrast: more) { .progress-card { border-color: var(--text); } .progress-marker { border-color: var(--text); } }
+@container (min-width: 40rem) {
+  .progress-list { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4); }
+  .progress-item { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; gap: var(--space-3); min-height: 0; }
+  .progress-item:not(:last-child)::after { top: calc(1rem - 1px); right: calc(-1 * var(--space-4)); bottom: auto; left: calc(2rem + var(--space-2)); width: auto; height: 2px; }
+  .progress-item:not(:last-child)::after { right: calc(var(--space-2) - var(--space-4)); }
+  .progress-copy { padding: 0; }
+  .progress-title { flex-direction: column; gap: 2px; }
+}
+@media (prefers-contrast: more) { .progress-host, .progress-marker { border-color: var(--text); } }
 </style>

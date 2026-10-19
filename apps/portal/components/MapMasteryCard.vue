@@ -131,6 +131,14 @@ const linkLabel = computed(() => `查看${props.mapName}详情`);
 .difficulty-summary > div { padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-raised); }
 .difficulty-summary strong { color: var(--text); font-size: .8rem; }
 .difficulty-summary span { color: var(--quiet); font-size: .72rem; overflow-wrap: anywhere; }
+/* Detail: big-number tiles and a difficulty strip. */
+.mastery-card--detail .section-title h3 { margin: 0; font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; }
+.mastery-card--detail .mastery-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
+.mastery-card--detail .mastery-stats > div { display: grid; flex-direction: column-reverse; gap: 2px; padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-raised); }
+.mastery-card--detail .mastery-stats dt { order: 2; font-size: var(--type-caption-size); }
+.mastery-card--detail .mastery-stats dd { order: 1; font-family: var(--font-display); font-size: 1.375rem; text-align: left; }
+.mastery-card--detail .difficulty-summary { grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); }
+.mastery-card--detail .difficulty-summary > div { border-left: 3px solid var(--accent); }
 @media (prefers-contrast: more) { .mastery-card--progress { border-color: var(--text); } }
 @container (max-width: 23.99rem) {
   .mastery-card--progress .mastery-card__head { align-items: flex-start; flex-direction: column; gap: var(--space-2); }
