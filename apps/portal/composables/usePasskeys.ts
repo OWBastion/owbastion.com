@@ -11,16 +11,17 @@ export function usePasskeys() {
 
   const registrationError = (error: unknown) => {
     if (error instanceof Error && error.name === "NotAllowedError") return "已取消 Passkey 操作。";
-    return portalErrorDetails(error, "Passkey 操作失败，请稍后重试。").description;
+    const details = portalErrorDetails(error, "Passkey 操作失败，请稍后重试。");
+    return turnstileErrorMessage(details.code, details.description);
   };
 
-  async function login(returnTo: string) {
+  async function login(returnTo: string, turnstileToken: string) {
     if (busy.value) return;
     busy.value = true;
     errorMessage.value = "";
     errorCode.value = "";
     try {
-      const options = await api<OptionsResponse>("/v1/auth/passkeys/login/options", { method: "POST", body: { contractVersion: "1" } });
+      const options = await api<OptionsResponse>("/v1/auth/passkeys/login/options", { method: "POST", headers: { "cf-turnstile-response": turnstileToken }, body: { contractVersion: "1" } });
       const credential = await startAuthentication({ optionsJSON: options.options as unknown as Parameters<typeof startAuthentication>[0]["optionsJSON"] });
       await api("/v1/auth/passkeys/login/verify", { method: "POST", body: { contractVersion: "1", challengeId: options.challengeId, credential } });
       rememberLoginMethod("passkey");

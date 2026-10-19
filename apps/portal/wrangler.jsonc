@@ -21,11 +21,13 @@
   "vars": {
     // Same-origin proxies forward to the API Worker; override locally via .dev.vars.
     "NUXT_PUBLIC_API_BASE_URL": "https://api.owbastion.com",
+    "NUXT_PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAAFbNuMEwD3uRasr9",
   },
   // Required by `wrangler preview`; Worker Previews do not inherit top-level `vars`.
   "previews": {
     "vars": {
       "NUXT_PUBLIC_API_BASE_URL": "https://api.owbastion.com",
+      "NUXT_PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAAFbNuMEwD3uRasr9",
     },
   },
 }

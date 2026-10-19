@@ -8,6 +8,7 @@ definePageMeta({ middleware: "guest" });
 const route = useRoute();
 const { busy, errorMessage, login } = usePasskeys();
 const { state, attempt, secondsLeft, message, start, restore, cancel, copyCode, safeReturnTo } = useLoginAttempt();
+const turnstile = useTurnstile();
 const { accounts: localAccounts, selectedAccountId, loading: localLoading, errorMessage: localError, enabled: localEnabled, load: loadLocalAccounts, login: loginLocal } = useLocalDevAuth();
 const returnTo = computed(() => hasSafeReturnTo(route.query.returnTo) ? normalizeReturnTo(route.query.returnTo) : "/me");
 const localAccountItems = computed(() => localAccounts.value.map((account) => ({
@@ -36,6 +37,16 @@ async function handleLocalLogin() {
   if (!account) return;
   await navigateTo(hasSafeReturnTo(route.query.returnTo) ? normalizeReturnTo(route.query.returnTo) : account.isAdmin ? "/admin" : "/me", { replace: true });
 }
+
+async function handlePasskeyLogin() {
+  await login(returnTo.value, turnstile.token.value);
+  turnstile.reset();
+}
+
+async function handleQqStart() {
+  await start(safeReturnTo(route.query.returnTo), turnstile.token.value);
+  turnstile.reset();
+}
 </script>
 
 <template>
@@ -56,8 +67,8 @@ async function handleLocalLogin() {
             size="lg"
             block
             :loading="busy"
-            :disabled="busy"
-            @click="login(returnTo)"
+            :disabled="busy || !turnstile.token.value"
+            @click="handlePasskeyLogin"
           />
         </section>
 
@@ -87,11 +98,16 @@ async function handleLocalLogin() {
               :variant="preferred === 'qq' ? 'solid' : 'outline'"
               size="lg"
               block
-              :disabled="!qqIdle"
-              @click="start(safeReturnTo(route.query.returnTo))"
+              :disabled="!qqIdle || !turnstile.token.value"
+              @click="handleQqStart"
             />
           </template>
         </section>
+      </div>
+
+      <div v-show="!qqActive" class="turnstile-slot">
+        <div :ref="turnstile.element" class="turnstile-widget"></div>
+        <p v-if="turnstile.failed.value" class="notice error">人机验证加载失败，请刷新页面重试。</p>
       </div>
 
       <p class="account-help">首次使用？请打开管理员发送的邀请链接。登录后可以在个人设置中添加 Passkey。</p>
@@ -120,6 +136,8 @@ async function handleLocalLogin() {
 .warning { color: var(--warning); }
 .error { color: var(--danger); }
 .account-help { margin: 0; color: var(--muted); font-size: .86rem; line-height: 1.55; }
+.turnstile-slot { display: grid; gap: var(--space-3); justify-items: center; min-height: 65px; }
+.turnstile-widget { min-height: 65px; }
 .challenge-panel { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid color-mix(in oklch, var(--accent) 46%, var(--line)); border-radius: var(--radius-card); background: var(--accent-surface); }
 .challenge-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); }
 .challenge-heading strong { color: var(--accent); font-size: .85rem; white-space: nowrap; }

@@ -5,18 +5,22 @@ import {
   adminBindingInviteRevokeRequestSchema,
   bindingInviteRedeemRequestSchema,
 } from "@owbastion/contracts";
-import { maintainerRoute, parseBody, type AdminRouteDependencies, type ApiApp } from "./route-contract";
+import { maintainerRoute, parseBody, type AdminRouteDependencies, type ApiApp, type ApiContext } from "./route-contract";
+import type { TurnstileGuard } from "../turnstile";
 
 type BindingInviteRouteDependencies = AdminRouteDependencies & {
   allowPortal: (context: any) => void;
   sessionCookie: (request: Request, value: string, maxAge: number) => string;
+  requireTurnstile: TurnstileGuard;
 };
 
 export const registerBindingInviteRoutes = (app: ApiApp, dependencies: BindingInviteRouteDependencies) => {
-  const { services, requireMaintainer, errorResponse, errorGroup, adminMutation, allowPortal, sessionCookie } = dependencies;
+  const { services, requireMaintainer, errorResponse, errorGroup, adminMutation, allowPortal, sessionCookie, requireTurnstile } = dependencies;
 
-  app.post("/v1/public/binding-invites/redeem", async (c) => {
+  app.post("/v1/public/binding-invites/redeem", async (c: ApiContext) => {
     allowPortal(c);
+    const denied = await requireTurnstile(c);
+    if (denied) return denied;
     const parsed = bindingInviteRedeemRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { return c.json(await services(c.env).redeemBindingInvite(parsed.data), 201); }

@@ -40,6 +40,7 @@ import { registerLeaderboardRoutes } from "./routes/leaderboard";
 import { registerPlayerHandleRoutes } from "./routes/player-handles";
 import { registerReviewRoutes } from "./routes/reviews";
 import { hasOnlyUniqueQueryNames, parsePagination } from "./query-params";
+import { createTurnstileGuard, type TurnstileGuard } from "./turnstile";
 
 export type RuntimeEnv = {
   DB: D1Database;
@@ -66,11 +67,13 @@ export type RuntimeEnv = {
   DEPLOYMENT_REVISION?: string;
   PUBLIC_HTTP_CACHE_ENABLED?: string;
   PLATFORM_CACHE?: KVNamespace;
+  TURNSTILE_SECRET_KEY?: string;
 };
 
 type AppDependencies = {
   authenticate: Authenticator<RuntimeEnv>;
   services: (env: RuntimeEnv) => PlatformServices;
+  turnstile?: TurnstileGuard;
 };
 
 type RequestRouteClass = "admin" | "agents" | "catalog" | "health" | "local" | "ocrkit" | "portal" | "qq" | "unknown";
@@ -255,7 +258,7 @@ export const createApp = (dependencies: AppDependencies) => {
     return {
       "Access-Control-Allow-Origin": localOrigin ?? c.env.PORTAL_ORIGIN ?? "https://owbastion.com",
       "Access-Control-Allow-Credentials": "true",
-      "Access-Control-Allow-Headers": "content-type, x-login-attempt-token, x-claim-token, idempotency-key",
+      "Access-Control-Allow-Headers": "content-type, x-login-attempt-token, x-claim-token, idempotency-key, cf-turnstile-response",
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     };
   };
@@ -431,7 +434,8 @@ export const createApp = (dependencies: AppDependencies) => {
     return action(c, access);
   };
 
-  registerBindingInviteRoutes(app, { services: dependencies.services, requireMaintainer, errorResponse, errorGroup, adminMutation, allowPortal, sessionCookie });
+  const requireTurnstile = dependencies.turnstile ?? createTurnstileGuard(errorResponse);
+  registerBindingInviteRoutes(app, { services: dependencies.services, requireMaintainer, errorResponse, errorGroup, adminMutation, allowPortal, sessionCookie, requireTurnstile });
 
   registerPortalAuthenticationRoutes(app, {
     services: dependencies.services,
@@ -442,6 +446,7 @@ export const createApp = (dependencies: AppDependencies) => {
     sessionCookie,
     requirePortalPlayer,
     portalPlayerRoute,
+    requireTurnstile,
   });
 
   app.post("/v1/qq/submissions", async (c) => {

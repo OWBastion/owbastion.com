@@ -74,6 +74,8 @@ export default defineNuxtConfig({
     public: {
       apiBaseUrl: "http://localhost:8787",
       localDevAuth: false,
+      // Cloudflare 公开的恒通过测试 sitekey，本地默认可用；生产由 NUXT_PUBLIC_TURNSTILE_SITE_KEY 覆盖。
+      turnstileSiteKey: "1x00000000000000000000AA",
       // Canonical origin for prerendered SEO metadata; prerendering has no
       // request URL, so canonical/og:url must not be derived from the request.
       siteUrl: "https://owbastion.com",

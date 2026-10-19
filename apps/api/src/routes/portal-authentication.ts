@@ -12,6 +12,7 @@ import {
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
 import type { AdminRouteDependencies, ApiApp, ApiContext } from "./route-contract";
 import { maintainerRoute, parseBody } from "./route-contract";
+import type { TurnstileGuard } from "../turnstile";
 import type { RuntimeEnv } from "../app";
 
 type AuthenticatedPortalPlayer = {
@@ -29,10 +30,11 @@ type PortalAuthenticationRouteDependencies = Pick<AdminRouteDependencies, "servi
   portalPlayerRoute: (
     action: (context: ApiContext, access: AuthenticatedPortalPlayer) => Promise<any> | any,
   ) => (context: ApiContext) => Promise<any>;
+  requireTurnstile: TurnstileGuard;
 };
 
 export const registerPortalAuthenticationRoutes = (app: ApiApp, dependencies: PortalAuthenticationRouteDependencies) => {
-  const { allowPortal, requireMaintainer, errorResponse, sessionCookie, requirePortalPlayer, portalPlayerRoute } = dependencies;
+  const { allowPortal, requireMaintainer, errorResponse, sessionCookie, requirePortalPlayer, portalPlayerRoute, requireTurnstile } = dependencies;
 
   const passkeyOrigin = (c: any) => {
     const requestOrigin = c.req.header("origin");
@@ -80,6 +82,8 @@ export const registerPortalAuthenticationRoutes = (app: ApiApp, dependencies: Po
 
   app.post("/v1/auth/qq/login-attempt", async (c) => {
     allowPortal(c);
+    const denied = await requireTurnstile(c);
+    if (denied) return denied;
     const parsed = qqLoginAttemptRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     return c.json(await dependencies.services(c.env).createQqLoginAttempt(parsed.data), 201);
@@ -106,6 +110,8 @@ export const registerPortalAuthenticationRoutes = (app: ApiApp, dependencies: Po
     allowPortal(c);
     const origin = passkeyOrigin(c);
     if (!origin) return errorResponse(c, 403, "ORIGIN_NOT_ALLOWED", "The request origin is not allowed");
+    const denied = await requireTurnstile(c);
+    if (denied) return denied;
     const parsed = passkeyLoginOptionsRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     return c.json(await dependencies.services(c.env).createPasskeyLoginOptions({ rpId: origin.rpId }), 201);

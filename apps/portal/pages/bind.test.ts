@@ -16,6 +16,7 @@ const bindingState = {
 };
 
 mockNuxtImport("useBindingInvite", () => () => bindingState);
+mockNuxtImport("useTurnstile", () => () => ({ element: ref(), token: ref("turnstile-token"), failed: ref(false), reset: vi.fn() }));
 
 describe("bind page", () => {
   it("submits the manually entered invitation code", async () => {
@@ -34,7 +35,7 @@ describe("bind page", () => {
     await wrapper.get("input").setValue("abcdefghijkl");
     await wrapper.get("form").trigger("submit");
 
-    expect(submit).toHaveBeenCalledWith("abcdefghijkl");
+    expect(submit).toHaveBeenCalledWith("abcdefghijkl", "turnstile-token");
   });
 
   it("can regenerate a confirmation code from the entered invitation after expiry", async () => {
@@ -56,7 +57,7 @@ describe("bind page", () => {
     await flushPromises();
     await wrapper.get("button").trigger("click");
 
-    expect(submit).toHaveBeenCalledWith("ABCDEFGHIJKL");
+    expect(submit).toHaveBeenCalledWith("ABCDEFGHIJKL", "turnstile-token");
   });
 
   it("copies the verification command without a bot mention", async () => {
