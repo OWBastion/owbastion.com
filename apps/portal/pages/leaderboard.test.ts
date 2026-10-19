@@ -208,7 +208,7 @@ describe("leaderboard page", () => {
     });
     const wrapper = await mountPage();
     await flushPromises();
-    await wrapper.findAll("tr.board-row")[0]!.trigger("click");
+    await wrapper.findAll(".board-row")[0]!.trigger("click");
     await flushPromises();
     const sheet = wrapper.get('[role="dialog"]');
     expect(sheet.text()).toContain("地图 · 玩过 8 / 40 张");
@@ -227,12 +227,7 @@ describe("leaderboard page", () => {
     // A map known only through a classic title shows the title and no XP.
     expect(allRows[7]!.text()).toContain("老兵");
     expect(allRows[7]!.text()).toContain("—");
-    expect(sheet.text()).toContain("成就 · 12");
-    expect(sheet.findAll(".player-sheet-titles .title-pill")).toHaveLength(10);
-    const more = sheet.findAll(".more");
-    expect(more.map((button) => button.text())).toEqual(["展开其余 2 个"]);
-    await more[0]!.trigger("click");
-    expect(sheet.findAll(".player-sheet-titles .title-pill")).toHaveLength(12);
+    expect(sheet.findAll(".case__medal").filter((medal) => medal.find(".case__name").exists())).toHaveLength(12);
   });
 
   it("paginates the table and only shows the podium on page 1", async () => {
