@@ -3,6 +3,7 @@ import { createReusableTemplate, useMediaQuery, usePreferredReducedMotion } from
 import type { Map, MapChallenge } from "~/types/challenge";
 import type { OwnedTitle } from "~/types/title";
 import { findOwnedTitle } from "~/utils/achievement-status";
+import { mapRatingBonusLabel } from "~/utils/map-rating";
 import PlayerReviewPanel from "../reviews/PlayerReviewPanel.vue";
 
 const props = defineProps<{
@@ -29,6 +30,7 @@ const mapChallenges = computed(() => {
 });
 const mapIndex = computed(() => props.map?.mapId.split(".").at(-1)?.slice(0, 2).toUpperCase() ?? "");
 const tier = computed(() => Number(/^T(\d)$/.exec(props.map?.difficultyRating ?? "")?.[1] ?? 0));
+const ratingBonus = computed(() => mapRatingBonusLabel(props.map?.difficultyRating));
 const challengeStatusLabel = (status: MapChallenge["status"]) => status === "sunsetting" ? "即将结束" : "";
 const hydrated = shallowRef(false);
 const isDesktop = useMediaQuery("(min-width: 768px)");
@@ -48,7 +50,10 @@ onMounted(() => { hydrated.value = true; });
         <span v-if="map.difficultyRating" class="detail-hero__tier num" :data-tier="tier">{{ map.difficultyRating }}</span>
       </div>
       <div class="detail-content">
-        <div v-if="map.mechanics?.length" class="detail-section mechanics"><UBadge v-for="mechanic in map.mechanics" :key="mechanic" :label="mechanic" color="neutral" variant="subtle" /></div>
+        <div v-if="ratingBonus || map.mechanics?.length" class="detail-section mechanics">
+          <UBadge v-if="ratingBonus" :label="`精通经验 ${ratingBonus}`" color="primary" variant="subtle" />
+          <UBadge v-for="mechanic in map.mechanics" :key="mechanic" :label="mechanic" color="neutral" variant="subtle" />
+        </div>
         <section v-if="mapChallenges.length" class="detail-section" aria-labelledby="map-challenges-title">
           <h3 id="map-challenges-title" class="sr-only">挑战</h3>
           <ul class="challenge-list stacked-list">
