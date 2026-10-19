@@ -47,6 +47,7 @@ export type RuntimeEnv = {
   QQBOT_API_TOKEN?: string;
   BASTION_BUILD_TOKEN?: string;
   PORTAL_ORIGIN?: string;
+  PORTAL_PREVIEW_ORIGINS?: string;
   LOCAL_DEV_AUTH?: string;
   UPLOAD_ORIGIN?: string;
   EVIDENCE_PUBLIC_ORIGIN?: string;

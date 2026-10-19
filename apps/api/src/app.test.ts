@@ -832,6 +832,21 @@ describe("API", () => {
     expect(await response.json()).toMatchObject({ challengeId: "00000000-0000-4000-8000-000000000011", options: { challenge: "challenge" } });
   });
 
+  it("accepts a listed preview Portal origin with the production RP ID", async () => {
+    const completed: Array<{ origin: string; rpId: string }> = [];
+    const verifiedApp = createTestApp({
+      completePasskeyLogin: async (input) => { completed.push({ origin: input.origin, rpId: input.rpId }); return { sessionToken: "a".repeat(64) }; },
+    });
+    const body = JSON.stringify({ contractVersion: "1", challengeId: "00000000-0000-4000-8000-000000000011", credential: { id: "credential" } });
+    const verify = (origin: string, previewOrigins: string) => verifiedApp.request("https://api.owbastion.com/v1/auth/passkeys/login/verify", { method: "POST", headers: { origin, "content-type": "application/json" }, body }, { ...env, PORTAL_ORIGIN: "https://owbastion.com", PORTAL_PREVIEW_ORIGINS: previewOrigins });
+    expect((await verify("https://next.owbastion.com", "")).status).toBe(403);
+    expect((await verify("https://other.owbastion.com", "https://next.owbastion.com")).status).toBe(403);
+    expect((await verify("https://next.attacker.example", "https://next.attacker.example")).status).toBe(403);
+    expect(completed).toEqual([]);
+    expect((await verify("https://next.owbastion.com", "https://next.owbastion.com")).status).toBe(200);
+    expect(completed).toEqual([{ origin: "https://next.owbastion.com", rpId: "owbastion.com" }]);
+  });
+
   it("sets a secure cookie only over HTTPS", async () => {
     const verifiedApp = createTestApp({
       getQqLoginStatus: async () => ({ contractVersion: "1", status: "verified", environment: "production", sessionToken: "a".repeat(64) }),

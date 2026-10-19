@@ -75,7 +75,9 @@ They stay `private, no-store`.
   are stored hashed.
 - Passkey challenges expire in 5 minutes, single use; authentication and
   registration require user verification, registration a discoverable credential.
-  The Worker checks the exact Portal Origin and derives the RP ID from its hostname.
+  The Worker checks the exact Portal Origin, or an exact preview origin on its
+  subdomain (`PORTAL_PREVIEW_ORIGINS`), and derives the RP ID from the Portal
+  Origin's hostname.
   Registration needs an authenticated account and is not part of invitation.
 - QQ login attempts expire in 2 minutes and issue the same direct session as
   Passkey. Only one live pending attempt holds a code; collisions regenerate.
