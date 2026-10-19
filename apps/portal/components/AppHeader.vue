@@ -273,7 +273,7 @@ async function signOut() {
   .app-header-wrap--admin .brand-mark { width: 1.875rem; height: 1.875rem; }
   .app-header-wrap--admin .sidebar-scope { margin: 0 var(--space-2) var(--space-1); }
   .app-header-wrap--admin .main-nav { flex: 1; min-height: 0; margin-inline: calc(var(--space-1) * -1); padding-inline: var(--space-1); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
-  .app-header-wrap--admin .main-nav :deep(ul) { display: grid; gap: 2px; }
+  .app-header-wrap--admin .main-nav :deep(ul) { display: grid; align-content: start; gap: 2px; }
   .app-header-wrap--admin .main-nav :deep([data-slot="link"]), .app-header-wrap--admin .main-nav :deep([data-slot="trigger"]) { height: auto; min-height: 2.5rem; border-radius: var(--radius-control); }
   .app-header-wrap--admin .main-nav :deep([data-slot="linkLeadingIcon"]) { display: inline-block; width: 1.125rem; height: 1.125rem; }
   .app-header-wrap--admin .main-nav :deep([data-slot="content"]) { padding-inline-start: var(--space-2); }
