@@ -6,7 +6,7 @@ import { buildPlayerTimeline } from "~/utils/player-timeline";
 const props = defineProps<{ player: AdminPlayerDetail; loading?: boolean }>();
 const emit = defineEmits<{ setStatus: [status: "active" | "banned"]; unbind: [bindingId: string]; editIdentity: []; issueRecovery: []; changed: [] }>();
 
-const tabs = [{ id: "titles", label: "称号" }, { id: "timeline", label: "动态" }, { id: "account", label: "账号" }] as const;
+const tabs = [{ id: "titles", label: "称号" }, { id: "timeline", label: "动态" }, { id: "screenshots", label: "截图" }, { id: "account", label: "账号" }] as const;
 const tab = shallowRef<(typeof tabs)[number]["id"]>("titles");
 const titlesRef = useTemplateRef<{ openGrant: () => void; openEquip: () => void }>("titlesRef");
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
@@ -67,6 +67,10 @@ function grantTitle() { tab.value = "titles"; void nextTick(() => titlesRef.valu
       <p v-else class="player__empty">还没有动态。</p>
     </section>
 
+    <section v-if="tab === 'screenshots'" id="player-panel-screenshots" role="tabpanel" aria-labelledby="player-tab-screenshots">
+      <AdminPlayerScreenshots :player-account-id="player.playerAccountId" />
+    </section>
+
     <section v-show="tab === 'account'" id="player-panel-account" role="tabpanel" aria-labelledby="player-tab-account" class="account">
       <dl class="account__ids">
         <div><dt>战网 ID</dt><dd><PlayerBattleTag :player-name="player.playerName" :player-id="player.playerId" /></dd></div>
@@ -99,7 +103,7 @@ function grantTitle() { tab.value = "titles"; void nextTick(() => titlesRef.valu
 .player__actions > :first-child { flex: 1; }
 .player__alerts { display: grid; gap: var(--space-2); }
 .player__alerts:empty { display: none; }
-.player__tabs { position: relative; display: grid; grid-template-columns: repeat(3, 5.5rem); border-bottom: 1px solid var(--line); }
+.player__tabs { position: relative; display: grid; grid-template-columns: repeat(4, 5.5rem); border-bottom: 1px solid var(--line); }
 .player__tabs::after { content: ""; position: absolute; bottom: -1px; left: 0; width: 5.5rem; height: 2px; background: var(--accent); transform: translateX(calc(var(--tab-index) * 100%)); transition: transform 320ms cubic-bezier(.2, .9, .3, 1); }
 .player__tab { min-height: 2.75rem; border: 0; background: transparent; color: var(--muted); font-weight: 600; cursor: pointer; transition: color 140ms ease, transform 100ms ease-out; }
 .player__tab:active { transform: scale(.96); }

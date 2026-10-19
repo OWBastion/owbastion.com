@@ -235,6 +235,16 @@ describe("maintainer Challenge confirmation during submission review", () => {
     expect((await list()).items.map((item) => item.submissionId)).toEqual(["submission.confirm", "submission.add"]);
   });
 
+  it("lists only the submissions of the requested player account", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedIncompleteMapEvidence(sqlite);
+    const services = createPlatformServices(database);
+    const owner = sqlite.prepare("SELECT player_account_id AS id FROM submissions WHERE id = 'submission.confirm'").get() as { id: string };
+    expect((await services.listAdminSubmissions({ playerAccountId: owner.id, page: 1, pageSize: 20 }, auth)).items.map((item) => item.submissionId)).toContain("submission.confirm");
+    expect((await services.listAdminSubmissions({ playerAccountId: "no-such-player", page: 1, pageSize: 20 }, auth)).items).toEqual([]);
+  });
+
   it("adds an eligible Challenge that OCR did not propose and recomputes corrected evidence with the same matcher", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);

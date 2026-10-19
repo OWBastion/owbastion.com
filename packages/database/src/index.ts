@@ -2167,6 +2167,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
 
     async listAdminSubmissions(input) {
       const conditions = input.statuses?.length ? [inArray(submissions.status, input.statuses)] : [];
+      if (input.playerAccountId) conditions.push(eq(submissions.playerAccountId, input.playerAccountId));
       if (input.spotCheck) {
         const spotChecks = await db.select({ submissionId: submissionSpotChecks.submissionId }).from(submissionSpotChecks).where(eq(submissionSpotChecks.status, input.spotCheck));
         conditions.push(spotChecks.length ? inArray(submissions.id, spotChecks.map(({ submissionId }) => submissionId)) : eq(submissions.id, "__no_matching_spot_check__"));

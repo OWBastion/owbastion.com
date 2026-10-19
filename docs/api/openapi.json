@@ -2539,6 +2539,15 @@
       "schema": {
        "type": "string"
       }
+     },
+     {
+      "name": "playerAccountId",
+      "in": "query",
+      "required": false,
+      "description": "Lists only the Submissions of this Player Account.",
+      "schema": {
+       "type": "string"
+      }
      }
     ],
     "responses": {
