@@ -120,6 +120,20 @@ const difficultyTiers = (Object.entries(verifiedRunXpRuleV3.baseDifficultyXp) as
 const ratingTiers = Object.entries(verifiedRunXpRuleV3.mapRatingBonus) as Array<[string, number]>;
 const entryName = (entry: LeaderboardEntry) => entry.player?.displayName ?? "匿名玩家";
 const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.rank === mine.value?.rank;
+
+/* Ladder: page 1 lifts the top three onto a podium; every row measures itself against the leader. */
+const podium = computed(() => page.value === 1 && items.value.length >= 3 ? [items.value[1]!, items.value[0]!, items.value[2]!] : []);
+const ladder = computed(() => podium.value.length ? items.value.slice(3) : items.value);
+// The leader's score is only on page 1, so it is remembered per board scope for later pages.
+const leaderScores = ref<Record<string, number>>({});
+const scopeKey = computed(() => boardKey.value.replace(/:\d+$/, ""));
+watch(boardData, (data) => { if (data?.page === 1 && data.items[0]) leaderScores.value = { ...leaderScores.value, [scopeKey.value]: data.items[0].score }; }, { immediate: true });
+const leaderScore = computed(() => leaderScores.value[scopeKey.value] ?? null);
+const share = (entry: LeaderboardEntry) => leaderScore.value ? Math.max(4, Math.round(entry.score / leaderScore.value * 100)) : null;
+const entryMeta = (entry: LeaderboardEntry) => board.value === "mastery"
+  ? [entry.runCount === undefined ? null : `${entry.runCount} 次`, entry.topDifficulty ?? null].filter(Boolean).join(" · ")
+  : entry.latestTitle?.label ?? "";
+const badgeOf = (entry: LeaderboardEntry) => entry.player?.equippedTitle ?? null;
 </script>
 
 <template>
@@ -150,34 +164,57 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
     </div>
 
     <section ref="boardSection" class="lb-board" :aria-busy="loading || undefined" aria-label="排名">
-      <button v-if="player && mine?.rank" type="button" class="mine pressable" @click="jumpToMe">
-        <span class="num">#{{ mine.rank }}</span>
-        <span>你</span>
-        <b class="num">{{ mine.score.toLocaleString() }}</b>
-      </button>
-      <NuxtLink v-else-if="!player && !minePending" to="/login" class="mine mine--login">登录看排名</NuxtLink>
-
       <div v-if="loading && !items.length" class="board-skeletons" role="status" aria-label="读取中…">
-        <USkeleton v-for="index in 8" :key="index" class="board-skeleton-row" />
+        <USkeleton class="board-skeleton-podium" />
+        <USkeleton v-for="index in 6" :key="index" class="board-skeleton-row" />
       </div>
       <UAlert v-else-if="error" color="error" variant="subtle" role="alert" title="无法读取排行榜">
         <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" @click="refreshBoard()" /></template>
       </UAlert>
       <p v-else-if="!items.length" class="lb-empty">还没有人上榜</p>
-      <ol v-else class="rows">
-        <li v-for="entry in items" :key="entry.rank">
-          <button type="button" class="row board-row" :class="{ me: isMe(entry), [`top${entry.rank}`]: entry.rank <= 3 }" @click="openPlayer(entry)">
-            <span class="row__rank num">{{ entry.rank }}</span>
-            <span class="row__name">{{ entryName(entry) }}</span>
-            <span class="row__score num">{{ entry.score.toLocaleString() }}<small>{{ board === "mastery" ? "XP" : "" }}</small></span>
-          </button>
-        </li>
-      </ol>
+      <template v-else>
+        <ol v-if="podium.length" class="podium" aria-label="前三名">
+          <li v-for="entry in podium" :key="entry.rank" :class="`podium__spot place${entry.rank}`">
+            <button type="button" class="podium__player board-row" :class="{ me: isMe(entry) }" @click="openPlayer(entry)">
+              <AchievementIcon v-if="badgeOf(entry)" class="podium__badge" :url="badgeOf(entry)!.iconUrl" :icon="badgeOf(entry)!.icon" earned :shine-delay="entry.rank * .6" />
+              <span v-else class="podium__badge podium__badge--empty" aria-hidden="true">{{ entryName(entry).charAt(0) }}</span>
+              <strong class="podium__name">{{ entryName(entry) }}</strong>
+              <span class="podium__score num">{{ entry.score.toLocaleString() }}<small>{{ board === "mastery" ? "XP" : "" }}</small></span>
+            </button>
+            <span class="podium__plinth num" aria-label="名次">{{ entry.rank }}</span>
+          </li>
+        </ol>
+
+        <ol class="ladder">
+          <li v-for="entry in ladder" :key="entry.rank" :class="{ 'ladder__cut': entry.rank === 11 }">
+            <button type="button" class="rung board-row" :class="{ me: isMe(entry) }" @click="openPlayer(entry)">
+              <span class="rung__rank num">{{ entry.rank }}</span>
+              <AchievementIcon v-if="badgeOf(entry)" class="rung__badge" :url="badgeOf(entry)!.iconUrl" :icon="badgeOf(entry)!.icon" earned :title="badgeOf(entry)!.label" />
+              <span v-else class="rung__badge rung__badge--empty" aria-hidden="true" />
+              <span class="rung__who">
+                <strong>{{ entryName(entry) }}</strong>
+                <small v-if="entryMeta(entry)">{{ entryMeta(entry) }}</small>
+              </span>
+              <span class="rung__score num">{{ entry.score.toLocaleString() }}</span>
+              <span v-if="share(entry)" class="rung__bar" aria-hidden="true"><i :style="{ width: `${share(entry)}%` }" /></span>
+            </button>
+          </li>
+        </ol>
+      </template>
+
       <div v-if="totalPages > 1" class="pager">
         <UButton icon="i-lucide-chevron-left" color="neutral" variant="ghost" aria-label="上一页" :disabled="page === 1" @click="page -= 1" />
         <span class="num">{{ page }} / {{ totalPages }}</span>
         <UButton icon="i-lucide-chevron-right" color="neutral" variant="ghost" aria-label="下一页" :disabled="page >= totalPages" @click="page += 1" />
       </div>
+
+      <button v-if="player && mine?.rank" type="button" class="mine" @click="jumpToMe">
+        <span class="mine__rank num">#{{ mine.rank }}</span>
+        <span class="mine__label">我的位置</span>
+        <span v-if="mine.gapToNextRank" class="mine__gap num"><UIcon name="i-lucide-chevrons-up" aria-hidden="true" />{{ mine.gapToNextRank.toLocaleString() }}</span>
+        <b class="num">{{ mine.score.toLocaleString() }}</b>
+      </button>
+      <NuxtLink v-else-if="!player && !minePending" to="/login" class="mine mine--login">登录看我的排名</NuxtLink>
     </section>
 
     <LeaderboardPlayerSheet v-model:open="sheetOpen" :entry="selectedEntry" />
@@ -200,24 +237,57 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
 .rules__base div { display: grid; }
 .rules__base span { color: var(--quiet); }
 .rules__base b { color: var(--accent); font-size: 1.125rem; }
-.lb-board { display: grid; gap: var(--space-3); }
-.mine { display: flex; align-items: baseline; gap: var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid color-mix(in oklch, var(--accent) 50%, var(--line)); border-radius: var(--radius-card); background: var(--accent-surface); color: var(--text); font: inherit; text-align: left; text-decoration: none; cursor: pointer; }
-.mine > .num:first-child { color: var(--accent); font-family: var(--font-display); font-weight: 700; }
-.mine b { margin-left: auto; }
+.lb-board { display: grid; gap: var(--space-4); }
+
+/* Podium: second, first, third; plinth height and metal tone mark the place. */
+.podium { --gold: oklch(82% .14 85); --silver: oklch(84% .02 250); --bronze: oklch(68% .11 55); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: var(--space-2); margin: var(--space-4) 0 0; padding: 0; list-style: none; }
+.podium__spot { --metal: var(--bronze); --plinth: 3.5rem; display: grid; justify-items: center; gap: var(--space-2); min-width: 0; }
+.podium__spot.place1 { --metal: var(--gold); --plinth: 6rem; }
+.podium__spot.place2 { --metal: var(--silver); --plinth: 4.5rem; }
+.podium__player { display: grid; justify-items: center; gap: var(--space-1); width: 100%; min-width: 0; padding: var(--space-2) var(--space-1); border: 0; border-radius: var(--radius-card); background: none; color: var(--text); font: inherit; cursor: pointer; }
+.podium__player:hover .podium__badge, .podium__player:focus-visible .podium__badge { transform: translateY(-4px) scale(1.05); }
+.podium__badge { --achievement-icon-size: 3.75rem; display: grid; width: var(--achievement-icon-size); height: var(--achievement-icon-size); place-items: center; margin-bottom: var(--space-1); }
+.place1 .podium__badge { --achievement-icon-size: 5rem; }
+.podium__badge--empty { border: 2px solid var(--metal); border-radius: 50%; color: var(--metal); font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; }
+.podium__name { max-width: 100%; overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.podium__score { color: var(--metal); font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; }
+.place1 .podium__score { font-size: 1.5rem; }
+.podium__score small { margin-left: .2em; color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; }
+.podium__plinth { display: grid; width: 100%; height: var(--plinth); place-items: start center; padding-top: var(--space-2); border-top: 3px solid var(--metal); border-radius: var(--radius-control) var(--radius-control) 0 0; background: linear-gradient(color-mix(in oklch, var(--metal) 22%, transparent), color-mix(in oklch, var(--metal) 4%, transparent)); color: var(--metal); font-family: var(--font-display); font-size: 1.75rem; font-weight: 800; line-height: 1; }
+.podium__player.me .podium__name { color: var(--accent); }
+
+/* Ladder rows: rank, badge, who, score, and a bar measuring the gap to the leader. */
+.ladder { display: grid; margin: 0; padding: 0; list-style: none; }
+.ladder > li + li { border-top: 1px solid var(--line); }
+.ladder > li.ladder__cut { position: relative; margin-top: var(--space-5); border-top: 1px dashed color-mix(in oklch, var(--accent) 50%, var(--line)); }
+.ladder > li.ladder__cut::before { position: absolute; top: -.7rem; left: 0; padding-right: var(--space-2); background: var(--page); color: var(--accent); content: "前 10"; font-size: var(--type-caption-size); font-weight: 600; }
+.rung { display: grid; grid-template-columns: 2.75rem 2.25rem minmax(0, 1fr) auto; grid-template-areas: "rank badge who score" "rank badge bar bar"; align-items: center; column-gap: var(--space-3); width: 100%; padding: var(--space-3) var(--space-2); border: 0; border-radius: var(--radius-control); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.rung:hover, .rung:focus-visible { background: var(--surface-raised); }
+.rung.me { background: var(--accent-surface); box-shadow: inset 3px 0 0 var(--accent); }
+.rung__rank { grid-area: rank; color: var(--muted); font-family: var(--font-display); font-size: 1.375rem; font-weight: 700; text-align: center; }
+.rung__badge { --achievement-icon-size: 2.25rem; grid-area: badge; }
+.rung__badge--empty { width: 2.25rem; height: 2.25rem; border: 1px dashed var(--line-strong); border-radius: 50%; }
+.rung__who { display: grid; grid-area: who; min-width: 0; }
+.rung__who strong { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.rung__who small { overflow: hidden; color: var(--quiet); font-size: var(--type-caption-size); text-overflow: ellipsis; white-space: nowrap; }
+.rung__score { grid-area: score; font-family: var(--font-display); font-weight: 700; }
+.rung__bar { grid-area: bar; height: 3px; margin-top: var(--space-2); border-radius: var(--radius-pill); background: var(--line); overflow: hidden; }
+.rung__bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, color-mix(in oklch, var(--accent) 40%, transparent), var(--accent)); }
+
+/* My standing stays in reach while scrolling: rank, gap to the next place, score. */
+.mine { position: sticky; z-index: 1; bottom: calc(var(--tab-bar-height, 0px) + var(--space-3)); display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid color-mix(in oklch, var(--accent) 55%, var(--line)); border-radius: var(--radius-card); background: color-mix(in oklch, var(--surface) 88%, var(--accent)); box-shadow: 0 .75rem 2rem -1rem rgb(0 0 0 / .6); color: var(--text); font: inherit; text-align: left; text-decoration: none; cursor: pointer; backdrop-filter: blur(12px); }
+.mine__rank { color: var(--accent); font-family: var(--font-display); font-size: 1.375rem; font-weight: 800; }
+.mine__label { color: var(--muted); font-size: var(--type-label-sm-size); }
+.mine__gap { display: inline-flex; align-items: center; gap: .15rem; margin-left: auto; color: var(--quiet); font-size: var(--type-caption-size); }
+.mine b { font-family: var(--font-display); font-size: 1.125rem; }
+.mine__gap + b { margin-left: var(--space-2); }
+.mine__label + b { margin-left: auto; }
 .mine--login { justify-content: center; color: var(--accent); font-weight: 600; }
-.rows { display: grid; margin: 0; padding: 0; list-style: none; }
-.rows > li + li { border-top: 1px solid var(--line); }
-.row { display: grid; grid-template-columns: 2.5rem minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); width: 100%; min-height: 3.25rem; padding: 0 var(--space-2); border: 0; border-radius: var(--radius-control); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-.row:hover, .row:focus-visible { background: var(--surface-raised); }
-.row.me { background: var(--accent-surface); }
-.row__rank { color: var(--quiet); font-family: var(--font-display); font-weight: 700; }
-.row.top1 .row__rank, .row.top2 .row__rank, .row.top3 .row__rank { color: var(--accent); font-size: 1.125rem; }
-.row__name { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.row__score { font-weight: 700; }
-.row__score small { margin-left: var(--space-1); color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; }
 .lb-empty { margin: 0; padding: var(--space-12) 0; color: var(--quiet); text-align: center; }
 .board-skeletons { display: grid; gap: var(--space-2); }
-.board-skeleton-row { height: 3.25rem; border-radius: var(--radius-control); }
+.board-skeleton-podium { height: 13rem; border-radius: var(--radius-card); }
+.board-skeleton-row { height: 3.75rem; border-radius: var(--radius-control); }
 .pager { display: flex; align-items: center; justify-content: center; gap: var(--space-3); color: var(--muted); font-size: var(--type-label-sm-size); }
+@media (prefers-reduced-motion: reduce) { .podium__badge { transition: none; } }
 @media (max-width: 47.99rem) { .lb { padding-block: var(--space-8) var(--space-12); } }
 </style>
