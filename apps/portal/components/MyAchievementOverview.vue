@@ -122,14 +122,13 @@ const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, 
   <div class="collection">
     <p class="equip-count num" :class="{ 'is-warn': recoveryRequired }">{{ recoveryRequired ? "选择要佩戴的称号" : "已佩戴" }} {{ equippedCount }}/10</p>
 
-    <section v-for="(group, index) in tileGroups" :key="group.name" class="series" :aria-labelledby="`my-series-${index}`">
-      <h2 :id="`my-series-${index}`" class="series__title">{{ group.name }}<span class="num">{{ group.tiles.filter((tile) => tile.earned).length }}/{{ group.tiles.length }}</span></h2>
-      <ul class="tiles">
-        <li v-for="tile in group.tiles" :key="tile.key">
-          <AchievementTile :name="tile.name" :icon-url="tile.icon.url" :icon="tile.icon.icon" :earned="tile.earned" :checked="tile.owned?.equipped" :highlighted="tile.owned?.equipped" check-label="已佩戴" @click="selectedKey = tile.key" />
+    <AchievementWall v-if="tileGroups.length">
+      <AchievementShelf v-for="(group, groupIndex) in tileGroups" :key="group.name" :title="group.name" :heading-id="`my-series-${groupIndex}`" :count="`${group.tiles.filter((tile) => tile.earned).length}/${group.tiles.length}`">
+        <li v-for="(tile, index) in group.tiles" :key="tile.key">
+          <AchievementTile :name="tile.name" :icon-url="tile.icon.url" :icon="tile.icon.icon" :earned="tile.earned" :checked="tile.owned?.equipped" :highlighted="tile.owned?.equipped" check-label="已佩戴" :shine-delay="groupIndex * .8 + index * .22" @click="selectedKey = tile.key" />
         </li>
-      </ul>
-    </section>
+      </AchievementShelf>
+    </AchievementWall>
 
     <section v-if="mapProgressRows.length" class="series" aria-labelledby="map-achievements-title">
       <h2 id="map-achievements-title" class="series__title">地图<span class="num">{{ mapProgressRows.reduce((sum, row) => sum + row.earnedChallenges.length, 0) }}/{{ mapProgressRows.reduce((sum, row) => sum + row.challenges.length, 0) }}</span></h2>
@@ -175,10 +174,9 @@ const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, 
 .collection { display: grid; gap: var(--space-12); }
 .equip-count { justify-self: start; margin: calc(-1 * var(--space-8)) 0 0; padding: var(--space-1) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-pill); color: var(--muted); font-size: var(--type-label-sm-size); }
 .equip-count.is-warn { border-color: var(--warning); color: var(--warning); }
-.series { display: grid; gap: var(--space-4); }
-.series__title { display: flex; align-items: baseline; gap: var(--space-3); margin: 0; font-size: 1.0625rem; font-weight: 600; }
-.series__title .num { color: var(--quiet); font-size: var(--type-label-sm-size); font-weight: 500; }
-.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr)); gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.series { display: grid; gap: var(--space-3); }
+.series__title { display: flex; align-items: baseline; gap: var(--space-3); margin: 0; color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 600; letter-spacing: .08em; }
+.series__title .num { color: var(--quiet); font-weight: 500; letter-spacing: 0; }
 .maps { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr)); gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .map { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); color: inherit; text-decoration: none; }
 .map:hover, .map:focus-visible { border-color: color-mix(in oklch, var(--accent) 50%, var(--line)); }
