@@ -215,10 +215,7 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
 
 <template>
   <main class="leaderboard-page directory-page page-shell">
-    <header class="page-intro" aria-labelledby="leaderboard-title">
-      <h1 id="leaderboard-title" class="page-title">排行榜</h1>
-      <p class="body-copy">上传通关截图、审核通过后获得精通 XP，满足条件还会解锁成就。精通 XP 和成就会一直保留，不会清零。</p>
-    </header>
+    <PageMasthead title-id="leaderboard-title" eyebrow="Leaderboard" title="排行榜" description="上传通关截图、审核通过后获得精通 XP，满足条件还会解锁成就。精通 XP 和成就会一直保留，不会清零。" />
 
     <div class="controls">
       <div class="ctl-row">
@@ -422,8 +419,6 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
 </template>
 
 <style scoped>
-.page-intro { margin-bottom: var(--space-8); }
-.page-intro .body-copy { margin: var(--space-2) 0 0; max-width: 40rem; }
 .num { font-variant-numeric: tabular-nums; }
 .note { color: var(--quiet); font-size: var(--type-caption-size); }
 
@@ -472,19 +467,24 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
 
 /* podium: accent intensity ladder 7% / 14% / 24%; only #1 gets the radial gradient and glow */
 .podium { display: grid; grid-template-columns: 1fr 1.2fr 1fr; align-items: end; gap: var(--space-3); margin-bottom: var(--space-5); }
+/* Podium and top-three marks carry medal colours instead of the brand accent. */
+.pod, .rmark { --medal: var(--accent); }
+.pod.p1, .rmark.m1 { --medal: oklch(84% 0.15 85); }
+.pod.p2, .rmark.m2 { --medal: oklch(83% 0.025 250); }
+.pod.p3, .rmark.m3 { --medal: oklch(70% 0.11 52); }
 .pod { position: relative; display: grid; justify-items: center; gap: var(--space-1); padding: var(--space-5) var(--space-4); border: 1px solid var(--line-strong); border-radius: var(--radius-card); text-align: center; color: var(--text); cursor: pointer; }
-.pod .rk { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--accent); font-size: var(--type-label-sm-size); font-weight: 600; }
+.pod .rk { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--medal); font-size: var(--type-label-sm-size); font-weight: 600; }
 .pod .rk svg, .pod .rk [class*="i-lucide-"] { width: 1rem; height: 1rem; }
-.pod .av { display: grid; place-items: center; width: 3.5rem; height: 3.5rem; margin: var(--space-2) 0; border: 2px solid color-mix(in oklch, var(--accent) 45%, var(--line-strong)); border-radius: 50%; background: var(--surface); color: var(--accent); font-size: 1.4rem; font-weight: 700; }
+.pod .av { display: grid; place-items: center; width: 3.5rem; height: 3.5rem; margin: var(--space-2) 0; border: 2px solid color-mix(in oklch, var(--medal) 45%, var(--line-strong)); border-radius: 50%; background: var(--surface); color: var(--medal); font-size: 1.4rem; font-weight: 700; }
 .pod .nm { max-width: 100%; font-size: var(--type-card-title-size); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pod .ttl { min-height: 1.4rem; max-width: 100%; }
 .pod .v { margin-top: var(--space-2); font-size: var(--type-headline-size); font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
 .pod .v small { margin-left: var(--space-1); color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; letter-spacing: 0; }
-.pod.p3 { order: 3; border-color: color-mix(in oklch, var(--accent) 32%, var(--line-strong)); background: color-mix(in oklch, var(--accent) 7%, var(--surface)); }
-.pod.p2 { order: 1; border-color: color-mix(in oklch, var(--accent) 58%, var(--line-strong)); background: color-mix(in oklch, var(--accent) 14%, var(--surface)); }
-.pod.p1 { order: 2; padding: var(--space-6) var(--space-5); border-color: var(--accent);
-  background: radial-gradient(120% 90% at 50% 0%, color-mix(in oklch, var(--accent) 24%, transparent), transparent 62%), var(--surface);
-  box-shadow: var(--elevation-2), 0 0 2.5rem -0.5rem color-mix(in oklch, var(--accent) 34%, transparent);
+.pod.p3 { order: 3; border-color: color-mix(in oklch, var(--medal) 32%, var(--line-strong)); background: color-mix(in oklch, var(--medal) 7%, var(--surface)); }
+.pod.p2 { order: 1; border-color: color-mix(in oklch, var(--medal) 58%, var(--line-strong)); background: color-mix(in oklch, var(--medal) 14%, var(--surface)); }
+.pod.p1 { order: 2; padding: var(--space-6) var(--space-5); border-color: var(--medal);
+  background: radial-gradient(120% 90% at 50% 0%, color-mix(in oklch, var(--medal) 24%, transparent), transparent 62%), var(--surface);
+  box-shadow: var(--elevation-2), 0 0 2.5rem -0.5rem color-mix(in oklch, var(--medal) 34%, transparent);
   transition: transform 150ms ease-out;
   transform: perspective(60rem) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)); }
 /* #1 only: a foil card (design-direction exception). The light sweeps the upper
@@ -499,23 +499,23 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
 .pod.p1::before {
   background:
     repeating-linear-gradient(115deg, transparent 0 3px, color-mix(in oklch, white 45%, transparent) 3px 4px, transparent 4px 7px),
-    linear-gradient(115deg, oklch(84% .12 90), var(--accent) 30%, oklch(80% .12 65) 50%, oklch(86% .1 75) 70%, var(--accent));
+    linear-gradient(115deg, oklch(84% .12 90), var(--medal) 30%, oklch(80% .12 65) 50%, oklch(86% .1 75) 70%, var(--medal));
   background-size: 100% 100%, 300% 300%; background-position: 0 0, calc(var(--mx) * 1.2) calc(var(--my) * 1.2);
   -webkit-mask: radial-gradient(48% 58% at var(--mx) var(--my), black, transparent 100%); mask: radial-gradient(48% 58% at var(--mx) var(--my), black, transparent 100%);
   opacity: .7; }
 .pod.p1::after { background: radial-gradient(38% 46% at var(--mx) var(--my), color-mix(in oklch, white 38%, transparent), transparent 70%); mix-blend-mode: soft-light; opacity: 1; }
 :global(html.dark .pod.p1::after) { mix-blend-mode: screen; opacity: .5; }
 .pod.p1 .big { position: absolute; z-index: 0; left: -0.08em; top: -0.12em; font-size: 13rem; font-weight: 700; line-height: 1; letter-spacing: -0.06em; color: transparent;
-  -webkit-text-stroke: 2px color-mix(in oklch, var(--accent) 30%, transparent);
-  background: radial-gradient(60% 50% at var(--mx) var(--my), color-mix(in oklch, var(--accent) 40%, transparent), transparent 75%); background-size: 100% 100%;
+  -webkit-text-stroke: 2px color-mix(in oklch, var(--medal) 30%, transparent);
+  background: radial-gradient(60% 50% at var(--mx) var(--my), color-mix(in oklch, var(--medal) 40%, transparent), transparent 75%); background-size: 100% 100%;
   -webkit-background-clip: text; background-clip: text; pointer-events: none; user-select: none; }
-.pod.p1 .av { width: 5rem; height: 5rem; border-color: var(--accent); background: var(--accent-surface); font-size: 2rem; box-shadow: 0 0 1.5rem color-mix(in oklch, var(--accent) 30%, transparent); }
+.pod.p1 .av { width: 5rem; height: 5rem; border-color: var(--medal); background: var(--accent-surface); font-size: 2rem; box-shadow: 0 0 1.5rem color-mix(in oklch, var(--medal) 30%, transparent); }
 .pod.p1 .nm { font-size: var(--type-headline-size); font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
-.pod.p1 .v { font-size: var(--type-title-size); color: var(--accent); letter-spacing: -0.03em; line-height: 1; }
+.pod.p1 .v { font-size: var(--type-title-size); color: var(--medal); letter-spacing: -0.03em; line-height: 1; }
 .pod.p1 .rk { font-size: var(--type-label-size); }
 .pod.p1 .rk svg, .pod.p1 .rk [class*="i-lucide-"] { width: 1.25rem; height: 1.25rem; }
 .pod.anon .av { border-color: var(--line-strong); background: var(--surface-raised); color: var(--quiet); box-shadow: none; }
-.title-pill { display: inline-block; max-width: 100%; padding: 0 var(--space-2); border: 1px solid color-mix(in oklch, var(--accent) 32%, var(--line-strong)); border-radius: var(--radius-pill); background: color-mix(in oklch, var(--accent) 7%, var(--surface)); color: var(--text); font-size: var(--type-caption-size); font-weight: 600; line-height: 1.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.title-pill { display: inline-block; max-width: 100%; padding: 0 var(--space-2); border: 1px solid color-mix(in oklch, var(--medal) 32%, var(--line-strong)); border-radius: var(--radius-pill); background: color-mix(in oklch, var(--medal) 7%, var(--surface)); color: var(--text); font-size: var(--type-caption-size); font-weight: 600; line-height: 1.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
 @media (max-width: 47.99rem) {
   .podium { grid-template-columns: 1fr; gap: var(--space-2); }
   .pod.p1 { order: 1; }
@@ -539,10 +539,10 @@ const isMe = (entry: LeaderboardEntry) => mine.value?.rank !== null && entry.ran
 .board-row:hover td { background: color-mix(in oklch, var(--surface-raised) 60%, var(--surface)); }
 .board-row.me td { background: var(--accent-surface) !important; }
 .rank { width: 3.5rem; font-weight: 600; color: var(--muted); }
-.rmark { display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; border: 1px solid var(--line-strong); border-radius: var(--radius-control); color: var(--accent); font-size: var(--type-label-sm-size); font-weight: 700; }
-.rmark.m1 { border-color: var(--accent); background: color-mix(in oklch, var(--accent) 24%, var(--surface)); }
-.rmark.m2 { border-color: color-mix(in oklch, var(--accent) 58%, var(--line-strong)); background: color-mix(in oklch, var(--accent) 14%, var(--surface)); }
-.rmark.m3 { border-color: color-mix(in oklch, var(--accent) 32%, var(--line-strong)); background: color-mix(in oklch, var(--accent) 7%, var(--surface)); }
+.rmark { display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; border: 1px solid var(--line-strong); border-radius: var(--radius-control); color: var(--medal); font-size: var(--type-label-sm-size); font-weight: 700; }
+.rmark.m1 { border-color: var(--medal); background: color-mix(in oklch, var(--medal) 24%, var(--surface)); }
+.rmark.m2 { border-color: color-mix(in oklch, var(--medal) 58%, var(--line-strong)); background: color-mix(in oklch, var(--medal) 14%, var(--surface)); }
+.rmark.m3 { border-color: color-mix(in oklch, var(--medal) 32%, var(--line-strong)); background: color-mix(in oklch, var(--medal) 7%, var(--surface)); }
 .pl { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
 .mini { display: grid; place-items: center; flex: none; width: 2rem; height: 2rem; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--surface-raised); color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 600; }
 .pn .n { display: flex; align-items: center; gap: var(--space-2); font-size: var(--type-label-size); font-weight: 600; }

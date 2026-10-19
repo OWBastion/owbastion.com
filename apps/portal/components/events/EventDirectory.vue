@@ -16,6 +16,8 @@ const selected = shallowRef<RandomEvent | null>(null);
 const overlayOpen = shallowRef(false);
 const hydrated = shallowRef(false);
 const isDesktop = useMediaQuery("(min-width: 768px)");
+// Wide screens keep the detail beside the list (master/detail); narrower ones open it as an overlay.
+const isSplit = useMediaQuery("(min-width: 90rem)");
 const reducedMotion = usePreferredReducedMotion();
 const allowMotion = computed(() => reducedMotion.value !== "reduce");
 const [DefineDetailContent, ReuseDetailContent] = createReusableTemplate();
@@ -53,8 +55,15 @@ const detailFacts = (event: RandomEvent) => [
 const drawsPerAppearance = (event: RandomEvent) => { const value = appearance(event); return value ? Math.max(1, Math.round(1 / value)) : null; };
 const openEvent = (event: RandomEvent) => {
   selected.value = event;
-  overlayOpen.value = true;
+  overlayOpen.value = !isSplit.value;
 };
+const splitActive = computed(() => hydrated.value && isSplit.value);
+// In split view the pane always shows something: keep the selection while it is still listed, else the first result.
+watch([splitActive, filteredEvents], ([split, events]) => {
+  if (!split) return;
+  if (!selected.value || !events.some((event) => event.eventId === selected.value?.eventId)) selected.value = events[0] ?? null;
+}, { immediate: true });
+watch(isSplit, (split) => { if (split) overlayOpen.value = false; });
 const statusText = (value: RandomEvent["releaseStatus"]) => value === "implemented" ? "已实装" : value === "removed" ? "已移除" : "开发中";
 const challengeHref = (challenge: EventChallenge) => challenge.family === "map"
   ? `/maps?mapId=${encodeURIComponent(challenge.mapId)}`
@@ -62,15 +71,6 @@ const challengeHref = (challenge: EventChallenge) => challenge.family === "map"
 const challengeAction = (challenge: EventChallenge) => challenge.family === "map" ? "查看地图" : "查看成就";
 const categoryColor = (value: string) => value === "减益" ? "error" : value === "增益" ? "success" : value === "机制" ? "info" : "neutral";
 const unannotatedEffectTags = (event: RandomEvent) => event.effectTags.filter((value) => !event.effectAnnotations.some((annotation) => annotation.tag === value));
-const visibleEffectChips = (event: RandomEvent) => {
-  const rawTags = unannotatedEffectTags(event);
-  const annotations = event.effectAnnotations.slice(0, 3);
-  return {
-    annotations,
-    rawTags: rawTags.slice(0, Math.max(0, 3 - annotations.length)),
-    overflow: Math.max(0, event.effectAnnotations.length + rawTags.length - 3),
-  };
-};
 const reviewSummaries = useReviewSummaries("event", () => props.events.map((event) => event.eventId));
 const reviewLoading = computed(() => reviewSummaries.loading.value);
 const reviewError = computed(() => reviewSummaries.error.value);
@@ -117,51 +117,13 @@ onMounted(() => { hydrated.value = true; });
       <UButton v-if="hasActiveFilters" label="清除条件" color="neutral" variant="ghost" size="sm" @click="clearFilters" />
     </div>
 
-    <div v-if="filteredEvents.length" class="event-groups">
-      <section v-for="section in sections" :key="section.key" class="event-group" :aria-label="section.label || '事件'">
-        <div v-if="section.label" class="group-heading">
-          <h2>{{ section.label }}</h2>
-          <span class="type-label-sm num">{{ section.events.length }} 项事件</span>
-        </div>
-        <div class="directory-grid">
-          <article v-for="event in section.events" :key="event.eventId" class="event-card interactive-card">
-            <button class="event-card-main pressable-soft" type="button" aria-haspopup="dialog" @click="openEvent(event)">
-              <div class="event-card-title-row">
-                <h3 class="type-card-title">{{ event.name }}</h3>
-                <StatusBadge v-if="event.releaseStatus !== 'implemented'" :label="statusText(event.releaseStatus)" tone="warning" />
-              </div>
-              <div class="card-meta type-label-sm">
-                <span v-if="event.eventGroup" class="event-group-label">{{ event.eventGroup }}</span>
-                <span class="event-category" :class="`is-${categoryColor(event.category)}`">{{ event.category }}</span>
-                <span v-if="event.rarity" class="event-rarity">{{ event.rarity }}</span>
-                <span class="event-version num">{{ event.gameVersion }}</span>
-              </div>
-              <p class="type-label-sm">{{ event.description }}</p>
-            </button>
-            <div class="event-card-footer">
-              <EventProbabilityMeter :probability="appearance(event)" :max="maxAppearance" label="概率" />
-              <p v-if="detailFacts(event).length" class="event-facts type-caption num">{{ detailFacts(event).join(" · ") }}</p>
-              <div class="event-tags">
-                <EffectGlossaryTooltip v-for="annotation in visibleEffectChips(event).annotations" :key="annotation.term.key" :annotation="annotation" />
-                <UBadge v-for="tag in visibleEffectChips(event).rawTags" :key="`raw-${tag}`" :label="tag" color="neutral" variant="subtle" />
-                <span v-if="visibleEffectChips(event).overflow" class="effect-overflow type-caption">+{{ visibleEffectChips(event).overflow }}</span>
-              </div>
-              <StatusBadge v-bind="eventRatingChip(event.eventId)" />
-            </div>
-          </article>
-        </div>
-      </section>
-    </div>
-    <UEmpty v-else title="没有符合条件的事件" description="去掉部分条件再试试。" variant="naked">
-      <template v-if="hasActiveFilters" #actions><UButton label="清除条件" color="neutral" variant="outline" @click="clearFilters" /></template>
-    </UEmpty>
-
     <DefineHeaderTags>
       <div v-if="selected" class="detail-header-tags">
         <UBadge v-if="selected.eventGroup" :label="selected.eventGroup" color="primary" variant="outline" />
         <UBadge :label="selected.category" :color="categoryColor(selected.category)" variant="subtle" />
         <UBadge v-if="selected.rarity" :label="selected.rarity" color="neutral" variant="outline" />
         <UBadge :label="selected.gameVersion" color="neutral" variant="subtle" />
+        <StatusBadge v-bind="eventRatingChip(selected.eventId)" />
       </div>
     </DefineHeaderTags>
 
@@ -210,7 +172,61 @@ onMounted(() => { hydrated.value = true; });
       </div>
     </DefineDetailContent>
 
-    <template v-if="hydrated">
+    <div class="results" :class="{ 'results--split': splitActive }">
+    <div v-if="filteredEvents.length" class="event-groups">
+      <section v-for="section in sections" :key="section.key" class="event-group" :aria-label="section.label || '事件'">
+        <div v-if="section.label" class="group-heading">
+          <h2>{{ section.label }}</h2>
+          <span class="type-label-sm num">{{ section.events.length }} 项事件</span>
+        </div>
+        <ul class="event-list">
+          <li v-for="event in section.events" :key="event.eventId">
+            <button
+              class="event-row pressable-soft"
+              :class="{ 'is-selected': splitActive && selected?.eventId === event.eventId }"
+              type="button"
+              :aria-haspopup="splitActive ? undefined : 'dialog'"
+              :aria-pressed="splitActive ? selected?.eventId === event.eventId : undefined"
+              @click="openEvent(event)"
+            >
+              <span class="event-row__rarity num" :class="`is-${categoryColor(event.category)}`">{{ event.rarity || "—" }}</span>
+              <span class="event-row__main">
+                <span class="event-row__title">
+                  <strong>{{ event.name }}</strong>
+                  <StatusBadge v-if="event.releaseStatus !== 'implemented'" :label="statusText(event.releaseStatus)" tone="warning" />
+                </span>
+                <span class="event-row__meta">
+                  <span class="event-category" :class="`is-${categoryColor(event.category)}`">{{ event.category }}</span>
+                  <span v-if="event.eventGroup" class="event-group-label">{{ event.eventGroup }}</span>
+                  <span class="event-version num">{{ event.gameVersion }}</span>
+                  <span v-if="detailFacts(event).length" class="event-facts num">{{ detailFacts(event).join(" · ") }}</span>
+                </span>
+                <span class="event-row__desc">{{ event.description }}</span>
+              </span>
+              <span class="event-row__prob">
+                <EventProbabilityMeter :probability="appearance(event)" :max="maxAppearance" />
+                <span v-if="appearance(event) === null" class="event-row__noprob">—</span>
+              </span>
+            </button>
+          </li>
+        </ul>
+      </section>
+    </div>
+    <UEmpty v-else title="没有符合条件的事件" description="去掉部分条件再试试。" variant="naked">
+      <template v-if="hasActiveFilters" #actions><UButton label="清除条件" color="neutral" variant="outline" @click="clearFilters" /></template>
+    </UEmpty>
+    <aside v-if="splitActive && selected" class="detail-pane" aria-label="事件详情">
+      <header class="detail-pane__head">
+        <p class="eyebrow">Event</p>
+        <h2 class="detail-pane__title">{{ selected.name }}</h2>
+        <ReuseHeaderTags />
+      </header>
+      <ReuseDetailContent />
+    </aside>
+    </div>
+
+
+    <template v-if="hydrated && !isSplit">
       <UModal
         v-if="isDesktop"
         v-model:open="overlayOpen"
@@ -272,49 +288,37 @@ onMounted(() => { hydrated.value = true; });
 .group-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding-bottom: var(--space-2); border-bottom: 1px solid var(--line); }
 .group-heading h2 { margin: 0; font-size: var(--type-caption-size); font-weight: 600; letter-spacing: 0.01em; }
 .group-heading span { color: var(--quiet); }
-.event-card {
-  container-type: inline-size;
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-  min-width: 0;
-  border-radius: var(--radius-card);
-  background: color-mix(in oklch, var(--surface-raised) 88%, transparent);
-}
-.event-card-main {
-  display: grid;
-  min-width: 0;
-  align-content: start;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-4) 0;
-  border: 0;
-  background: transparent;
-  text-align: left;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-}
-.event-card-title-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
-.event-card-title-row h3 { min-width: 0; margin: 0; overflow-wrap: anywhere; }
-.card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); color: var(--muted); }
 .event-group-label { padding: 0 var(--space-2); border: 1px solid color-mix(in oklch, var(--accent) 55%, var(--line)); border-radius: var(--radius-pill); color: var(--accent); font-weight: 600; }
 .event-category { font-weight: 600; }
 .event-category.is-success { color: var(--success); }
 .event-category.is-error { color: var(--danger); }
 .event-category.is-info { color: var(--info); }
-.event-rarity { font-weight: 600; }
-.event-version { color: var(--quiet); }
-.event-facts { margin: 0; color: var(--quiet); }
-.event-card p {
-  display: -webkit-box;
-  margin: 0;
-  overflow: hidden;
-  color: var(--muted);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-}
-.event-card-footer { display: grid; gap: var(--space-2); align-content: end; padding: var(--space-3) var(--space-4) var(--space-4); }
+.event-version, .event-facts { color: var(--quiet); }
+
+/* Results: compact rows; in split view the detail pane sits beside them. */
+.results { display: grid; min-width: 0; gap: var(--space-6); align-items: start; }
+.results--split { grid-template-columns: minmax(0, 1fr) minmax(22rem, 26rem); }
+.event-list { display: grid; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); list-style: none; overflow: hidden; }
+.event-list > li + li { border-top: 1px solid var(--line); }
+.event-row { position: relative; display: grid; grid-template-columns: 2.75rem minmax(0, 1fr) minmax(7rem, 10rem); align-items: center; gap: var(--space-4); width: 100%; padding: var(--space-3) var(--space-4); border: 0; color: inherit; background: transparent; font: inherit; text-align: left; cursor: pointer; transition: background-color 140ms ease; }
+.event-row:hover { background: color-mix(in oklch, var(--accent) 5%, transparent); }
+.event-row.is-selected { background: color-mix(in oklch, var(--accent) 10%, transparent); }
+.event-row.is-selected::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--accent); }
+.event-row__rarity { display: grid; height: 2.75rem; place-items: center; border: 1px solid var(--line-strong); border-radius: var(--radius-control); color: var(--text); font-size: .8125rem; font-weight: 700; }
+.event-row__rarity.is-success { border-color: color-mix(in oklch, var(--success) 50%, var(--line)); color: var(--success); }
+.event-row__rarity.is-error { border-color: color-mix(in oklch, var(--danger) 50%, var(--line)); color: var(--danger); }
+.event-row__rarity.is-info { border-color: color-mix(in oklch, var(--info) 50%, var(--line)); color: var(--info); }
+.event-row__main { display: grid; min-width: 0; gap: 2px; }
+.event-row__title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.event-row__title strong { overflow: hidden; font-size: .9875rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.event-row__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-3); font-size: var(--type-caption-size); }
+.event-row__desc { overflow: hidden; color: var(--muted); font-size: var(--type-body-sm-size); text-overflow: ellipsis; white-space: nowrap; }
+.event-row__prob { min-width: 0; }
+.event-row__noprob { color: var(--quiet); font-size: var(--type-caption-size); }
+.detail-pane { position: sticky; top: var(--sticky-chrome-top); display: grid; gap: var(--space-4); max-height: calc(100dvh - var(--sticky-chrome-top) - var(--space-4)); padding: var(--space-5); overflow-y: auto; border: 1px solid var(--line-strong); border-radius: var(--radius-card); background: var(--surface); scrollbar-width: thin; }
+.detail-pane__head { padding-bottom: var(--space-4); border-bottom: 1px solid var(--line); }
+.detail-pane__title { margin: 0; font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; line-height: 1.2; }
 .event-tags { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.effect-overflow { color: var(--quiet); }
 .detail { display: grid; gap: var(--space-4); }
 .detail-header-tags { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-2); }
 .detail-probability { display: grid; gap: var(--space-2); padding: var(--space-4); }
@@ -344,12 +348,11 @@ onMounted(() => { hydrated.value = true; });
   .filter-panel { display: none; gap: var(--space-3); }
   .filter-panel[data-open="true"] { display: grid; }
 }
-@container (max-width: 23.99rem) {
-  .event-card-main { padding: var(--space-3) var(--space-3) 0; }
-  .event-card-footer { padding: var(--space-3); }
-}
-@media (prefers-reduced-transparency: reduce) {
-  .event-card { background: var(--surface-raised); }
+@container (max-width: 39.99rem) {
+  .event-row { grid-template-columns: 2.5rem minmax(0, 1fr); padding: var(--space-3); }
+  .event-row__rarity { height: 2.5rem; }
+  .event-row__prob { grid-column: 2; }
+  .event-row__desc { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 }
 /* Wide panels: filters become a sticky side rail so results stay in view while refining. */
 @container (min-width: 60rem) {

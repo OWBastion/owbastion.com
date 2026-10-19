@@ -50,7 +50,7 @@ useSeoMeta({
         <p class="hero-lead">了解随机事件与地图，挑战成就，提交截图把每一次通关记录下来。</p>
         <div class="hero-actions">
           <NuxtLink :to="player ? '/me' : '/login'" class="cta cta--primary pressable">
-            {{ player ? "进入玩家中心" : "QQ 登录" }}
+            {{ player ? "进入玩家中心" : "登录" }}
             <UIcon name="i-lucide-arrow-right" aria-hidden="true" />
           </NuxtLink>
           <NuxtLink to="/events" class="cta cta--ghost pressable">浏览随机事件</NuxtLink>
