@@ -8,13 +8,13 @@ useSeoMeta({ title: "地图 · 躲避堡垒 3", description: "查看当前支持
 
 const { player, refresh } = useCurrentPlayer();
 const route = useRoute();
-const { data: catalog, pending: loading, error: catalogError } = await useAsyncData("public-map-directory", async () => {
+const { data: catalog, pending: loading, error: catalogError } = useAsyncData("public-map-directory", async () => {
   const [mapResponse, challengeResponse] = await Promise.all([
     usePublicCatalog<{ items: Map[] }>("maps"),
     usePublicCatalog<{ items: MapChallenge[] }>("mapChallenges"),
   ]);
   return { maps: mapResponse.items, challenges: challengeResponse.items };
-});
+}, { lazy: true });
 const maps = computed(() => catalog.value?.maps ?? []);
 const challenges = computed(() => catalog.value?.challenges ?? []);
 const error = computed(() => catalogError.value ? portalErrorDetails(catalogError.value, "请稍后重试。").description : "");

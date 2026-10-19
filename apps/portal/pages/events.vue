@@ -4,7 +4,7 @@ import EventDirectory from "~/components/events/EventDirectory.vue";
 import { portalErrorDetails } from "~/utils/portal-error";
 useSeoMeta({ title: "随机事件 · 躲避堡垒 3", description: "查看当前随机事件与开放挑战。" });
 const { player, refresh } = useCurrentPlayer();
-const { data: eventResponse, pending: loading, error: catalogError } = await useAsyncData("public-event-directory", () => usePublicCatalog<{ items: RandomEvent[] }>("events"));
+const { data: eventResponse, pending: loading, error: catalogError } = useAsyncData("public-event-directory", () => usePublicCatalog<{ items: RandomEvent[] }>("events"), { lazy: true });
 const events = computed(() => eventResponse.value?.items ?? []);
 // Mode pools carry named versions; only numbered game versions order meaningfully.
 const error = computed(() => catalogError.value ? portalErrorDetails(catalogError.value, "请稍后重试。").description : "");
