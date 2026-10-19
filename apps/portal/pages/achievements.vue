@@ -21,25 +21,27 @@ const error = computed(() => catalogError.value ? portalErrorDetails(catalogErro
 <template>
   <main class="achievements-page directory-page page-shell">
     <PageMasthead title="成就" />
-    <section v-if="loading" class="achievement-directory" aria-label="读取中…" role="status">
-      <div class="achievement-skeleton-groups" aria-hidden="true">
-        <section v-for="group in 2" :key="group" class="achievement-skeleton-section">
-          <div class="achievement-skeleton-heading"><USkeleton class="achievement-skeleton-heading-title" /><USkeleton class="achievement-skeleton-heading-count" /></div>
-          <div class="achievement-skeleton-grid directory-grid">
-            <article v-for="card in 4" :key="card" class="achievement-skeleton-card">
-              <div class="achievement-skeleton-card-inner">
-                <USkeleton class="achievement-skeleton-icon" />
-                <div class="achievement-skeleton-copy"><USkeleton class="achievement-skeleton-title" /><USkeleton class="achievement-skeleton-condition" /><USkeleton class="achievement-skeleton-condition achievement-skeleton-condition-short" /></div>
-              </div>
-            </article>
-          </div>
-        </section>
-      </div>
-    </section>
-    <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取成就" :description="error" />
-    <section v-else class="achievement-directory" aria-label="成就列表">
-      <AchievementCatalog :challenges="challenges" :titles="titles" />
-    </section>
+    <LoadingReveal>
+      <section v-if="loading" class="achievement-directory" aria-label="读取中…" role="status">
+        <div class="achievement-skeleton-groups" aria-hidden="true">
+          <section v-for="group in 2" :key="group" class="achievement-skeleton-section">
+            <div class="achievement-skeleton-heading"><USkeleton class="achievement-skeleton-heading-title" /><USkeleton class="achievement-skeleton-heading-count" /></div>
+            <div class="achievement-skeleton-grid directory-grid">
+              <article v-for="card in 4" :key="card" class="achievement-skeleton-card">
+                <div class="achievement-skeleton-card-inner">
+                  <USkeleton class="achievement-skeleton-icon" />
+                  <div class="achievement-skeleton-copy"><USkeleton class="achievement-skeleton-title" /><USkeleton class="achievement-skeleton-condition" /><USkeleton class="achievement-skeleton-condition achievement-skeleton-condition-short" /></div>
+                </div>
+              </article>
+            </div>
+          </section>
+        </div>
+      </section>
+      <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取成就" :description="error" />
+      <section v-else class="achievement-directory" aria-label="成就列表">
+        <AchievementCatalog :challenges="challenges" :titles="titles" />
+      </section>
+    </LoadingReveal>
   </main>
 </template>
 

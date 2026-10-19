@@ -166,41 +166,43 @@ const entryMeta = (entry: LeaderboardEntry) => board.value === "mastery"
     </div>
 
     <section ref="boardSection" class="lb-board" :aria-busy="loading || undefined" aria-label="排名">
-      <div v-if="loading && !items.length" class="board-skeletons" role="status" aria-label="读取中…">
-        <USkeleton class="board-skeleton-podium" />
-        <USkeleton v-for="index in 6" :key="index" class="board-skeleton-row" />
-      </div>
-      <UAlert v-else-if="error" color="error" variant="subtle" role="alert" title="无法读取排行榜">
-        <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" @click="refreshBoard()" /></template>
-      </UAlert>
-      <p v-else-if="!items.length" class="lb-empty">还没有人上榜</p>
-      <template v-else>
-        <ol v-if="podium.length" class="podium" aria-label="前三名">
-          <li v-for="entry in podium" :key="entry.rank" :class="`podium__spot place${entry.rank}`">
-            <button type="button" class="podium__player board-row" :class="{ me: isMe(entry) }" @click="openPlayer(entry)">
-              <span class="podium__badge podium__badge--empty" aria-hidden="true"><UIcon v-if="entry.rank === 1" name="i-lucide-crown" class="podium__crown" />{{ entryName(entry).charAt(0) }}</span>
-              <strong class="podium__name">{{ entryName(entry) }}</strong>
-              <span class="podium__score num">{{ entry.score.toLocaleString() }}<small>{{ board === "mastery" ? "XP" : "" }}</small></span>
-            </button>
-            <span class="podium__plinth num" aria-label="名次">{{ entry.rank }}</span>
-          </li>
-        </ol>
+      <LoadingReveal>
+        <div v-if="loading && !items.length" class="board-skeletons" role="status" aria-label="读取中…">
+          <USkeleton class="board-skeleton-podium" />
+          <USkeleton v-for="index in 6" :key="index" class="board-skeleton-row" />
+        </div>
+        <UAlert v-else-if="error" color="error" variant="subtle" role="alert" title="无法读取排行榜">
+          <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" @click="refreshBoard()" /></template>
+        </UAlert>
+        <p v-else-if="!items.length" class="lb-empty">还没有人上榜</p>
+        <div v-else class="lb-results">
+          <ol v-if="podium.length" class="podium" aria-label="前三名">
+            <li v-for="entry in podium" :key="entry.rank" :class="`podium__spot place${entry.rank}`">
+              <button type="button" class="podium__player board-row" :class="{ me: isMe(entry) }" @click="openPlayer(entry)">
+                <span class="podium__badge podium__badge--empty" aria-hidden="true"><UIcon v-if="entry.rank === 1" name="i-lucide-crown" class="podium__crown" />{{ entryName(entry).charAt(0) }}</span>
+                <strong class="podium__name">{{ entryName(entry) }}</strong>
+                <span class="podium__score num">{{ entry.score.toLocaleString() }}<small>{{ board === "mastery" ? "XP" : "" }}</small></span>
+              </button>
+              <span class="podium__plinth num" aria-label="名次">{{ entry.rank }}</span>
+            </li>
+          </ol>
 
-        <ol class="ladder">
-          <li v-for="entry in ladder" :key="entry.rank" :class="{ 'ladder__cut': entry.rank === 11 }">
-            <button type="button" class="rung board-row" :class="{ me: isMe(entry) }" @click="openPlayer(entry)">
-              <span class="rung__rank num">{{ entry.rank }}</span>
-              <span class="rung__badge rung__badge--empty" aria-hidden="true">{{ entryName(entry).charAt(0) }}</span>
-              <span class="rung__who">
-                <strong>{{ entryName(entry) }}</strong>
-                <small v-if="entryMeta(entry)">{{ entryMeta(entry) }}</small>
-              </span>
-              <span class="rung__score num">{{ entry.score.toLocaleString() }}</span>
-              <span v-if="share(entry)" class="rung__bar" aria-hidden="true"><i :style="{ width: `${share(entry)}%` }" /></span>
-            </button>
-          </li>
-        </ol>
-      </template>
+          <ol class="ladder">
+            <li v-for="entry in ladder" :key="entry.rank" :class="{ 'ladder__cut': entry.rank === 11 }">
+              <button type="button" class="rung board-row" :class="{ me: isMe(entry) }" @click="openPlayer(entry)">
+                <span class="rung__rank num">{{ entry.rank }}</span>
+                <span class="rung__badge rung__badge--empty" aria-hidden="true">{{ entryName(entry).charAt(0) }}</span>
+                <span class="rung__who">
+                  <strong>{{ entryName(entry) }}</strong>
+                  <small v-if="entryMeta(entry)">{{ entryMeta(entry) }}</small>
+                </span>
+                <span class="rung__score num">{{ entry.score.toLocaleString() }}</span>
+                <span v-if="share(entry)" class="rung__bar" aria-hidden="true"><i :style="{ width: `${share(entry)}%` }" /></span>
+              </button>
+            </li>
+          </ol>
+        </div>
+      </LoadingReveal>
 
       <div v-if="totalPages > 1" class="pager">
         <UButton icon="i-lucide-chevron-left" color="neutral" variant="ghost" aria-label="上一页" :disabled="page === 1" @click="page -= 1" />
@@ -238,6 +240,9 @@ const entryMeta = (entry: LeaderboardEntry) => board.value === "mastery"
 .rules__base span { color: var(--quiet); }
 .rules__base b { color: var(--accent); font-size: 1.125rem; }
 .lb-board { display: grid; gap: var(--space-4); }
+.lb-results { display: grid; gap: var(--space-4); transition: opacity 180ms ease; }
+/* A page or scope change keeps the stale rows, dimmed, until the new ones arrive. */
+.lb-board[aria-busy] .lb-results { opacity: .5; }
 
 /* Podium: second, first, third; plinth height and metal tone mark the place. */
 .podium { --gold: oklch(82% .14 85); --silver: oklch(84% .02 250); --bronze: oklch(68% .11 55); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: var(--space-2); margin: var(--space-4) 0 0; padding: 0; list-style: none; }

@@ -342,10 +342,13 @@ button, a { -webkit-tap-highlight-color: transparent; }
   filter: blur(2px);
 }
 
-/* G-07 — route page cross-fade (opacity only) */
-.page-enter-active,
-.page-leave-active {
+/* G-07 — route page cross-fade (opacity only); the old page leaves quickly so */
+/* the next one starts sooner. */
+.page-enter-active {
   transition: opacity 180ms ease;
+}
+.page-leave-active {
+  transition: opacity 100ms ease-in;
 }
 .page-enter-from,
 .page-leave-to {
@@ -726,6 +729,36 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 /* -------------------------------------------------------------------------- */
+/* Loading reveal (LoadingReveal.vue)                                         */
+/* Content that replaces a skeleton fades in and its items rise in a short    */
+/* stagger. Reads that finish during the page fade never show a skeleton.     */
+/* -------------------------------------------------------------------------- */
+@keyframes load-reveal-fade {
+  from { opacity: 0; }
+}
+@keyframes load-reveal-rise {
+  from { opacity: 0; transform: translateY(10px); }
+}
+.load-reveal-leave-active {
+  display: none;
+}
+.load-reveal-enter-active {
+  animation: load-reveal-fade 200ms ease;
+}
+.load-reveal-enter-active :is(.event-list, .map-grid, .wall, .podium, .ladder) > * {
+  animation: load-reveal-rise 320ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  animation-delay: 240ms;
+}
+.load-reveal-enter-active :is(.event-list, .map-grid, .wall, .podium, .ladder) > :nth-child(1) { animation-delay: 0ms; }
+.load-reveal-enter-active :is(.event-list, .map-grid, .wall, .podium, .ladder) > :nth-child(2) { animation-delay: 30ms; }
+.load-reveal-enter-active :is(.event-list, .map-grid, .wall, .podium, .ladder) > :nth-child(3) { animation-delay: 60ms; }
+.load-reveal-enter-active :is(.event-list, .map-grid, .wall, .podium, .ladder) > :nth-child(4) { animation-delay: 90ms; }
+.load-reveal-enter-active :is(.event-list, .map-grid, .wall, .podium, .ladder) > :nth-child(5) { animation-delay: 120ms; }
+.load-reveal-enter-active :is(.event-list, .map-grid, .wall, .podium, .ladder) > :nth-child(6) { animation-delay: 150ms; }
+.load-reveal-enter-active :is(.event-list, .map-grid, .wall, .podium, .ladder) > :nth-child(7) { animation-delay: 180ms; }
+.load-reveal-enter-active :is(.event-list, .map-grid, .wall, .podium, .ladder) > :nth-child(8) { animation-delay: 210ms; }
+
+/* -------------------------------------------------------------------------- */
 /* G-01 — unified press feedback                                              */
 /* -------------------------------------------------------------------------- */
 .pressable,
@@ -857,6 +890,9 @@ a[data-slot="base"]:active:not([aria-disabled="true"]) {
     transition-property: opacity, color, background-color, border-color, outline-color, fill, stroke, box-shadow, text-decoration-color !important;
     transition-duration: 150ms !important;
     transition-timing-function: ease !important;
+  }
+  .load-reveal-enter-active * {
+    animation-delay: 0ms !important;
   }
 
   :is(a, button, [role="button"], [role="menuitem"], [role="menuitemradio"], [role="tab"], .pressable, .pressable-soft):is(:hover, :active, :focus-visible),

@@ -17,16 +17,18 @@ onMounted(async () => {
   <main class="events-page directory-page page-shell">
     <PageMasthead title="随机事件" />
     <section class="events-panel" aria-label="随机事件列表">
-      <div v-if="loading" class="event-skeleton-grid directory-grid" role="status" aria-label="读取中…">
-        <div v-for="index in 6" :key="index" class="event-skeleton-card interactive-card interactive-card--static" aria-hidden="true">
-          <div class="event-skeleton-top"><USkeleton class="event-skeleton-badge" /><USkeleton class="event-skeleton-status" /></div>
-          <USkeleton class="event-skeleton-title" />
-          <div class="event-skeleton-copy"><USkeleton /><USkeleton /><USkeleton class="event-skeleton-copy-short" /></div>
-          <div class="event-skeleton-tags"><USkeleton class="event-skeleton-tag" /><USkeleton class="event-skeleton-tag event-skeleton-tag-short" /><USkeleton class="event-skeleton-tag" /></div>
+      <LoadingReveal>
+        <div v-if="loading" class="event-skeleton-grid directory-grid" role="status" aria-label="读取中…">
+          <div v-for="index in 6" :key="index" class="event-skeleton-card interactive-card interactive-card--static" aria-hidden="true">
+            <div class="event-skeleton-top"><USkeleton class="event-skeleton-badge" /><USkeleton class="event-skeleton-status" /></div>
+            <USkeleton class="event-skeleton-title" />
+            <div class="event-skeleton-copy"><USkeleton /><USkeleton /><USkeleton class="event-skeleton-copy-short" /></div>
+            <div class="event-skeleton-tags"><USkeleton class="event-skeleton-tag" /><USkeleton class="event-skeleton-tag event-skeleton-tag-short" /><USkeleton class="event-skeleton-tag" /></div>
+          </div>
         </div>
-      </div>
-      <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取事件" :description="error" />
-      <EventDirectory v-else :events="events" :authenticated="Boolean(player)" />
+        <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取事件" :description="error" />
+        <EventDirectory v-else :events="events" :authenticated="Boolean(player)" />
+      </LoadingReveal>
     </section>
   </main>
 </template>

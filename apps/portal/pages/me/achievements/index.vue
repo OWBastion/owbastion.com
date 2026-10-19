@@ -56,23 +56,25 @@ const updateEquipped = async (grantId: string) => {
 <template>
   <main class="achievements-page directory-page page-shell">
     <PageMasthead title="我的成就" />
-    <section v-if="loading" class="achievement-directory" aria-label="读取中…" role="status">
-      <div class="achievement-skeleton-groups" aria-hidden="true">
-        <section v-for="group in 2" :key="group" class="achievement-skeleton-section">
-          <div class="achievement-skeleton-heading"><USkeleton class="achievement-skeleton-heading-title" /><USkeleton class="achievement-skeleton-heading-count" /></div>
-          <div class="achievement-skeleton-grid directory-grid">
-            <article v-for="card in 4" :key="card" class="achievement-skeleton-card">
-              <div class="achievement-skeleton-card-inner">
-                <USkeleton class="achievement-skeleton-icon" />
-                <div class="achievement-skeleton-copy"><USkeleton class="achievement-skeleton-title" /><USkeleton class="achievement-skeleton-condition" /><USkeleton class="achievement-skeleton-condition achievement-skeleton-condition-short" /></div>
-              </div>
-            </article>
-          </div>
-        </section>
-      </div>
-    </section>
-    <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取成就" :description="error" />
-    <div v-else-if="player" class="collection-host"><MyAchievementOverview :challenges="challenges" :titles="ownedTitles" :maps="maps" :map-challenges="mapChallenges" :challenge-progress="challengeProgress" :saving-equip="savingEquip" :all-titles="allTitles" @toggle-equipped="updateEquipped" /><UAlert v-if="equipError" class="equip-error" color="error" variant="subtle" :description="equipError" /></div>
+    <LoadingReveal>
+      <section v-if="loading" class="achievement-directory" aria-label="读取中…" role="status">
+        <div class="achievement-skeleton-groups" aria-hidden="true">
+          <section v-for="group in 2" :key="group" class="achievement-skeleton-section">
+            <div class="achievement-skeleton-heading"><USkeleton class="achievement-skeleton-heading-title" /><USkeleton class="achievement-skeleton-heading-count" /></div>
+            <div class="achievement-skeleton-grid directory-grid">
+              <article v-for="card in 4" :key="card" class="achievement-skeleton-card">
+                <div class="achievement-skeleton-card-inner">
+                  <USkeleton class="achievement-skeleton-icon" />
+                  <div class="achievement-skeleton-copy"><USkeleton class="achievement-skeleton-title" /><USkeleton class="achievement-skeleton-condition" /><USkeleton class="achievement-skeleton-condition achievement-skeleton-condition-short" /></div>
+                </div>
+              </article>
+            </div>
+          </section>
+        </div>
+      </section>
+      <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取成就" :description="error" />
+      <div v-else-if="player" class="collection-host"><MyAchievementOverview :challenges="challenges" :titles="ownedTitles" :maps="maps" :map-challenges="mapChallenges" :challenge-progress="challengeProgress" :saving-equip="savingEquip" :all-titles="allTitles" @toggle-equipped="updateEquipped" /><UAlert v-if="equipError" class="equip-error" color="error" variant="subtle" :description="equipError" /></div>
+    </LoadingReveal>
   </main>
 </template>
 
