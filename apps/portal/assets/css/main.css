@@ -911,9 +911,8 @@ body {
   background-attachment: fixed;
   isolation: isolate;
 }
-/* A slowly drifting patch of the grid lights up in the accent colour; a faint scan line sweeps down. */
-@property --glow-x { syntax: "<percentage>"; inherits: false; initial-value: 80%; }
-@property --glow-y { syntax: "<percentage>"; inherits: false; initial-value: 10%; }
+/* A few scattered grid cells breathe with a faint accent glow. Two sparse tiles with different
+   periods keep the lit cells out of step without drawing the eye. */
 body::before,
 body::after {
   position: fixed;
@@ -921,32 +920,21 @@ body::after {
   z-index: -1;
   pointer-events: none;
   content: "";
+  background: radial-gradient(closest-side, color-mix(in oklch, var(--accent) 12%, transparent), color-mix(in oklch, var(--accent) 4%, transparent)) 0 0 / 3rem 3rem;
+  opacity: .15;
+  animation: grid-breathe 7s ease-in-out infinite alternate;
 }
 body::before {
-  background-image:
-    linear-gradient(color-mix(in oklch, var(--accent) 22%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in oklch, var(--accent) 22%, transparent) 1px, transparent 1px);
-  background-size: 3rem 3rem;
-  mask: radial-gradient(36rem 26rem at var(--glow-x) var(--glow-y), black, transparent 70%);
-  animation: grid-glow 48s ease-in-out infinite alternate;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 5'%3E%3Crect x='1' y='1' width='1' height='1'/%3E%3Crect x='5' y='3' width='1' height='1'/%3E%3C/svg%3E") 0 0 / 21rem 15rem repeat;
 }
 body::after {
-  height: 30vh;
-  background: linear-gradient(transparent, color-mix(in oklch, var(--accent) 5%, transparent) 85%, color-mix(in oklch, var(--accent) 12%, transparent));
-  mask: linear-gradient(transparent, black 40%);
-  opacity: 0;
-  animation: grid-scan 14s linear 2s infinite;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 7'%3E%3Crect x='3' y='0' width='1' height='1'/%3E%3Crect x='8' y='5' width='1' height='1'/%3E%3Crect x='0' y='4' width='1' height='1'/%3E%3C/svg%3E") 0 0 / 33rem 21rem repeat;
+  animation-duration: 9.5s;
+  animation-delay: -4s;
 }
-@keyframes grid-glow {
-  0% { --glow-x: 80%; --glow-y: 10%; }
-  33% { --glow-x: 25%; --glow-y: 35%; }
-  66% { --glow-x: 70%; --glow-y: 75%; }
-  100% { --glow-x: 15%; --glow-y: 90%; }
-}
-@keyframes grid-scan {
-  0% { opacity: 0; transform: translateY(-30vh); }
-  10%, 70% { opacity: 1; }
-  80%, 100% { opacity: 0; transform: translateY(100vh); }
+@keyframes grid-breathe { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  body::before, body::after { animation: none; opacity: .5; }
 }
 .num, .font-display { font-family: var(--font-display); font-variant-numeric: tabular-nums; }
 ::selection { color: var(--on-accent); background: var(--accent); }
