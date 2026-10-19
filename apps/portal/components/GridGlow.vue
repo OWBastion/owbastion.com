@@ -2,7 +2,8 @@
 import { useEventListener } from "@vueuse/core";
 
 // Backdrop: a handful of grid cells (the 3rem body grid) breathe in the accent colour, each on its own
-// random period and peak, and hop to a new random cell after every breath.
+// random period, phase and peak, and hop to a new random cell after every breath. Each cell is lit for
+// only ~16% of its period, so at any moment just a few of them glow.
 interface Cell { id: number; col: number; row: number; duration: number; delay: number; peak: number }
 
 const cells = ref<Cell[]>([]);
@@ -26,7 +27,8 @@ onMounted(() => {
   measure();
   const count = Math.min(18, Math.max(6, Math.round((grid.cols * grid.rows) / 45)));
   cells.value = Array.from({ length: count }, (_, id) => {
-    const cell = { id, col: 0, row: 0, duration: random(5, 12), delay: -random(0, 12), peak: 1 };
+    const cell = { id, col: 0, row: 0, duration: random(8, 16), delay: 0, peak: 1 };
+    cell.delay = -random(0, cell.duration);
     randomCell(cell);
     return cell;
   });
@@ -48,7 +50,7 @@ onMounted(() => {
 <style scoped>
 .grid-glow { position: fixed; z-index: -1; inset: 0; overflow: hidden; pointer-events: none; }
 .grid-glow__cell { position: absolute; top: calc(var(--row) * 3rem); left: calc(var(--col) * 3rem); width: 3rem; height: 3rem; background: radial-gradient(closest-side, color-mix(in oklch, var(--accent) 12%, transparent), color-mix(in oklch, var(--accent) 4%, transparent)); opacity: 0; animation: grid-cell-breathe ease-in-out infinite; }
-@keyframes grid-cell-breathe { 0%, 100% { opacity: 0; } 50% { opacity: var(--peak); } }
+@keyframes grid-cell-breathe { 0%, 84%, 100% { opacity: 0; } 92% { opacity: var(--peak); } }
 @media (prefers-reduced-motion: reduce) {
   .grid-glow__cell { opacity: calc(var(--peak) * .5); animation: none; }
 }
