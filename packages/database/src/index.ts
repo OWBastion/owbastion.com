@@ -3247,7 +3247,7 @@ if (verifiedRunPlan?.superseded) await reconcileVerifiedRunProgressChallenges({ 
     ...createReviewServices(database, db, {
       ...databaseServiceDependencies,
     }),
-    ...createLeaderboardServices(db),
+    ...createLeaderboardServices(db, platformCache),
     ...createPlayerHandleServices({ database, db, now, replayOrConflict: databaseServiceDependencies.replayOrConflict }),
     ...createSeasonServices({ database, db, now, replayOrConflict: databaseServiceDependencies.replayOrConflict }),
   };

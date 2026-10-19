@@ -23,8 +23,9 @@ export const rankLeaderboardRows = <Row extends { playerAccountId: string; score
 
 // The opaque public key carried by leaderboard entries. It resolves the
 // public summary without exposing the BattleTag id pair or the internal
-// account id; the service recomputes it for public accounts at read time so
-// no extra key table or copied identifier exists.
+// account id; each Player Account stores a copy (player_accounts.leaderboard_key)
+// written at creation so public lookups resolve by index. Rows predating the
+// column are backfilled from this same function on first lookup.
 export const leaderboardPlayerKey = async (playerAccountId: string) => {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`leaderboard:${playerAccountId}`));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("").slice(0, 24);

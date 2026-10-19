@@ -39,6 +39,7 @@ export const playerAccountsSchema = `CREATE TABLE player_accounts (
       banned_at INTEGER,
       banned_by TEXT,
       ban_reason TEXT,
+      leaderboard_key TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );`;
