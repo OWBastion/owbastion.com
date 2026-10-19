@@ -148,7 +148,7 @@ const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, 
     <UModal v-model:open="sheetOpen" :title="selected?.name ?? ''" :description="selected?.note">
       <template #body>
         <div v-if="selected" class="sheet">
-          <AchievementIcon class="sheet__icon" :url="selected.icon.url" :icon="selected.icon.icon" :earned="selected.earned" />
+          <AchievementIcon class="sheet__icon" entrance :url="selected.icon.url" :icon="selected.icon.icon" :earned="selected.earned" />
           <p class="sheet__condition">{{ selected.condition }}</p>
           <p v-if="selected.progress" class="sheet__progress">
             <span v-for="progressMap in selected.progress.maps" :key="progressMap.mapId" :class="{ done: progressMap.completed }">{{ mapNameFor(progressMap.mapId) }}</span>
