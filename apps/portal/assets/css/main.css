@@ -525,8 +525,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   letter-spacing: .04em;
 }
 /* -------------------------------------------------------------------------- */
-/* Design v2 — key-value detail grid (see                                                 */
-/* components-and-patterns.md). Container-query based at cq-compact (24rem):  */
+/* Design v2 — key-value detail grid. Container-query based at cq-compact (24rem): */
 /* label/value columns collapse to a stacked, left-aligned row.               */
 /* -------------------------------------------------------------------------- */
 .detail-grid {
@@ -579,7 +578,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 /* -------------------------------------------------------------------------- */
-/* Design v2 — action row (see components-and-patterns.md). Primary is first  */
+/* Design v2 — action row. Primary is first  */
 /* in DOM order; container-query based at cq-compact (24rem): inline and      */
 /* right-aligned (primary rightmost) above it, stacked full-width below it.   */
 /* -------------------------------------------------------------------------- */
@@ -886,7 +885,7 @@ a[data-slot="base"]:active:not([aria-disabled="true"]) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Design v2 — fluid directory grid (see layout-and-spacing.md). Column count */
+/* Design v2 — fluid directory grid. Column count */
 /* falls out of the 17rem minimum track; no media queries.                    */
 /* -------------------------------------------------------------------------- */
 .directory-grid {
