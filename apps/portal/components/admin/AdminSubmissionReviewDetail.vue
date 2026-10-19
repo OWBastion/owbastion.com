@@ -697,4 +697,12 @@ function spotCheckLoading(decision: SpotCheckDecision) {
       color var(--theme-transition);
   }
 }
+
+/* Concept: evidence sits in a dark viewer with corner brackets; the decision card leads with a signal edge. */
+.evidence-card { background: color-mix(in oklch, var(--page) 70%, black); }
+.evidence-card::before, .evidence-card::after { position: absolute; z-index: 1; width: 1.25rem; height: 1.25rem; border: 2px solid var(--accent); content: ""; pointer-events: none; }
+.evidence-card::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; border-top-left-radius: var(--radius-card); }
+.evidence-card::after { right: -1px; bottom: -1px; border-top: 0; border-left: 0; border-bottom-right-radius: var(--radius-card); }
+.decision-card { border-top: 2px solid var(--signal); }
+.outcome__label { font-family: var(--font-display); letter-spacing: .04em; }
 </style>

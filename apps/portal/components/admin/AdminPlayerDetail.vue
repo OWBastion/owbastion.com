@@ -33,6 +33,7 @@ function grantTitle() { tab.value = "titles"; void nextTick(() => titlesRef.valu
   <article class="player" aria-label="玩家详情">
     <header class="player__head">
       <UButton to="/admin/players" class="player__back" icon="i-lucide-arrow-left" label="返回列表" color="neutral" variant="ghost" size="sm" />
+      <span class="player__avatar font-display" aria-hidden="true">{{ player.playerName.slice(0, 1) }}</span>
       <div class="player__heading">
         <h2><PlayerBattleTag :player-name="player.playerName" :player-id="player.playerId" /></h2>
         <p>{{ activeTitleCount }} 个称号 · {{ player.bindingCount }} 个 QQ 绑定 · {{ player.progression.activeVerifiedRunCount }} 次已核验通关</p>
@@ -92,7 +93,8 @@ function grantTitle() { tab.value = "titles"; void nextTick(() => titlesRef.valu
 .player__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .player__back { flex: 1 0 100%; justify-content: flex-start; width: fit-content; }
 .player__heading { flex: 1 1 12rem; min-width: 0; }
-.player__heading h2 { margin: 0; font-size: var(--type-headline-size); overflow-wrap: anywhere; }
+.player__avatar { display: grid; flex: none; width: 3.25rem; height: 3.25rem; place-items: center; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: radial-gradient(circle at 50% 30%, color-mix(in oklch, var(--accent) 55%, transparent), transparent 75%), var(--accent-surface); color: var(--accent); font-size: 1.375rem; font-weight: 700; }
+.player__heading h2 { margin: 0; font-family: var(--font-display); font-size: var(--type-headline-size); font-weight: 700; overflow-wrap: anywhere; }
 .player__heading h2 small { margin-left: var(--space-1); color: var(--quiet); font-size: var(--type-label-size); font-weight: 600; }
 .player__heading p { margin: var(--space-1) 0 0; color: var(--quiet); font-size: var(--type-caption-size); }
 .player__actions { display: flex; flex: 1 1 100%; gap: var(--space-2); }
