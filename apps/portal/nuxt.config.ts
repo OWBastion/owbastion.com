@@ -65,6 +65,8 @@ export default defineNuxtConfig({
       meta: [
         { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
         { name: "theme-color", content: "#0c1310" },
+        // next.owbastion.com is a preview of the main site; keep it out of search results.
+        { name: "robots", content: "noindex" },
       ],
       link: [
         { rel: "preconnect", href: "https://fonts.googleapis.com" },
