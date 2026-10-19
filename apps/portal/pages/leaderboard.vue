@@ -133,7 +133,6 @@ const share = (entry: LeaderboardEntry) => leaderScore.value ? Math.max(4, Math.
 const entryMeta = (entry: LeaderboardEntry) => board.value === "mastery"
   ? [entry.runCount === undefined ? null : `${entry.runCount} 次`, entry.topDifficulty ?? null].filter(Boolean).join(" · ")
   : entry.latestTitle?.label ?? "";
-const badgeOf = (entry: LeaderboardEntry) => entry.player?.equippedTitle ?? null;
 </script>
 
 <template>
@@ -176,8 +175,7 @@ const badgeOf = (entry: LeaderboardEntry) => entry.player?.equippedTitle ?? null
         <ol v-if="podium.length" class="podium" aria-label="前三名">
           <li v-for="entry in podium" :key="entry.rank" :class="`podium__spot place${entry.rank}`">
             <button type="button" class="podium__player board-row" :class="{ me: isMe(entry) }" @click="openPlayer(entry)">
-              <AchievementIcon v-if="badgeOf(entry)" class="podium__badge" :url="badgeOf(entry)!.iconUrl" :icon="badgeOf(entry)!.icon" earned :shine-delay="entry.rank * .6" />
-              <span v-else class="podium__badge podium__badge--empty" aria-hidden="true">{{ entryName(entry).charAt(0) }}</span>
+              <span class="podium__badge podium__badge--empty" aria-hidden="true"><UIcon v-if="entry.rank === 1" name="i-lucide-crown" class="podium__crown" />{{ entryName(entry).charAt(0) }}</span>
               <strong class="podium__name">{{ entryName(entry) }}</strong>
               <span class="podium__score num">{{ entry.score.toLocaleString() }}<small>{{ board === "mastery" ? "XP" : "" }}</small></span>
             </button>
@@ -189,8 +187,7 @@ const badgeOf = (entry: LeaderboardEntry) => entry.player?.equippedTitle ?? null
           <li v-for="entry in ladder" :key="entry.rank" :class="{ 'ladder__cut': entry.rank === 11 }">
             <button type="button" class="rung board-row" :class="{ me: isMe(entry) }" @click="openPlayer(entry)">
               <span class="rung__rank num">{{ entry.rank }}</span>
-              <AchievementIcon v-if="badgeOf(entry)" class="rung__badge" :url="badgeOf(entry)!.iconUrl" :icon="badgeOf(entry)!.icon" earned :title="badgeOf(entry)!.label" />
-              <span v-else class="rung__badge rung__badge--empty" aria-hidden="true" />
+              <span class="rung__badge rung__badge--empty" aria-hidden="true">{{ entryName(entry).charAt(0) }}</span>
               <span class="rung__who">
                 <strong>{{ entryName(entry) }}</strong>
                 <small v-if="entryMeta(entry)">{{ entryMeta(entry) }}</small>
@@ -242,12 +239,19 @@ const badgeOf = (entry: LeaderboardEntry) => entry.player?.equippedTitle ?? null
 /* Podium: second, first, third; plinth height and metal tone mark the place. */
 .podium { --gold: oklch(82% .14 85); --silver: oklch(84% .02 250); --bronze: oklch(68% .11 55); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: var(--space-2); margin: var(--space-4) 0 0; padding: 0; list-style: none; }
 .podium__spot { --metal: var(--bronze); --plinth: 3.5rem; display: grid; justify-items: center; gap: var(--space-2); min-width: 0; }
-.podium__spot.place1 { --metal: var(--gold); --plinth: 6rem; }
+.podium__spot.place1 { --metal: var(--gold); --plinth: 6rem; isolation: isolate; }
 .podium__spot.place2 { --metal: var(--silver); --plinth: 4.5rem; }
 .podium__player { display: grid; justify-items: center; gap: var(--space-1); width: 100%; min-width: 0; padding: var(--space-2) var(--space-1); border: 0; border-radius: var(--radius-card); background: none; color: var(--text); font: inherit; cursor: pointer; }
-.podium__player:hover .podium__badge, .podium__player:focus-visible .podium__badge { transform: translateY(-4px) scale(1.05); }
-.podium__badge { --achievement-icon-size: 3.75rem; display: grid; width: var(--achievement-icon-size); height: var(--achievement-icon-size); place-items: center; margin-bottom: var(--space-1); }
-.place1 .podium__badge { --achievement-icon-size: 5rem; }
+.podium__badge { --avatar-size: 3.75rem; display: grid; width: var(--avatar-size); height: var(--avatar-size); place-items: center; margin-bottom: var(--space-1); }
+.place1 .podium__badge { --avatar-size: 5rem; margin-top: var(--space-6); }
+.podium__badge { position: relative; }
+.place1 .podium__badge::before { position: absolute; z-index: -1; inset: -35%; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in oklch, var(--gold) 55%, transparent), color-mix(in oklch, var(--gold) 14%, transparent) 60%, transparent); content: ""; animation: podium-glow 4.5s ease-in-out infinite; }
+.place1 .podium__badge::after { position: absolute; inset: -.25rem; border: 2px solid var(--gold); border-radius: 50%; content: ""; opacity: 0; animation: podium-ring 3.6s ease-out infinite; }
+.podium__crown { position: absolute; top: -1.6rem; left: 50%; width: 1.75rem; height: 1.75rem; color: var(--gold); filter: drop-shadow(0 0 .4rem color-mix(in oklch, var(--gold) 70%, transparent)); transform: translateX(-50%); animation: podium-crown 4.5s ease-in-out infinite; }
+@keyframes podium-glow { 0%, 100% { opacity: .6; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.06); } }
+@keyframes podium-ring { 0% { opacity: .7; transform: scale(1); } 100% { opacity: 0; transform: scale(1.35); } }
+@keyframes podium-crown { 0%, 100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .place1 .podium__badge::before, .place1 .podium__badge::after, .podium__crown { animation: none; } }
 .podium__badge--empty { border: 2px solid var(--metal); border-radius: 50%; color: var(--metal); font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; }
 .podium__name { max-width: 100%; overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .podium__score { color: var(--metal); font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; }
@@ -265,8 +269,7 @@ const badgeOf = (entry: LeaderboardEntry) => entry.player?.equippedTitle ?? null
 .rung:hover, .rung:focus-visible { background: var(--surface-raised); }
 .rung.me { background: var(--accent-surface); box-shadow: inset 3px 0 0 var(--accent); }
 .rung__rank { grid-area: rank; color: var(--muted); font-family: var(--font-display); font-size: 1.375rem; font-weight: 700; text-align: center; }
-.rung__badge { --achievement-icon-size: 2.25rem; grid-area: badge; }
-.rung__badge--empty { width: 2.25rem; height: 2.25rem; border: 1px dashed var(--line-strong); border-radius: 50%; }
+.rung__badge { display: grid; grid-area: badge; place-items: center; width: 2.25rem; height: 2.25rem; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--muted); font-family: var(--font-display); font-weight: 700; }
 .rung__who { display: grid; grid-area: who; min-width: 0; }
 .rung__who strong { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .rung__who small { overflow: hidden; color: var(--quiet); font-size: var(--type-caption-size); text-overflow: ellipsis; white-space: nowrap; }
@@ -288,6 +291,5 @@ const badgeOf = (entry: LeaderboardEntry) => entry.player?.equippedTitle ?? null
 .board-skeleton-podium { height: 13rem; border-radius: var(--radius-card); }
 .board-skeleton-row { height: 3.75rem; border-radius: var(--radius-control); }
 .pager { display: flex; align-items: center; justify-content: center; gap: var(--space-3); color: var(--muted); font-size: var(--type-label-sm-size); }
-@media (prefers-reduced-motion: reduce) { .podium__badge { transition: none; } }
 @media (max-width: 47.99rem) { .lb { padding-block: var(--space-8) var(--space-12); } }
 </style>
