@@ -5,7 +5,7 @@ import { portalErrorDetails } from "~/utils/portal-error";
 
 useSeoMeta({ title: "成就 · 躲避堡垒 3", description: "查看已发布的成就挑战与完成条件。" });
 
-const { data: catalog, pending: loading, error: catalogError } = await useAsyncData("public-achievement-directory", () => usePublicCatalog<{ items: PublicAchievement[] }>("achievements"));
+const { data: catalog, pending: loading, error: catalogError } = useAsyncData("public-achievement-directory", () => usePublicCatalog<{ items: PublicAchievement[] }>("achievements"), { lazy: true });
 const challenges = computed(() => catalog.value?.items ?? []);
 const { refresh: refreshPlayer } = useCurrentPlayer();
 const { refresh: refreshTitles } = usePlayerTitles();

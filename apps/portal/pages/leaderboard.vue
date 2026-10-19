@@ -26,12 +26,15 @@ const mapId = ref<string | undefined>(typeof route.query.mapId === "string" ? ro
 const seasonId = ref<string | undefined>(typeof route.query.seasonId === "string" ? route.query.seasonId : undefined);
 const page = ref(1);
 
-const { data: catalog } = await useAsyncData("leaderboard-map-catalog", () => usePublicCatalog<{ items: Map[] }>("maps"));
+// Lazy reads let navigation switch immediately; the page renders its own loading states.
+const { data: catalog } = useAsyncData("leaderboard-map-catalog", () => usePublicCatalog<{ items: Map[] }>("maps"), { lazy: true });
 const maps = computed(() => catalog.value?.items ?? []);
 
 // Seasons are an optional scope: a failed read just hides the season controls.
-const { data: seasonCatalog } = await useAsyncData("leaderboard-seasons", () => api<PublicSeasonListResponse>("/v1/public/seasons").catch(() => ({ contractVersion: "1" as const, items: [] })), { getCachedData: () => undefined });
-const seasonList = computed(() => seasonCatalog.value?.items ?? []);
+const seasons = useAsyncData("leaderboard-seasons", () => api<PublicSeasonListResponse>("/v1/public/seasons").catch(() => ({ contractVersion: "1" as const, items: [] })), { lazy: !seasonId.value, getCachedData: () => undefined });
+const seasonList = computed(() => seasons.data.value?.items ?? []);
+// Only a season in the URL blocks navigation: it must be checked before the board is read.
+if (seasonId.value) await seasons;
 if (seasonId.value && !seasonList.value.some((season) => season.seasonId === seasonId.value)) seasonId.value = undefined;
 const activeSeasonId = computed(() => board.value === "mastery" ? seasonId.value : undefined);
 // One select carries both scopes; "all" stands for all-time because a select item needs a value.
@@ -43,7 +46,7 @@ const mapValue = computed({ get: () => mapId.value ?? "all", set: (value: string
 // Reactive key: board/map/page changes are distinct fetches. Rankings change
 // underneath navigation, so payload reuse is off — each key fetches live.
 const boardKey = computed(() => `leaderboard-board:${board.value}:${board.value === "mastery" ? (mapId.value ?? "all") : "—"}:${activeSeasonId.value ?? "all-time"}:${page.value}`);
-const { data: boardData, pending: loading, error: boardError, refresh: refreshBoard } = await useAsyncData(
+const { data: boardData, pending: loading, error: boardError, refresh: refreshBoard } = useAsyncData(
   boardKey,
   async () => {
     const params = new URLSearchParams({ board: board.value, page: String(page.value), pageSize: String(PAGE_SIZE) });
@@ -52,7 +55,7 @@ const { data: boardData, pending: loading, error: boardError, refresh: refreshBo
     const response = await api<LeaderboardResponse>(`/v1/public/leaderboard?${params}`);
     return response;
   },
-  { getCachedData: () => undefined },
+  { lazy: true, getCachedData: () => undefined },
 );
 
 const items = computed(() => boardData.value?.items ?? []);
