@@ -5,10 +5,6 @@ import type { PlayerChallengeProgress, PortalMap } from "~/composables/usePortal
 import { findOwnedTitle } from "~/utils/achievement-status";
 import { buildMapProgressRows, type MapProgressChallenge } from "~/utils/map-progress";
 
-type HistoricalTitleGroup = {
-  name: string;
-  titles: OwnedTitle[];
-};
 type AchievementCard =
   | { kind: "catalog"; challenge: PublicAchievement }
   | { kind: "ended"; title: OwnedTitle };
@@ -33,28 +29,6 @@ const ownedTitleKeys = computed(() => new Set(props.titles.map((title) => title.
 const earnedCatalogCount = computed(() => props.challenges.filter((challenge) => ownedTitleKeys.value.has(challenge.titleKey)).length);
 const catalogTitleKeys = computed(() => new Set(props.challenges.map((challenge) => challenge.titleKey)));
 const endedGlobalTitles = computed(() => props.titles.filter((title) => title.scope === "global" && !catalogTitleKeys.value.has(title.titleKey)));
-const currentMapTitleKeys = computed(() => new Set(props.mapChallenges
-  .filter((challenge) => challenge.titleKey && props.maps.some((map) => map.mapId === challenge.mapId && map.defaultGameplayRevisionId === challenge.gameplayRevisionId))
-  .map((challenge) => `${challenge.mapId}:${challenge.gameplayRevisionId}:${challenge.titleKey}`)));
-const isCurrentMapTitle = (title: OwnedTitle) => title.scope === "map"
-  && Boolean(title.mapId && title.gameplayRevisionId)
-  && currentMapTitleKeys.value.has(`${title.mapId}:${title.gameplayRevisionId}:${title.titleKey}`);
-const groupHistoricalTitles = (titles: OwnedTitle[], groupName: (title: OwnedTitle) => string): HistoricalTitleGroup[] => {
-  const grouped = new Map<string, OwnedTitle[]>();
-  for (const title of titles) grouped.set(groupName(title), [...(grouped.get(groupName(title)) ?? []), title]);
-
-  const slotRank = { pioneer: 0, conqueror: 1, dominator: 2 } as const;
-  return [...grouped.entries()]
-    .map(([name, titles]) => ({
-      name,
-      titles: [...titles].sort((left, right) => (left.slot ? slotRank[left.slot] : 9) - (right.slot ? slotRank[right.slot] : 9) || left.label.localeCompare(right.label, "zh-CN")),
-    }))
-    .sort((left, right) => left.name.localeCompare(right.name, "zh-CN"));
-};
-const mapTitleGroups = computed(() => groupHistoricalTitles(
-  props.titles.filter((title) => title.scope === "map" && !isCurrentMapTitle(title)),
-  (title) => title.mapName ?? "地图称号",
-));
 const isAchievementCardEarned = (card: AchievementCard) => card.kind === "ended" || ownedTitleKeys.value.has(card.challenge.titleKey);
 const ownedGlobalTitleForCard = (card: AchievementCard) => card.kind === "ended"
   ? card.title
@@ -96,19 +70,7 @@ const cardTile = (card: AchievementCard): Tile => card.kind === "catalog"
       progress: card.challenge.progressRule ? progressByChallenge.value.get(card.challenge.challengeId) : undefined,
     }
   : { key: card.title.grantId, name: card.title.label, icon: { url: card.title.iconUrl, icon: card.title.icon }, condition: card.title.condition, owned: card.title, earned: true, note: "不再发放" };
-const titleTile = (title: OwnedTitle): Tile => ({
-  key: title.grantId,
-  name: title.label,
-  icon: { url: title.iconUrl, icon: title.icon },
-  condition: title.condition,
-  owned: title,
-  earned: true,
-  note: title.mapId && title.gameplayRevisionId && !props.maps.some((map) => map.mapId === title.mapId && map.defaultGameplayRevisionId === title.gameplayRevisionId) ? "历史版本" : undefined,
-});
-const tileGroups = computed(() => [
-  ...groups.value.map((group) => ({ name: group.category, tiles: group.cards.map(cardTile) })),
-  ...mapTitleGroups.value.map((group) => ({ name: group.name, tiles: group.titles.map(titleTile) })),
-]);
+const tileGroups = computed(() => groups.value.map((group) => ({ name: group.category, tiles: group.cards.map(cardTile) })));
 
 const selectedKey = shallowRef<string | null>(null);
 // Looked up live so the sheet reflects an equip change as soon as the titles prop updates.
