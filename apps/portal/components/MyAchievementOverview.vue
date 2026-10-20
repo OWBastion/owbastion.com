@@ -3,6 +3,7 @@ import type { PublicAchievement } from "./AchievementCatalog.vue";
 import type { OwnedTitle } from "~/types/title";
 import type { PlayerChallengeProgress, PortalMap } from "~/composables/usePortalApi";
 import { findOwnedTitle } from "~/utils/achievement-status";
+import { formatDate } from "~/utils/date-time";
 import { buildMapProgressRows, type MapProgressChallenge } from "~/utils/map-progress";
 
 type AchievementCard =
@@ -113,6 +114,7 @@ const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, 
           <AchievementIcon class="sheet__icon" entrance :url="selected.icon.url" :icon="selected.icon.icon" :earned="selected.earned" />
           <p v-if="selected.note" class="sheet__note">{{ selected.note }}</p>
           <p class="sheet__condition">{{ selected.condition }}</p>
+          <p v-if="selected.owned" class="sheet__granted num">获得于 {{ formatDate(selected.owned.grantedAt) }}</p>
           <p v-if="selected.progress" class="sheet__progress">
             <span v-for="progressMap in selected.progress.maps" :key="progressMap.mapId" :class="{ done: progressMap.completed }">{{ mapNameFor(progressMap.mapId) }}</span>
           </p>
@@ -151,6 +153,7 @@ const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, 
 .sheet__icon { --achievement-icon-size: 10rem; }
 .sheet__note { margin: 0; padding: var(--space-1) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-pill); color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 600; }
 .sheet__condition { margin: 0; color: var(--muted); }
+.sheet__granted { margin: 0; color: var(--quiet); font-size: var(--type-label-sm-size); }
 .sheet__progress { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-1); margin: 0; }
 .sheet__progress span { padding: 0 var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-pill); color: var(--quiet); font-size: var(--type-caption-size); }
 .sheet__progress span.done { border-color: color-mix(in oklch, var(--accent) 45%, var(--line)); color: var(--accent); }
