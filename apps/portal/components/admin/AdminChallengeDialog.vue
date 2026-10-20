@@ -185,8 +185,7 @@ function submit() {
     evidenceRule: form.evidenceRule.trim() || DEFAULT_EVIDENCE_RULE,
     submissionMode: form.submissionMode,
     status: challenge.status,
-    ...(isMapTitle.value ? { mapIds: [...form.mapIds] } : { mapIds: [] }),
-    ...(isMapTitle.value ? { mapVariant: form.mapVariant } : {}),
+    ...(isMapTitle.value ? { mapIds: [...form.mapIds], mapVariant: form.mapVariant } : {}),
     progressRule: rule,
     // The dialog never edits the announced sunset version; echo the stored one
     // so an in-place or replacement save does not silently clear a planned sunset.
