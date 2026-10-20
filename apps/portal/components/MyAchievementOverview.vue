@@ -106,10 +106,11 @@ const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, 
 
     <UEmpty v-if="!tileGroups.length && !mapProgressRows.length" title="暂无记录" variant="naked" />
 
-    <UModal v-model:open="sheetOpen" :title="selected?.name ?? ''" :description="selected?.note">
+    <UModal v-model:open="sheetOpen" :title="selected?.name ?? ''">
       <template #body>
         <div v-if="selected" class="sheet">
           <AchievementIcon class="sheet__icon" entrance :url="selected.icon.url" :icon="selected.icon.icon" :earned="selected.earned" />
+          <p v-if="selected.note" class="sheet__note">{{ selected.note }}</p>
           <p class="sheet__condition">{{ selected.condition }}</p>
           <p v-if="selected.progress" class="sheet__progress">
             <span v-for="progressMap in selected.progress.maps" :key="progressMap.mapId" :class="{ done: progressMap.completed }">{{ mapNameFor(progressMap.mapId) }}</span>
@@ -146,7 +147,8 @@ const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, 
 .map .num { color: var(--quiet); font-size: var(--type-label-sm-size); }
 .map.is-complete .num { color: var(--accent); font-weight: 700; }
 .sheet { display: grid; justify-items: center; gap: var(--space-4); text-align: center; }
-.sheet__icon { --achievement-icon-size: 7rem; }
+.sheet__icon { --achievement-icon-size: 10rem; }
+.sheet__note { margin: 0; padding: var(--space-1) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-pill); color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 600; }
 .sheet__condition { margin: 0; color: var(--muted); }
 .sheet__progress { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-1); margin: 0; }
 .sheet__progress span { padding: 0 var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-pill); color: var(--quiet); font-size: var(--type-caption-size); }
