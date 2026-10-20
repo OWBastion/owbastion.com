@@ -5,15 +5,7 @@ import { adminPathActive, adminSectionGroups } from "~/utils/admin-sections";
 const { player, loaded, refresh, logout } = useCurrentPlayer();
 const loggingOut = ref(false);
 const menuOpen = ref(false);
-const menuButton = ref<HTMLButtonElement | null>(null);
-const menuPanel = ref<HTMLElement | null>(null);
 const route = useRoute();
-const menuFocusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
-function menuFocusableElements(panel: HTMLElement): HTMLElement[] {
-  return Array.from(panel.querySelectorAll<HTMLElement>(menuFocusableSelector))
-    .filter((element) => !element.hasAttribute("disabled") && element.getAttribute("aria-hidden") !== "true");
-}
 const isAdminPage = computed(() => route.path.startsWith("/admin"));
 const adminNavigationItems = computed(() => [
   { label: "总览", icon: "i-lucide-layout-dashboard", to: "/admin", active: route.path === "/admin" },
@@ -52,92 +44,12 @@ const tabItems = computed(() => {
 
 onMounted(() => { if (!loaded.value) void refresh(); });
 
-/** Disclosure close. Only restore focus when the menu was closed while focus was inside the panel. */
-function closeMenu(returnFocus = false) {
-  if (!menuOpen.value) return;
-  menuOpen.value = false;
-  if (returnFocus) nextTick(() => menuButton.value?.focus());
-}
-
-function focusFirstMenuControl() {
-  const panel = menuPanel.value;
-  if (!panel) return;
-  menuFocusableElements(panel)[0]?.focus();
-}
-
-function toggleMenu() {
-  menuOpen.value = !menuOpen.value;
-  if (menuOpen.value) nextTick(focusFirstMenuControl);
-}
-
 /** Dismiss the sheet only after a leaf destination is chosen, not when expanding a group. */
 function handleMobileNavClick(event: MouseEvent) {
-  const target = event.target;
-  if (!(target instanceof Element)) return;
-  if (!target.closest("a[href]")) return;
-  closeMenu(false);
+  if (event.target instanceof Element && event.target.closest("a[href]")) menuOpen.value = false;
 }
 
-/** Keep Tab ownership inside the open mobile nav (last -> first, Shift+Tab first -> last). */
-function handleMenuKeydown(event: KeyboardEvent) {
-  if (event.key !== "Tab") return;
-  const panel = menuPanel.value;
-  if (!panel) return;
-  const focusables = menuFocusableElements(panel);
-  const first = focusables[0];
-  const last = focusables[focusables.length - 1];
-  if (!first || !last) return;
-  const target = event.target;
-  if (!(target instanceof Node) || !panel.contains(target)) return;
-  if (event.shiftKey) {
-    if (target === first) {
-      event.preventDefault();
-      last.focus();
-    }
-  } else if (target === last) {
-    event.preventDefault();
-    first.focus();
-  }
-}
-
-function handleDocumentPointerDown(event: PointerEvent) {
-  if (!menuOpen.value) return;
-  const target = event.target;
-  if (!(target instanceof Node)) return;
-  const wrap = menuButton.value?.closest(".app-header-wrap");
-  if (target instanceof Element && target.closest(".mobile-nav-scrim")) {
-    closeMenu(false);
-    return;
-  }
-  if (wrap?.contains(target)) return;
-  closeMenu(false);
-}
-
-function handleDocumentKeydown(event: KeyboardEvent) {
-  if (event.key !== "Escape" || !menuOpen.value) return;
-  // Escape always closes; restore focus to the trigger so keyboard users leave the disclosure predictably.
-  closeMenu(true);
-}
-
-watch(() => route.fullPath, () => {
-  if (menuOpen.value) closeMenu(false);
-});
-
-watch(menuOpen, (open) => {
-  if (!import.meta.client) return;
-  document.body.style.overflow = open ? "hidden" : "";
-});
-
-onMounted(() => {
-  document.addEventListener("pointerdown", handleDocumentPointerDown);
-  document.addEventListener("keydown", handleDocumentKeydown);
-});
-
-onBeforeUnmount(() => {
-  document.removeEventListener("pointerdown", handleDocumentPointerDown);
-  document.removeEventListener("keydown", handleDocumentKeydown);
-  if (import.meta.client) document.body.style.overflow = "";
-});
+watch(() => route.fullPath, () => { menuOpen.value = false; });
 
 async function signOut() {
   loggingOut.value = true;
@@ -152,14 +64,6 @@ async function signOut() {
 
 <template>
   <header class="app-header-wrap" :class="{ 'app-header-wrap--admin': isAdminPage }">
-    <Transition name="mobile-nav-scrim">
-      <div
-        v-if="menuOpen"
-        class="mobile-nav-scrim"
-        aria-hidden="true"
-        @pointerdown="closeMenu(false)"
-      />
-    </Transition>
     <div class="app-header glass">
       <NuxtLink to="/" class="brand pressable" aria-label="躲避堡垒 3 首页">
         <img class="brand-mark" src="/logo.png" alt="" width="26" height="26" />
@@ -179,32 +83,15 @@ async function signOut() {
         </NuxtLink>
         <span v-if="player" class="account-name">{{ player.player.playerName }}</span>
       </div>
-      <button
-        ref="menuButton"
-        class="mobile-menu-toggle pressable"
-        type="button"
-        :aria-label="menuOpen ? '关闭菜单' : '打开菜单'"
-        :aria-expanded="menuOpen"
-        :aria-controls="menuOpen ? 'mobile-nav' : undefined"
-        @click="toggleMenu"
-      >
-        <UIcon :name="menuOpen ? 'i-lucide-x' : 'i-lucide-menu'" aria-hidden="true" />
-      </button>
+      <USlideover v-model:open="menuOpen" side="right" title="导航菜单" description="站点导航" :ui="{ header: 'sr-only', content: 'max-w-sm' }">
+        <UButton class="mobile-menu-toggle" icon="i-lucide-menu" color="neutral" variant="ghost" aria-label="打开菜单" />
+        <template #body>
+          <nav id="mobile-nav" :aria-label="isAdminPage ? '移动端管理导航' : '移动端主导航'" @click="handleMobileNavClick">
+            <LazyUNavigationMenu :items="isAdminPage ? adminNavigationItems : siteNavigationItems" orientation="vertical" highlight variant="pill" />
+          </nav>
+        </template>
+      </USlideover>
     </div>
-    <!-- No mode="out-in": leave can be interrupted mid-flight when reopening. -->
-    <Transition name="mobile-nav">
-      <nav
-        v-if="menuOpen"
-        id="mobile-nav"
-        ref="menuPanel"
-        class="mobile-nav glass-heavy elevation-2"
-        :aria-label="isAdminPage ? '移动端管理导航' : '移动端主导航'"
-        @keydown="handleMenuKeydown"
-        @click="handleMobileNavClick"
-      >
-        <LazyUNavigationMenu :items="isAdminPage ? adminNavigationItems : siteNavigationItems" orientation="vertical" highlight variant="pill" />
-      </nav>
-    </Transition>
     <nav v-if="!isAdminPage" class="tab-bar glass" aria-label="快捷导航">
       <NuxtLink v-for="item in tabItems" :key="item.to" :to="item.to" class="tab-bar__item" :class="{ 'is-active': item.active }" :aria-current="item.active ? 'page' : undefined">
         <UIcon :name="item.icon" aria-hidden="true" />
@@ -231,18 +118,10 @@ async function signOut() {
 .login-link { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 2.25rem; padding: 0 var(--space-4); border-radius: var(--radius-control); color: var(--on-accent); background: var(--accent); font-weight: 700; text-decoration: none; clip-path: polygon(0 0, 100% 0, 100% calc(100% - .5rem), calc(100% - .5rem) 100%, 0 100%); }
 @media (pointer: coarse) { .login-link { min-height: var(--control-lg); } }
 .login-link:hover, .login-link:focus-visible { background: color-mix(in oklch, var(--accent) 86%, white); }
-.mobile-nav-scrim { position: fixed; z-index: 0; inset: 0; background: color-mix(in oklch, black 48%, transparent); }
-.mobile-menu-toggle { display: inline-grid; flex: 0 0 var(--control-lg); width: var(--control-lg); height: var(--control-lg); place-items: center; padding: 0; border: 0; border-radius: var(--radius-control); color: var(--text); background: transparent; }
-.mobile-menu-toggle [class*="i-lucide-"] { width: 1.25rem; height: 1.25rem; }
-.mobile-nav { position: absolute; z-index: 2; inset: calc(100% + var(--space-2)) var(--space-3) auto; display: grid; gap: var(--space-1); max-height: min(70dvh, calc(100dvh - var(--sticky-chrome-top) - 6rem)); padding: var(--space-2); overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--line-strong); border-radius: var(--radius-card); transform-origin: top right; }
-.mobile-nav :deep(ul) { display: grid; gap: var(--space-1); }
-.mobile-nav :deep([data-slot="link"]), .mobile-nav :deep([data-slot="trigger"]) { min-height: 2.75rem; border-radius: var(--radius-control); color: var(--text-on-glass-secondary); font-weight: 500; }
-.mobile-nav :deep([data-slot="content"]) { padding-inline-start: var(--space-2); }
-.mobile-nav :deep([data-active="true"]) { color: var(--accent); }
 .tab-bar { display: none; }
 
 @media (min-width: 64rem) {
-  .mobile-menu-toggle, .mobile-nav, .mobile-nav-scrim { display: none; }
+  .mobile-menu-toggle { display: none; }
   /* Aligns with .page-shell: min(100% - 3rem, 90rem). */
   .app-header { gap: var(--space-8); padding-inline: max(1.5rem, calc((100% - 90rem) / 2)); }
   .main-nav { display: block; flex: 1; min-width: 0; align-self: stretch; }
@@ -274,23 +153,10 @@ async function signOut() {
   .tab-bar__item.is-active { color: var(--accent); }
   .tab-bar__item.is-active::before { content: ""; position: absolute; top: calc(var(--space-1) * -1); width: 1.5rem; height: 2px; background: var(--accent); }
 }
-/* Symmetric enter/leave; no spatial transform under reduced motion. */
-@media (prefers-reduced-motion: no-preference) {
-  .mobile-nav-enter-active { transition: opacity 160ms ease, transform 160ms cubic-bezier(.2, .7, .2, 1); }
-  .mobile-nav-leave-active { transition: opacity 140ms ease, transform 140ms cubic-bezier(.8, 0, .8, .3); }
-  .mobile-nav-enter-from, .mobile-nav-leave-to { opacity: 0; transform: translateY(-0.375rem) scale(.98); }
-  .mobile-nav-enter-to, .mobile-nav-leave-from { opacity: 1; transform: translateY(0) scale(1); }
-}
-.mobile-nav-scrim-enter-active, .mobile-nav-scrim-leave-active { transition: opacity 160ms ease; }
-.mobile-nav-scrim-enter-from, .mobile-nav-scrim-leave-to { opacity: 0; }
-@media (prefers-reduced-motion: reduce) {
-  .mobile-nav-enter-active, .mobile-nav-leave-active, .mobile-nav-scrim-enter-active, .mobile-nav-scrim-leave-active { transition: opacity 150ms ease; }
-  .mobile-nav-enter-from, .mobile-nav-leave-to { opacity: 0; transform: none; }
-}
 @media (prefers-reduced-transparency: reduce) {
-  .mobile-nav, .tab-bar { background: var(--surface); }
+  .tab-bar { background: var(--surface); }
 }
 @media (prefers-contrast: more) {
-  .mobile-nav, .login-link, .tab-bar { border-color: var(--text); }
+  .login-link, .tab-bar { border-color: var(--text); }
 }
 </style>

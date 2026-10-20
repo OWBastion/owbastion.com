@@ -76,19 +76,19 @@ onMounted(() => { hydrated.value = true; });
   <section class="event-directory" aria-label="随机事件目录">
     <div class="filters">
       <UInput v-model="filters.query" class="filters__search" size="lg" icon="i-lucide-search" placeholder="搜索" aria-label="搜索事件" />
-      <div v-if="categoryOptions.length > 1" class="seg" role="group" aria-label="按类别筛选">
-        <button type="button" :aria-pressed="!filters.categories.length" @click="filters.categories = []">全部</button>
-        <button v-for="category in categoryOptions" :key="category" type="button" :aria-pressed="isOn('categories', category)" @click="filters.categories = isOn('categories', category) ? [] : [category]">{{ category }}</button>
+      <div v-if="categoryOptions.length > 1" class="flex flex-wrap gap-2" role="group" aria-label="按类别筛选">
+        <FilterChip label="全部" :pressed="!filters.categories.length" @toggle="filters.categories = []" />
+        <FilterChip v-for="category in categoryOptions" :key="category" :label="category" :pressed="isOn('categories', category)" @toggle="filters.categories = isOn('categories', category) ? [] : [category]" />
       </div>
-      <div class="seg" role="group" aria-label="排序方式">
-        <button v-for="option in sortOptions" :key="option.value" type="button" :aria-pressed="sort === option.value" @click="sort = option.value">{{ option.label }}</button>
+      <div class="flex flex-wrap gap-2" role="group" aria-label="排序方式">
+        <FilterChip v-for="option in sortOptions" :key="option.value" :label="option.label" :pressed="sort === option.value" @toggle="sort = option.value" />
       </div>
       <UPopover>
         <UButton icon="i-lucide-sliders-horizontal" :label="extraFilterCount ? String(extraFilterCount) : undefined" color="neutral" :variant="extraFilterCount ? 'soft' : 'ghost'" aria-label="更多筛选" />
         <template #content>
           <div class="filters__more">
-            <div class="seg" role="group" aria-label="筛选事件状态">
-              <button v-for="option in statusOptions" :key="option.value" type="button" :aria-pressed="filters.status === option.value" @click="filters.status = option.value">{{ option.label }}</button>
+            <div class="flex flex-wrap gap-2" role="group" aria-label="筛选事件状态">
+              <FilterChip v-for="option in statusOptions" :key="option.value" :label="option.label" :pressed="filters.status === option.value" @toggle="filters.status = option.value" />
             </div>
             <USelect v-model="filters.version" :items="versionOptions" aria-label="筛选事件版本" />
             <fieldset v-for="[label, facet, options] in facetSections" :key="facet" class="filters__facet">

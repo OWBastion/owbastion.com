@@ -216,9 +216,7 @@ const rangeText = (season: AdminSeason) => `${formatSeasonDate(season.startsAt)}
     </section>
 
     <div class="filters" role="group" aria-label="按状态筛选">
-      <button v-for="option in visibleFilters" :key="option.key" type="button" class="filter pressable" :aria-pressed="filter === option.key" @click="filter = option.key">
-        {{ option.label }}<small class="num">{{ counts[option.key] }}</small>
-      </button>
+      <FilterChip v-for="option in visibleFilters" :key="option.key" :label="option.label" :count="counts[option.key]" :pressed="filter === option.key" @toggle="filter = option.key" />
     </div>
 
     <p v-if="!adminData.loading.value && !seasons.length" class="text-sm text-muted">还没有赛季。</p>
@@ -293,9 +291,6 @@ const rangeText = (season: AdminSeason) => `${formatSeasonDate(season.startsAt)}
 .timeline__month { position: absolute; bottom: 0; color: var(--quiet); font-size: var(--type-caption-size); white-space: nowrap; transform: translateX(-50%); }
 
 .filters { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.filter { display: inline-flex; align-items: center; gap: var(--space-1); min-height: var(--control-sm); padding: 0 var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-pill); background: var(--surface); color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 500; cursor: pointer; }
-.filter small { color: var(--quiet); font-size: var(--type-caption-size); }
-.filter[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-surface); color: var(--text); font-weight: 600; }
 
 .season-list { display: grid; margin: 0; padding: 0; overflow: hidden; list-style: none; }
 .season-row { display: grid; grid-template-columns: minmax(0, 1fr) 6rem 7rem 7rem auto; align-items: center; gap: var(--space-2) var(--space-4); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); font-size: var(--type-body-sm-size); }

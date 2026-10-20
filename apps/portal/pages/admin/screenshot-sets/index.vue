@@ -184,7 +184,7 @@ watch(statusFilter, () => { page.value = 1; }, { flush: 'sync' });
         <p class='set-dialog-message'>合格候选 {{ draftCandidates.length }} 张 · 本次排除 {{ excludedSourceIds.length }} 张</p>
         <div v-if='draftCandidates.length' class='set-candidate-list'>
           <label v-for='candidate in draftCandidates' :key='candidate.sourceId' class='set-candidate'>
-            <input v-model='excludedSourceIds' type='checkbox' :value='candidate.sourceId' />
+            <UCheckbox :model-value='excludedSourceIds.includes(candidate.sourceId)' :aria-label='`排除 ${candidate.mapName}`' @update:model-value='excludedSourceIds = $event === true ? [...excludedSourceIds, candidate.sourceId] : excludedSourceIds.filter((id) => id !== candidate.sourceId)' />
             <img v-if='candidate.evidenceUrl' :src='candidate.evidenceUrl' class='set-thumb' alt='' loading='lazy' />
             <span><strong>{{ candidate.mapName }}</strong><span class='table-meta'>{{ accuracyLabel(candidate.accuracy) }} · {{ candidate.layoutVersion }}</span></span>
           </label>

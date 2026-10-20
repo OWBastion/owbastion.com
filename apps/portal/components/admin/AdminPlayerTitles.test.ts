@@ -109,9 +109,9 @@ describe("AdminPlayerTitles", () => {
     await flushPromises();
     (wrapper.vm as unknown as { openEquip: () => void }).openEquip();
     await flushPromises();
-    const checkboxes = wrapper.get("fieldset").findAll("input[type='checkbox']");
+    const checkboxes = wrapper.get("fieldset").findAll("button[role='checkbox']");
     expect(checkboxes).toHaveLength(11);
-    await checkboxes[0]!.setValue(true);
+    await checkboxes[0]!.trigger("click");
     await wrapper.get("form#recover-player-titles").trigger("submit");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/player-accounts/player-1/titles/equipped", expect.objectContaining({ method: "PUT", body: { contractVersion: "1", grantIds: [titleGrants[0]!.grantId] } }));

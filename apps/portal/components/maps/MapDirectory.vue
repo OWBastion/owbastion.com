@@ -91,8 +91,8 @@ watch(modalOpen, (open) => {
   <section class="map-directory" aria-label="地图列表">
     <div v-if="props.maps.length" class="map-toolbar">
       <UInput v-model="query" class="map-toolbar__search" size="lg" icon="i-lucide-search" placeholder="搜索" aria-label="搜索地图" />
-      <div class="seg" role="group" aria-label="按评级筛选">
-        <button v-for="option in ratingOptions" :key="option.value" type="button" :aria-pressed="ratingFilter === option.value" @click="ratingFilter = option.value">{{ option.label }}</button>
+      <div class="flex flex-wrap gap-2" role="group" aria-label="按评级筛选">
+        <FilterChip v-for="option in ratingOptions" :key="option.value" :label="option.label" :pressed="ratingFilter === option.value" @toggle="ratingFilter = option.value" />
       </div>
     </div>
     <div v-if="groups.length" class="map-groups">

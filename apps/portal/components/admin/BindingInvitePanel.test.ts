@@ -64,7 +64,7 @@ describe("BindingInvitePanel", () => {
     const wrapper = await mountSuspended(BindingInvitePanel, { attachTo: document.body });
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith(expect.stringContaining("filter=pending"));
-    await wrapper.findAll('[role="option"]').find((option) => option.text().includes("历史玩家"))!.trigger("click");
+    await wrapper.get('button[role="radio"]').trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith(expect.stringContaining("/v1/title-grants/holder?holderName="));
     await wrapper.get('input[aria-label="目标 BattleTag"]').setValue("玩家#1234");
@@ -81,7 +81,7 @@ describe("BindingInvitePanel", () => {
     detailResponseOverride = new Promise((resolve) => { resolveDetail = resolve; });
     const wrapper = await mountSuspended(BindingInvitePanel, { attachTo: document.body });
     await flushPromises();
-    await wrapper.findAll('[role="option"]').find((option) => option.text().includes("历史玩家"))!.trigger("click");
+    await wrapper.get('button[role="radio"]').trigger("click");
     await wrapper.get('input[aria-label="目标 BattleTag"]').setValue("玩家#1234");
     expect(wrapper.get('button[type="submit"]').attributes("disabled")).toBeDefined();
     resolveDetail({
@@ -103,9 +103,9 @@ describe("BindingInvitePanel", () => {
 
     it("switches modes with aria-pressed chips and hides historical title authorization in batch", async () => {
       const wrapper = await openBatch();
-      const chips = wrapper.findAll(".invite-panel__mode");
+      const chips = wrapper.findAll('[aria-label="生成方式"] button');
       expect(chips.map((chip) => chip.attributes("aria-pressed"))).toEqual(["false", "true"]);
-      expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+      expect(wrapper.find('[role="radiogroup"]').exists()).toBe(false);
       expect(wrapper.text()).not.toContain("历史称号");
     });
 

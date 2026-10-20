@@ -37,8 +37,8 @@ describe("MapDirectory", () => {
 
   it("narrows to one rating and by search text over names and mechanics", async () => {
     const wrapper = await mount();
-    const filter = (label: string) => wrapper.findAll(".seg button").find((button) => button.text() === label)!;
-    expect(wrapper.findAll(".seg button").map((button) => button.text())).toEqual(["全部", "T0", "T2", "T5", "未评级"]);
+    const filter = (label: string) => wrapper.findAll('[aria-label="按评级筛选"] button').find((button) => button.text() === label)!;
+    expect(wrapper.findAll('[aria-label="按评级筛选"] button').map((button) => button.text())).toEqual(["全部", "T0", "T2", "T5", "未评级"]);
 
     await filter("T2").trigger("click");
     expect(cards(wrapper)).toEqual(["阿尔卑斯", "多拉多"]);

@@ -150,7 +150,7 @@ onMounted(() => { void loadCandidates(); });
   <section class="invite-panel surface-card" aria-labelledby="invite-panel-title">
     <header class="invite-panel__header"><div><h2 id="invite-panel-title">生成绑定邀请码</h2></div><span class="invite-panel__count glass-chip">{{ mode === "batch" ? batchCountLabel : "管理员授权" }}</span></header>
     <div class="invite-panel__modes" role="group" aria-label="生成方式">
-      <button v-for="[value, label] in ([['single', '单个'], ['batch', '批量']] as const)" :key="value" type="button" class="glass-chip invite-panel__mode" :aria-pressed="mode === value" @click="setMode(value)">{{ label }}</button>
+      <FilterChip v-for="[value, label] in ([['single', '单个'], ['batch', '批量']] as const)" :key="value" :label="label" :pressed="mode === value" @toggle="setMode(value)" />
     </div>
     <form v-if="mode === 'batch'" class="invite-panel__form" @submit.prevent="createBatch">
       <UTextarea v-model="batchInput" :rows="7" aria-label="BattleTag 列表" placeholder="玩家名称#1234&#10;另一位玩家#5678" />
@@ -165,9 +165,11 @@ onMounted(() => { void loadCandidates(); });
         <UInput v-model="query" icon="i-lucide-search" placeholder="搜索历史持有者或称号" aria-label="搜索历史持有者或称号" @update:model-value="debouncedLoad" />
         <div v-if="loading" class="historical-state" role="status">读取中…</div>
         <div v-else-if="!holders.length" class="historical-state">暂无未关联称号。</div>
-        <div v-else class="historical-holders" role="listbox" aria-label="选择历史持有者">
-          <button v-for="holder in holders" :key="holder.holderName" type="button" class="historical-holder" :class="{ 'historical-holder--selected': selectedHolderName === holder.holderName }" role="option" :aria-selected="selectedHolderName === holder.holderName" @click="selectHolder(holder.holderName)"><strong>{{ holder.holderName }}</strong><small>{{ holder.unclaimedCount }} 项未关联</small></button>
-        </div>
+        <URadioGroup
+          v-else :model-value="selectedHolderName" :items="holders.map((holder) => ({ value: holder.holderName, label: holder.holderName, description: `${holder.unclaimedCount} 项未关联` }))" variant="table" indicator="hidden" legend="选择历史持有者"
+          class="historical-holders" :ui="{ legend: 'sr-only', fieldset: 'gap-0', item: 'rounded-none' }" @update:model-value="selectHolder(String($event))"
+        />
+        <UButton v-if="selectedHolderName" type="button" label="清除选择" color="neutral" variant="ghost" size="sm" class="justify-self-start" @click="selectHolder(selectedHolderName)" />
         <div v-if="detailLoading" class="historical-state" role="status">读取持有者详情…</div>
         <div v-else-if="selectedHolder" class="historical-preview" aria-live="polite"><strong>{{ selectedHolder.holderName }}</strong><ul><li v-for="grant in selectedHolder.grants.slice(0, 6)" :key="grant.grantId"><span>{{ grant.label }}</span><small>{{ grant.mapName || grant.category }}</small></li><li v-if="selectedHolder.grants.length > 6" class="historical-preview__more">另有 {{ selectedHolder.grants.length - 6 }} 项</li></ul></div>
       </section>
@@ -179,21 +181,13 @@ onMounted(() => { void loadCandidates(); });
 </template>
 
 <style scoped>
-.invite-panel__modes { display: flex; gap: var(--space-2); }
-.invite-panel__mode { cursor: pointer; }
-.invite-panel__mode[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-surface); color: var(--accent); font-weight: 600; }
 .invite-panel__form { display: grid; gap: var(--space-4); }
 .invite-panel__validation { margin: calc(-1 * var(--space-2)) 0 0; color: var(--danger); font-size: var(--type-label-sm-size); line-height: 1.5; }
 .historical-section { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-control); background: color-mix(in oklch, var(--surface-raised) 62%, transparent); }
 .historical-section__heading { display: flex; justify-content: space-between; gap: var(--space-3); }
 .historical-section h3 { margin: 0; font-size: var(--type-label-size); }
 .historical-section p { margin: var(--space-1) 0 0; color: var(--muted); font-size: var(--type-caption-size); line-height: 1.5; }
-.historical-holders { display: grid; max-height: 220px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius-control); }
-.historical-holder { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); border: 0; color: var(--text); background: var(--surface); text-align: left; }
-.historical-holder + .historical-holder { border-top: 1px solid var(--line); }
-.historical-holder:hover, .historical-holder--selected { background: var(--accent-surface); }
-.historical-holder:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
-.historical-holder small, .historical-preview small, .historical-preview__more, .historical-state { color: var(--quiet); font-size: var(--type-caption-size); }
+.historical-holders { max-height: 220px; overflow-y: auto; }
 .historical-state { padding: var(--space-4); text-align: center; }
 .historical-preview { display: grid; gap: var(--space-2); }
 .historical-preview ul { display: grid; gap: 1px; max-height: 190px; margin: 0; padding: 0; overflow-y: auto; list-style: none; border: 1px solid var(--line); border-radius: var(--radius-control); }

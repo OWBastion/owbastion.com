@@ -274,17 +274,13 @@ function submit() {
           <p class="type-caption">玩家已持有这个称号时，不会从新挑战重复获得。</p>
         </div>
 
-        <fieldset v-if="mode === 'edit' && !qualificationChanged && textChanged" class="challenge-dialog-form__wide challenge-save-mode">
-          <legend>这次修改怎么保存</legend>
-          <label class="challenge-save-mode__option">
-            <input v-model="form.saveMode" type="radio" value="in_place" :disabled="saving" />
-            <span class="title-cell-stack"><span>原地更新</span><small class="table-meta">还是同一条挑战，已获得的记录和进行中的提交都不变。适合修正措辞。</small></span>
-          </label>
-          <label class="challenge-save-mode__option">
-            <input v-model="form.saveMode" type="radio" value="new_challenge" :disabled="saving" />
-            <span class="title-cell-stack"><span>保存为新挑战</span><small class="table-meta">当前挑战结束，新挑战接替。适合条件实际变了的情况。</small></span>
-          </label>
-        </fieldset>
+        <URadioGroup
+          v-if="mode === 'edit' && !qualificationChanged && textChanged" v-model="form.saveMode" class="challenge-dialog-form__wide" legend="这次修改怎么保存" :disabled="saving"
+          :items="[
+            { value: 'in_place', label: '原地更新', description: '还是同一条挑战，已获得的记录和进行中的提交都不变。适合修正措辞。' },
+            { value: 'new_challenge', label: '保存为新挑战', description: '当前挑战结束，新挑战接替。适合条件实际变了的情况。' },
+          ]"
+        />
       </form>
     </template>
     <template #footer>
@@ -305,10 +301,6 @@ function submit() {
 .challenge-enable__hint { color: var(--quiet); font-size: .75rem; }
 .challenge-siblings { display: grid; gap: var(--space-2); }
 .challenge-siblings__item { margin: 0; padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); font-size: .8125rem; }
-.challenge-save-mode { margin: 0; padding: var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-control); display: grid; gap: var(--space-2); }
-.challenge-save-mode legend { padding: 0 var(--space-1); font-size: .8125rem; font-weight: 500; color: var(--muted); }
-.challenge-save-mode__option { display: flex; align-items: flex-start; gap: var(--space-2); font-size: .875rem; cursor: pointer; }
-.challenge-save-mode__option input { margin-top: .2rem; }
 .title-cell-stack { display: grid; gap: 2px; }
 .table-meta { color: var(--quiet); font-size: var(--type-caption-size); }
 @container (max-width: 36rem) {
