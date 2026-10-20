@@ -97,13 +97,13 @@ describe("admin events workbench", () => {
     for (const name of ["梭哈", "先知"]) await rowOf(wrapper, name).get('input[type="checkbox"]').setValue(true);
     expect(wrapper.text()).toContain("已选 2 项");
 
-    const group = wrapper.get('select[aria-label="设事件组"]');
-    (group.element as HTMLSelectElement).value = "__clear";
-    await group.trigger("change");
+    const group = wrapper.findAllComponents({ name: "USelect" }).find((select) => select.props("placeholder") === "设事件组…")!;
+    group.vm.$emit("update:modelValue", "__clear");
+    await flushPromises();
     expect(wrapper.get('[role="status"]').text()).toContain("2 项未保存的修改");
-    expect((rowOf(wrapper, "梭哈").get('select[aria-label="事件组"]').element as HTMLSelectElement).value).toBe("");
+    expect(rowOf(wrapper, "梭哈").get('[aria-label="事件组"]').text()).toBe("—");
 
-    await wrapper.findAll(".action-bar__op").find((button) => button.text() === "×")!.trigger("click");
+    await wrapper.findAll("button").find((button) => button.text() === "×")!.trigger("click");
     await wrapper.get('input[aria-label="权重数值"]').setValue("0.5");
     await wrapper.findAll("button").find((button) => button.text() === "应用")!.trigger("click");
     expect((rowOf(wrapper, "梭哈").get('input[aria-label="权重"]').element as HTMLInputElement).value).toBe("0.5");

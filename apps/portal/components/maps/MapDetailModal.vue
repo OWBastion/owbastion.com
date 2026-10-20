@@ -123,7 +123,7 @@ onMounted(() => { hydrated.value = true; });
 .challenge-list li + li { border-top: 1px solid var(--line); }
 .challenge-list li { display: flex; align-items: center; padding-block: var(--space-3); justify-content: space-between; gap: var(--space-3); }
 .challenge-list strong { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; color: var(--text); font-size: .84rem; }
-.challenge-list span:not(.status-badge) { flex: 0 0 auto; color: var(--quiet); font-size: .76rem; }
+.challenge-list span { flex: 0 0 auto; color: var(--quiet); font-size: .76rem; }
 @container (max-width: 23.99rem) {
   .detail-content { padding-inline: max(var(--space-4), env(safe-area-inset-left)) max(var(--space-4), env(safe-area-inset-right)); }
   .detail-section { gap: var(--space-3); padding: var(--space-4) 0; }
