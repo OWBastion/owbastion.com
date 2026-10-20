@@ -37,6 +37,47 @@ watch(iconFile, (file) => {
   iconPreviewUrl.value = file ? URL.createObjectURL(file) : "";
 });
 onBeforeUnmount(() => { if (iconPreviewUrl.value) URL.revokeObjectURL(iconPreviewUrl.value); });
+const api = useAdminApi();
+type CdnImage = { name: string; url: string };
+const cdnPickerOpen = shallowRef(false);
+const cdnImages = shallowRef<CdnImage[] | null>(null);
+const cdnLoading = shallowRef(false);
+const cdnError = shallowRef("");
+const cdnQuery = shallowRef("");
+const filteredCdnImages = computed(() => {
+  const query = cdnQuery.value.trim().toLowerCase();
+  return (cdnImages.value ?? []).filter((image) => image.name.toLowerCase().includes(query));
+});
+// A same-named .png/.webp pair is one image; keep the WebP, which is what the CDN serves smaller.
+const cdnChoices = computed(() => {
+  const byStem = new Map<string, CdnImage>();
+  for (const image of filteredCdnImages.value) {
+    const stem = image.name.replace(/\.[^.]+$/, "");
+    if (!byStem.has(stem) || image.name.endsWith(".webp")) byStem.set(stem, image);
+  }
+  return [...byStem.values()];
+});
+async function loadCdnImages() {
+  cdnLoading.value = true;
+  cdnError.value = "";
+  try {
+    cdnImages.value = (await api<{ items: CdnImage[] }>("/v1/title-images")).items;
+  } catch {
+    cdnError.value = "无法读取 CDN 图片，请稍后重试。";
+  } finally {
+    cdnLoading.value = false;
+  }
+}
+watch(cdnPickerOpen, (open) => {
+  if (!open) return;
+  cdnQuery.value = "";
+  void loadCdnImages();
+});
+function pickCdnImage(image: CdnImage) {
+  iconFile.value = null;
+  form.iconUrl = image.url;
+  cdnPickerOpen.value = false;
+}
 const fileInput = useTemplateRef<HTMLInputElement>("fileInput");
 const iconPickerOpen = shallowRef(false);
 const form = reactive({
@@ -208,10 +249,27 @@ function submitEdit() {
               <div class="image-source__actions">
                 <input ref="fileInput" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" tabindex="-1" @change="onFileChosen">
                 <UButton type="button" color="neutral" variant="outline" icon="i-lucide-upload" label="上传图片" :disabled="saving" @click="fileInput?.click()" />
+                <UPopover v-model:open="cdnPickerOpen">
+                  <UButton type="button" color="neutral" variant="outline" icon="i-lucide-images" label="从 CDN 选择" :disabled="saving" />
+                  <template #content>
+                    <div class="cdn-picker">
+                      <UInput v-model="cdnQuery" class="w-full" icon="i-lucide-search" placeholder="搜索文件名" aria-label="搜索 CDN 图片" />
+                      <p v-if="cdnLoading" class="cdn-picker__status">正在读取…</p>
+                      <p v-else-if="cdnError" class="cdn-picker__status">{{ cdnError }}</p>
+                      <p v-else-if="!cdnChoices.length" class="cdn-picker__status">没有匹配的图片。</p>
+                      <div v-else class="cdn-picker__grid" role="listbox" aria-label="选择 CDN 图片">
+                        <button v-for="image in cdnChoices" :key="image.url" type="button" role="option" class="cdn-picker__item" :aria-selected="image.url === trimmedIconUrl" :title="image.name" @click="pickCdnImage(image)">
+                          <img :src="image.url" alt="" loading="lazy" />
+                          <span>{{ image.name.replace(/\.[^.]+$/, "").replace(/^achievement-/, "") }}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </template>
+                </UPopover>
                 <UButton v-if="customImage" type="button" color="neutral" variant="ghost" icon="i-lucide-x" label="移除" :disabled="saving" @click="clearCustomImage" />
                 <span v-if="iconFile" class="image-source__file">{{ iconFile.name }}</span>
               </div>
-              <UInput v-model="form.iconUrl" class="w-full" type="url" placeholder="或粘贴 CDN 链接 https://…" maxlength="2048" :disabled="saving" @update:model-value="onIconUrlInput" />
+              <UInput v-model="form.iconUrl" class="w-full" type="url" placeholder="已选图片的 CDN 链接，也可直接粘贴" maxlength="2048" :disabled="saving" @update:model-value="onIconUrlInput" />
               <p class="image-source__hint">PNG、JPEG 或 WebP。设置后优先于上方图标。</p>
             </div>
           </div>
@@ -269,6 +327,14 @@ function submitEdit() {
 .icon-grid__item { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; font-size: 1.25rem; border: 1px solid transparent; border-radius: var(--radius-control); background: transparent; color: inherit; cursor: pointer; }
 .icon-grid__item:hover { background: var(--surface-raised); }
 .icon-grid__item[aria-selected="true"] { border-color: var(--accent); color: var(--accent); }
+.cdn-picker { display: grid; gap: var(--space-2); width: min(28rem, 90vw); padding: var(--space-3); }
+.cdn-picker__status { margin: 0; padding: var(--space-4) 0; text-align: center; color: var(--muted); font-size: var(--type-caption-size); }
+.cdn-picker__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr)); gap: var(--space-2); max-height: 20rem; overflow-y: auto; }
+.cdn-picker__item { display: grid; justify-items: center; gap: var(--space-1); padding: var(--space-2); border: 1px solid transparent; border-radius: var(--radius-control); background: transparent; color: inherit; cursor: pointer; min-width: 0; }
+.cdn-picker__item:hover { background: var(--surface-raised); }
+.cdn-picker__item[aria-selected="true"] { border-color: var(--accent); }
+.cdn-picker__item img { width: 3.5rem; height: 3.5rem; object-fit: contain; }
+.cdn-picker__item span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-caption-size); color: var(--muted); }
 .image-source { display: grid; gap: var(--space-2); min-width: 0; }
 .image-source__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .image-source__file { color: var(--muted); font-size: var(--type-caption-size); overflow-wrap: anywhere; }
