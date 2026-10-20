@@ -172,10 +172,7 @@ async function signOut() {
     </Transition>
     <div class="app-header glass">
       <NuxtLink to="/" class="brand pressable" aria-label="躲避堡垒 3 首页">
-        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
-          <path d="M16 2 28 8v9c0 6.5-5 11.5-12 13C9 28.5 4 23.5 4 17V8z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" />
-          <path d="M11 11h7.5a3 3 0 0 1 0 6H11zm0 6h8.5a3 3 0 0 1 0 6H11z" fill="currentColor" opacity=".9" />
-        </svg>
+        <img class="brand-mark" src="/logo.png" alt="" width="26" height="26" />
         <span class="brand-name">躲避堡垒<em>3</em></span>
       </NuxtLink>
       <p v-if="isAdminPage" class="sidebar-scope font-display">ADMIN</p>
@@ -236,7 +233,7 @@ async function signOut() {
 .brand { display: inline-flex; min-width: 0; flex: none; align-items: center; gap: var(--space-2); color: var(--text); font-family: var(--font-display); font-size: 1rem; font-weight: 700; letter-spacing: .02em; text-decoration: none; white-space: nowrap; }
 .brand-name { overflow: hidden; text-overflow: ellipsis; }
 .brand-name em { margin-left: .2em; color: var(--accent); font-style: normal; }
-.brand-mark { width: 1.625rem; height: 1.625rem; flex: 0 0 auto; color: var(--accent); }
+.brand-mark { width: 1.625rem; height: 1.625rem; flex: 0 0 auto; object-fit: contain; }
 .sidebar-scope { margin: 0; color: var(--accent); font-size: var(--type-caption-size); font-weight: 600; letter-spacing: .16em; }
 .main-nav { display: none; }
 .account-actions { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; font-size: .8125rem; font-weight: 500; }

@@ -4,6 +4,7 @@ import { defineNuxtConfig } from "nuxt/config";
 
 // Git-managed editorial Markdown is compiled into the prerendered routes below;
 // the slugs come from the files themselves, never from a runtime content store.
+const siteUrl = "https://owbastion.com";
 const editorialRoutes = ["/blog", "/changelog"];
 for (const kind of ["blog", "changelog"]) {
   const directory = fileURLToPath(new URL(`./content/${kind}`, import.meta.url));
@@ -65,6 +66,14 @@ export default defineNuxtConfig({
       meta: [
         { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
         { name: "theme-color", content: "#0c1310" },
+        { property: "og:image", content: `${siteUrl}/og-image.png` },
+        { name: "twitter:card", content: "summary_large_image" },
+      ],
+      link: [
+        { rel: "icon", href: "/favicon.ico", sizes: "48x48" },
+        { rel: "icon", type: "image/png", href: "/icon-192.png", sizes: "192x192" },
+        { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
+        { rel: "manifest", href: "/site.webmanifest" },
       ],
     },
     // G-07: opacity-only page cross-fade; reduced-motion falls back via global CSS.
@@ -78,7 +87,7 @@ export default defineNuxtConfig({
       turnstileSiteKey: "1x00000000000000000000AA",
       // Canonical origin for prerendered SEO metadata; prerendering has no
       // request URL, so canonical/og:url must not be derived from the request.
-      siteUrl: "https://owbastion.com",
+      siteUrl,
     },
   },
   vite: {
