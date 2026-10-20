@@ -32,7 +32,7 @@ Follow the organization [PR delivery policy](../.github/docs/pr-delivery.md). Me
 - Authentication, privacy, credentials, storage, caching, public/private boundaries: `docs/dev-rules/data-and-security.md`.
 - D1 schema, migrations, fixtures, imports, repair/reconciliation: `docs/dev-rules/database-migrations-and-seeds.md`.
 - Tests, queues, CI, release behavior, or implementation-change policy: `docs/dev-rules/testing-and-change-policy.md`.
-- Portal UI/layout/components/interaction/accessibility/copy: `docs/design-rules/README.md`, then the routed topic.
+- Portal UI/layout/components/interaction/accessibility/copy: `docs/design-rules/README.md`, then the routed topic. Libraries and reuse of installed dependencies: `docs/design-rules/ui-stack.md`.
 - Product terminology/copy: `docs/design-rules/terminology.md` and `docs/design-rules/portal-copy-guidelines.md`.
 - Git-backed editorial Markdown and build-time rendering (`apps/portal/modules/editorial.ts`, `utils/editorial-content.ts`, `content/editorial-schemas.ts`): relevant development/design indexes; edits use the normal repository workflow.
 - Deployment or production verification: applicable `docs/deployment/` runbook. Local implementation, integration evidence, deployment, and production business-path verification are distinct states.
