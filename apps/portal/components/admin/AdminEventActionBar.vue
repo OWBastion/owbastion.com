@@ -4,8 +4,11 @@ import { statusLabels, type EventPatch } from "~/utils/event-draft";
 defineProps<{ selectedCount: number; draftCount: number; summary: string; saving: boolean; versions: string[]; groups: string[] }>();
 const emit = defineEmits<{ patch: [patch: EventPatch]; weight: [operation: "set" | "add" | "multiply", value: number]; clear: []; save: []; discard: [] }>();
 const operation = shallowRef<"set" | "add" | "multiply">("set");
-const weight = shallowRef<number | string>("");
-const pick = (event: Event, apply: (value: string) => void) => { const select = event.target as HTMLSelectElement; if (select.value) apply(select.value); select.value = ""; };
+const weight = shallowRef("");
+const CLEAR = "__clear";
+const statusItems = Object.entries(statusLabels).map(([value, label]) => ({ value, label }));
+const versionItems = (versions: string[]) => versions.map((value) => ({ value, label: value }));
+const groupItems = (groups: string[]) => [...groups.map((value) => ({ value, label: value })), { value: CLEAR, label: "清除事件组" }];
 const applyWeight = () => { const value = Number(weight.value); if (weight.value !== "" && Number.isFinite(value)) emit("weight", operation.value, value); };
 </script>
 
@@ -17,18 +20,12 @@ const applyWeight = () => { const value = Number(weight.value); if (weight.value
       <span v-if="draftCount && summary" class="action-bar__summary">{{ summary }}</span>
     </span>
     <template v-if="selectedCount">
-      <select class="native-field" aria-label="设为状态" @change="pick($event, (value) => emit('patch', { releaseStatus: value as 'implemented' }))">
-        <option value="">设为状态…</option><option v-for="(label, value) in statusLabels" :key="value" :value="value">{{ label }}</option>
-      </select>
-      <select class="native-field" aria-label="移到版本" @change="pick($event, (value) => emit('patch', { gameVersion: value }))">
-        <option value="">移到版本…</option><option v-for="version in versions" :key="version">{{ version }}</option>
-      </select>
-      <select class="native-field" aria-label="设事件组" @change="pick($event, (value) => emit('patch', { eventGroup: value === '__clear' ? null : value }))">
-        <option value="">设事件组…</option><option v-for="group in groups" :key="group">{{ group }}</option><option value="__clear">清除事件组</option>
-      </select>
+      <USelect :model-value="undefined" :items="statusItems" size="md" placeholder="设为状态…" aria-label="设为状态" @update:model-value="(value) => emit('patch', { releaseStatus: value as 'implemented' })" />
+      <USelect :model-value="undefined" :items="versionItems(versions)" size="md" placeholder="移到版本…" aria-label="移到版本" @update:model-value="(value) => emit('patch', { gameVersion: String(value) })" />
+      <USelect :model-value="undefined" :items="groupItems(groups)" size="md" placeholder="设事件组…" aria-label="设事件组" @update:model-value="(value) => emit('patch', { eventGroup: value === CLEAR ? null : String(value) })" />
       <span class="action-bar__weight" role="group" aria-label="批量调整权重">
-        <button v-for="[value, label] in ([['set', '权重＝'], ['add', '＋'], ['multiply', '×']] as const)" :key="value" type="button" class="native-field action-bar__op" :aria-pressed="operation === value" @click="operation = value">{{ label }}</button>
-        <input v-model="weight" class="native-field action-bar__value" type="number" step="0.05" placeholder="数值" aria-label="权重数值" @keydown.enter.prevent="applyWeight">
+        <UButton v-for="[value, label] in ([['set', '权重＝'], ['add', '＋'], ['multiply', '×']] as const)" :key="value" :label="label" size="md" :color="operation === value ? 'primary' : 'neutral'" :variant="operation === value ? 'soft' : 'outline'" :aria-pressed="operation === value" @click="operation = value" />
+        <UInput v-model="weight" class="action-bar__value" type="number" step="0.05" size="md" placeholder="数值" aria-label="权重数值" @keydown.enter.prevent="applyWeight" />
         <UButton label="应用" color="neutral" variant="outline" size="sm" @click="applyWeight" />
       </span>
     </template>
@@ -48,7 +45,5 @@ const applyWeight = () => { const value = Number(weight.value); if (weight.value
 .action-bar__summary { color: var(--muted); font-size: var(--type-label-sm-size); }
 .action-bar__spacer { flex: 1; }
 .action-bar__weight { display: inline-flex; align-items: center; gap: var(--space-1); }
-.action-bar__op { min-width: 2.5rem; cursor: pointer; }
-.action-bar__op[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-surface); color: var(--accent); font-weight: 600; }
 .action-bar__value { width: 5.5rem; }
 </style>

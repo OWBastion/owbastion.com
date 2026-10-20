@@ -8,6 +8,11 @@ export default defineAppConfig({
       warning: "amber",
       error: "red",
     },
+    badge: {
+      slots: {
+        base: "w-fit max-w-full whitespace-nowrap rounded-[var(--radius-pill)] font-semibold",
+      },
+    },
     button: {
       slots: {
         base: "rounded-[var(--radius-control)] font-semibold",

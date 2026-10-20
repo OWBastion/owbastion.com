@@ -542,7 +542,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
                               <UButton size="sm" color="neutral" variant="outline" label="计划下线" :aria-label="`计划下线${title.label}的挑战`" :disabled="savingKey === challenge.challengeId" />
                               <template #content>
                                 <UCard class="plan-popover-card">
-                                  <form class="plan-popover" role="dialog" :aria-label="`计划下线${title.label}的挑战`" @submit.prevent="planSunsetting(title, challenge)">
+                                  <form class="plan-popover" @submit.prevent="planSunsetting(title, challenge)">
                                     <UFormField label="计划下线版本" required help="玩家侧会显示为即将结束。">
                                       <UInput v-model="retirementVersions[challenge.challengeId]" required placeholder="例如 26.1101.1" :disabled="savingKey === challenge.challengeId" />
                                     </UFormField>
@@ -600,7 +600,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
                     <UButton v-if="challengeDisplayStatus(challenge) === 'active' || challengeDisplayStatus(challenge) === 'sunsetting'" size="sm" color="error" variant="soft" label="结束" :loading="savingKey === challenge.challengeId" @click="mutateChallengeLifecycle(title, challenge, { status: 'archived' }, `已结束「${title.label}」的挑战`)" />
                     <UButton v-if="challenge.status === 'archived'" size="sm" color="neutral" variant="outline" label="重开" :loading="savingKey === challenge.challengeId" @click="mutateChallengeLifecycle(title, challenge, { status: 'active' }, `已重开「${title.label}」的挑战`)" />
                   </div>
-                  <form v-if="planningChallengeId === challenge.challengeId" class="plan-popover title-record__plan" role="dialog" :aria-label="`计划下线${title.label}的挑战`" @submit.prevent="planSunsetting(title, challenge)">
+                  <form v-if="planningChallengeId === challenge.challengeId" class="plan-popover title-record__plan" :aria-label="`计划下线${title.label}的挑战`" @submit.prevent="planSunsetting(title, challenge)">
                     <UFormField label="计划下线版本" required help="玩家侧会显示为即将结束。">
                       <UInput v-model="retirementVersions[challenge.challengeId]" required placeholder="例如 26.1101.1" :disabled="savingKey === challenge.challengeId" />
                     </UFormField>
