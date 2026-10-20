@@ -40,7 +40,7 @@ rescues an ambiguous layout.
   title plus paragraph saying the same; an identity block repeating bound status; `未开放` on the
   section and every child.
 
-### Display rules from the design prototype
+### Display rules
 
 - Never show program field names, enum keys, or internal IDs (`map_…`, `evt_…`, `kind`); show the
   name or Chinese label, and use a selector instead of asking people to type an ID.

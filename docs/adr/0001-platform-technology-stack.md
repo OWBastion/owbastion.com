@@ -17,6 +17,12 @@
 > snapshots or orchestrate Bastion/GitHub changes. The original snapshot and
 > change-orchestration assumptions below are superseded by this amendment.
 
+> Frontend stack amendment (2026-10-21): the Portal uses Nuxt UI, Tailwind CSS,
+> Lucide, and the other libraries designated in
+> [ui-stack.md](../design-rules/ui-stack.md). Repository-owned UI primitives,
+> Pinia, and TanStack Query were never adopted and are removed from the list
+> below. Remote data uses Nuxt data fetching.
+
 > Repository and testing amendment (2026-09-23): this decision applies to
 > `OWBastion/owbastion.com`. The repository and test structures listed below
 > record the initial plan; current boundaries are defined by
@@ -61,9 +67,7 @@ Use:
 - Nuxt;
 - TypeScript;
 - Tailwind CSS;
-- Nuxt UI or repository-owned UI primitives;
-- Pinia only for durable client-side application state that cannot be represented by route, server, or query state;
-- TanStack Query for remote-data fetching, caching, invalidation, and mutation state;
+- Nuxt UI;
 - Playwright for browser-level integration and end-to-end tests (superseded by
   the 2026-09-23 testing amendment above).
 
