@@ -34,6 +34,7 @@ import { pageResult, paginate } from "./page-result";
 import { createChallengeSnapshotServices, type MapTitleRuleSnapshot } from "./challenge-snapshot-service";
 import { createChallengeCatalogServices } from "./challenge-catalog-service";
 import { createAdminVerifiedRunServices } from "./admin-verified-run-service";
+import { createAdminMapServices } from "./admin-map-service";
 import { createAdminCatalogServices } from "./admin-catalog-service";
 import { createSubmissionOcrServices } from "./submission-ocr-service";
 import type { VerifiedRunSubmissionOutcome, VerifiedRunSubmissionOutcomeStatus } from "./submission-ocr-service";
@@ -1981,31 +1982,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     },
 
 
-    async createAdminMap(input, auth, idempotencyKey) {
-      const replay = await replayOrConflict<Map>(db, auth.subject, "admin.map.create", idempotencyKey, input);
-      if (replay) return replay;
-      const mapName = input.mapName.trim();
-      if (await db.select({ id: maps.id }).from(maps).where(eq(maps.name, mapName)).get()) throw new Error("MAP_NAME_CONFLICT");
-      const mapId = input.mapId ?? `map.new_${crypto.randomUUID().replaceAll("-", "").slice(0, 8)}`;
-      if (await db.select({ id: maps.id }).from(maps).where(eq(maps.id, mapId)).get()) throw new Error("MAP_ID_CONFLICT");
-      const gameVersion = input.gameVersion ?? await latestBuildVersion();
-      const timestamp = now();
-      const revisionId = `revision:${mapId}:initial`;
-      // The default revision starts without spatial configuration and with every active all-map title rule, as the original maps did.
-      const rules = await db.select().from(mapTitleRules).where(and(eq(mapTitleRules.defaultScope, "all_active"), eq(mapTitleRules.status, "active"), isNull(mapTitleRules.mapVariant)));
-      await database.batch([
-        database.prepare("INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?, ?)").bind(mapId, mapName, gameVersion, gameVersion, timestamp, timestamp),
-        database.prepare("INSERT INTO map_metadata (map_id, difficulty_rating, mechanics_json, cover_url, background_url, updated_at, updated_by) VALUES (?, NULL, '[]', NULL, NULL, ?, ?)").bind(mapId, timestamp, auth.subject),
-        database.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, mode, copied_from_revision_id, reset_reason, game_version, spatial_config_json, created_at, updated_at) VALUES (?, ?, 'default', NULL, NULL, NULL, NULL, ?, NULL, ?, ?)").bind(revisionId, mapId, gameVersion, timestamp, timestamp),
-        ...rules.filter((rule) => rule.kind.trim().toLocaleLowerCase() !== "pioneer").map((rule) => insertDefaultMapTitleRuleAssignment(revisionId, mapId, rule.id, timestamp)),
-      ]);
-      const response: Map = { mapId, mapName, gameVersion, difficultyRating: null, mechanics: [], coverUrl: null, backgroundUrl: null };
-      await recordIdempotency(db, auth.subject, "admin.map.create", idempotencyKey, input, response);
-      await recordAudit(db, auth, "admin.map.create", "map", mapId, { mapName, gameVersion });
-      return response;
-    },
-
-
     ...createAgentServices(db, {
       database,
       now,
@@ -2023,6 +1999,12 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       ...databaseServiceDependencies,
       insertDefaultMapTitleRuleAssignment,
       latestBuildVersion,
+    }),
+    ...createAdminMapServices(database, db, {
+      ...databaseServiceDependencies,
+      insertDefaultMapTitleRuleAssignment,
+      latestBuildVersion,
+      loadProgressChallenges,
     }),
     async listChallenges(input) {
       const items: Challenge[] = [];
