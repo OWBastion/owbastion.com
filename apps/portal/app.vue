@@ -7,7 +7,7 @@ useHead({
   meta: [
     {
       name: "theme-color",
-      content: computed(() => colorMode.value === "dark" ? "#0c1310" : "#f4f6f2"),
+      content: computed(() => colorMode.value === "dark" ? "#0f1117" : "#f1f3f7"),
     },
   ],
 });
