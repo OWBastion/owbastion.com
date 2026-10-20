@@ -59,7 +59,7 @@ type Tile = {
 };
 const mapNameFor = (mapId: string) => props.maps.find((map) => map.mapId === mapId)?.mapName ?? mapId;
 const progressByChallenge = computed(() => new Map(props.challengeProgress.map((item) => [item.challengeId, item])));
-const cardTile = (card: AchievementCard): Tile => card.kind === "catalog"
+const cardTile = (card: AchievementCard): Omit<Tile, "series"> => card.kind === "catalog"
   ? {
       key: card.challenge.challengeId,
       name: card.challenge.titleName,
