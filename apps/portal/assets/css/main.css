@@ -2,6 +2,14 @@
 @import "@nuxt/ui";
 @import "katex/dist/katex.min.css";
 
+/* Leon Sans (SIL OFL 1.1), Latin subset; CJK glyphs fall through to the system stack. */
+@font-face {
+  font-family: "Leon Sans";
+  src: url("/fonts/LeonSans-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
   --page: oklch(97% 0.006 130);
@@ -29,8 +37,8 @@
   --signal: oklch(64% 0.16 62);
   --signal-surface: oklch(94% 0.05 80);
   --grid-line: oklch(22% 0.02 150 / 5%);
-  --font-display: "Chakra Petch", var(--font-ui);
-  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Noto Sans CJK SC", "Segoe UI", sans-serif;
+  --font-display: var(--font-ui);
+  --font-ui: "Leon Sans", -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Noto Sans CJK SC", "Segoe UI", sans-serif;
 
   /* Design v2 — spacing ladder (4px base at 16px root) */
   --space-1: 0.25rem;

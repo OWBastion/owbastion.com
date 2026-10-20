@@ -68,11 +68,6 @@ export default defineNuxtConfig({
         // next.owbastion.com is a preview of the main site; keep it out of search results.
         { name: "robots", content: "noindex" },
       ],
-      link: [
-        { rel: "preconnect", href: "https://fonts.googleapis.com" },
-        { rel: "preconnect", href: "https://fonts.gstatic.com", crossorigin: "" },
-        { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&display=swap" },
-      ],
     },
     // G-07: opacity-only page cross-fade; reduced-motion falls back via global CSS.
     pageTransition: { name: "page", mode: "out-in" },
