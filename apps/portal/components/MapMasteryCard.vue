@@ -138,7 +138,7 @@ const linkLabel = computed(() => `查看${props.mapName}详情`);
 .mastery-card--detail .mastery-stats dt { order: 2; font-size: var(--type-caption-size); }
 .mastery-card--detail .mastery-stats dd { order: 1; font-family: var(--font-display); font-size: 1.375rem; text-align: left; }
 .mastery-card--detail .difficulty-summary { grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); }
-.mastery-card--detail .difficulty-summary > div { border-left: 3px solid var(--accent); }
+.mastery-card--detail .difficulty-summary > div { border-left: 3px solid var(--line-strong); }
 @media (prefers-contrast: more) { .mastery-card--progress { border-color: var(--text); } }
 @container (max-width: 23.99rem) {
   .mastery-card--progress .mastery-card__head { align-items: flex-start; flex-direction: column; gap: var(--space-2); }

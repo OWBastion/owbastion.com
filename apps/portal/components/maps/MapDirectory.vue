@@ -117,7 +117,7 @@ watch(modalOpen, (open) => {
 .map-group { display: grid; gap: var(--space-3); }
 .group-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding-bottom: var(--space-2); border-bottom: 1px solid var(--line); }
 .group-heading h2 { display: flex; align-items: baseline; gap: var(--space-3); margin: 0; font-size: var(--type-caption-size); font-weight: 600; letter-spacing: 0.01em; }
-.group-heading__bonus { color: var(--accent); font-weight: 600; }
+.group-heading__bonus { color: var(--text); font-weight: 600; }
 .group-heading > span { color: var(--quiet); }
 /* 17rem minimum track, capped at four columns. */
 .map-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, max(17rem, calc((100% - 3 * var(--space-4)) / 4))), 1fr)); gap: var(--space-4); }

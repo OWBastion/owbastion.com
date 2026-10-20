@@ -35,7 +35,7 @@ onMounted(() => { void refresh(); });
 .back-link:hover { color: var(--text); }
 .settings-section { display: grid; gap: var(--space-3); }
 .section-title { display: flex; align-items: center; gap: var(--space-2); margin: 0; font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; }
-.section-title svg { color: var(--accent); }
+.section-title svg { color: var(--muted); }
 .settings-loading { display: grid; gap: var(--space-3); }
 .settings-loading > * { min-height: 96px; border-radius: var(--radius-card); }
 @media (max-width: 47.99rem) { .settings-page { padding-block: var(--space-5) var(--space-12); gap: var(--space-5); } }

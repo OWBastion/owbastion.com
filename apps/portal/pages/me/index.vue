@@ -137,7 +137,7 @@ onMounted(() => {
 .hub-hero__name { margin: 0; overflow-wrap: anywhere; font-family: var(--font-display); font-size: clamp(2.5rem, 7vw, 4.5rem); font-weight: 700; letter-spacing: -.03em; line-height: 1; }
 .hub-hero__title { --mark-size: 1.5rem; display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 600; }
 .hub-hero__xp { display: grid; justify-items: end; color: inherit; text-decoration: none; }
-.hub-hero__xp strong { color: var(--accent); font-family: var(--font-display); font-size: clamp(2.5rem, 6vw, 3.75rem); font-weight: 700; line-height: 1; }
+.hub-hero__xp strong { color: var(--text); font-family: var(--font-display); font-size: clamp(2.5rem, 6vw, 3.75rem); font-weight: 700; line-height: 1; }
 .hub-hero__xp > span { color: var(--quiet); font-family: var(--font-display); font-size: var(--type-caption-size); letter-spacing: .14em; }
 .hub-hero__xp small { margin-top: var(--space-2); color: var(--quiet); font-size: var(--type-caption-size); }
 .hub-hero__xp:hover strong { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: .2em; }
@@ -151,7 +151,7 @@ onMounted(() => {
 .hub-recent__title { margin: 0; color: var(--quiet); font-family: var(--font-display); font-size: var(--type-caption-size); font-weight: 600; letter-spacing: .14em; }
 .hub-nudge { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin: 0; }
 .hub-nudge a { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--muted); font-size: var(--type-label-sm-size); text-decoration: none; }
-.hub-nudge a:hover { color: var(--accent); }
+.hub-nudge a:hover { color: var(--text); }
 .hub-state { display: grid; gap: var(--space-4); justify-items: start; }
 .hub-skeleton { display: grid; gap: var(--space-6); }
 .hub-skeleton__hero { height: 6rem; }
