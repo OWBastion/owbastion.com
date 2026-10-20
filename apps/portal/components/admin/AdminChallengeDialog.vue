@@ -224,6 +224,11 @@ function submit() {
           </UFormField>
           <UFormField v-if="form.progressScope === regularScope" class="challenge-dialog-form__wide" label="要求地图" required help="开放时间内每张地图各有一条已验证通关即完成。">
             <USelect v-model="form.progressMapIds" class="w-full" multiple :items="mapItems" :disabled="saving" />
+            <div class="challenge-dialog-form__actions">
+              <UButton size="xs" color="neutral" variant="soft" label="全选" :disabled="saving" @click="form.progressMapIds = mapItems.map((item) => item.value)" />
+              <UButton size="xs" color="neutral" variant="ghost" label="清空" :disabled="saving || !form.progressMapIds.length" @click="form.progressMapIds = []" />
+              <span class="type-caption">已选 {{ form.progressMapIds.length }} / {{ mapItems.length }}</span>
+            </div>
           </UFormField>
         </template>
 
@@ -295,6 +300,7 @@ function submit() {
 .challenge-chip { display: inline-flex; align-items: center; min-height: 22px; padding: 0 var(--space-2); border-radius: var(--radius-pill); background: var(--surface-raised); font-size: .75rem; font-weight: 600; }
 .challenge-dialog-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--space-5); padding: var(--space-6); }
 .challenge-dialog-form__wide { grid-column: 1 / -1; }
+.challenge-dialog-form__actions { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
 .challenge-section { margin: var(--space-2) 0 0; padding-top: var(--space-3); border-top: 1px solid var(--line); font-size: .75rem; font-weight: 700; color: var(--quiet); }
 .challenge-enable { display: grid; gap: var(--space-1); }
 .challenge-enable__hint { color: var(--quiet); font-size: .75rem; }
