@@ -34,10 +34,11 @@ const noteOf = (challenge: PublicAchievement) => challenge.status === "scheduled
       </AchievementShelf>
     </AchievementWall>
 
-    <UModal v-model:open="sheetOpen" :title="selected?.titleName ?? ''" :description="selected ? noteOf(selected) : undefined">
+    <UModal v-model:open="sheetOpen" :title="selected?.titleName ?? ''">
       <template #body>
         <div v-if="selected" class="sheet">
           <AchievementIcon class="sheet__icon" entrance :url="selected.iconUrl" :icon="selected.icon" earned />
+          <p v-if="noteOf(selected)" class="sheet__note">{{ noteOf(selected) }}</p>
           <p class="sheet__condition">{{ selected.condition }}</p>
           <p v-if="titles && stateOf(selected) !== 'none'" class="sheet__owned"><UIcon name="i-lucide-check" aria-hidden="true" />已获得</p>
         </div>
@@ -50,7 +51,8 @@ const noteOf = (challenge: PublicAchievement) => challenge.status === "scheduled
 <style scoped>
 .catalog { display: grid; gap: var(--space-12); }
 .sheet { display: grid; justify-items: center; gap: var(--space-4); text-align: center; }
-.sheet__icon { --achievement-icon-size: 7rem; }
+.sheet__icon { --achievement-icon-size: 10rem; }
+.sheet__note { margin: 0; padding: var(--space-1) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-pill); color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 600; }
 .sheet__condition { margin: 0; color: var(--muted); }
 .sheet__owned { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--accent); font-weight: 600; }
 </style>
