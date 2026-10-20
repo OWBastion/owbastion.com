@@ -259,7 +259,7 @@ describe("AppHeader site navigation by sign-in state", () => {
     focusSpy.mockRestore();
   });
 
-  it("defaults a signed-in player to personal URLs and groups the introduction pages", async () => {
+  it("lists a signed-in player's personal URLs and the introduction pages flat, without a submenu", async () => {
     currentPlayer.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
     route.path = "/me";
     route.fullPath = "/me";
@@ -267,27 +267,8 @@ describe("AppHeader site navigation by sign-in state", () => {
     await wrapper.get('button[aria-label="打开菜单"]').trigger("click");
     await flushPromises();
     const nav = wrapper.get("#mobile-nav");
-    for (const target of ["/me", "/me/achievements", "/me/submissions/new"]) expect(nav.find(`a[href="${target}"]`).exists(), target).toBe(true);
-    // The introduction pages are one group, collapsed until the player is on one of them.
-    expect(nav.find('a[href="/maps"]').exists()).toBe(false);
-    const group = nav.findAll("button").find((button) => button.text().includes("游戏介绍"));
-    expect(group).toBeTruthy();
-    await group!.trigger("click");
-    await flushPromises();
-    for (const target of introduction) expect(nav.find(`a[href="${target}"]`).exists(), target).toBe(true);
-    focusSpy.mockRestore();
-  });
-
-  it("keeps the introduction group open while a signed-in player reads an introduction page", async () => {
-    currentPlayer.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
-    route.path = "/maps";
-    route.fullPath = "/maps";
-    const wrapper = await mountHeader();
-    await wrapper.get('button[aria-label="打开菜单"]').trigger("click");
-    await flushPromises();
-    const nav = wrapper.get("#mobile-nav");
-    expect(nav.find('a[href="/maps"]').exists()).toBe(true);
-    expect(nav.find('a[href="/changelog"]').exists()).toBe(true);
+    for (const target of ["/me", "/me/achievements", "/me/submissions/new", ...introduction]) expect(nav.find(`a[href="${target}"]`).exists(), target).toBe(true);
+    expect(nav.text()).not.toContain("游戏介绍");
     focusSpy.mockRestore();
     currentPlayer.value = null;
   });

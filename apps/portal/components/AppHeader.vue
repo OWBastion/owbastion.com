@@ -25,25 +25,15 @@ const adminNavigationItems = computed(() => [
 ]);
 
 const pathActive = (to: string) => route.path === to || route.path.startsWith(`${to}/`);
-// Signed-out visitors see the public introduction pages. Signed-in players default to their own
-// URLs; the introduction pages stay reachable under one group and by direct URL.
+// Flat list at every width: signed-in players get their own pages first, then the public introduction pages.
 const siteNavigationItems = computed(() => {
-  if (!player.value) return introductionPages.map((page) => ({ ...page, active: pathActive(page.to) }));
-  const introActive = introductionPages.some((page) => pathActive(page.to));
+  const introduction = introductionPages.map((page) => ({ ...page, active: pathActive(page.to) }));
+  if (!player.value) return introduction;
   return [
     { label: "总览", icon: "i-lucide-layout-dashboard", to: "/me", active: route.path === "/me" },
     { label: "我的成就", icon: "i-lucide-award", to: "/me/achievements", active: pathActive("/me/achievements") },
     { label: "提交截图", icon: "i-lucide-upload", to: "/me/submissions/new", active: pathActive("/me/submissions") },
-    // The leaderboard is promoted out of the introduction group for players:
-    // checking one's own standing is a primary action, not site browsing.
-    { label: "排行榜", icon: "i-lucide-trophy", to: "/leaderboard", active: pathActive("/leaderboard") },
-    {
-      label: "游戏介绍",
-      icon: "i-lucide-book-open",
-      active: introActive,
-      defaultOpen: introActive,
-      children: introductionPages.filter((page) => page.to !== "/leaderboard").map((page) => ({ ...page, active: pathActive(page.to) })),
-    },
+    ...introduction,
   ];
 });
 
@@ -178,7 +168,7 @@ async function signOut() {
       <p v-if="isAdminPage" class="sidebar-scope font-display">ADMIN</p>
       <nav class="main-nav" :aria-label="isAdminPage ? '管理导航' : '主导航'">
         <LazyUNavigationMenu v-if="isAdminPage" :items="adminNavigationItems" orientation="vertical" highlight variant="pill" />
-        <LazyUNavigationMenu v-else :items="siteNavigationItems" orientation="horizontal" highlight highlight-color="primary" variant="link" content-orientation="vertical" :ui="{ viewport: 'elevation-2 w-60 mt-1 left-(--reka-navigation-menu-viewport-left) bg-elevated' }" />
+        <LazyUNavigationMenu v-else :items="siteNavigationItems" orientation="horizontal" highlight highlight-color="primary" variant="link" />
       </nav>
       <div class="account-actions">
         <ThemeMenu />
