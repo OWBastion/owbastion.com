@@ -15,9 +15,9 @@
 
 <style scoped>
 .shelf { display: grid; gap: var(--space-2); padding-block: var(--space-6) 0; }
-.shelf__title { width: 6rem; height: .875rem; }
-.shelf__row { display: grid; grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr)); margin: 0; padding: 0 0 var(--space-3); border-bottom: 2px solid var(--line); list-style: none; }
-.medal { --achievement-icon-size: clamp(4.25rem, 18vw, 5.25rem); display: grid; justify-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-1) var(--space-2); }
+.shelf__title { width: 6rem; height: 1rem; }
+.shelf__row { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); margin: 0; padding: 0 0 var(--space-3); border-bottom: 2px solid var(--line); list-style: none; }
+.medal { --achievement-icon-size: clamp(5.5rem, 24vw, 7rem); display: grid; justify-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-1) var(--space-2); }
 .medal__icon { width: var(--achievement-icon-size); height: var(--achievement-icon-size); border-radius: 30%; }
 .medal__name { width: 3.5rem; height: .75rem; }
 </style>
