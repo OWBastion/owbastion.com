@@ -64,7 +64,7 @@ onMounted(() => { hydrated.value = true; });
             </li>
           </ul>
         </section>
-        <PlayerReviewPanel v-if="map" target-type="map" :target-id="map.mapId" :gameplay-revision-id="map.defaultGameplayRevisionId ?? null" :authenticated="authenticated" @review-changed="emit('review-changed')" />
+        <PlayerReviewPanel v-if="map" collapsible target-type="map" :target-id="map.mapId" :gameplay-revision-id="map.defaultGameplayRevisionId ?? null" :authenticated="authenticated" @review-changed="emit('review-changed')" />
       </div>
     </div>
   </DefineDetailContent>
