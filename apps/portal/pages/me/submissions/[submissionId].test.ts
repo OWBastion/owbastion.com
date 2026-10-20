@@ -44,7 +44,7 @@ describe("submission detail", () => {
     expect(detailReads()).toBe(settledReads);
   });
 
-  it("gives up polling a submission that never settles and offers a manual refresh", async () => {
+  it("gives up polling a submission that never settles and asks the player to reload", async () => {
     api.mockResolvedValue(detail());
     const wrapper = await mountPage();
 
@@ -53,11 +53,20 @@ describe("submission detail", () => {
     await vi.advanceTimersByTimeAsync(10 * 60_000);
     expect(detailReads()).toBe(reads);
 
-    const refresh = buttonNamed(wrapper, /刷新/);
-    expect(refresh).toBeDefined();
-    await refresh!.trigger("click");
-    await vi.advanceTimersByTimeAsync(0);
-    expect(detailReads()).toBe(reads + 1);
+    expect(buttonNamed(wrapper, /刷新/)).toBeUndefined();
+    expect(wrapper.text()).toContain("请稍后刷新页面");
+  });
+
+  it("shows the submission overview and, when a new screenshot is needed, resubmission tips", async () => {
+    api.mockResolvedValue(detail({ status: "rejected", resubmissionRequired: true }));
+    const wrapper = await mountPage();
+    expect(wrapper.find('[aria-label="提交概览"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="重新提交建议"]').exists()).toBe(true);
+  });
+
+  it("omits resubmission tips when no new screenshot is needed", async () => {
+    api.mockResolvedValue(detail({ status: "completed" }));
+    expect((await mountPage()).find('[aria-label="重新提交建议"]').exists()).toBe(false);
   });
 
   it("does not offer manual review for an ineligible submission", async () => {

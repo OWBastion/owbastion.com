@@ -2,6 +2,7 @@
 import type { PlayerSubmissionDetail } from "@owbastion/contracts";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { verifiedRunOutcomePresentation } from "~/utils/mastery";
+import { formatTime } from "~/utils/date-time";
 import OcrFeedbackPanel from "~/components/submissions/OcrFeedbackPanel.vue";
 import SubmissionProgress from "~/components/submissions/SubmissionProgress.vue";
 
@@ -24,6 +25,11 @@ const actionMessage = shallowRef("");
 const pollTimedOut = shallowRef(false);
 let ocrPollTimer: ReturnType<typeof setTimeout> | null = null;
 const evidenceState = shallowRef<"loading" | "ready" | "missing" | "failed">("loading");
+const resubmissionTips = [
+  { icon: "i-lucide-panels-top-left", title: "保留完整通关数据", description: "确保通关时间、击杀数和其他关键数据清晰可见。" },
+  { icon: "i-lucide-clipboard-check", title: "包含挑战信息", description: "保留地图、难度和挑战相关信息。" },
+  { icon: "i-lucide-scan-search", title: "提高画面清晰度", description: "建议使用原始截图，避免裁剪或压缩。" },
+];
 const ocrValue = (value: string | boolean | null) => value === null ? "未识别" : typeof value === "boolean" ? value ? "已识别完成" : "未识别完成" : value;
 const manualReviewEligible = computed(() => data.value?.manualReviewEligible === true);
 const verifiedRunOutcome = computed(() => verifiedRunOutcomePresentation(data.value?.verifiedRunOutcome));
@@ -99,7 +105,7 @@ watch(ocrProcessing, (processing) => {
     ocrPollTimer = null;
     if (Date.now() - startedAt >= ocrPollLimitMs) {
       pollTimedOut.value = true;
-      refreshError.value = "仍在处理中，请稍后点击「刷新状态」查看最新进度。";
+      refreshError.value = "仍在处理中，请稍后刷新页面查看。";
       return;
     }
     if (document.visibilityState !== "hidden" && fetchStatus.value !== "pending" && !mutationBusy.value) {
@@ -129,7 +135,12 @@ onBeforeUnmount(stopOcrPoll);
 
       <SubmissionProgress :status="data.status" :resubmission-required="data.resubmissionRequired" />
 
-      <UButton v-if="data.resubmissionRequired" to="/me/submissions/new" label="重新提交" icon="i-lucide-upload" size="xl" block />
+      <template v-if="data.resubmissionRequired">
+        <UButton to="/me/submissions/new" label="重新提交" icon="i-lucide-upload" size="xl" block />
+        <ul class="sub__tips" aria-label="重新提交建议">
+          <li v-for="tip in resubmissionTips" :key="tip.title"><UIcon :name="tip.icon" aria-hidden="true" /><span><strong>{{ tip.title }}</strong>{{ tip.description }}</span></li>
+        </ul>
+      </template>
       <UButton
         v-else-if="manualReviewEligible && !manualReviewRequested"
         label="申请人工核对"
@@ -140,7 +151,7 @@ onBeforeUnmount(stopOcrPoll);
         :disabled="mutationBusy"
         @click="handleRequestManualReview"
       />
-      <p v-if="pollTimedOut" class="sub__live">自动更新已停止 <UButton label="刷新" color="neutral" variant="link" size="sm" :loading="refreshingStatus" @click="refreshSubmission" /></p>
+      <p v-if="pollTimedOut" class="sub__live">仍在处理中，请稍后刷新页面</p>
       <p v-else-if="manualReviewError || refreshError || actionMessage" class="sub__live" :class="{ 'is-error': manualReviewError || refreshError }" aria-live="polite">{{ manualReviewError || refreshError || actionMessage }}</p>
 
       <figure v-if="evidenceState !== 'missing'" class="sub__evidence">
@@ -155,6 +166,11 @@ onBeforeUnmount(stopOcrPoll);
 
       <OcrFeedbackPanel v-if="data.feedback" :submission-id="data.submissionId" :feedback="data.feedback" @recorded="refreshSubmission" @stale="refreshSubmission" />
 
+      <dl class="sub__meta" aria-label="提交概览">
+        <div><dt>提交时间</dt><dd>{{ formatTime(data.createdAt) }}</dd></div>
+        <div><dt>最后更新</dt><dd>{{ formatTime(data.updatedAt) }}</dd></div>
+        <div><dt>编号</dt><dd class="mono">{{ data.submissionId }}</dd></div>
+      </dl>
       <details v-if="data.ocr" class="sub__details">
         <summary>识别结果</summary>
         <dl>
@@ -163,7 +179,7 @@ onBeforeUnmount(stopOcrPoll);
           <div><dt>玩家</dt><dd>{{ ocrValue(data.ocr.playerName) }}</dd></div>
           <div><dt>通关</dt><dd>{{ ocrValue(data.ocr.challengeCompleted) }}</dd></div>
           <div v-if="data.ocr.achievementTitles?.length"><dt>成就</dt><dd>{{ data.ocr.achievementTitles.join('、') }}</dd></div>
-          <div><dt>编号</dt><dd class="mono">{{ data.submissionId }}</dd></div>
+          <div v-if="data.ocr.modelVersion"><dt>模型</dt><dd>{{ data.ocr.modelVersion }}</dd></div>
         </dl>
       </details>
     </template>
@@ -198,6 +214,14 @@ onBeforeUnmount(stopOcrPoll);
 .sub__details dl > div { display: grid; grid-template-columns: 4rem minmax(0, 1fr); gap: var(--space-3); font-size: var(--type-label-sm-size); }
 .sub__details dt { color: var(--quiet); }
 .sub__details dd { margin: 0; }
+.sub__tips { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.sub__tips li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-3); color: var(--muted); font-size: var(--type-label-sm-size); }
+.sub__tips li > span { display: grid; gap: 2px; }
+.sub__tips strong { color: var(--text); font-weight: 600; }
+.sub__meta { display: grid; gap: var(--space-2); margin: 0; padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.sub__meta > div { display: grid; grid-template-columns: 4rem minmax(0, 1fr); gap: var(--space-3); font-size: var(--type-label-sm-size); }
+.sub__meta dt { color: var(--quiet); }
+.sub__meta dd { margin: 0; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--type-caption-size); overflow-wrap: anywhere; }
 .sub__skeleton { display: grid; gap: var(--space-6); }
 @media (max-width: 47.99rem) { .sub { padding-block: var(--space-5) var(--space-12); } }
