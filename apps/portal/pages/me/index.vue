@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { portalErrorDetails } from "~/utils/portal-error";
 import { playerSubmissionStatusLabel } from "~/utils/submissionStatus";
-import type { OwnedTitle } from "~/types/title";
 
 definePageMeta({ middleware: "auth" });
 useSeoMeta({ title: "玩家中心 · 躲避堡垒 3" });
@@ -15,27 +14,17 @@ const loading = shallowRef(true);
 const passkeyNudgeKey = "owbastion-passkey-nudge-dismissed";
 const showPasskeyNudge = shallowRef(false);
 const playerError = shallowRef("");
-const titlesError = shallowRef("");
 const titlesReady = shallowRef(false);
 const retrying = shallowRef(false);
-const recentTitles = computed(() => [...titles.value].sort((left, right) => right.grantedAt - left.grantedAt).slice(0, 3));
-const inspected = shallowRef<OwnedTitle | null>(null);
-const inspectOpen = shallowRef(false);
-function inspectTitle(title: OwnedTitle) { inspected.value = title; inspectOpen.value = true; }
-const formatTitleDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(timestamp);
-const titleMeta = (title: (typeof titles.value)[number]) => title.mapName ?? (title.scope === "global" ? title.category : "");
 
+const equippedTitle = computed(() => titles.value.find((title) => title.equipped) ?? null);
 const currentProfiles = computed(() => masteryProfiles.value.filter((profile) => profile.gameplayRevisionLifecycle === "default"));
-const stats = computed(() => {
-  const masteryReady = !masteryLoading.value && !masteryError.value;
-  return [
-    { label: "称号", value: titlesReady.value ? String(titles.value.length) : "—", unit: titlesReady.value ? "个" : undefined },
-    { label: "精通 XP", value: masteryReady ? String(currentProfiles.value.reduce((sum, profile) => sum + profile.totalXp, 0)) : "—" },
-    { label: "已验证通关", value: masteryReady ? String(currentProfiles.value.reduce((sum, profile) => sum + profile.verifiedRunCount, 0)) : "—", unit: masteryReady ? "次" : undefined },
-  ];
-});
-// Only a rejection that asks for a new upload needs the player; a final rejection stays in the list.
-const needsAttention = computed(() => (player.value?.recentSubmissions ?? []).filter((submission) => submission.status === "rejected" && submission.resubmissionRequired));
+const masteryReady = computed(() => !masteryLoading.value && !masteryError.value);
+const totalXp = computed(() => currentProfiles.value.reduce((sum, profile) => sum + profile.totalXp, 0));
+const totalRuns = computed(() => currentProfiles.value.reduce((sum, profile) => sum + profile.verifiedRunCount, 0));
+// Only a rejection that asks for a new upload needs the player; it replaces the upload button as the page's one action.
+const needsAttention = computed(() => (player.value?.recentSubmissions ?? []).find((submission) => submission.status === "rejected" && submission.resubmissionRequired) ?? null);
+const recentSubmissions = computed(() => (player.value?.recentSubmissions ?? []).slice(0, 3));
 const showSkeleton = computed(() => loading.value && !player.value);
 const sessionUnavailable = computed(() => !loading.value && !player.value && !playerError.value && status.value === "anonymous");
 const playerLoadFailed = computed(() => !loading.value && !player.value && Boolean(playerError.value));
@@ -43,24 +32,10 @@ const playerLoadFailed = computed(() => !loading.value && !player.value && Boole
 async function load(options: { forcePlayer?: boolean } = {}) {
   loading.value = true;
   playerError.value = "";
-  titlesError.value = "";
   try {
-    const [playerResult, titlesResult] = await Promise.allSettled([
-      refresh({ force: options.forcePlayer ?? false }),
-      refreshTitles(),
-    ]);
-
-    if (playerResult.status === "rejected") {
-      playerError.value = portalErrorDetails(playerResult.reason, "无法读取玩家信息，请稍后重试。").description;
-    }
-
-    if (titlesResult.status === "fulfilled") {
-      titlesReady.value = true;
-    } else {
-      titlesReady.value = false;
-      titlesError.value = portalErrorDetails(titlesResult.reason, "无法读取称号，请稍后重试。").description;
-    }
-
+    const [playerResult, titlesResult] = await Promise.allSettled([refresh({ force: options.forcePlayer ?? false }), refreshTitles()]);
+    if (playerResult.status === "rejected") playerError.value = portalErrorDetails(playerResult.reason, "无法读取玩家信息，请稍后重试。").description;
+    titlesReady.value = titlesResult.status === "fulfilled";
     if (playerResult.status === "fulfilled" && playerResult.value) void refreshMastery();
   } finally {
     loading.value = false;
@@ -74,24 +49,6 @@ async function retryAll() {
   } finally {
     retrying.value = false;
   }
-}
-
-async function retryTitles() {
-  titlesError.value = "";
-  retrying.value = true;
-  try {
-    await refreshTitles();
-    titlesReady.value = true;
-  } catch (error) {
-    titlesReady.value = false;
-    titlesError.value = portalErrorDetails(error, "无法读取称号，请稍后重试。").description;
-  } finally {
-    retrying.value = false;
-  }
-}
-
-async function retryMastery() {
-  await refreshMastery();
 }
 
 async function checkPasskeyNudge() {
@@ -116,248 +73,92 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="me-page page-shell">
+  <main class="hub page-shell">
     <template v-if="player">
-      <section class="intro" aria-labelledby="dashboard-title">
-        <div class="intro-copy">
-          <h1 id="dashboard-title" class="page-title">你好，{{ player.player.playerName }}</h1>
+      <header class="hub-hero" aria-labelledby="dashboard-title">
+        <div class="hub-hero__id">
+          <h1 id="dashboard-title" class="hub-hero__name">{{ player.player.playerName }}</h1>
+          <p v-if="equippedTitle" class="hub-hero__title"><PlayerTitleMark :title="equippedTitle" />{{ equippedTitle.label }}</p>
         </div>
-        <div class="intro-actions">
-          <UButton to="/me/profile" icon="i-lucide-id-card" label="个人主页" color="neutral" variant="outline" size="lg" class="intro-action" />
-          <UButton to="/me/settings" icon="i-lucide-sliders-horizontal" label="个人设置" color="neutral" variant="outline" size="lg" class="intro-action" />
-          <UButton to="/me/submissions/new" icon="i-lucide-upload" label="提交截图" color="primary" size="lg" class="intro-action" />
-        </div>
-      </section>
+        <NuxtLink to="/me/achievements" class="hub-hero__xp" aria-label="我的成就">
+          <strong class="num">{{ masteryReady ? totalXp : "—" }}</strong>
+          <span>XP</span>
+          <small class="num">{{ masteryReady ? totalRuns : "—" }} 通关 · {{ titlesReady ? titles.length : "—" }} 称号</small>
+        </NuxtLink>
+      </header>
 
-      <div v-if="showPasskeyNudge" class="passkey-nudge surface-card" role="region" aria-label="添加 Passkey">
-        <UIcon name="i-lucide-fingerprint" class="passkey-nudge-icon" aria-hidden="true" />
-        <div class="passkey-nudge-copy content-stack">
-          <strong>添加 Passkey，下次一键登录</strong>
-          <span>用设备的指纹、面容或屏幕锁登录，无需在 QQ 群里验证。</span>
-        </div>
-        <div class="passkey-nudge-actions">
-          <UButton to="/me/settings" label="去添加" color="primary" size="sm" />
-          <UButton label="不再提醒" color="neutral" variant="ghost" size="sm" @click="dismissPasskeyNudge" />
-        </div>
-      </div>
-
-      <UAlert
-        v-if="playerError"
-        color="warning"
-        variant="subtle"
-        title="玩家信息可能不是最新"
-        :description="playerError"
-        class="me-alert"
-      >
-        <template #actions>
-          <UButton label="重试" color="neutral" variant="outline" size="sm" :loading="retrying" @click="retryAll" />
-        </template>
+      <UAlert v-if="playerError" color="warning" variant="subtle" :title="playerError">
+        <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="retrying" @click="retryAll" /></template>
       </UAlert>
 
-      <UAlert
-        v-if="needsAttention.length"
-        color="warning"
-        variant="subtle"
-        icon="i-lucide-triangle-alert"
-        :title="`${needsAttention.length} 次提交需要你处理`"
-        :description="`${needsAttention[0]!.mapName}：${playerSubmissionStatusLabel(needsAttention[0]!.status, needsAttention[0]!.resubmissionRequired)}`"
-        class="me-alert"
-      >
-        <template #actions><UButton :to="`/me/submissions/${needsAttention[0]!.submissionId}`" label="去处理" color="neutral" variant="outline" size="sm" /></template>
-      </UAlert>
+      <NuxtLink v-if="needsAttention" :to="`/me/submissions/${needsAttention.submissionId}`" class="hub-cta hub-cta--warn">
+        <UIcon name="i-lucide-triangle-alert" aria-hidden="true" />
+        <span>{{ needsAttention.mapName }} · {{ playerSubmissionStatusLabel(needsAttention.status, needsAttention.resubmissionRequired) }}</span>
+        <UIcon name="i-lucide-arrow-right" aria-hidden="true" />
+      </NuxtLink>
+      <NuxtLink v-else to="/me/submissions/new" class="hub-cta">
+        <UIcon name="i-lucide-upload" aria-hidden="true" />
+        <span>提交截图</span>
+        <UIcon name="i-lucide-arrow-right" aria-hidden="true" />
+      </NuxtLink>
 
-      <PlayerStatSheet :stats="stats" class="me-stats" />
-
-      <section class="section-block" aria-labelledby="submissions-title">
-        <PageSectionHeader title="最近提交" heading-id="submissions-title" />
-        <PlayerRecentSubmissions :submissions="player.recentSubmissions" />
+      <section v-if="recentSubmissions.length" class="hub-recent" aria-labelledby="recent-title">
+        <h2 id="recent-title" class="hub-recent__title">最近</h2>
+        <PlayerRecentSubmissions :submissions="recentSubmissions" />
       </section>
 
-      <section class="section-block titles-section" aria-labelledby="titles-title">
-        <PageSectionHeader title="最近获得的称号" heading-id="titles-title">
-          <template #actions>
-            <UButton to="/me/achievements" label="查看全部成就" color="neutral" variant="outline" />
-          </template>
-        </PageSectionHeader>
-        <UAlert
-          v-if="titlesError"
-          color="error"
-          variant="subtle"
-          title="无法读取称号"
-          :description="titlesError"
-          class="me-alert"
-        >
-          <template #actions>
-            <UButton label="重试" color="neutral" variant="outline" size="sm" :loading="retrying" @click="retryTitles" />
-          </template>
-        </UAlert>
-        <ul v-else-if="titlesReady && recentTitles.length" class="recent-titles">
-          <li v-for="title in recentTitles" :key="title.grantId"><PlayerTitleBadge :title="title" @inspect="inspectTitle" /></li>
-        </ul>
-        <UEmpty v-else-if="titlesReady" title="暂无称号" variant="naked" />
-        <div v-else-if="loading" class="titles-loading" role="status" aria-label="读取中…">
-          <USkeleton class="titles-loading-card" />
-          <USkeleton class="titles-loading-card" />
-          <USkeleton class="titles-loading-card" />
-        </div>
-      </section>
-
-      <section class="section-block mastery-section" aria-labelledby="mastery-title">
-        <PageSectionHeader title="地图成就与精通" heading-id="mastery-title">
-          <template #actions><UButton to="/me/achievements" label="查看我的成就" color="neutral" variant="outline" /></template>
-        </PageSectionHeader>
-        <UAlert v-if="masteryError" color="error" variant="subtle" title="无法读取精通记录" :description="masteryError" class="me-alert">
-          <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="masteryLoading" @click="retryMastery" /></template>
-        </UAlert>
-      </section>
-
-      <PlayerTitleInspectDialog v-model:open="inspectOpen" :title="inspected" />
+      <p v-if="showPasskeyNudge" class="hub-nudge">
+        <NuxtLink to="/me/settings"><UIcon name="i-lucide-fingerprint" aria-hidden="true" />添加 Passkey，一键登录</NuxtLink>
+        <UButton icon="i-lucide-x" color="neutral" variant="ghost" size="xs" aria-label="不再提醒" @click="dismissPasskeyNudge" />
+      </p>
     </template>
 
-    <div v-else-if="showSkeleton" class="me-skeleton" role="status" aria-label="读取中…">
-      <section class="me-skeleton-intro" aria-hidden="true">
-        <div class="me-skeleton-intro-copy">
-          <USkeleton class="me-skeleton-heading" />
-        </div>
-        <USkeleton class="me-skeleton-intro-action" />
-      </section>
-
-      <section class="me-skeleton-section" aria-hidden="true">
-        <div class="me-skeleton-section-heading me-skeleton-section-heading-plain">
-          <USkeleton class="me-skeleton-section-title" />
-        </div>
-        <div class="me-skeleton-submission-list">
-          <article v-for="row in 3" :key="`submission-${row}`" class="me-skeleton-submission-row">
-            <div class="me-skeleton-submission-copy">
-              <USkeleton class="me-skeleton-submission-name" />
-              <USkeleton class="me-skeleton-submission-date" />
-            </div>
-            <USkeleton class="me-skeleton-submission-status" />
-          </article>
-        </div>
-      </section>
-
-      <section class="me-skeleton-section" aria-hidden="true">
-        <div class="me-skeleton-section-heading">
-          <USkeleton class="me-skeleton-section-title" />
-          <USkeleton class="me-skeleton-action" />
-        </div>
-        <div class="me-skeleton-mastery-grid">
-          <USkeleton v-for="card in 2" :key="`mastery-${card}`" class="me-skeleton-mastery-card" />
-        </div>
-      </section>
-
-      <section class="me-skeleton-section titles-section" aria-hidden="true">
-        <div class="me-skeleton-section-heading">
-          <USkeleton class="me-skeleton-section-title" />
-          <USkeleton class="me-skeleton-action" />
-        </div>
-        <div class="me-skeleton-title-list">
-          <article v-for="card in 3" :key="`title-${card}`" class="me-skeleton-title-row">
-            <USkeleton class="me-skeleton-title-name" />
-            <USkeleton class="me-skeleton-title-copy" />
-          </article>
-        </div>
-      </section>
-
+    <div v-else-if="showSkeleton" class="hub-skeleton" role="status" aria-label="读取中…">
+      <USkeleton class="hub-skeleton__hero" />
+      <USkeleton class="hub-skeleton__cta" />
     </div>
 
-    <section v-else-if="playerLoadFailed" class="me-state surface-card" aria-labelledby="me-error-title">
+    <section v-else-if="playerLoadFailed" class="hub-state" aria-labelledby="me-error-title">
       <h1 id="me-error-title" class="page-title">无法读取玩家信息</h1>
-      <p class="body-copy">{{ playerError }}</p>
       <UButton label="重试" color="primary" :loading="retrying" @click="retryAll" />
     </section>
 
-    <section v-else-if="sessionUnavailable" class="me-state surface-card" aria-labelledby="me-session-title">
+    <section v-else-if="sessionUnavailable" class="hub-state" aria-labelledby="me-session-title">
       <h1 id="me-session-title" class="page-title">需要登录</h1>
-      <p class="body-copy">当前会话不可用。</p>
       <UButton to="/login" label="去登录" color="primary" />
     </section>
   </main>
 </template>
 
 <style scoped>
-.me-page { padding-block: clamp(4rem, 9vh, 6.5rem) 4.5rem; }
-.intro { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-8); margin-bottom: var(--space-8); }
-.intro-copy { min-width: 0; }
-.intro-copy .page-title { overflow-wrap: anywhere; }
-.intro-actions { display: flex; flex: 0 0 auto; align-items: center; gap: var(--space-3); }
-.intro-action { flex: 0 0 auto; }
-.me-alert { margin-bottom: var(--space-5); }
-.passkey-nudge { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-8); padding: var(--space-4) var(--space-5); }
-.passkey-nudge-icon { flex: 0 0 auto; width: 1.5rem; height: 1.5rem; color: var(--accent); }
-.passkey-nudge-copy { flex: 1; }
-.passkey-nudge-copy span { color: var(--muted); font-size: .86rem; line-height: 1.5; }
-.passkey-nudge-actions { display: flex; flex: 0 0 auto; align-items: center; gap: var(--space-2); }
-.section-block { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
-.titles-section { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
-.recent-titles { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
-.recent-titles > li { min-width: 0; max-width: 100%; }
-.me-stats { margin-bottom: var(--space-2); }
-.titles-loading { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
-.titles-loading-card { min-height: 112px; border-radius: var(--radius-card); }
-.mastery-loading { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
-.mastery-loading > * { min-height: 132px; border-radius: var(--radius-card); }
-.me-state { display: grid; gap: var(--space-4); justify-items: start; max-width: 640px; padding: clamp(var(--space-6), 5vw, var(--space-8)); }
-.me-state .body-copy { margin: 0; }
-.me-skeleton { display: grid; }
-.me-skeleton-intro { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-8); margin-bottom: var(--space-8); }
-.me-skeleton-intro-copy { display: grid; gap: var(--space-3); min-width: 0; }
-.me-skeleton-intro-action { flex: 0 0 auto; width: 132px; height: 44px; border-radius: var(--radius-pill); }
-.me-skeleton-heading { width: min(58%, 360px); height: 46px; }
-.me-skeleton-section { display: grid; gap: var(--space-4); margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
-.me-skeleton-section.titles-section { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
-.me-skeleton-section-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
-.me-skeleton-section-heading-plain { align-items: flex-start; flex-direction: column; gap: var(--space-2); }
-.me-skeleton-section-title { width: 150px; height: 22px; }
-.me-skeleton-action { width: 118px; height: 40px; border-radius: var(--radius-pill); }
-.me-skeleton-mastery-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
-.me-skeleton-mastery-card { min-height: 132px; border-radius: var(--radius-card); }
-.me-skeleton-title-list { display: grid; gap: var(--space-2); }
-.me-skeleton-title-row {
-  display: grid;
-  gap: var(--space-1);
-  min-height: 0;
-  padding: var(--space-4) var(--space-5);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  background: var(--surface);
-}
-.me-skeleton-title-name { width: 42%; height: 18px; }
-.me-skeleton-title-copy { width: 28%; height: 12px; }
-.me-skeleton-submission-list { display: grid; gap: var(--space-2); }
-.me-skeleton-submission-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-5);
-  min-height: 78px;
-  padding: var(--space-4) var(--space-5);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  background: var(--surface);
-}
-.me-skeleton-submission-copy { display: grid; flex: 1; gap: var(--space-2); min-width: 0; }
-.me-skeleton-submission-name { width: min(42%, 220px); height: 18px; }
-.me-skeleton-submission-date { width: 30%; height: 12px; }
-.me-skeleton-submission-status { width: 68px; height: 24px; border-radius: var(--radius-pill); }
+.hub { display: grid; align-content: start; gap: var(--space-6); max-width: 44rem; padding-block: clamp(3rem, 10vh, 6rem) 4.5rem; }
+.hub-hero { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-6); }
+.hub-hero__id { display: grid; gap: var(--space-2); min-width: 0; }
+.hub-hero__name { margin: 0; overflow-wrap: anywhere; font-family: var(--font-display); font-size: clamp(2.5rem, 7vw, 4.5rem); font-weight: 700; letter-spacing: -.03em; line-height: 1; }
+.hub-hero__title { --mark-size: 1.5rem; display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 600; }
+.hub-hero__xp { display: grid; justify-items: end; color: inherit; text-decoration: none; }
+.hub-hero__xp strong { color: var(--accent); font-family: var(--font-display); font-size: clamp(2.5rem, 6vw, 3.75rem); font-weight: 700; line-height: 1; }
+.hub-hero__xp > span { color: var(--quiet); font-family: var(--font-display); font-size: var(--type-caption-size); letter-spacing: .14em; }
+.hub-hero__xp small { margin-top: var(--space-2); color: var(--quiet); font-size: var(--type-caption-size); }
+.hub-hero__xp:hover strong { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: .2em; }
+.hub-cta { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-4); min-height: 4.5rem; padding: 0 var(--space-6); border-radius: var(--radius-card); background: var(--accent); color: var(--on-accent); font-size: 1.25rem; font-weight: 700; text-decoration: none; transition: transform 160ms ease, box-shadow 160ms ease; }
+.hub-cta:hover, .hub-cta:focus-visible { box-shadow: 0 .75rem 2rem -1rem var(--accent); transform: translateY(-1px); }
+.hub-cta > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-cta svg { width: 1.375rem; height: 1.375rem; }
+.hub-cta--warn { background: var(--signal); color: oklch(20% .03 75); }
+.hub-cta--warn:hover, .hub-cta--warn:focus-visible { box-shadow: 0 .75rem 2rem -1rem var(--signal); }
+.hub-recent { display: grid; gap: var(--space-2); }
+.hub-recent__title { margin: 0; color: var(--quiet); font-family: var(--font-display); font-size: var(--type-caption-size); font-weight: 600; letter-spacing: .14em; }
+.hub-nudge { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin: 0; }
+.hub-nudge a { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--muted); font-size: var(--type-label-sm-size); text-decoration: none; }
+.hub-nudge a:hover { color: var(--accent); }
+.hub-state { display: grid; gap: var(--space-4); justify-items: start; }
+.hub-skeleton { display: grid; gap: var(--space-6); }
+.hub-skeleton__hero { height: 6rem; }
+.hub-skeleton__cta { height: 4.5rem; border-radius: var(--radius-card); }
+@media (prefers-reduced-motion: reduce) { .hub-cta { transition: none; } }
 @media (max-width: 47.99rem) {
-  .titles-loading, .mastery-loading, .me-skeleton-mastery-grid { grid-template-columns: 1fr; }
-  .intro { align-items: stretch; flex-direction: column; gap: var(--space-5); }
-  .intro-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
-  .intro-action { width: 100%; justify-content: center; }
-  .intro-action:last-child { grid-column: 1 / -1; order: -1; }
-  .passkey-nudge { align-items: stretch; flex-direction: column; }
-  .passkey-nudge-actions { justify-content: flex-end; }
-  .me-skeleton-intro { align-items: stretch; flex-direction: column; gap: var(--space-5); margin-bottom: var(--space-5); }
-  .me-skeleton-intro-action { width: 100%; }
-  .me-skeleton-heading { width: 76%; height: 38px; }
-    .me-skeleton-section-heading { align-items: flex-start; }
-  .me-skeleton-section-title { width: 128px; }
-  .me-skeleton-action { width: 102px; height: 38px; }
-  .me-skeleton-submission-row { align-items: flex-start; flex-direction: column; gap: var(--space-3); padding: var(--space-4); }
-  .me-skeleton-submission-status { align-self: flex-start; }
-  .me-page { padding-block: var(--space-12) var(--space-12); }
-  .me-state :deep(button) { width: 100%; justify-content: center; }
+  .hub { padding-block: var(--space-8) var(--space-12); }
+  .hub-cta { min-height: 4rem; padding: 0 var(--space-5); font-size: 1.125rem; }
 }
 </style>

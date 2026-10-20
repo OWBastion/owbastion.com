@@ -4,7 +4,6 @@ import { portalErrorDetails } from "~/utils/portal-error";
 import type { CurrentPlayerMasteryResponse, PlayerVerifiedRun, PortalMap } from "~/composables/usePortalApi";
 import { formatMasteryDuration } from "~/utils/mastery";
 import { buildRunDayGrid } from "~/utils/run-days";
-import type { OwnedTitle } from "~/types/title";
 
 definePageMeta({ middleware: "auth" });
 useSeoMeta({ title: "个人主页 · 躲避堡垒 3" });
@@ -19,7 +18,6 @@ const maps = computed(() => mapsResponse.value?.items ?? []);
 
 const loading = shallowRef(true);
 const playerError = shallowRef("");
-const titlesError = shallowRef("");
 const titlesReady = shallowRef(false);
 const retrying = shallowRef(false);
 const profiles = shallowRef<CurrentPlayerMasteryResponse["profiles"]>([]);
@@ -32,22 +30,12 @@ const masteryRetrying = shallowRef(false);
 const equippedTitles = computed(() => titles.value.filter((title) => title.equipped));
 const mapNameById = computed(() => new Map(maps.value.map((map) => [map.mapId, map.mapName])));
 const currentProfiles = computed(() => profiles.value.filter((profile) => profile.gameplayRevisionLifecycle === "default"));
-// Current progress only: historical gameplay revisions belong to the map detail history.
-const recordProfiles = computed(() => currentProfiles.value
-  .filter((profile) => profile.verifiedRunCount > 0)
-  .sort((left, right) => right.totalXp - left.totalXp)
-  .slice(0, 6));
 const totalXp = computed(() => currentProfiles.value.reduce((sum, profile) => sum + profile.totalXp, 0));
 const yearRuns = computed(() => buildRunDayGrid(activityDays.value, Date.now()).totalRuns);
 const heroStats = computed(() => [
-  { label: "称号", value: titlesReady.value ? String(titles.value.length) : "—", unit: titlesReady.value ? "个" : undefined },
   { label: "精通 XP", value: masteryReady.value ? String(totalXp.value) : "—" },
   { label: "近一年通关", value: activityReady.value ? String(yearRuns.value) : "—", unit: activityReady.value ? "次" : undefined },
 ]);
-const inspected = shallowRef<OwnedTitle | null>(null);
-const inspectOpen = shallowRef(false);
-function inspectTitle(title: OwnedTitle) { inspected.value = title; inspectOpen.value = true; }
-const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(timestamp);
 const runMapName = (run: PlayerVerifiedRun) => mapNameById.value.get(run.mapId) ?? "地图";
 
 const showSkeleton = computed(() => loading.value && !player.value);
@@ -64,7 +52,7 @@ async function loadMastery() {
     profiles.value = response.profiles;
     // 最近通关只展示当前默认版本的有效记录；历史/可选版本与已失效记录
     // 不属于本页“当前进度”边界，全部交由地图详情页的完整历史承载。
-    recentRuns.value = response.runs.filter((run) => run.status === "active" && run.gameplayRevisionLifecycle === "default");
+    recentRuns.value = response.runs.filter((run) => run.status === "active" && run.gameplayRevisionLifecycle === "default").slice(0, 5);
     masteryReady.value = true;
   } catch (cause) {
     masteryReady.value = false;
@@ -77,7 +65,6 @@ async function loadMastery() {
 async function load(options: { forcePlayer?: boolean } = {}) {
   loading.value = true;
   playerError.value = "";
-  titlesError.value = "";
   try {
     const [playerResult, titlesResult] = await Promise.allSettled([
       refresh({ force: options.forcePlayer ?? false }),
@@ -88,12 +75,7 @@ async function load(options: { forcePlayer?: boolean } = {}) {
       playerError.value = portalErrorDetails(playerResult.reason, "无法读取玩家信息，请稍后重试。").description;
     }
 
-    if (titlesResult.status === "fulfilled") {
-      titlesReady.value = true;
-    } else {
-      titlesReady.value = false;
-      titlesError.value = portalErrorDetails(titlesResult.reason, "无法读取称号，请稍后重试。").description;
-    }
+    titlesReady.value = titlesResult.status === "fulfilled";
 
     if (playerResult.status === "fulfilled" && playerResult.value) {
       void refreshActivity();
@@ -108,20 +90,6 @@ async function retryAll() {
   retrying.value = true;
   try {
     await load({ forcePlayer: true });
-  } finally {
-    retrying.value = false;
-  }
-}
-
-async function retryTitles() {
-  titlesError.value = "";
-  retrying.value = true;
-  try {
-    await refreshTitles();
-    titlesReady.value = true;
-  } catch (cause) {
-    titlesReady.value = false;
-    titlesError.value = portalErrorDetails(cause, "无法读取称号，请稍后重试。").description;
   } finally {
     retrying.value = false;
   }
@@ -148,7 +116,7 @@ onMounted(() => {
 <template>
   <main class="profile-page page-shell">
     <template v-if="player">
-      <PlayerProfileHero :player-name="player.player.playerName" :player-id="player.player.playerId" :equipped-titles="equippedTitles" :titles-ready="titlesReady" :stats="heroStats" @inspect="inspectTitle">
+      <PlayerProfileHero :player-name="player.player.playerName" :player-id="player.player.playerId" :equipped-titles="equippedTitles" :titles-ready="titlesReady" :stats="heroStats">
         <template #settings>
           <UPopover :content="{ align: 'end' }">
             <UButton icon="i-lucide-settings-2" color="neutral" variant="ghost" aria-label="公开设置" />
@@ -161,33 +129,10 @@ onMounted(() => {
         </template>
       </PlayerProfileHero>
 
-      <section v-if="currentProfiles.length" class="section-block" aria-labelledby="records-title">
-        <PageSectionHeader title="战绩" heading-id="records-title" count="每张地图的个人最佳" />
-        <ul v-if="recordProfiles.length" class="map-records">
-          <li v-for="profile in recordProfiles" :key="profile.mapId">
-            <MapMasteryCard variant="record" :map-name="mapNameById.get(profile.mapId) ?? '地图'" :profile="profile" :to="`/maps?mapId=${encodeURIComponent(profile.mapId)}`" />
-          </li>
-        </ul>
-      </section>
-
       <div class="profile-grid">
-        <section class="section-block" aria-labelledby="titles-title">
-          <PageSectionHeader title="称号收藏" heading-id="titles-title">
-            <template #actions><UButton to="/me/achievements" label="查看全部成就" color="neutral" variant="outline" /></template>
-          </PageSectionHeader>
-          <UAlert v-if="titlesError" color="error" variant="subtle" title="无法读取称号" :description="titlesError" class="profile-alert">
-            <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="retrying" @click="retryTitles" /></template>
-          </UAlert>
-          <PlayerTitleShelf v-else-if="titlesReady && titles.length" :titles="titles" @inspect="inspectTitle" />
-          <UEmpty v-else-if="titlesReady" title="暂无称号" variant="naked" />
-          <div v-else class="title-loading" role="status" aria-label="读取中…">
-            <USkeleton v-for="card in 3" :key="card" class="title-loading-card" />
-          </div>
-        </section>
-
         <div class="profile-side">
           <section class="section-block" aria-labelledby="activity-title">
-            <PageSectionHeader title="活跃日历" heading-id="activity-title" />
+            <h2 id="activity-title" class="section-title">活跃</h2>
             <UAlert v-if="activityError" color="error" variant="subtle" title="无法读取通关记录" :description="activityError" class="profile-alert">
               <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="activityLoading" @click="refreshActivity" /></template>
             </UAlert>
@@ -196,7 +141,7 @@ onMounted(() => {
           </section>
 
           <section class="section-block" aria-labelledby="recent-runs-title">
-            <PageSectionHeader title="最近通关" heading-id="recent-runs-title" />
+            <h2 id="recent-runs-title" class="section-title">最近通关</h2>
             <UAlert v-if="masteryError" color="error" variant="subtle" title="无法读取通关记录" :description="masteryError" class="profile-alert">
               <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="masteryRetrying" @click="retryMastery" /></template>
             </UAlert>
@@ -206,8 +151,8 @@ onMounted(() => {
               <li v-for="run in recentRuns" :key="run.runId">
                 <NuxtLink :to="`/me/achievements/maps/${encodeURIComponent(run.mapId)}`" class="recent-run interactive-card pressable-soft" :aria-label="`查看${runMapName(run)}详情`">
                   <div class="recent-run-copy">
-                    <strong>{{ runMapName(run) }} · {{ run.difficulty }}</strong>
-                    <span><time :datetime="new Date(run.acceptedAt).toISOString()">{{ formatDate(run.acceptedAt) }}</time> · {{ formatMasteryDuration(run.completionDurationSeconds) }}</span>
+                    <strong>{{ runMapName(run) }}<small>{{ run.difficulty }}</small></strong>
+                    <span class="num">{{ formatMasteryDuration(run.completionDurationSeconds) }}</span>
                   </div>
                   <strong class="recent-run-xp">{{ run.awardedXp }} XP</strong>
                 </NuxtLink>
@@ -217,7 +162,6 @@ onMounted(() => {
         </div>
       </div>
 
-      <PlayerTitleInspectDialog v-model:open="inspectOpen" :title="inspected" />
     </template>
 
     <div v-else-if="showSkeleton" class="profile-skeleton" role="status" aria-label="读取中…">
@@ -242,30 +186,30 @@ onMounted(() => {
 
     <section v-else-if="sessionUnavailable" class="profile-state surface-card" aria-labelledby="profile-session-title">
       <h1 id="profile-session-title" class="page-title">需要登录</h1>
-      <p class="body-copy">当前会话不可用。</p>
       <UButton to="/login" label="去登录" color="primary" />
     </section>
   </main>
 </template>
 
 <style scoped>
-.profile-page { padding-block: clamp(4rem, 9vh, 6.5rem) 4.5rem; }
+.profile-page { max-width: 56rem; padding-block: clamp(2rem, 6vh, 4rem) 4.5rem; }
 .profile-alert { margin-bottom: var(--space-5); }
+.section-title { margin: 0 0 var(--space-4); color: var(--quiet); font-family: var(--font-display); font-size: var(--type-caption-size); font-weight: 600; letter-spacing: .14em; }
 .map-records { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr)); gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
 .map-records > li { min-width: 0; }
 .section-block { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
 .profile-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 var(--space-8); align-items: start; }
 .profile-side { display: grid; min-width: 0; }
 .heatmap-loading > * { min-height: 9.5rem; border-radius: var(--radius-card); }
-.title-loading { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
-.title-loading-card { min-height: 5.5rem; border-radius: var(--radius-card); }
-.mastery-loading, .runs-loading { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
-.mastery-loading > *, .runs-loading > * { min-height: 8rem; border-radius: var(--radius-card); }
+.runs-loading { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.runs-loading > * { min-height: 8rem; border-radius: var(--radius-card); }
 .recent-runs { container-type: inline-size; display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .recent-runs > li { min-width: 0; }
 .recent-run { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); min-width: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
+.recent-run { border-left: 3px solid var(--accent); }
 .recent-run-copy { display: grid; min-width: 0; gap: var(--space-1); }
-.recent-run-copy strong { overflow-wrap: anywhere; color: var(--text); font-size: .85rem; }
+.recent-run-copy strong { display: flex; align-items: baseline; gap: var(--space-2); overflow-wrap: anywhere; color: var(--text); font-size: .85rem; }
+.recent-run-copy strong small { color: var(--quiet); font-weight: 500; }
 .recent-run-copy span { color: var(--quiet); font-size: .73rem; }
 .recent-run-xp { flex: 0 0 auto; color: var(--accent); font-size: .8rem; }
 .profile-state { display: grid; gap: var(--space-4); justify-items: start; max-width: 40rem; padding: clamp(var(--space-6), 5vw, var(--space-8)); }
@@ -279,12 +223,9 @@ onMounted(() => {
 .profile-skeleton-section { display: grid; gap: var(--space-4); margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
 .profile-skeleton-title { width: 9rem; height: 1.4rem; }
 .profile-skeleton-body { min-height: 7rem; border-radius: var(--radius-card); }
-@media (min-width: 64rem) {
-  .profile-grid { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
-}
 @media (max-width: 47.99rem) {
   .profile-page { padding-block: var(--space-12); }
-  .title-loading, .mastery-loading, .runs-loading { grid-template-columns: 1fr; }
+  .runs-loading { grid-template-columns: 1fr; }
   .profile-state :deep(button) { width: 100%; justify-content: center; }
 }
 @container (max-width: 23.99rem) {

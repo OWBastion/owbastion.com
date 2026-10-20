@@ -1,98 +1,55 @@
-import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
+import { mockNuxtImport, mountSuspended } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import OcrFeedbackPanel from "./OcrFeedbackPanel.vue";
 
 const api = vi.fn();
 mockNuxtImport("usePortalApi", () => () => api);
 
-const feedback = (overrides: Record<string, unknown> = {}) => ({
-  ocrResultId: "00000000-0000-4000-8000-000000000004",
-  accuracy: null,
-  ...overrides,
-});
-
-const global = {
-  stubs: {
-    UCard: { template: "<section><slot name=\"header\" /><slot /></section>" },
-    UAlert: { props: ["description", "title", "color"], template: "<div role=\"alert\">{{ title }}{{ description }}</div>" },
-    UButton: { props: ["label", "loading", "disabled"], emits: ["click"], template: "<button :disabled=\"disabled || loading\" @click=\"$emit('click')\">{{ label }}</button>" },
-    UIcon: { props: ["name"], template: "<span>{{ name }}</span>" },
-  },
+const mountPanel = (accuracy: "accurate" | "inaccurate" | null = null) =>
+  mountSuspended(OcrFeedbackPanel, { props: { submissionId: "sub/1", feedback: { ocrResultId: "ocr-1", accuracy } } });
+const press = async (wrapper: Awaited<ReturnType<typeof mountPanel>>, name: string) => {
+  await wrapper.get(`button[aria-label="${name}"]`).trigger("click");
+  await flushPromises();
 };
 
-const successResponse = { contractVersion: "1", submissionId: "submission-1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "accurate", alreadySubmitted: false };
+beforeEach(() => api.mockReset());
 
-describe("OcrFeedbackPanel", () => {
-  it("renders accurate/inaccurate controls without transcription inputs", async () => {
-    const wrapper = await mountSuspended(OcrFeedbackPanel, { props: { submissionId: "submission-1", feedback: feedback() }, global });
-    await wrapper.vm.$nextTick();
-    expect(wrapper.text()).toContain("识别准确");
-    expect(wrapper.text()).toContain("识别有误");
-    expect(wrapper.findAll("input").length).toBe(0);
-    expect(wrapper.findAll("select").length).toBe(0);
+describe("OCR feedback", () => {
+  it("records the mark against the shown OCR result with an idempotency key", async () => {
+    api.mockResolvedValue({});
+    const wrapper = await mountPanel();
+    await press(wrapper, "识别有误");
+
+    const [path, options] = api.mock.calls[0]!;
+    expect(path).toBe("/v1/me/submissions/sub%2F1/ocr-feedback");
+    expect(options.method).toBe("POST");
+    expect(options.body).toMatchObject({ ocrResultId: "ocr-1", accuracy: "inaccurate" });
+    expect(options.headers["Idempotency-Key"]).toBeTruthy();
+    expect(wrapper.emitted("recorded")).toHaveLength(1);
   });
 
-  it("submits an accurate mark bound to the current OCR result", async () => {
-    api.mockResolvedValue(successResponse);
-    const wrapper = await mountSuspended(OcrFeedbackPanel, { props: { submissionId: "submission-1", feedback: feedback() }, global });
-    await wrapper.vm.$nextTick();
-    await wrapper.findAll("button").find((button) => button.text().includes("识别准确"))?.trigger("click");
-    await flushPromises();
-    expect(api).toHaveBeenCalledWith("/v1/me/submissions/submission-1/ocr-feedback", expect.objectContaining({
-      method: "POST",
-      body: { contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "accurate" },
-    }));
-    expect(wrapper.emitted("recorded")).toBeTruthy();
-  });
-
-  it("submits an inaccurate mark", async () => {
-    api.mockResolvedValue({ ...successResponse, accuracy: "inaccurate" });
-    const wrapper = await mountSuspended(OcrFeedbackPanel, { props: { submissionId: "submission-1", feedback: feedback() }, global });
-    await wrapper.vm.$nextTick();
-    await wrapper.findAll("button").find((button) => button.text().includes("识别有误"))?.trigger("click");
-    await flushPromises();
-    expect(api).toHaveBeenCalledWith("/v1/me/submissions/submission-1/ocr-feedback", expect.objectContaining({
-      body: { contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "inaccurate" },
-    }));
-  });
-
-  it("does not resubmit when clicking the already-current mark", async () => {
-    api.mockClear();
-    const wrapper = await mountSuspended(OcrFeedbackPanel, { props: { submissionId: "submission-1", feedback: feedback({ accuracy: "accurate" }) }, global });
-    await wrapper.vm.$nextTick();
-    expect(wrapper.text()).toContain("识别准确");
-    await wrapper.findAll("button").find((button) => button.text().includes("识别准确"))?.trigger("click");
-    await flushPromises();
+  it("does not resend a mark that is already recorded", async () => {
+    const wrapper = await mountPanel("accurate");
+    await press(wrapper, "识别准确");
     expect(api).not.toHaveBeenCalled();
   });
 
-  it("shows a recorded message after a successful mark", async () => {
-    api.mockResolvedValue(successResponse);
-    const wrapper = await mountSuspended(OcrFeedbackPanel, { props: { submissionId: "submission-1", feedback: feedback() }, global });
-    await wrapper.vm.$nextTick();
-    await wrapper.findAll("button").find((button) => button.text().includes("识别准确"))?.trigger("click");
-    await flushPromises();
-    expect(wrapper.text()).toContain("已记录标记");
+  it("asks the page to reload when the OCR result was superseded", async () => {
+    api.mockRejectedValueOnce(Object.assign(new Error("superseded"), { statusCode: 409, data: { error: { code: "OCR_PROMPT_STALE" } } }));
+    const wrapper = await mountPanel();
+    await press(wrapper, "识别准确");
+    expect(wrapper.emitted("stale")).toHaveLength(1);
+    expect(wrapper.emitted("recorded")).toBeUndefined();
   });
 
-  it("emits stale when the OCR result is no longer current", async () => {
-    api.mockRejectedValue(Object.assign(new Error("stale"), { data: { error: { code: "OCR_PROMPT_STALE", message: "stale" } } }));
-    const wrapper = await mountSuspended(OcrFeedbackPanel, { props: { submissionId: "submission-1", feedback: feedback() }, global });
-    await wrapper.vm.$nextTick();
-    await wrapper.findAll("button").find((button) => button.text().includes("识别准确"))?.trigger("click");
-    await flushPromises();
-    expect(wrapper.emitted("stale")).toBeTruthy();
-    expect(wrapper.emitted("recorded")).toBeFalsy();
-  });
-
-  it("surfaces a generic failure without marking recorded", async () => {
-    api.mockRejectedValue(Object.assign(new Error("boom"), { data: { error: { code: "INTERNAL", message: "boom" } } }));
-    const wrapper = await mountSuspended(OcrFeedbackPanel, { props: { submissionId: "submission-1", feedback: feedback() }, global });
-    await wrapper.vm.$nextTick();
-    await wrapper.findAll("button").find((button) => button.text().includes("识别有误"))?.trigger("click");
-    await flushPromises();
-    expect(wrapper.emitted("recorded")).toBeFalsy();
-    expect(wrapper.emitted("stale")).toBeFalsy();
+  it("keeps the buttons usable after a failure so the player can retry", async () => {
+    api.mockRejectedValueOnce(Object.assign(new Error("down"), { statusCode: 503 })).mockResolvedValueOnce({});
+    const wrapper = await mountPanel();
+    await press(wrapper, "识别准确");
+    expect(wrapper.emitted("recorded")).toBeUndefined();
+    expect(wrapper.get("[role=status]").text()).not.toBe("");
+    await press(wrapper, "识别准确");
+    expect(wrapper.emitted("recorded")).toHaveLength(1);
   });
 });

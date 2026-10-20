@@ -43,7 +43,7 @@ const pendingReopen = ref(false);
 const reviewInput = shallowRef<AdminSubmissionReviewInput>({ fieldCorrections: [], confirmedChallengeIds: [] });
 const approvalBlocked = computed(() => !props.preview || !props.preview.approvable || Boolean(props.previewLoading) || props.previewCurrent === false);
 const approvalHint = computed(() => {
-  if (props.previewLoading || props.previewCurrent === false) return "正在计算通过后的结果…";
+  if (props.previewLoading || props.previewCurrent === false) return "计算中…";
   if (props.previewError) return props.previewError;
   if (!props.preview) return "";
   return reviewBlockingMessage(props.preview.blockingCode);
@@ -62,17 +62,17 @@ const confirmCopy = computed(() => {
   if (target.kind === "reopen") {
     const titles = props.submission.activeTitleGrants?.map(({ titleName }) => titleName) ?? [];
     const run = props.submission.verifiedRunOutcome?.status === "created" || props.submission.verifiedRunOutcome?.status === "reused";
-    const withdrawn = [...(titles.length ? [`称号（${titles.join("、")}）`] : []), ...(run ? ["通关记录"] : [])];
-    return { title: "重新打开核对", description: `${withdrawn.length ? `将撤销该提交产生的${withdrawn.join("和")}` : "该提交没有已发放的称号或通关记录"}，并回到待核对。在「更多字段」修正后重新通过，会按截图重新判定并发放；手动发放的称号不受影响。`, reasonLabel: "内部备注", confirmLabel: "确认重新打开" };
+    const withdrawn = [...titles.map((title) => `「${title}」`), ...(run ? ["通关记录"] : [])];
+    return { title: "重新打开", description: withdrawn.length ? `撤销${withdrawn.join("、")}，回到待核对` : "回到待核对", reasonLabel: "备注（可选）", confirmLabel: "重新打开" };
   }
-  if (target.kind === "spot-check") return { title: "撤销自动获得的称号", description: "撤销后玩家将失去本次自动判定获得的称号，由该提交产生的通关记录也会失效。", reasonLabel: "内部备注", confirmLabel: "确认撤销" };
+  if (target.kind === "spot-check") return { title: "撤销称号", description: "称号与通关记录将失效", reasonLabel: "备注（可选）", confirmLabel: "撤销" };
   // A later decision changes only the Submission; Titles and Verified Runs it already produced are managed separately.
   const retainedTitles = props.submission.activeTitleGrants?.map(({ titleName }) => titleName) ?? [];
   const retainedRun = props.submission.verifiedRunOutcome?.status === "created" || props.submission.verifiedRunOutcome?.status === "reused";
-  const retainedItems = [...(retainedTitles.length ? [`已发放的称号（${retainedTitles.join("、")}）`] : []), ...(retainedRun ? ["已记录的通关记录"] : [])];
-  const retained = retainedItems.length ? `此操作不会撤销${retainedItems.join("和")}${retainedTitles.length ? "；撤销称号请在玩家称号中处理" : ""}。` : "";
-  if (target.decision === "rejected") return { title: "驳回提交", description: `玩家会看到“未通过”。${retained || "本次提交不会产生称号或通关记录。"}`, reasonLabel: "给玩家的说明", confirmLabel: "确认驳回" };
-  return { title: "要求重新提交", description: `玩家会看到“需重新提交”，并可以上传新的截图。${retained}`, reasonLabel: "给玩家的说明", confirmLabel: "确认要求重新提交" };
+  const retainedItems = [...retainedTitles.map((title) => `「${title}」`), ...(retainedRun ? ["通关记录"] : [])];
+  const retained = retainedItems.length ? `保留${retainedItems.join("、")}` : "";
+  if (target.decision === "rejected") return { title: "驳回", description: retained || undefined, reasonLabel: "给玩家（可选）", confirmLabel: "驳回" };
+  return { title: "重新提交", description: retained || undefined, reasonLabel: "给玩家（可选）", confirmLabel: "重新提交" };
 });
 
 function openConfirm(target: ConfirmTarget) {
@@ -152,8 +152,6 @@ function spotCheckLoading(decision: SpotCheckDecision) {
       <p class="detail-meta">
         <NuxtLink class="detail-meta__player" :to="`/admin/players/${encodeURIComponent(submission.playerAccountId)}`">{{ submission.playerName }}</NuxtLink>
         <span class="detail-meta__sep" aria-hidden="true">·</span>
-        <span class="detail-meta__label">审核</span>
-        <span class="detail-meta__sep" aria-hidden="true">·</span>
         <time class="detail-meta__time" :datetime="new Date(submission.updatedAt).toISOString()">{{ formatTime(submission.updatedAt) }}</time>
       </p>
       <StatusBadge :label="formatStatus(submission.status)" :tone="submissionStatusTone(submission.status)" />
@@ -169,13 +167,8 @@ function spotCheckLoading(decision: SpotCheckDecision) {
     <div class="review-layout">
       <div class="evidence-col">
         <UCard class="evidence-card surface-panel elevation-3 flow-evidence">
-          <template #header>
-            <div class="card-heading">
-              <h3>提交截图</h3>
-            </div>
-          </template>
           <EvidenceViewer v-if="evidenceSrc && !evidenceError" :src="evidenceSrc" alt="玩家提交的挑战截图" @error="emit('evidence-error')" />
-          <p v-else class="evidence-message" role="status">暂无截图。</p>
+          <p v-else class="evidence-message" role="status">暂无截图</p>
         </UCard>
       </div>
 
@@ -186,19 +179,19 @@ function spotCheckLoading(decision: SpotCheckDecision) {
         :aria-busy="actionLoading || previewLoading || undefined"
       >
         <div class="outcome">
-          <h3 id="claim-title" class="outcome__label">通过后将产生</h3>
+          <h3 id="claim-title" class="outcome__label">通过后</h3>
           <template v-if="preview">
             <ul v-if="preview.titles.length" class="outcome-list">
               <li v-for="title in preview.titles" :key="`${title.titleKey}:${title.mapName ?? ''}`">
-                <strong>{{ title.alreadyOwned ? `已拥有「${title.titleName}」，不重复获得` : `获得「${title.titleName}」` }}</strong>
+                <strong>{{ title.alreadyOwned ? `已有「${title.titleName}」` : `获得「${title.titleName}」` }}</strong>
                 <span v-if="title.mapName" class="claim-meta">{{ title.mapName }}</span>
               </li>
             </ul>
-            <p v-else-if="!verifiedRunLabel" class="claim-empty">不会产生称号或通关记录。</p>
+            <p v-else-if="!verifiedRunLabel" class="claim-empty">无称号或通关记录</p>
             <p v-if="outcomeNote" class="claim-meta">{{ outcomeNote }}</p>
           </template>
-          <p v-else-if="ocrPending" class="claim-empty" role="status">正在重新识别截图，完成后自动刷新。</p>
-          <p v-else-if="!previewLoading && !previewError" class="claim-empty">没有可核对的识别结果，无法通过。可以手动填写截图中的字段，重新识别，或要求重新提交。</p>
+          <p v-else-if="ocrPending" class="claim-empty" role="status">识别中…</p>
+          <p v-else-if="!previewLoading && !previewError" class="claim-empty">无识别结果，无法通过</p>
           <p v-if="approvalHint" id="approval-hint" class="claim-hint" :class="{ 'claim-hint--error': !previewLoading && previewCurrent !== false && Boolean(previewError || preview?.blockingCode) }" role="status">{{ approvalHint }}</p>
           <UButton v-if="previewError && !previewLoading" type="button" label="重新计算" icon="i-lucide-refresh-cw" size="sm" color="neutral" variant="ghost" @click="emit('retry-preview')" />
         </div>
@@ -215,7 +208,7 @@ function spotCheckLoading(decision: SpotCheckDecision) {
           />
           <UButton
             type="button"
-            label="要求重新提交"
+            label="重新提交"
             color="neutral"
             variant="outline"
             :loading="decisionLoading('resubmission_required')"
@@ -234,8 +227,8 @@ function spotCheckLoading(decision: SpotCheckDecision) {
         </div>
 
         <div v-if="reviewRecord" class="review-record">
-          <p>上次审核：<strong>{{ reviewRecordLabel(reviewRecord) }}</strong> · <time :datetime="new Date(reviewRecord.reviewedAt).toISOString()">{{ formatTime(reviewRecord.reviewedAt) }}</time></p>
-          <p v-if="reviewRecord.reason" class="review-record__reason">说明：{{ reviewRecord.reason }}</p>
+          <p>上次：<strong>{{ reviewRecordLabel(reviewRecord) }}</strong> · <time :datetime="new Date(reviewRecord.reviewedAt).toISOString()">{{ formatTime(reviewRecord.reviewedAt) }}</time></p>
+          <p v-if="reviewRecord.reason" class="review-record__reason">{{ reviewRecord.reason }}</p>
         </div>
 
         <div v-if="submission.status === 'approved'" class="action-row">
@@ -243,14 +236,11 @@ function spotCheckLoading(decision: SpotCheckDecision) {
         </div>
 
         <div v-if="submission.spotCheck?.status === 'pending'" class="spot-check-panel" aria-labelledby="spot-check-title">
-          <div>
-            <h4 id="spot-check-title">自动判定抽检</h4>
-            <p>请核对截图与称号结果。抽检不影响自动结果，发现错误时可撤销称号。</p>
-          </div>
+          <h4 id="spot-check-title">抽检</h4>
           <div class="spot-check-actions action-row">
             <UButton
               type="button"
-              label="确认抽检"
+              label="确认"
               color="neutral"
               variant="outline"
               :loading="spotCheckLoading('confirmed')"
@@ -284,13 +274,13 @@ function spotCheckLoading(decision: SpotCheckDecision) {
               @click="emit('retry-ocr')"
             />
             <div v-if="submission.ocrResultId" class="ocr-accuracy" role="group" aria-label="识别准确性标记">
-              <p class="ocr-accuracy__hint">识别准确性<span v-if="submission.ocrAccuracy">（当前：{{ submission.ocrAccuracy === "accurate" ? "准确" : "有误" }}）</span>。标记仅用于识别质量改进，不影响审核决定。</p>
+              <p class="ocr-accuracy__hint">识别准确？</p>
               <p v-if="ocrAccuracyError" class="ocr-retry-error" role="alert">{{ ocrAccuracyError }}</p>
               <div class="ocr-accuracy__buttons">
                 <UButton
                   type="button"
-                  icon="i-lucide-check"
-                  label="识别准确"
+                  icon="i-lucide-thumbs-up"
+                  aria-label="识别准确"
                   :color="submission.ocrAccuracy === 'accurate' ? 'primary' : 'neutral'"
                   :variant="submission.ocrAccuracy === 'accurate' ? 'soft' : 'ghost'"
                   size="sm"
@@ -300,8 +290,8 @@ function spotCheckLoading(decision: SpotCheckDecision) {
                 />
                 <UButton
                   type="button"
-                  icon="i-lucide-flag"
-                  label="识别有误"
+                  icon="i-lucide-thumbs-down"
+                  aria-label="识别有误"
                   :color="submission.ocrAccuracy === 'inaccurate' ? 'primary' : 'neutral'"
                   :variant="submission.ocrAccuracy === 'inaccurate' ? 'soft' : 'ghost'"
                   size="sm"
@@ -337,11 +327,11 @@ function spotCheckLoading(decision: SpotCheckDecision) {
 
       <!-- Traceability (low priority) -->
       <details class="meta-disclosure surface-panel flow-meta">
-        <summary>提交信息</summary>
+        <summary>信息</summary>
         <dl class="detail-grid meta-list">
-          <div class="detail-grid__row"><dt>提交编号</dt><dd>{{ submission.submissionId }}</dd></div>
-          <div class="detail-grid__row"><dt>提交时间</dt><dd>{{ formatTime(submission.createdAt) }}</dd></div>
-          <div class="detail-grid__row"><dt>最后更新</dt><dd>{{ formatTime(submission.updatedAt) }}</dd></div>
+          <div class="detail-grid__row"><dt>编号</dt><dd>{{ submission.submissionId }}</dd></div>
+          <div class="detail-grid__row"><dt>提交</dt><dd>{{ formatTime(submission.createdAt) }}</dd></div>
+          <div class="detail-grid__row"><dt>更新</dt><dd>{{ formatTime(submission.updatedAt) }}</dd></div>
         </dl>
       </details>
       </div>
@@ -410,7 +400,6 @@ function spotCheckLoading(decision: SpotCheckDecision) {
   text-decoration: underline;
 }
 .detail-meta__sep,
-.detail-meta__label,
 .detail-meta__time {
   color: var(--quiet);
 }
@@ -697,4 +686,12 @@ function spotCheckLoading(decision: SpotCheckDecision) {
       color var(--theme-transition);
   }
 }
+
+/* Concept: evidence sits in a dark viewer with corner brackets; the decision card leads with an accent edge. */
+.evidence-card { background: color-mix(in oklch, var(--page) 70%, black); }
+.evidence-card::before, .evidence-card::after { position: absolute; z-index: 1; width: 1.25rem; height: 1.25rem; border: 2px solid var(--accent); content: ""; pointer-events: none; }
+.evidence-card::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; border-top-left-radius: var(--radius-card); }
+.evidence-card::after { right: -1px; bottom: -1px; border-top: 0; border-left: 0; border-bottom-right-radius: var(--radius-card); }
+.decision-card { border-top: 2px solid var(--accent); }
+.outcome__label { font-family: var(--font-display); letter-spacing: .04em; }
 </style>

@@ -1,21 +1,57 @@
-import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
+import { clearNuxtData } from "#app";
+import { mockNuxtImport, mountSuspended } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
-import { describe, expect, it, vi } from "vitest";
-import PlayerPage from "./[userId].vue";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import PublicPlayerPage from "./[userId].vue";
 
-const portalApi = vi.fn();
-mockNuxtImport("usePortalApi", () => () => portalApi);
-mockNuxtImport("useRoute", () => () => ({ params: { userId: "堡主一号" }, path: "/u/堡主一号", query: {} }));
+const api = vi.hoisted(() => vi.fn());
+mockNuxtImport("usePortalApi", () => () => api);
+mockNuxtImport("useRoute", () => () => ({ params: { userId: "someone" }, query: {} }));
 
-const stubs = { LeaderboardPlayerDetail: { template: '<div data-detail="1" />' }, UIcon: true };
+const profile = {
+  contractVersion: "1",
+  handle: "someone",
+  player: { displayName: "Someone", equippedTitle: null },
+  boards: { mastery: { rank: 7, score: 1200 }, achievement: null },
+  titles: { general: [], map: [] },
+  perMapXp: [],
+  mapCount: 0,
+};
+const mountPage = async () => {
+  const wrapper = await mountSuspended(PublicPlayerPage);
+  await flushPromises();
+  return wrapper;
+};
+
+beforeEach(() => {
+  clearNuxtData();
+  api.mockReset();
+});
 
 describe("public player page", () => {
-  it("reads the profile by the URL handle and renders the display name", async () => {
-    portalApi.mockResolvedValueOnce({ handle: "堡主一号", contractVersion: "1", publicProfile: true, player: { displayName: "Player", equippedTitle: null }, boards: { mastery: null, achievement: null } });
-    const wrapper = await mountSuspended(PlayerPage, { global: { stubs } });
+  it("shows the player's name and handle for a public profile", async () => {
+    api.mockResolvedValue(profile);
+    const wrapper = await mountPage();
+    expect(wrapper.find("h1").text()).toBe("Someone");
+    expect(wrapper.text()).toContain("@someone");
+    expect(wrapper.find("[role=alert]").exists()).toBe(false);
+  });
+
+  it("treats a missing or non-public player as not found, not as an error", async () => {
+    api.mockImplementation(async () => { throw Object.assign(new Error("missing"), { statusCode: 404 }); });
+    const wrapper = await mountPage();
+    expect(wrapper.find("[role=alert]").exists()).toBe(false);
+    expect(wrapper.find("[role=status]").exists()).toBe(true);
+  });
+
+  it("reports a failed read as an error that can be retried", async () => {
+    api.mockImplementationOnce(async () => { throw Object.assign(new Error("down"), { statusCode: 503 }); });
+    api.mockResolvedValue(profile);
+    const wrapper = await mountPage();
+    expect(wrapper.find("[role=alert]").exists()).toBe(true);
+
+    await wrapper.find("[role=alert] button").trigger("click");
     await flushPromises();
-    expect(portalApi).toHaveBeenCalledWith(`/v1/public/players/${encodeURIComponent("堡主一号")}`);
-    expect(wrapper.text()).toContain("Player");
-    expect(wrapper.find('[data-detail="1"]').exists()).toBe(true);
+    expect(wrapper.find("h1").text()).toBe("Someone");
   });
 });

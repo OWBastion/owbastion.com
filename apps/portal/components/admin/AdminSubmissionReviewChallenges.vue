@@ -49,7 +49,7 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "满�
 
 <template>
   <div class="challenges">
-    <AdminSignalPanel title="Challenge 判定" title-id="auto-match-title">
+    <AdminSignalPanel title="挑战" title-id="auto-match-title">
       <template #aside>
         <StatusBadge v-if="preview" :label="matchOutcomeLabel(preview.evidenceOutcome)" :tone="preview.evidenceOutcome === 'automatic' ? 'success' : 'warning'" />
       </template>
@@ -68,21 +68,21 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "满�
             <UCheckbox
               v-if="candidate.evidence !== 'matched'"
               :model-value="confirmedChallengeIds.includes(candidate.challengeId)"
-              label="截图可证明"
+              label="确认"
               :disabled="disabled"
               @update:model-value="setChallengeConfirmation(candidate.challengeId, Boolean($event))"
             />
           </div>
         </li>
       </ul>
-      <p v-if="withdrawnConfirmations" class="signal-note" role="status">{{ withdrawnConfirmations }} 项人工确认已不适用于当前识别结果，已取消。</p>
-      <p v-if="!listedCandidates.length && previewLoading && !preview" class="signal-empty">正在计算 Challenge…</p>
-      <p v-else-if="!listedCandidates.length && preview" class="signal-empty">当前截图没有匹配到 Challenge，可以搜索添加。已拥有或已被管理员撤销的称号不会出现在列表中。</p>
-      <p v-else-if="!listedCandidates.length" class="signal-empty">暂无可判定的识别结果。</p>
+      <p v-if="withdrawnConfirmations" class="signal-note" role="status">{{ withdrawnConfirmations }} 项确认已失效</p>
+      <p v-if="!listedCandidates.length && previewLoading && !preview" class="signal-empty">计算中…</p>
+      <p v-else-if="!listedCandidates.length && preview" class="signal-empty">没有匹配</p>
+      <p v-else-if="!listedCandidates.length" class="signal-empty">无识别结果</p>
       <div v-if="candidates.length" class="manual-add">
-        <UButton v-if="!searchVisible" type="button" icon="i-lucide-plus" label="添加其他 Challenge" size="sm" color="neutral" variant="ghost" @click="searchOpen = true" />
+        <UButton v-if="!searchVisible" type="button" icon="i-lucide-plus" label="添加" size="sm" color="neutral" variant="ghost" @click="searchOpen = true" />
         <template v-else>
-          <UInput v-model="challengeQuery" icon="i-lucide-search" aria-label="搜索 Challenge" placeholder="输入称号、地图或条件" :disabled="disabled" />
+          <UInput v-model="challengeQuery" icon="i-lucide-search" aria-label="搜索 Challenge" placeholder="搜索" :disabled="disabled" />
           <ul v-if="searchResults.length" class="manual-add__results">
             <li v-for="candidate in searchResults" :key="candidate.challengeId" class="manual-add__result">
               <div>
@@ -92,7 +92,7 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "满�
               <UButton type="button" label="添加" size="sm" color="neutral" variant="outline" :disabled="disabled" :aria-label="`添加 ${candidate.label}`" @click="addChallenge(candidate.challengeId)" />
             </li>
           </ul>
-          <p v-else-if="challengeQuery.trim()" class="signal-empty">没有匹配的 Challenge。</p>
+          <p v-else-if="challengeQuery.trim()" class="signal-empty">没有匹配</p>
         </template>
       </div>
     </AdminSignalPanel>

@@ -1,16 +1,14 @@
 <script setup lang="ts">
 import type { FormSubmitEvent } from "@nuxt/ui";
-import SubmissionProgress from "~/components/submissions/SubmissionProgress.vue";
 import SubmissionRequirements from "~/components/submissions/SubmissionRequirements.vue";
 
 definePageMeta({ middleware: "auth" });
-useSeoMeta({ title: "提交挑战 · 躲避堡垒 3" });
+useSeoMeta({ title: "提交截图 · 躲避堡垒 3" });
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 const MAX_BYTES = 10 * 1024 * 1024;
 const ACCEPT_ATTR = ACCEPTED_TYPES.join(",");
 
-const toast = useToast();
 const { loading, phaseLabel, error, submit } = useSubmissionUpload();
 
 const state = reactive<{ screenshot: File | null }>({ screenshot: null });
@@ -19,8 +17,8 @@ const state = reactive<{ screenshot: File | null }>({ screenshot: null });
 const fileError = computed(() => {
   const file = state.screenshot;
   if (!file) return undefined;
-  if (!(ACCEPTED_TYPES as readonly string[]).includes(file.type)) return "仅支持 JPEG、PNG 或 WebP 格式。";
-  if (file.size > MAX_BYTES) return "截图不能超过 10MB，请使用游戏内截图，或降低截图分辨率后重试。";
+  if (!(ACCEPTED_TYPES as readonly string[]).includes(file.type)) return "仅支持 JPG / PNG / WebP";
+  if (file.size > MAX_BYTES) return "超过 10MB";
   return undefined;
 });
 
@@ -37,14 +35,7 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
   if (loading.value || !state.screenshot || fileError.value) return;
   try {
     const result = await submit(state.screenshot);
-    const title = result.status === "needs_review"
-      ? "截图已处理，等待核对。"
-      : result.status === "rejected"
-        ? "截图未通过处理，请查看提交详情。"
-        : result.status === "completed"
-          ? "截图处理完成。"
-          : "截图已上传，等待处理。";
-    toast.add({ title, color: result.status === "rejected" ? "warning" : "success" });
+    // The detail page shows the outcome, so no toast repeats it.
     await navigateTo(`/me/submissions/${encodeURIComponent(result.submissionId)}`);
   } catch {
     // useSubmissionUpload already shows the failure inline, with retry guidance, in a role="alert" region.
@@ -53,98 +44,45 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
 </script>
 
 <template>
-  <main class="submit-page page-shell">
-    <section class="submit-intro" aria-labelledby="submit-title">
-      <h1 id="submit-title" class="page-title">提交完成截图</h1>
-    </section>
-
-    <UCard class="submission-card elevation-2" variant="subtle">
-      <div class="submission-columns">
-        <section class="upload-section" aria-labelledby="upload-title">
-          <PageSectionHeader title="上传截图" heading-id="upload-title" size="card" />
-          <UForm :state="state" :disabled="loading" aria-labelledby="upload-title" @submit="send">
-            <UFormField name="screenshot" :error="fileError">
-              <UFileUpload
-                v-model="state.screenshot"
-                class="upload-control"
-                label="点击选择、拖拽或粘贴截图"
-                :accept="ACCEPT_ATTR"
-                :multiple="false"
-                layout="grid"
-                position="outside"
-                :preview="true"
-                :ui="{ base: 'min-h-48', files: 'w-full', file: 'w-full', fileLeadingAvatar: 'size-full rounded-lg object-contain', fileTrailingButton: 'absolute top-2 end-2 rounded-full border-2 border-bg' }"
-                description="JPEG、PNG、WebP，不超过 10MB"
-                :disabled="loading"
-              />
-            </UFormField>
-            <UAlert v-if="error" color="error" variant="subtle" :description="error" role="alert" />
-            <div class="privacy-note">
-              <div class="privacy-header">
-                <UIcon name="i-lucide-lock-keyhole" aria-hidden="true" />
-                <span>截图用途</span>
-              </div>
-              <ul class="privacy-details">
-                <li>截图用于挑战核对、截图识别，以及改进截图识别模型</li>
-                <li>提交截图不会对外公开</li>
-                <li>原始识别结果仅平台内部使用</li>
-              </ul>
-            </div>
-            <div class="action-row">
-              <UButton
-                size="lg"
-                :label="loading ? `${phaseLabel}…` : '上传并识别截图'"
-                icon="i-lucide-upload"
-                :loading="loading"
-                :disabled="loading || !state.screenshot || !!fileError"
-                type="submit"
-              />
-            </div>
-          </UForm>
-        </section>
-        <SubmissionRequirements />
-      </div>
-    </UCard>
-    <SubmissionProgress />
+  <main class="submit page-shell">
+    <h1 id="submit-title" class="submit__title">提交截图</h1>
+    <UForm :state="state" :disabled="loading" class="submit__form" aria-labelledby="submit-title" @submit="send">
+      <UFormField name="screenshot" :error="fileError">
+        <UFileUpload
+          v-model="state.screenshot"
+          class="w-full"
+          label="拖入、粘贴或点击"
+          :accept="ACCEPT_ATTR"
+          :multiple="false"
+          layout="grid"
+          position="outside"
+          :preview="true"
+          :ui="{ base: 'min-h-64 border-dashed', files: 'w-full', file: 'w-full', fileLeadingAvatar: 'size-full rounded-lg object-contain', fileTrailingButton: 'absolute top-2 end-2 rounded-full border-2 border-bg' }"
+          :disabled="loading"
+        >
+          <template #leading><SubmissionRequirements class="submit__sketch" /></template>
+        </UFileUpload>
+      </UFormField>
+      <UAlert v-if="error" color="error" variant="subtle" :description="error" role="alert" />
+      <UButton
+        v-if="state.screenshot"
+        size="xl"
+        block
+        :label="loading ? `${phaseLabel}…` : '提交'"
+        :loading="loading"
+        :disabled="loading || !!fileError"
+        type="submit"
+      />
+      <p class="submit__privacy"><UIcon name="i-lucide-lock-keyhole" aria-hidden="true" />用于核对、识别和改进识别模型，不公开</p>
+    </UForm>
   </main>
 </template>
 
 <style scoped>
-.submit-page { padding-block: clamp(3.5rem, 8vw, 5.5rem) 4.5rem; }
-.submit-intro { max-width: 650px; margin-bottom: var(--space-6); }
-.submission-card { border-color: var(--line); padding: clamp(var(--space-5), 3vw, var(--space-8)); }
-.submission-columns {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: clamp(var(--space-6), 5vw, var(--space-16));
-}
-.upload-section { min-width: 0; }
-.upload-section :deep(form) { display: grid; gap: var(--space-3); }
-.upload-control { width: 100%; }
-.privacy-note {
-  display: grid;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  background: var(--surface-raised);
-  font-size: var(--type-caption-size);
-  line-height: 1.5;
-}
-.privacy-header { display: flex; align-items: center; gap: var(--space-1); color: var(--text); font-weight: 600; }
-.privacy-header > svg { flex: 0 0 auto; width: 14px; height: 14px; color: var(--muted); }
-.privacy-details { margin: 0; padding-left: var(--space-4); display: grid; gap: var(--space-1); color: var(--muted); }
-.privacy-details li::marker { color: var(--quiet); }
-@media (max-width: 63.99rem) {
-  .submit-page { padding-bottom: 3.5rem; }
-  .submission-columns { grid-template-columns: minmax(0, 1fr); gap: var(--space-8); }
-}
-@media (max-width: 47.99rem) {
-  .submit-page { padding-block: var(--space-12) var(--space-12); }
-  .submit-intro { margin-bottom: var(--space-8); }
-  .submission-card { padding: var(--space-4); }
-}
-@media (prefers-reduced-transparency: reduce) {
-  .submission-card { background: var(--surface); }
-}
+.submit { display: grid; align-content: start; gap: var(--space-6); max-width: 40rem; padding-block: clamp(3rem, 10vh, 6rem) 4.5rem; }
+.submit__title { margin: 0; font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3rem); font-weight: 700; letter-spacing: -.02em; line-height: 1; }
+.submit__sketch { width: min(22rem, 100%); margin-bottom: var(--space-2); }
+.submit__form { display: grid; gap: var(--space-4); }
+.submit__privacy { display: flex; align-items: center; justify-content: center; gap: var(--space-2); margin: 0; color: var(--quiet); font-size: var(--type-caption-size); }
+@media (max-width: 47.99rem) { .submit { padding-block: var(--space-8) var(--space-12); } }
 </style>

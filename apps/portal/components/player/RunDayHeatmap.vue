@@ -18,14 +18,10 @@ onMounted(() => {
 
 const formatDay = (date: string) => `${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日`;
 const cellLabel = (cell: RunDayCell) => (cell.future ? "" : `${formatDay(cell.date)} · ${cell.runCount ? `${cell.runCount} 次通关` : "无记录"}`);
-const summaryText = computed(() => (grid.value.totalRuns
-  ? `过去一年 ${grid.value.totalRuns} 次通关 · ${grid.value.activeDays} 天有记录`
-  : "过去一年暂无通关记录"));
 </script>
 
 <template>
   <div class="run-heatmap">
-    <p class="run-heatmap-summary">{{ summaryText }}</p>
     <div ref="scrollRef" class="run-heatmap-scroll">
       <div class="run-heatmap-frame">
         <div class="run-heatmap-months" aria-hidden="true">
@@ -52,15 +48,11 @@ const summaryText = computed(() => (grid.value.totalRuns
         </table>
       </div>
     </div>
-    <div class="run-heatmap-footer">
-      <div class="run-heatmap-legend" aria-hidden="true"><span>少</span><i class="level-0"></i><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><i class="level-4"></i><span>多</span></div>
-    </div>
   </div>
 </template>
 
 <style scoped>
 .run-heatmap { container-type: inline-size; display: grid; gap: var(--space-3); min-width: 0; }
-.run-heatmap-summary { margin: 0; color: var(--muted); font-size: var(--type-caption-size); font-weight: 500; }
 /* Local horizontal containment for a genuine 53-week data matrix; the grid
    always docks to the most recent weeks. */
 .run-heatmap-scroll { overflow-x: auto; scrollbar-width: thin; }
@@ -77,7 +69,4 @@ const summaryText = computed(() => (grid.value.totalRuns
 .level-2 { background: color-mix(in oklch, var(--accent) 50%, var(--surface)); }
 .level-3 { background: color-mix(in oklch, var(--accent) 75%, var(--surface)); }
 .level-4 { background: var(--accent); }
-.run-heatmap-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); }
-.run-heatmap-legend { display: flex; align-items: center; gap: var(--space-1); color: var(--quiet); font-size: .72rem; }
-.run-heatmap-legend i { width: 0.75rem; height: 0.75rem; box-shadow: inset 0 0 0 1px var(--line); }
 </style>

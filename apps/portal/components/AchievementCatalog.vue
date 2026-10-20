@@ -6,45 +6,53 @@ import { achievementState, findOwnedTitle } from "~/utils/achievement-status";
 export type PublicAchievement = Extract<Challenge, { family: "achievement" }>;
 
 const props = defineProps<{ challenges: PublicAchievement[]; titles?: OwnedTitle[] }>();
+const stateOf = (challenge: PublicAchievement) => achievementState(findOwnedTitle(props.titles, challenge));
 const groups = computed(() => {
   const grouped = new Map<string, PublicAchievement[]>();
   for (const challenge of props.challenges) grouped.set(challenge.category, [...(grouped.get(challenge.category) ?? []), challenge]);
   return [...grouped.entries()]
-    .map(([category, challenges]) => ({
+    .map(([category, challenges], index) => ({
       category,
+      anchor: `series-${index}`,
+      obtained: props.titles ? challenges.filter((challenge) => stateOf(challenge) !== "none").length : null,
       challenges: [...challenges].sort((left, right) => left.titleName.localeCompare(right.titleName, "zh-CN")),
     }))
     .sort((left, right) => left.category.localeCompare(right.category, "zh-CN"));
 });
+const selected = shallowRef<PublicAchievement | null>(null);
+const sheetOpen = computed({ get: () => selected.value !== null, set: (value) => { if (!value) selected.value = null; } });
+const noteOf = (challenge: PublicAchievement) => challenge.status === "scheduled" ? "未开放" : challenge.status === "sunsetting" ? `即将结束${challenge.retiredVersion ? ` · ${challenge.retiredVersion}` : ""}` : undefined;
 </script>
 
 <template>
-  <div v-if="groups.length" class="achievement-groups">
-    <section v-for="group in groups" :key="group.category" class="achievement-section" :aria-labelledby="`category-${group.category}`">
-      <div class="group-heading"><h2 :id="`category-${group.category}`" class="type-headline">{{ group.category }}</h2><span class="type-label-sm">{{ group.challenges.length }} 项</span></div>
-      <div class="directory-grid">
-        <article v-for="challenge in group.challenges" :key="challenge.challengeId" class="achievement-card">
-          <div class="achievement-icon" aria-hidden="true"><img v-if="challenge.iconUrl" :src="challenge.iconUrl" alt="" /><UIcon v-else :name="`i-lucide-${challenge.icon}`" /></div>
-          <div class="achievement-card-copy"><strong class="type-card-title">{{ challenge.titleName }}</strong><AchievementStatus v-if="titles" class="achievement-state" :state="achievementState(findOwnedTitle(titles, challenge))" /><span class="type-label-sm">{{ challenge.condition }}</span><span v-if="challenge.status === 'scheduled'" class="type-label-sm scheduled">未开放</span><span v-else-if="challenge.status === 'sunsetting'" class="sunsetting-row"><StatusBadge label="即将结束" tone="warning" /><small class="type-caption">{{ challenge.retiredVersion }}</small></span></div>
-        </article>
-      </div>
-    </section>
+  <div v-if="groups.length" class="catalog">
+    <AchievementWall>
+      <AchievementShelf v-for="(group, groupIndex) in groups" :key="group.anchor" :title="group.category" :heading-id="`${group.anchor}-title`" :count="group.obtained === null ? String(group.challenges.length) : `${group.obtained}/${group.challenges.length}`">
+        <li v-for="(challenge, index) in group.challenges" :key="challenge.challengeId">
+          <AchievementTile :name="challenge.titleName" :icon-url="challenge.iconUrl" :icon="challenge.icon" :earned="challenge.status !== 'scheduled' && (!titles || stateOf(challenge) !== 'none')" :checked="Boolean(titles) && stateOf(challenge) !== 'none'" check-label="已获得" :shine-delay="groupIndex * .8 + index * .22" @click="selected = challenge" />
+        </li>
+      </AchievementShelf>
+    </AchievementWall>
+
+    <UModal v-model:open="sheetOpen" :title="selected?.titleName ?? ''" :description="selected?.category">
+      <template #body>
+        <div v-if="selected" class="sheet">
+          <AchievementIcon class="sheet__icon" entrance :url="selected.iconUrl" :icon="selected.icon" earned />
+          <p v-if="noteOf(selected)" class="sheet__note">{{ noteOf(selected) }}</p>
+          <p class="sheet__condition">{{ selected.condition }}</p>
+          <p v-if="titles && stateOf(selected) !== 'none'" class="sheet__owned"><UIcon name="i-lucide-check" aria-hidden="true" />已获得</p>
+        </div>
+      </template>
+    </UModal>
   </div>
   <UEmpty v-else title="暂无记录" variant="naked" />
 </template>
 
 <style scoped>
-.achievement-groups, .achievement-section { display: grid; gap: var(--space-4); }
-.achievement-section + .achievement-section { margin-top: var(--space-8); }
-.group-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); }
-.group-heading h2 { margin: 0; }
-.group-heading > span, .scheduled, .sunsetting-row small { color: var(--quiet); }
-.achievement-card { container-type: inline-size; display: grid; grid-template-columns: auto minmax(0, 1fr); align-content: start; align-items: start; gap: var(--space-4); min-width: 0; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
-.achievement-icon { display: grid; width: 3.5rem; height: 3.5rem; place-items: center; overflow: hidden; border: 1px dashed var(--line-strong); border-radius: var(--radius-control); color: var(--quiet); background: color-mix(in oklch, var(--surface-raised) 70%, var(--surface)); font-size: 1.5rem; }
-.achievement-icon img { width: 60%; height: 60%; object-fit: contain; }
-.achievement-card-copy { display: grid; gap: var(--space-2); min-width: 0; }
-.achievement-card strong { overflow-wrap: anywhere; color: var(--text); }
-.achievement-card-copy > span:not(.sunsetting-row):not(.status-badge) { color: var(--muted); }
-.sunsetting-row { display: inline-flex; width: fit-content; align-items: center; gap: var(--space-2); }
-@container (max-width: 23.99rem) { .achievement-icon { width: 2.5rem; height: 2.5rem; font-size: 1.125rem; } }
+.catalog { display: grid; gap: var(--space-12); }
+.sheet { display: grid; justify-items: center; gap: var(--space-4); text-align: center; }
+.sheet__icon { --achievement-icon-size: 10rem; }
+.sheet__note { margin: 0; padding: var(--space-1) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-pill); color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 600; }
+.sheet__condition { margin: 0; color: var(--muted); }
+.sheet__owned { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--accent); font-weight: 600; }
 </style>

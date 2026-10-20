@@ -221,6 +221,20 @@ const columnMenuItems = computed(() => props.columns
     }];
   }));
 
+// Sorting, grouping and column visibility share one menu so the table chrome stays a single control.
+const choiceItem = (label: string, checked: boolean, select: () => void) => ({
+  label,
+  type: "checkbox" as const,
+  checked,
+  onUpdateChecked: select,
+  onSelect(event: Event) { event.preventDefault(); },
+});
+const viewMenuItems = computed(() => [
+  ...(props.sortingOptions.length ? [[{ label: "排序", type: "label" as const }, ...sortingItems.value.map((item) => choiceItem(item.label, sortingSelection.value === item.value, () => { sortingSelection.value = item.value; }))]] : []),
+  ...(props.groupingOptions.length ? [[{ label: "分组", type: "label" as const }, ...groupingItems.value.map((item) => choiceItem(item.label, groupingSelection.value === item.value, () => { groupingSelection.value = item.value; }))]] : []),
+  ...(columnMenuItems.value.length ? [[{ label: "列", type: "label" as const }, ...columnMenuItems.value]] : []),
+]);
+
 watch(() => props.resetScrollKey, () => {
   tableViewport.value?.scrollTo?.({ top: 0, left: 0 });
   if (boundedScroll.value) {
@@ -294,17 +308,13 @@ onBeforeUnmount(() => {
         <div v-if="$slots['mobile-primary']" class="admin-data-table__mobile-primary-controls"><slot name="mobile-primary" /></div>
         <div class="admin-data-table__secondary-controls admin-data-table__secondary-controls--desktop">
           <div class="admin-data-table__secondary-controls-content">
-            <div v-if="props.sortingOptions.length" class="admin-data-table__sort-control">
-              <USelect v-model="sortingSelection" class="w-full" aria-label="排序方式" size="md" :items="sortingItems" :ui="{ content: 'min-w-64', itemLabel: 'whitespace-nowrap overflow-visible text-clip' }" />
-            </div>
-            <USelect v-if="props.groupingOptions.length" v-model="groupingSelection" aria-label="分组方式" size="md" :items="groupingItems" />
-            <UDropdownMenu :items="columnMenuItems" :content="{ align: 'end' }">
-              <UButton label="列" color="neutral" variant="outline" size="md" trailing-icon="i-lucide-chevron-down" />
+            <UDropdownMenu :items="viewMenuItems" :content="{ align: 'end' }">
+              <UButton icon="i-lucide-settings-2" color="neutral" variant="ghost" size="md" aria-label="视图" />
             </UDropdownMenu>
           </div>
         </div>
         <span v-if="loading" class="admin-data-table__loading-bar" role="status" aria-label="正在加载" />
-        <UDrawer v-if="mobileHasSecondaryControls" v-model:open="secondaryControlsOpen" direction="bottom" title="筛选与排序" description="调整当前列表的显示顺序与筛选条件。" close :ui="{ content: 'admin-data-table__mobile-drawer glass-heavy elevation-3', header: 'glass-segment', body: 'admin-data-table__mobile-drawer-body' }">
+        <UDrawer v-if="mobileHasSecondaryControls" v-model:open="secondaryControlsOpen" direction="bottom" title="筛选与排序" close :ui="{ content: 'admin-data-table__mobile-drawer glass-heavy elevation-3', header: 'glass-segment', body: 'admin-data-table__mobile-drawer-body' }">
           <UButton class="admin-data-table__mobile-controls-trigger" label="筛选与排序" color="neutral" variant="outline" size="md" icon="i-lucide-sliders-horizontal" aria-label="打开筛选与排序" />
           <template #body>
             <div class="admin-data-table__mobile-controls-content">
@@ -399,9 +409,9 @@ onBeforeUnmount(() => {
 .admin-data-table { container-type: inline-size; overflow: visible; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); scroll-margin-top: var(--sticky-chrome-top, 0px); }
 .admin-data-table--row-link :deep(tbody tr) { cursor: pointer; transition: background-color 120ms ease-out; }
 .admin-data-table--row-link :deep(tbody tr:hover),
-.admin-data-table--row-link :deep(tbody tr:focus-within) { background: color-mix(in oklch, var(--surface-raised) 72%, transparent); }
+.admin-data-table--row-link :deep(tbody tr:focus-within) { background: color-mix(in oklch, var(--surface-raised) 72%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
 .admin-data-table--row-link :deep(tbody tr:active) { background: color-mix(in oklch, var(--surface-raised) 88%, transparent); }
-.admin-data-table__controls { position: sticky; z-index: 3; top: var(--sticky-chrome-top, 0px); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: var(--radius-card) var(--radius-card) 0 0; background: var(--surface); }
+.admin-data-table__controls { position: sticky; z-index: 3; top: var(--sticky-chrome-top, 0px); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); border-radius: var(--radius-card) var(--radius-card) 0 0; background: var(--surface); }
 .admin-data-table__loading-bar {
   position: absolute;
   right: 0;
@@ -437,7 +447,6 @@ onBeforeUnmount(() => {
 .admin-data-table__mobile-primary-controls, .admin-data-table__mobile-controls-trigger { display: none; }
 .admin-data-table__secondary-controls { flex: 0 1 auto; min-width: 0; }
 .admin-data-table__secondary-controls-content { display: flex; align-items: center; gap: var(--space-3); }
-.admin-data-table__sort-control { flex: 0 1 16rem; min-width: 16rem; }
 .admin-data-table__scroll { overflow: visible; border-radius: var(--radius-card); }
 /* Bounded mode owns both axes on the single virtualization scroll element; the
    table viewport must NOT become a scroll container here, or the sticky thead
@@ -468,9 +477,11 @@ onBeforeUnmount(() => {
 }
 .admin-data-table :deep([data-slot="th"]) {
   color: var(--quiet);
+  font-family: var(--font-display);
   font-size: .72rem;
-  font-weight: 700;
-  letter-spacing: .025em;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
 }
 .admin-data-table :deep([data-slot="th"]), .admin-data-table :deep([data-slot="td"]) { padding: var(--space-3) var(--space-3); }
 .admin-data-table :deep([data-slot="td"]) { vertical-align: middle; white-space: normal !important; }

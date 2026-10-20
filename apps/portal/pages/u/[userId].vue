@@ -25,6 +25,10 @@ const notFound = computed(() => status.value !== "pending" && !error.value && !p
 if (import.meta.server && notFound.value && requestEvent) setResponseStatus(requestEvent, 404);
 
 const displayName = computed(() => profile.value?.player?.displayName ?? "");
+const standings = computed(() => [
+  { label: "精通排名", board: profile.value?.boards?.mastery, unit: "XP" },
+  { label: "成就排名", board: profile.value?.boards?.achievement, unit: "枚" },
+]);
 useSeoMeta({
   title: () => displayName.value ? `${displayName.value} · 躲避堡垒 3` : "玩家 · 躲避堡垒 3",
   robots: () => notFound.value ? "noindex" : undefined,
@@ -32,43 +36,75 @@ useSeoMeta({
 </script>
 
 <template>
-  <main class="player-page page-shell--narrow">
-    <NuxtLink to="/leaderboard" class="back-link pressable"><UIcon name="i-lucide-arrow-left" aria-hidden="true" />排行榜</NuxtLink>
-
-    <div v-if="profile?.player" class="player-page-card">
-      <div class="player-page-head">
-        <span class="player-page-avatar" aria-hidden="true">{{ displayName.charAt(0) }}</span>
-        <div class="player-page-identity">
-          <h1 class="player-page-name">{{ displayName }}</h1>
-          <span v-if="profile.player.equippedTitle" class="title-pill">{{ profile.player.equippedTitle.label }}</span>
-          <span class="player-page-id">{{ profile.handle }}</span>
+  <main class="player page-shell--readable">
+    <div v-if="profile?.player" class="player__layout">
+      <aside class="player__id">
+        <span class="player__avatar font-display" aria-hidden="true">{{ displayName.charAt(0) }}</span>
+        <div class="player__names">
+          <h1 class="player__name">{{ displayName }}</h1>
+          <p class="player__handle">@{{ profile.handle }}</p>
         </div>
+        <p v-if="profile.player.equippedTitle" class="player__title">
+          <AchievementIcon class="player__title-icon" :url="profile.player.equippedTitle.iconUrl" :icon="profile.player.equippedTitle.icon" earned />
+          {{ profile.player.equippedTitle.label }}
+        </p>
+        <dl class="player__ranks">
+          <NuxtLink v-for="stat in standings" :key="stat.label" to="/leaderboard" class="player__rank pressable-soft">
+            <dt>{{ stat.label }}</dt>
+            <dd class="num"><b>{{ stat.board ? `#${stat.board.rank}` : "—" }}</b><span>{{ (stat.board?.score ?? 0).toLocaleString() }} {{ stat.unit }}</span></dd>
+          </NuxtLink>
+        </dl>
+      </aside>
+
+      <div class="player__main">
+        <section class="player__section" aria-labelledby="medals-title">
+          <h2 id="medals-title" class="player__heading">成就</h2>
+          <PlayerMedalCase :titles="profile.titles?.general ?? []" />
+        </section>
+        <section class="player__section" aria-labelledby="maps-title">
+          <h2 id="maps-title" class="player__heading">地图</h2>
+          <PlayerMapProgress :per-map-xp="profile.perMapXp ?? []" :titles="profile.titles?.map ?? []" :map-count="profile.mapCount" />
+        </section>
       </div>
-      <LeaderboardPlayerDetail :boards="profile.boards" :summary="profile" />
     </div>
     <UAlert v-else-if="error" color="error" variant="subtle" role="alert" title="无法读取玩家" :description="portalErrorDetails(error, '请稍后重试。').description">
       <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" @click="() => refresh()" /></template>
     </UAlert>
-    <div v-else-if="notFound" class="player-page-missing" role="status">
+    <div v-else-if="notFound" class="player__missing" role="status">
       <h1>找不到这位玩家。</h1>
     </div>
-    <div v-else class="player-page-loading" role="status" aria-label="读取中…"><USkeleton /><USkeleton /></div>
+    <div v-else class="player__loading" role="status" aria-label="读取中…"><USkeleton /><USkeleton /></div>
   </main>
 </template>
 
 <style scoped>
-.player-page { display: grid; gap: var(--space-6); padding-block: clamp(4rem, 9vh, 6.5rem) 4.5rem; }
-.back-link { display: inline-flex; align-items: center; gap: var(--space-2); justify-self: start; color: var(--muted); font-size: .9rem; text-decoration: none; }
-.back-link:hover { color: var(--text); }
-.player-page-card { display: grid; gap: var(--space-2); min-width: 0; }
-.player-page-head { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-5); min-width: 0; }
-.player-page-avatar { display: grid; flex: none; place-items: center; width: 4rem; height: 4rem; border: 2px solid var(--accent); border-radius: 50%; background: var(--accent-surface); color: var(--accent); font-size: 1.6rem; font-weight: 700; }
-.player-page-identity { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); min-width: 0; }
-.player-page-name { flex: 1 0 100%; margin: 0; font-size: var(--type-title-size); font-weight: 700; letter-spacing: var(--type-title-tracking); line-height: var(--type-title-leading); overflow-wrap: anywhere; }
-.player-page-id { color: var(--quiet); font-size: var(--type-caption-size); overflow-wrap: anywhere; }
-.player-page-missing h1 { margin: 0; font-size: var(--type-section-title-size); }
-.player-page-loading { display: grid; gap: var(--space-3); }
-.player-page-loading > * { min-height: 96px; border-radius: var(--radius-card); }
-.title-pill { display: inline-block; max-width: 100%; padding: 0 var(--space-2); border: 1px solid color-mix(in oklch, var(--accent) 32%, var(--line-strong)); border-radius: var(--radius-pill); background: color-mix(in oklch, var(--accent) 7%, var(--surface)); color: var(--text); font-size: var(--type-caption-size); font-weight: 600; line-height: 1.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
-@media (max-width: 47.99rem) { .player-page { padding-block: var(--space-12); gap: var(--space-5); } }
+.player { padding-block: clamp(var(--space-8), 6vh, var(--space-12)) 4.5rem; }
+.player__layout { display: grid; grid-template-columns: 15rem minmax(0, 1fr); align-items: start; gap: clamp(var(--space-8), 5vw, var(--space-12)); }
+.player__id { position: sticky; top: calc(var(--sticky-chrome-top) + var(--space-4)); display: grid; gap: var(--space-5); }
+.player__avatar { display: grid; place-items: center; width: 9rem; aspect-ratio: 1; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: radial-gradient(circle at 50% 30%, color-mix(in oklch, var(--accent) 55%, transparent), transparent 72%), var(--accent-surface); color: var(--accent); font-size: 3.5rem; font-weight: 700; }
+.player__names { display: grid; gap: var(--space-1); min-width: 0; }
+.player__name { margin: 0; font-family: var(--font-display); font-size: clamp(1.75rem, 4vw, 2.25rem); font-weight: 700; letter-spacing: -.02em; line-height: 1.1; overflow-wrap: anywhere; }
+.player__handle { margin: 0; color: var(--quiet); font-size: var(--type-body-sm-size); }
+.player__title { --achievement-icon-size: 2rem; display: flex; align-items: center; gap: var(--space-2); margin: 0; font-size: var(--type-label-sm-size); font-weight: 600; }
+.player__title-icon { flex: none; }
+.player__ranks { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); margin: 0; }
+.player__rank { display: grid; gap: var(--space-1); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: color-mix(in oklch, var(--surface) 80%, transparent); color: inherit; text-decoration: none; }
+.player__rank:hover { border-color: var(--line-strong); }
+.player__rank dt { color: var(--quiet); font-size: var(--type-caption-size); }
+.player__rank dd { display: grid; margin: 0; }
+.player__rank b { font-family: var(--font-display); font-size: 1.5rem; line-height: 1.1; }
+.player__rank span { color: var(--muted); font-size: var(--type-caption-size); }
+.player__main { display: grid; gap: clamp(var(--space-8), 5vw, var(--space-12)); min-width: 0; }
+.player__section { display: grid; gap: var(--space-4); }
+.player__heading { margin: 0; color: var(--quiet); font-family: var(--font-display); font-size: var(--type-caption-size); font-weight: 600; letter-spacing: .14em; }
+.player__missing h1 { margin: 0; font-family: var(--font-display); font-size: var(--type-section-title-size); }
+.player__loading { display: grid; gap: var(--space-3); }
+.player__loading > * { min-height: 96px; border-radius: var(--radius-card); }
+@media (max-width: 47.99rem) {
+  .player { padding-block: var(--space-6) var(--space-12); }
+  .player__layout { grid-template-columns: minmax(0, 1fr); }
+  .player__id { position: static; grid-template-columns: 5rem minmax(0, 1fr); align-items: center; gap: var(--space-4); }
+  .player__avatar { width: 5rem; font-size: 2rem; }
+  .player__title, .player__ranks { grid-column: 1 / -1; }
+}
 </style>

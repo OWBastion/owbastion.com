@@ -50,9 +50,10 @@ async function handleQqStart() {
 </script>
 
 <template>
-  <main class="login-page page-shell--narrow">
-    <section class="login-card surface-card" aria-labelledby="login-title">
-      <h1 id="login-title" class="page-title">登录玩家帐号</h1>
+  <main class="login-page auth-layout page-shell">
+    <AuthBrandPanel eyebrow="Player account" :points="[{ icon: 'i-lucide-upload', text: '提交通关截图，审核后获得精通 XP' }, { icon: 'i-lucide-award', text: '查看已获得的成就与称号' }, { icon: 'i-lucide-trophy', text: '在排行榜上找到自己的名次' }]" />
+    <section class="login-card" aria-labelledby="login-title">
+      <h1 id="login-title" class="login-title">登录玩家帐号</h1>
 
       <div class="methods">
         <section class="method" aria-labelledby="passkey-method">
@@ -72,6 +73,7 @@ async function handleQqStart() {
           />
         </section>
 
+        <p class="methods-divider" aria-hidden="true">或</p>
         <section class="method" aria-labelledby="qq-method" aria-live="polite">
           <h2 id="qq-method" class="method-title">QQ 群验证</h2>
           <template v-if="qqActive && attempt">
@@ -126,16 +128,18 @@ async function handleQqStart() {
 </template>
 
 <style scoped>
-.login-page { display: grid; min-height: calc(100svh - 68px); place-items: center; padding-block: clamp(4.5rem, 11vh, 8.125rem) 3.5rem; }
-.login-card { display: grid; width: 100%; gap: var(--space-6); padding: clamp(var(--space-6), 6vw, var(--space-16)); }
-.methods { display: flex; flex-direction: column; gap: var(--space-4); }
-.method { display: grid; gap: var(--space-3); padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
-.method-title { margin: 0; font-size: var(--type-headline-size, 1rem); font-weight: 600; letter-spacing: var(--type-headline-tracking); }
+.login-card { display: grid; width: 100%; gap: var(--space-6); }
+.login-title { margin: 0; font-family: var(--font-display); font-size: var(--type-headline-size); font-weight: 700; }
+.methods { display: flex; flex-direction: column; gap: var(--space-5); }
+.methods-divider { display: flex; align-items: center; gap: var(--space-3); margin: 0; color: var(--quiet); font-size: var(--type-caption-size); }
+.methods-divider::before, .methods-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.method { display: grid; gap: var(--space-3); }
+.method-title { margin: 0; font-size: 1.0625rem; font-weight: 600; }
 .method-copy { margin: 0; color: var(--muted); font-size: .88rem; line-height: 1.55; }
 .notice { margin: 0; color: var(--muted); font-size: .86rem; line-height: 1.55; }
 .warning { color: var(--warning); }
 .error { color: var(--danger); }
-.account-help { margin: 0; color: var(--muted); font-size: .86rem; line-height: 1.55; }
+.account-help { margin: 0; padding-top: var(--space-4); border-top: 1px solid var(--line); color: var(--muted); font-size: .86rem; line-height: 1.55; }
 .turnstile-slot { display: grid; gap: var(--space-3); justify-items: center; min-height: 65px; }
 .turnstile-widget { min-height: 65px; }
 .challenge-panel { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid color-mix(in oklch, var(--accent) 46%, var(--line)); border-radius: var(--radius-card); background: var(--accent-surface); }
@@ -148,10 +152,6 @@ async function handleQqStart() {
 .local-dev-copy { margin: 0; font-size: .82rem; font-weight: 600; }
 .local-dev-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 @media (max-width: 47.99rem) {
-  .login-page { padding-top: 3.625rem; }
-  .login-card { padding: var(--space-6) var(--space-4); }
-  .login-card .page-title { font-size: clamp(2.15rem, 10vw, 3rem); }
-  .method { padding: var(--space-4); }
   .challenge-actions, .local-dev-actions { align-items: stretch; flex-direction: column; }
   .challenge-actions :deep(button), .local-dev-actions :deep(button), .local-dev-actions > * { width: 100%; }
 }

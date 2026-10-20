@@ -1,69 +1,75 @@
 import { mockNuxtImport, mountSuspended } from "@nuxt/test-utils/runtime";
+import { flushPromises } from "@vue/test-utils";
+import { ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import NewSubmissionPage from "./new.vue";
 
-const portalApi = vi.fn(async (path: string) => {
-  if (path === "/v1/me") {
-    return { playerId: "1001", playerName: "测试玩家" };
-  }
-  return {};
+const submit = vi.fn();
+const navigate = vi.hoisted(() => vi.fn());
+const upload = { loading: ref(false), phaseLabel: ref(""), error: ref(""), submit };
+mockNuxtImport("useSubmissionUpload", () => () => upload);
+mockNuxtImport("navigateTo", () => navigate);
+
+const pasteFile = (file: File) => {
+  const event = new Event("paste") as Event & { clipboardData: unknown };
+  event.clipboardData = { files: [file] };
+  document.dispatchEvent(event);
+};
+const image = (type: string, size = 1024) => new File([new Uint8Array(size)], "shot", { type });
+const submitButton = (wrapper: Awaited<ReturnType<typeof mountSuspended>>) => wrapper.find("button[type=submit]");
+
+beforeEach(() => {
+  URL.createObjectURL = () => "blob:preview";
+  submit.mockReset();
+  navigate.mockReset();
+  upload.error.value = "";
 });
 
-mockNuxtImport("usePortalApi", () => () => portalApi);
+describe("new submission", () => {
+  it("uploads a pasted screenshot and opens the resulting submission", async () => {
+    submit.mockResolvedValue({ submissionId: "sub/1", status: "processing" });
+    const wrapper = await mountSuspended(NewSubmissionPage, { attachTo: document.body });
+    const file = image("image/png");
 
-describe("new submission page privacy statement", () => {
-  beforeEach(() => { URL.createObjectURL = vi.fn(() => "blob:preview"); });
+    pasteFile(file);
+    await flushPromises();
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
 
-  it("renders verified screenshot privacy facts", async () => {
-    const wrapper = await mountSuspended(NewSubmissionPage, {
-      route: "/me/submissions/new",
-    });
-
-    const text = wrapper.text();
-    expect(text).toContain("提交完成截图");
-    expect(text).toContain("截图用途");
-    expect(text).toContain("截图用于挑战核对、截图识别，以及改进截图识别模型");
-    expect(text).toContain("提交截图不会对外公开");
-    expect(text).toContain("原始识别结果仅平台内部使用");
-    expect(text).not.toContain("默认 F9");
-    expect(text).toContain("优先使用游戏内截图，避免裁剪或二次压缩。");
-    expect(text).not.toContain("挑战提交");
-    expect(text).not.toContain("上传一张完整截图");
-    expect(text).not.toContain("请确保截图清晰");
+    expect(submit).toHaveBeenCalledWith(file);
+    expect(navigate).toHaveBeenCalledWith("/me/submissions/sub%2F1");
+    wrapper.unmount();
   });
 
-  it("does not use internal model-training or OCR wording on the player page", async () => {
-    const wrapper = await mountSuspended(NewSubmissionPage, {
-      route: "/me/submissions/new",
-    });
+  it("refuses a file over 10MB before anything is uploaded", async () => {
+    const file = image("image/png", 10 * 1024 * 1024 + 1);
+    const wrapper = await mountSuspended(NewSubmissionPage, { attachTo: document.body });
 
-    const text = wrapper.text();
-    expect(text).not.toContain("模型训练");
-    expect(text).not.toContain("OCR");
-    expect(text).not.toContain("第三方");
+    pasteFile(file);
+    await flushPromises();
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+
+    const button = submitButton(wrapper);
+    expect(!button.exists() || button.attributes("disabled") !== undefined).toBe(true);
+    expect(submit).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+    wrapper.unmount();
   });
 
-  it("accepts a pasted image and enables upload", async () => {
-    const wrapper = await mountSuspended(NewSubmissionPage, { route: "/me/submissions/new" });
-    const submit = () => wrapper.find("button[type=submit]");
-    expect(submit().attributes("disabled")).toBeDefined();
+  it("stays on the page when the upload fails, so the player can retry", async () => {
+    submit.mockRejectedValueOnce(new Error("down")).mockResolvedValueOnce({ submissionId: "s2", status: "processing" });
+    const wrapper = await mountSuspended(NewSubmissionPage, { attachTo: document.body });
 
-    const event = new Event("paste") as ClipboardEvent;
-    Object.defineProperty(event, "clipboardData", { value: { files: [new File(["x"], "image.png", { type: "image/png" })] } });
-    document.dispatchEvent(event);
-    await nextTick();
+    pasteFile(image("image/png"));
+    await flushPromises();
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+    expect(navigate).not.toHaveBeenCalled();
 
-    expect(submit().attributes("disabled")).toBeUndefined();
-  });
-
-  it("rejects an unsupported pasted file before upload", async () => {
-    const wrapper = await mountSuspended(NewSubmissionPage, { route: "/me/submissions/new" });
-    const event = new Event("paste") as ClipboardEvent;
-    Object.defineProperty(event, "clipboardData", { value: { files: [new File(["x"], "a.gif", { type: "image/gif" })] } });
-    document.dispatchEvent(event);
-    await nextTick();
-
-    expect(wrapper.text()).toContain("仅支持 JPEG、PNG 或 WebP 格式。");
-    expect(wrapper.find("button[type=submit]").attributes("disabled")).toBeDefined();
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+    expect(navigate).toHaveBeenCalledWith("/me/submissions/s2");
+    wrapper.unmount();
   });
 });

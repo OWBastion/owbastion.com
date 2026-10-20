@@ -1,77 +1,19 @@
 <script setup lang="ts">
-const requirements = [
-  { title: "游戏 ID", description: "左下角显示的玩家名称" },
-  { title: "地图名称", description: "游戏右上角显示的地图名称" },
-  { title: "游戏难度", description: "游戏右上角显示的难度标识" },
-  { title: "通关数据与标志", description: "左上角通关数据与通关标志" },
-  { title: "相关挑战数据", description: "与挑战相关的具体数据" },
+// Each label sits where that information appears on the in-game screen.
+const marks = [
+  { label: "通关数据", x: 4, y: 7, w: 26, h: 22 },
+  { label: "地图 · 难度", x: 72, y: 5, w: 24, h: 28 },
+  { label: "游戏 ID", x: 4, y: 82, w: 22, h: 12 },
 ];
 </script>
 
 <template>
-  <section class="requirements" aria-labelledby="requirements-title">
-    <PageSectionHeader title="截图要求" heading-id="requirements-title" size="card" />
-    <dl class="requirement-list">
-      <div v-for="item in requirements" :key="item.title" class="requirement-item">
-        <dt>{{ item.title }}</dt>
-        <dd>{{ item.description }}</dd>
-      </div>
-    </dl>
-    <p class="tip-note">优先使用游戏内截图，避免裁剪或二次压缩。</p>
-  </section>
+  <figure class="screen" aria-label="截图需包含：通关数据、地图、难度、游戏 ID">
+    <span v-for="mark in marks" :key="mark.label" class="screen__mark" :style="{ left: `${mark.x}%`, top: `${mark.y}%`, width: `${mark.w}%`, height: `${mark.h}%` }">{{ mark.label }}</span>
+  </figure>
 </template>
 
 <style scoped>
-.requirements { container-type: inline-size; min-width: 0; }
-.requirement-list {
-  display: grid;
-  gap: 0;
-  margin: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  background: var(--surface-raised);
-  overflow: hidden;
-}
-.requirement-item {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border-top: 1px solid var(--line);
-}
-.requirement-item:first-child { border-top: 0; }
-.requirement-item dt {
-  color: var(--text);
-  font-size: .82rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-.requirement-item dd {
-  margin: 0;
-  color: var(--muted);
-  font-size: .76rem;
-  line-height: 1.4;
-  text-align: right;
-}
-.tip-note {
-  margin: var(--space-3) 0 0;
-  color: var(--quiet);
-  font-size: var(--type-caption-size);
-  line-height: 1.5;
-}
-@container (max-width: 23.99rem) {
-  .requirement-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-1);
-  }
-  .requirement-item dd {
-    text-align: left;
-  }
-}
-@media (prefers-contrast: more) {
-  .requirement-list { border-color: var(--text); }
-  .requirement-item { border-color: var(--text); }
-}
+.screen { position: relative; aspect-ratio: 16 / 9; margin: 0; overflow: hidden; border: 1px solid var(--line-strong); border-radius: var(--radius-control); background: linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0 / 1rem 1rem, linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0 / 1rem 1rem, var(--page); }
+.screen__mark { position: absolute; display: grid; place-items: center; border: 1px dashed color-mix(in oklch, var(--accent) 55%, var(--line-strong)); border-radius: calc(var(--radius-control) / 1.5); background: color-mix(in oklch, var(--accent) 8%, transparent); color: var(--accent); font-size: var(--type-caption-size); font-weight: 600; white-space: nowrap; }
 </style>

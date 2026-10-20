@@ -61,16 +61,17 @@ onMounted(() => {
 <style scoped>
 .theme-trigger {
   display: grid;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 2.25rem;
+  height: 2.25rem;
   place-items: center;
   padding: 0;
   border: 1px solid var(--line-strong);
-  border-radius: 50%;
+  border-radius: var(--radius-control);
   color: var(--muted);
   background: transparent;
   transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
 }
+@media (pointer: coarse) { .theme-trigger { width: var(--control-lg); height: var(--control-lg); } }
 .theme-trigger:hover,
 .theme-trigger[data-state="open"],
 .theme-trigger[aria-expanded="true"] {

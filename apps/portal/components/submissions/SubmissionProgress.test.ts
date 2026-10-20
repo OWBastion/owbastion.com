@@ -2,36 +2,31 @@ import { mountSuspended } from "@nuxt/test-utils/runtime";
 import { describe, expect, it } from "vitest";
 import SubmissionProgress from "./SubmissionProgress.vue";
 
-describe("SubmissionProgress", () => {
-  it.each([
-    ["processing", ["已完成", "进行中", "待处理", "待处理"]],
-    ["needs_review", ["已完成", "已完成", "进行中", "待处理"]],
-    ["completed", ["已完成", "已完成", "已完成", "已完成"]],
-    ["rejected", ["已完成", "已完成", "未通过", "待处理"]],
-  ])("maps %s to its lifecycle state", async (status, states) => {
-    const wrapper = await mountSuspended(SubmissionProgress, { props: { status, updatedAt: 0, resubmissionRequired: false } });
+const labels = async (status: string, resubmissionRequired = false) => {
+  const wrapper = await mountSuspended(SubmissionProgress, { props: { status, resubmissionRequired } });
+  return wrapper.findAll("[role=img]").map((step) => step.attributes("aria-label")!.split("：")[1]);
+};
 
-    const actualStates = wrapper.findAll("[aria-label]")
-      .map((item) => item.attributes("aria-label"))
-      .filter((label) => label?.includes("："))
-      .map((label) => label!.split("：")[1]);
-    expect(actualStates).toEqual(states);
+// The wording is free to change; only which stage is in which state is the contract.
+describe("submission progress", () => {
+  it("places the current and failed stage according to the submission status", async () => {
+    const complete = (await labels("completed"))[0]!;
+    const current = (await labels("processing"))[1]!;
+    const upcoming = (await labels("processing"))[2]!;
+    const failed = (await labels("rejected"))[2]!;
+    const stateKinds = new Set([complete, current, upcoming, failed]);
+    expect(stateKinds.size).toBe(4);
+
+    expect(await labels("completed")).toEqual([complete, complete, complete, complete]);
+    expect(await labels("processing")).toEqual([complete, current, upcoming, upcoming]);
+    expect(await labels("needs_review")).toEqual([complete, complete, current, upcoming]);
+    expect(await labels("rejected")).toEqual([complete, complete, failed, upcoming]);
   });
 
-  it("shows resubmission-required rejection at the OCR step", async () => {
-    const wrapper = await mountSuspended(SubmissionProgress, { props: { status: "rejected", resubmissionRequired: true, updatedAt: 0 } });
-
-    expect(wrapper.get('[role="img"][aria-label="截图识别：需重新提交"]').exists()).toBe(true);
-    expect(wrapper.text()).not.toContain("未通过");
-  });
-
-  it("renders the static four-step flow without a status", async () => {
-    const wrapper = await mountSuspended(SubmissionProgress);
-
-    expect(wrapper.text()).toContain("获得称号流程");
-    expect(wrapper.findAll("li")).toHaveLength(4);
-    expect(wrapper.text()).toContain("上传截图");
-    expect(wrapper.find("[role='img']").exists()).toBe(false);
-    expect(wrapper.text()).not.toContain("待处理");
+  it("marks recognition as the failed stage when the screenshot must be resubmitted", async () => {
+    const [, failedStage, ...rest] = await labels("rejected", true);
+    const ordinaryRejection = await labels("rejected");
+    expect(failedStage).not.toBe(ordinaryRejection[1]);
+    expect(rest).toEqual(ordinaryRejection.slice(2).map(() => ordinaryRejection[3]));
   });
 });

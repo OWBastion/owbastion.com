@@ -7,7 +7,7 @@ useHead({
   meta: [
     {
       name: "theme-color",
-      content: computed(() => colorMode.value === "dark" ? "#151a1b" : "#f5f4ef"),
+      content: computed(() => colorMode.value === "dark" ? "#0c1310" : "#f4f6f2"),
     },
   ],
 });
@@ -17,7 +17,7 @@ useHead({
   <UApp :locale="zhCN">
     <div class="app-root" data-vaul-drawer-wrapper>
       <NuxtLayout>
-        <NuxtPage :page-key="(route) => route.fullPath" />
+        <NuxtPage :page-key="(route) => route.path" />
       </NuxtLayout>
     </div>
   </UApp>

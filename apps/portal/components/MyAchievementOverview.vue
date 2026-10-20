@@ -2,13 +2,10 @@
 import type { PublicAchievement } from "./AchievementCatalog.vue";
 import type { OwnedTitle } from "~/types/title";
 import type { PlayerChallengeProgress, PortalMap } from "~/composables/usePortalApi";
-import { achievementState, findOwnedTitle } from "~/utils/achievement-status";
+import { findOwnedTitle } from "~/utils/achievement-status";
+import { formatDate } from "~/utils/date-time";
 import { buildMapProgressRows, type MapProgressChallenge } from "~/utils/map-progress";
 
-type HistoricalTitleGroup = {
-  name: string;
-  titles: OwnedTitle[];
-};
 type AchievementCard =
   | { kind: "catalog"; challenge: PublicAchievement }
   | { kind: "ended"; title: OwnedTitle };
@@ -31,37 +28,12 @@ const canEquip = (title: OwnedTitle) => title.scope === "global" && (title.equip
 
 const ownedTitleKeys = computed(() => new Set(props.titles.map((title) => title.titleKey)));
 const earnedCatalogCount = computed(() => props.challenges.filter((challenge) => ownedTitleKeys.value.has(challenge.titleKey)).length);
-const recentTitles = computed(() => [...props.titles].sort((left, right) => right.grantedAt - left.grantedAt).slice(0, 3));
 const catalogTitleKeys = computed(() => new Set(props.challenges.map((challenge) => challenge.titleKey)));
 const endedGlobalTitles = computed(() => props.titles.filter((title) => title.scope === "global" && !catalogTitleKeys.value.has(title.titleKey)));
-const currentMapTitleKeys = computed(() => new Set(props.mapChallenges
-  .filter((challenge) => challenge.titleKey && props.maps.some((map) => map.mapId === challenge.mapId && map.defaultGameplayRevisionId === challenge.gameplayRevisionId))
-  .map((challenge) => `${challenge.mapId}:${challenge.gameplayRevisionId}:${challenge.titleKey}`)));
-const isCurrentMapTitle = (title: OwnedTitle) => title.scope === "map"
-  && Boolean(title.mapId && title.gameplayRevisionId)
-  && currentMapTitleKeys.value.has(`${title.mapId}:${title.gameplayRevisionId}:${title.titleKey}`);
-const groupHistoricalTitles = (titles: OwnedTitle[], groupName: (title: OwnedTitle) => string): HistoricalTitleGroup[] => {
-  const grouped = new Map<string, OwnedTitle[]>();
-  for (const title of titles) grouped.set(groupName(title), [...(grouped.get(groupName(title)) ?? []), title]);
-
-  const slotRank = { pioneer: 0, conqueror: 1, dominator: 2 } as const;
-  return [...grouped.entries()]
-    .map(([name, titles]) => ({
-      name,
-      titles: [...titles].sort((left, right) => (left.slot ? slotRank[left.slot] : 9) - (right.slot ? slotRank[right.slot] : 9) || left.label.localeCompare(right.label, "zh-CN")),
-    }))
-    .sort((left, right) => left.name.localeCompare(right.name, "zh-CN"));
-};
-const mapTitleGroups = computed(() => groupHistoricalTitles(
-  props.titles.filter((title) => title.scope === "map" && !isCurrentMapTitle(title)),
-  (title) => title.mapName ?? "地图称号",
-));
-const mapTitleCount = computed(() => mapTitleGroups.value.reduce((count, group) => count + group.titles.length, 0));
 const isAchievementCardEarned = (card: AchievementCard) => card.kind === "ended" || ownedTitleKeys.value.has(card.challenge.titleKey);
 const ownedGlobalTitleForCard = (card: AchievementCard) => card.kind === "ended"
   ? card.title
   : findOwnedTitle(props.titles, { titleKey: card.challenge.titleKey });
-const stateForCard = (card: AchievementCard) => achievementState(ownedGlobalTitleForCard(card));
 const groups = computed(() => {
   const grouped = new Map<string, AchievementCard[]>();
   for (const challenge of props.challenges) grouped.set(challenge.category, [...(grouped.get(challenge.category) ?? []), { kind: "catalog", challenge }]);
@@ -75,140 +47,115 @@ const groups = computed(() => {
     .sort((left, right) => left.category.localeCompare(right.category, "zh-CN"));
 });
 
-const progressByChallenge = computed(() => new Map(props.challengeProgress.map((item) => [item.challengeId, item])));
-const progressFor = (card: AchievementCard) => card.kind === "catalog" && card.challenge.progressRule ? progressByChallenge.value.get(card.challenge.challengeId) : undefined;
+type Tile = {
+  key: string;
+  name: string;
+  icon: { url: string | null | undefined; icon: string };
+  condition: string;
+  owned?: OwnedTitle;
+  earned: boolean;
+  note?: string;
+  series: string;
+  progress?: PlayerChallengeProgress;
+};
 const mapNameFor = (mapId: string) => props.maps.find((map) => map.mapId === mapId)?.mapName ?? mapId;
+const progressByChallenge = computed(() => new Map(props.challengeProgress.map((item) => [item.challengeId, item])));
+const cardTile = (card: AchievementCard): Omit<Tile, "series"> => card.kind === "catalog"
+  ? {
+      key: card.challenge.challengeId,
+      name: card.challenge.titleName,
+      icon: { url: card.challenge.iconUrl, icon: card.challenge.icon },
+      condition: card.challenge.condition,
+      owned: ownedGlobalTitleForCard(card),
+      earned: isAchievementCardEarned(card),
+      note: card.challenge.status === "scheduled" ? "未开放" : card.challenge.status === "sunsetting" ? "即将结束" : undefined,
+      progress: card.challenge.progressRule ? progressByChallenge.value.get(card.challenge.challengeId) : undefined,
+    }
+  : { key: card.title.grantId, name: card.title.label, icon: { url: card.title.iconUrl, icon: card.title.icon }, condition: card.title.condition, owned: card.title, earned: true, note: "不再发放" };
+const tileGroups = computed(() => groups.value.map((group) => ({ name: group.category, tiles: group.cards.map((card) => ({ ...cardTile(card), series: group.category })) })));
 
-const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, challenges: props.mapChallenges, titles: props.titles }));
-const targetMapCount = computed(() => mapProgressRows.value.filter((row) => row.challenges.length).length);
-const totalChallengeCount = computed(() => mapProgressRows.value.reduce((count, row) => count + row.challenges.length, 0));
-const earnedChallengeCount = computed(() => mapProgressRows.value.reduce((count, row) => count + row.earnedChallenges.length, 0));
+const selectedKey = shallowRef<string | null>(null);
+// Looked up live so the sheet reflects an equip change as soon as the titles prop updates.
+const selected = computed(() => tileGroups.value.flatMap((group) => group.tiles).find((tile) => tile.key === selectedKey.value) ?? null);
+const sheetOpen = computed({ get: () => selected.value !== null, set: (value) => { if (!value) selectedKey.value = null; } });
 
-const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(timestamp);
+const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, challenges: props.mapChallenges, titles: props.titles }).filter((row) => row.challenges.length));
 </script>
 
 <template>
-  <div class="achievement-layout">
-    <div class="achievement-main">
-      <section class="general-achievement-section" aria-labelledby="general-achievements-title">
-        <header class="achievement-type-heading"><h2 id="general-achievements-title">通用成就</h2><div class="equipped-count"><strong>已佩戴 {{ equippedCount }} / 10</strong><UButton icon="i-lucide-circle-help" color="neutral" variant="ghost" aria-label="佩戴称号说明：佩戴的称号会在游戏内可用。修改会在后续游戏版本同步后生效。" title="佩戴的称号会在游戏内可用。修改会在后续游戏版本同步后生效。" /></div></header>
-        <UAlert v-if="recoveryRequired" color="warning" variant="subtle" title="需要选择佩戴称号" description="迁移后仍保留了你的全部称号，但尚未初始化佩戴选择。请从下方选择最多 10 个称号。" />
-        <p v-if="challenges.length" class="achievement-count">已获得 {{ earnedCatalogCount }} / {{ challenges.length }}</p>
-        <section v-for="group in groups" :key="group.category" class="achievement-section" :aria-labelledby="`my-category-${group.category}`">
-          <header class="section-heading"><h3 :id="`my-category-${group.category}`">{{ group.category }}</h3><span>{{ group.cards.filter(isAchievementCardEarned).length }} / {{ group.cards.length }}</span></header>
-          <div class="directory-grid">
-            <article v-for="card in group.cards" :key="card.kind === 'catalog' ? card.challenge.challengeId : card.title.grantId" class="achievement-card" :class="{ earned: isAchievementCardEarned(card) }">
-              <div class="achievement-icon" :class="{ 'has-image': card.kind === 'catalog' ? card.challenge.iconUrl : card.title.iconUrl }" aria-hidden="true"><img v-if="card.kind === 'catalog' ? card.challenge.iconUrl : card.title.iconUrl" :src="card.kind === 'catalog' ? card.challenge.iconUrl! : card.title.iconUrl!" alt="" /><UIcon v-else :name="`i-lucide-${card.kind === 'catalog' ? card.challenge.icon : card.title.icon}`" /></div>
-              <div class="achievement-copy">
-                <div class="achievement-title-row">
-                  <strong class="type-card-title">{{ card.kind === 'catalog' ? card.challenge.titleName : card.title.label }}</strong>
-                  <StatusBadge v-if="card.kind === 'ended'" class="retired-status" label="不再发放" />
-                </div>
-                <AchievementStatus class="achievement-state" :state="stateForCard(card)" />
-                <span class="type-label-sm">{{ card.kind === 'catalog' ? card.challenge.condition : card.title.condition }}</span>
-                <div v-if="progressFor(card)" class="progress-block">
-                  <span class="progress-count">已完成 {{ progressFor(card)!.completedMaps }} / {{ progressFor(card)!.maps.length }}</span>
-                  <ul class="progress-maps">
-                    <li v-for="progressMap in progressFor(card)!.maps" :key="progressMap.mapId" class="progress-map" :class="{ done: progressMap.completed }">
-                      <UIcon :name="progressMap.completed ? 'i-lucide-circle-check' : 'i-lucide-circle'" aria-hidden="true" /><span>{{ mapNameFor(progressMap.mapId) }}</span>
-                    </li>
-                  </ul>
-                </div>
-                <span v-if="card.kind === 'catalog' && card.challenge.status === 'scheduled'" class="type-caption status">未开放</span>
-                <span v-else-if="card.kind === 'catalog' && card.challenge.status === 'sunsetting'" class="type-caption status">即将结束</span>
-              </div>
-              <UButton v-if="ownedGlobalTitleForCard(card)" class="equip-action" size="xs" :disabled="savingEquip || !canEquip(ownedGlobalTitleForCard(card)!)" :aria-label="ownedGlobalTitleForCard(card)!.equipped ? `取消佩戴 ${ownedGlobalTitleForCard(card)!.label}` : `佩戴 ${ownedGlobalTitleForCard(card)!.label}`" @click="emit('toggleEquipped', ownedGlobalTitleForCard(card)!.grantId)">{{ ownedGlobalTitleForCard(card)!.equipped ? "取消佩戴" : "佩戴" }}</UButton>
-            </article>
-          </div>
-        </section>
-      </section>
+  <div class="collection">
+    <p class="equip-count num" :class="{ 'is-warn': recoveryRequired }">{{ recoveryRequired ? "选择要佩戴的称号" : "已佩戴" }} {{ equippedCount }}/10</p>
 
-      <section class="map-achievement-section" aria-labelledby="map-achievements-title">
-        <header class="achievement-type-heading"><h2 id="map-achievements-title">地图成就</h2></header>
-        <div v-if="mapProgressRows.length" class="map-progress-overview">
-          <p v-if="targetMapCount" class="map-progress-summary" aria-live="polite">已获得 {{ earnedChallengeCount }} / {{ totalChallengeCount }} 个地图成就</p>
-          <ul class="map-progress-list directory-grid">
-            <li v-for="row in mapProgressRows" :key="row.map.mapId" class="map-progress-item">
-              <MapMasteryCard variant="progress" :map-name="row.map.mapName" :to="`/me/achievements/maps/${encodeURIComponent(row.map.mapId)}`" :challenges="row.challenges" :earned-challenges="row.earnedChallenges" />
-            </li>
-          </ul>
+    <AchievementWall v-if="tileGroups.length">
+      <AchievementShelf v-for="(group, groupIndex) in tileGroups" :key="group.name" :title="group.name" :heading-id="`my-series-${groupIndex}`" :count="`${group.tiles.filter((tile) => tile.earned).length}/${group.tiles.length}`">
+        <li v-for="(tile, index) in group.tiles" :key="tile.key">
+          <AchievementTile :name="tile.name" :icon-url="tile.icon.url" :icon="tile.icon.icon" :earned="tile.earned" :checked="tile.owned?.equipped" :highlighted="tile.owned?.equipped" check-label="已佩戴" :shine-delay="groupIndex * .8 + index * .22" @click="selectedKey = tile.key" />
+        </li>
+      </AchievementShelf>
+    </AchievementWall>
+
+    <section v-if="mapProgressRows.length" class="series" aria-labelledby="map-achievements-title">
+      <h2 id="map-achievements-title" class="series__title">地图<span class="num">{{ mapProgressRows.reduce((sum, row) => sum + row.earnedChallenges.length, 0) }}/{{ mapProgressRows.reduce((sum, row) => sum + row.challenges.length, 0) }}</span></h2>
+      <ul class="maps">
+        <li v-for="row in mapProgressRows" :key="row.map.mapId">
+          <NuxtLink :to="`/me/achievements/maps/${encodeURIComponent(row.map.mapId)}`" class="map" :class="{ 'is-complete': row.earnedChallenges.length === row.challenges.length }">
+            <strong>{{ row.map.mapName }}</strong>
+            <span class="num">{{ row.earnedChallenges.length }}/{{ row.challenges.length }}</span>
+          </NuxtLink>
+        </li>
+      </ul>
+    </section>
+
+    <UEmpty v-if="!tileGroups.length && !mapProgressRows.length" title="暂无记录" variant="naked" />
+
+    <UModal v-model:open="sheetOpen" :title="selected?.name ?? ''" :description="selected?.series">
+      <template #body>
+        <div v-if="selected" class="sheet">
+          <AchievementIcon class="sheet__icon" entrance :url="selected.icon.url" :icon="selected.icon.icon" :earned="selected.earned" />
+          <p v-if="selected.note" class="sheet__note">{{ selected.note }}</p>
+          <p class="sheet__condition">{{ selected.condition }}</p>
+          <p v-if="selected.owned" class="sheet__granted num">获得于 {{ formatDate(selected.owned.grantedAt) }}</p>
+          <p v-if="selected.progress" class="sheet__progress">
+            <span v-for="progressMap in selected.progress.maps" :key="progressMap.mapId" :class="{ done: progressMap.completed }">{{ mapNameFor(progressMap.mapId) }}</span>
+          </p>
+          <UButton
+            v-if="selected.owned?.scope === 'global'"
+            size="xl"
+            block
+            :color="selected.owned.equipped ? 'neutral' : 'primary'"
+            :variant="selected.owned.equipped ? 'soft' : 'solid'"
+            :loading="savingEquip"
+            :disabled="savingEquip || !canEquip(selected.owned)"
+            :label="selected.owned.equipped ? '取消佩戴' : canEquip(selected.owned) ? '佩戴' : '已满 10 个'"
+            @click="emit('toggleEquipped', selected.owned.grantId)"
+          />
+          <p v-else-if="!selected.earned" class="sheet__locked"><UIcon name="i-lucide-lock" aria-hidden="true" />未获得</p>
         </div>
-        <UEmpty v-else title="暂无地图" variant="naked" />
-      </section>
-
-      <section v-if="mapTitleGroups.length" class="achievement-section map-title-collection" aria-labelledby="map-titles-title">
-        <header class="section-heading"><h2 id="map-titles-title">其他地图称号</h2><span>{{ mapTitleCount }} 项</span></header>
-        <section v-for="(group, index) in mapTitleGroups" :key="group.name" class="map-title-group" :aria-labelledby="`map-title-${index}`">
-            <header class="map-title-heading"><h3 :id="`map-title-${index}`">{{ group.name }}</h3><span>{{ group.titles.length }} 项</span></header>
-            <div class="directory-grid">
-              <article v-for="title in group.titles" :key="title.grantId" class="achievement-card earned">
-                <div class="achievement-icon" :class="{ 'has-image': title.iconUrl }" aria-hidden="true"><img v-if="title.iconUrl" :src="title.iconUrl" alt="" /><UIcon v-else :name="`i-lucide-${title.icon}`" /></div>
-                <div class="achievement-copy"><div class="achievement-title-row"><strong class="type-card-title">{{ title.label }}</strong><StatusBadge v-if="title.mapId && title.gameplayRevisionId && !props.maps.some((map) => map.mapId === title.mapId && map.defaultGameplayRevisionId === title.gameplayRevisionId)" class="retired-status" label="历史版本" /></div><AchievementStatus class="achievement-state" :state="achievementState(title)" /><span class="type-label-sm">{{ title.condition }}</span></div>
-              </article>
-            </div>
-          </section>
-      </section>
-
-      <UEmpty v-if="!groups.length && !mapTitleGroups.length && !maps.length" title="暂无记录" variant="naked" />
-    </div>
-
-    <aside class="achievement-sidebar" aria-label="最近获得">
-      <section class="sidebar-card surface-card" aria-labelledby="recent-title"><header class="sidebar-heading"><h2 id="recent-title">最近获得</h2></header><div v-if="recentTitles.length" class="recent-list"><article v-for="title in recentTitles" :key="title.grantId" class="recent-item"><div class="recent-icon" :class="{ 'has-image': title.iconUrl }" aria-hidden="true"><img v-if="title.iconUrl" :src="title.iconUrl" alt="" /><UIcon v-else :name="`i-lucide-${title.icon}`" /></div><div><strong class="type-label">{{ title.label }}</strong><span class="type-label-sm">{{ formatDate(title.grantedAt) }}</span></div></article></div><UEmpty v-else title="暂无称号" variant="naked" /></section>
-    </aside>
+      </template>
+    </UModal>
   </div>
 </template>
 
 <style scoped>
-.achievement-layout { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-5); }
-.achievement-main { display: grid; flex: 999 1 32rem; gap: var(--space-5); min-width: 0; }
-.general-achievement-section { display: grid; gap: var(--space-5); }
-.map-achievement-section { display: grid; gap: var(--space-4); }
-.map-progress-overview { display: grid; gap: var(--space-4); }
-.map-progress-summary { margin: 0; color: var(--muted); font-size: var(--type-caption-size); }
-.map-progress-list { margin: 0; padding: 0; list-style: none; }
-.map-progress-item { min-width: 0; }
-.achievement-type-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
-.achievement-type-heading h2 { margin: 0; color: var(--text); font-size: 1.15rem; }
-.equipped-count { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--muted); font-size: var(--type-caption-size); }
-.equipped-count strong { font-weight: 500; }
-.achievement-count { margin: 0; color: var(--muted); font-size: var(--type-caption-size); }
-.achievement-section { padding: clamp(var(--space-4), 3vw, var(--space-6)); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
-.section-heading, .sidebar-heading, .map-title-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
-.section-heading { margin-bottom: var(--space-4); }
-.section-heading h2, .section-heading h3, .sidebar-heading h2, .map-title-heading h3 { margin: 0; color: var(--text); }
-.section-heading h2, .section-heading h3, .sidebar-heading h2 { font-size: 1.05rem; }
-.map-title-heading h3 { font-size: 0.94rem; }
-.section-heading span, .map-title-heading span { color: var(--quiet); font-size: var(--type-caption-size); }
-.map-title-collection { display: grid; gap: var(--space-4); }
-.map-title-group { display: grid; gap: var(--space-3); }
-.map-title-group + .map-title-group { padding-top: var(--space-4); border-top: 1px solid var(--line); }
-.achievement-card { container-type: inline-size; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: var(--space-4); min-width: 0; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: color-mix(in oklch, var(--surface-raised) 64%, var(--surface)); transition: border-color 160ms ease, background 160ms ease; }
-.achievement-card.earned { border-color: color-mix(in oklch, var(--success) 44%, var(--line)); background: color-mix(in oklch, var(--success-surface) 16%, var(--surface)); }
-.achievement-icon, .recent-icon { display: grid; place-items: center; border: 1px dashed var(--line-strong); border-radius: 50%; color: var(--quiet); background: var(--surface); }
-.achievement-icon.has-image, .recent-icon.has-image { border-color: transparent; background: transparent; }
-.achievement-card.earned .achievement-icon:not(.has-image) { border-style: solid; border-color: color-mix(in oklch, var(--success) 48%, var(--line)); color: var(--success); background: color-mix(in oklch, var(--success-surface) 20%, var(--surface)); }
-.achievement-icon { width: 3.5rem; height: 3.5rem; overflow: hidden; }
-.achievement-icon.has-image img { width: 100%; height: 100%; }
-.achievement-icon img, .recent-icon img { width: 1.75rem; height: 1.75rem; object-fit: contain; }
-.achievement-copy { display: grid; align-content: start; gap: var(--space-2); min-width: 0; }
-.achievement-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
-.achievement-copy strong, .recent-item strong { overflow-wrap: anywhere; color: var(--text); }
-.achievement-copy > span:not(.status):not(.status-badge), .recent-item span { color: var(--muted); }
-.progress-block { display: grid; gap: var(--space-2); margin-top: var(--space-1); }
-.progress-count { color: var(--muted); font-size: var(--type-caption-size); font-weight: 600; }
-.progress-maps { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); margin: 0; padding: 0; list-style: none; }
-.progress-map { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--quiet); font-size: var(--type-caption-size); }
-.progress-map.done { color: var(--success); }
-.equip-action { grid-column: 2 / -1; justify-self: start; margin-top: var(--space-1); }
-.status { width: fit-content; color: var(--quiet); font-weight: 600; }
-.achievement-sidebar { display: grid; flex: 1 1 15.625rem; max-width: 100%; gap: var(--space-5); }
-.sidebar-card { padding: var(--space-5); }
-.recent-list { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
-.recent-item { display: grid; grid-template-columns: 2.5rem minmax(0, 1fr); align-items: center; gap: var(--space-3); }
-.recent-item > div:last-child { display: grid; gap: var(--space-1); }
-.recent-icon { width: 2.5rem; height: 2.5rem; }
-@container (max-width: 23.99rem) { .achievement-icon { width: 2.5rem; height: 2.5rem; } }
-@media (prefers-reduced-motion: reduce) { .achievement-card { transition: none; } }
-@media (prefers-reduced-transparency: reduce) { .achievement-card { background: var(--surface-raised); }.achievement-card.earned { background: color-mix(in oklch, var(--success-surface) 24%, var(--surface)); } }
-@media (prefers-contrast: more) { .achievement-card { border-color: var(--text); } }
+.collection { display: grid; gap: var(--space-12); }
+.equip-count { justify-self: end; margin: calc(-1 * var(--space-8)) 0 0; padding: var(--space-1) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-pill); color: var(--muted); font-size: var(--type-label-sm-size); }
+.equip-count.is-warn { border-color: var(--warning); color: var(--warning); }
+.series { display: grid; gap: var(--space-3); }
+.series__title { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); margin: 0; color: var(--muted); font-size: var(--type-label-size); font-weight: 600; letter-spacing: .1em; }
+.series__title .num { color: var(--quiet); font-size: var(--type-label-sm-size); font-weight: 500; letter-spacing: 0; }
+.maps { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr)); gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.map { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); color: inherit; text-decoration: none; }
+.map:hover, .map:focus-visible { border-color: color-mix(in oklch, var(--accent) 50%, var(--line)); }
+.map strong { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.map .num { color: var(--quiet); font-size: var(--type-label-sm-size); }
+.map.is-complete .num { color: var(--accent); font-weight: 700; }
+.sheet { display: grid; justify-items: center; gap: var(--space-4); text-align: center; }
+.sheet__icon { --achievement-icon-size: 10rem; }
+.sheet__note { margin: 0; padding: var(--space-1) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-pill); color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 600; }
+.sheet__condition { margin: 0; color: var(--muted); }
+.sheet__granted { margin: 0; color: var(--quiet); font-size: var(--type-label-sm-size); }
+.sheet__progress { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-1); margin: 0; }
+.sheet__progress span { padding: 0 var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-pill); color: var(--quiet); font-size: var(--type-caption-size); }
+.sheet__progress span.done { border-color: color-mix(in oklch, var(--accent) 45%, var(--line)); color: var(--accent); }
+.sheet__locked { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--quiet); font-size: var(--type-label-sm-size); }
 </style>

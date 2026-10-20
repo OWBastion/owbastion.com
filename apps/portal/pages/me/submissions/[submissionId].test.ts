@@ -1,384 +1,104 @@
-import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
-import { flushPromises } from "@vue/test-utils";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import SubmissionPage from "./[submissionId].vue";
+import { mockNuxtImport, mountSuspended } from "@nuxt/test-utils/runtime";
+import { clearNuxtData } from "#app";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import SubmissionDetailPage from "./[submissionId].vue";
 
-const baseSubmission = {
-  submissionId: "submission-1",
-  status: "rejected",
-  resubmissionRequired: true,
-  mapName: "帕拉伊苏",
-  difficulty: "困难",
-  reason: "截图证据需要重新提交",
-  createdAt: 0,
-  updatedAt: 1,
-  evidenceUrl: "https://example.test/evidence.png",
-  ocrFailCount: 1,
-  manualReviewEligible: false,
-  ocr: { mapName: "帕拉伊苏", difficulty: "困难", playerName: "他又", challengeCompleted: true, modelVersion: "ocr-v3" },
-};
-
-const api = vi.fn((path?: string, options?: { method?: string }) => {
-  if (path?.includes("/challenge") && options?.method === "POST") return Promise.resolve({});
-  if (path?.includes("/manual-review") && options?.method === "POST") return Promise.resolve({});
-  return Promise.resolve({ ...baseSubmission });
-});
+const api = vi.fn();
 mockNuxtImport("usePortalApi", () => () => api);
+mockNuxtImport("useRoute", () => () => ({ params: { submissionId: "sub-1" }, query: {} }));
 
-const stubs = {
-  StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" },
-  SubmissionProgress: { template: '<div class="progress-card">处理未通过</div>' },
-  OcrFeedbackPanel: {
-    props: ["submissionId", "feedback"],
-    template: `<section aria-label="识别反馈">{{ submissionId }}:{{ feedback.ocrResultId }}</section>`,
-  },
-};
-
-async function mountSubmission(route = "/me/submissions/submission-1") {
-  const wrapper = await mountSuspended(SubmissionPage, {
-    route,
-    global: { stubs },
-  });
-  await flushPromises();
+const detail = (overrides: Record<string, unknown> = {}) => ({
+  submissionId: "sub-1",
+  status: "processing",
+  mapName: "Map",
+  manualReviewEligible: false,
+  resubmissionRequired: false,
+  evidenceUrl: null,
+  ...overrides,
+});
+const detailReads = () => api.mock.calls.filter(([path, options]) => String(path).endsWith("/me/submissions/sub-1") && !options).length;
+const mountPage = async () => {
+  const wrapper = await mountSuspended(SubmissionDetailPage);
+  await vi.advanceTimersByTimeAsync(0);
   return wrapper;
-}
+};
+const buttonNamed = (wrapper: Awaited<ReturnType<typeof mountPage>>, name: RegExp) =>
+  wrapper.findAll("button, a").find((element) => name.test(element.text() || element.attributes("aria-label") || ""));
 
-describe("submission detail page", () => {
-  it("shows status alert before evidence and distinguishes evidence read failure", async () => {
-    api.mockClear();
-    api.mockImplementation(() => Promise.resolve({ ...baseSubmission }));
-    const wrapper = await mountSubmission();
+beforeEach(() => {
+  clearNuxtData();
+  api.mockReset();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+});
+afterEach(() => vi.useRealTimers());
 
-    expect(wrapper.text()).toContain("需重新提交");
-    expect(wrapper.text()).toContain("截图证据需要重新提交");
-    expect(wrapper.text()).toContain("识别摘要");
-    expect(wrapper.text()).toContain("识别模型");
-    expect(wrapper.text()).toContain("ocr-v3");
-    expect(wrapper.text()).toContain("提交编号");
-    expect(wrapper.text()).toContain("最后更新");
-    expect(wrapper.get('a[href="/me/submissions/new"]').text()).toContain("重新提交截图");
-    expect(wrapper.text()).toContain("重新提交建议");
-    expect(wrapper.text()).toContain("处理未通过");
-    expect(wrapper.find('[aria-live="polite"]').exists()).toBe(false);
-    expect(wrapper.get('img[alt="帕拉伊苏的提交截图"]').attributes("src")).toBe("https://example.test/evidence.png");
+describe("submission detail", () => {
+  it("follows a processing submission until it settles, then stops asking", async () => {
+    api.mockResolvedValueOnce(detail()).mockResolvedValueOnce(detail()).mockResolvedValue(detail({ status: "completed" }));
+    await mountPage();
 
-    await wrapper.get('img[alt="帕拉伊苏的提交截图"]').trigger("error");
-    expect(wrapper.text()).toContain("无法读取截图");
-    expect(wrapper.text()).not.toContain("暂无截图");
-
-    const requestCount = api.mock.calls.length;
-    await wrapper.get('button[aria-label="刷新状态"]').trigger("click");
-    await flushPromises();
-    expect(api).toHaveBeenCalledTimes(requestCount + 1);
+    await vi.advanceTimersByTimeAsync(60_000);
+    const settledReads = detailReads();
+    expect(settledReads).toBeGreaterThan(1);
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(detailReads()).toBe(settledReads);
   });
 
-  it("shows missing evidence as a distinct empty state", async () => {
-    api.mockImplementation(() => Promise.resolve({
-      submissionId: "submission-missing",
-      status: "processing",
-      mapName: "花村",
-      createdAt: 0,
-      updatedAt: 1,
-      evidenceUrl: null,
-    }));
-    const wrapper = await mountSubmission("/me/submissions/submission-missing");
-    expect(wrapper.text()).toContain("暂无截图");
-    expect(wrapper.text()).not.toContain("无法读取截图");
+  it("gives up polling a submission that never settles and asks the player to reload", async () => {
+    api.mockResolvedValue(detail());
+    const wrapper = await mountPage();
+
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    const reads = detailReads();
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(detailReads()).toBe(reads);
+
+    expect(buttonNamed(wrapper, /刷新/)).toBeUndefined();
+    expect(wrapper.text()).toContain("请稍后刷新页面");
   });
 
-  it("passes compact needs-review status to the status badge", async () => {
-    api.mockImplementation(() => Promise.resolve({
-      submissionId: "submission-waiting",
-      status: "needs_review",
-      mapName: "花村",
-      createdAt: 0,
-      updatedAt: 1,
-      evidenceUrl: "https://example.test/evidence.png",
-    }));
-    const waiting = await mountSubmission("/me/submissions/submission-waiting");
-    expect(waiting.text()).toContain("等待核对");
-
-    api.mockImplementation(() => Promise.resolve({
-      submissionId: "submission-ocr-review",
-      status: "needs_review",
-      mapName: "花村",
-      createdAt: 0,
-      updatedAt: 1,
-      evidenceUrl: "https://example.test/evidence.png",
-    }));
-    const ocrReview = await mountSubmission("/me/submissions/submission-ocr-review");
-    expect(ocrReview.text()).toContain("等待核对");
+  it("shows the submission overview and, when a new screenshot is needed, resubmission tips", async () => {
+    api.mockResolvedValue(detail({ status: "rejected", resubmissionRequired: true }));
+    const wrapper = await mountPage();
+    expect(wrapper.find('[aria-label="提交概览"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="重新提交建议"]').exists()).toBe(true);
   });
 
-  it("hides manual review button when the API marks the submission ineligible", async () => {
-    api.mockImplementation(() => Promise.resolve({
-      submissionId: "submission-1",
-      status: "rejected",
-      resubmissionRequired: true,
-      mapName: "帕拉伊苏",
-      createdAt: 0,
-      updatedAt: 1,
-      evidenceUrl: "https://example.test/evidence.png",
-      manualReviewEligible: false,
-    }));
-    const wrapper = await mountSubmission();
-    expect(wrapper.find('[aria-label="申请人工核对"]').exists()).toBe(false);
+  it("omits resubmission tips when no new screenshot is needed", async () => {
+    api.mockResolvedValue(detail({ status: "completed" }));
+    expect((await mountPage()).find('[aria-label="重新提交建议"]').exists()).toBe(false);
   });
 
-  it("shows manual review errors without silent idle recovery", async () => {
-    api.mockImplementation((path?: string, options?: { method?: string }) => {
-      if (path?.includes("/manual-review") && options?.method === "POST") return Promise.reject(new Error("manual failed"));
-      return Promise.resolve({
-        ...baseSubmission,
-        submissionId: "submission-eligible",
-        manualReviewEligible: true,
-      });
+  it("does not offer manual review for an ineligible submission", async () => {
+    api.mockResolvedValue(detail({ status: "rejected", manualReviewEligible: false }));
+    expect(buttonNamed(await mountPage(), /人工/)).toBeUndefined();
+  });
+
+  it("offers manual review when the server says the submission is eligible", async () => {
+    api.mockResolvedValue(detail({ status: "rejected", manualReviewEligible: true }));
+    expect(buttonNamed(await mountPage(), /人工/)).toBeDefined();
+  });
+
+  it("requests manual review once and keeps the detail when the request fails, so it can be retried", async () => {
+    const eligible = detail({ status: "rejected", manualReviewEligible: true, reason: "reason-from-server" });
+    api.mockImplementation(async (path: string, options?: { method?: string }) => {
+      if (options?.method === "POST") throw Object.assign(new Error("down"), { statusCode: 503 });
+      return eligible;
     });
-    const wrapper = await mountSubmission("/me/submissions/submission-eligible");
-    const btn = wrapper.find('[aria-label="申请人工核对"]');
-    expect(btn.exists()).toBe(true);
-    await btn.trigger("click");
-    await flushPromises();
-    expect(wrapper.text()).toContain("无法申请人工核对");
-    expect(wrapper.find('[aria-label="申请人工核对"]').exists()).toBe(true);
-    expect(wrapper.get('[aria-live="polite"]').attributes("aria-atomic")).toBe("true");
-    expect(wrapper.text().match(/已提交申请/g)?.length ?? 0).toBe(0);
+    const wrapper = await mountPage();
+
+    await buttonNamed(wrapper, /人工/)!.trigger("click");
+    await vi.advanceTimersByTimeAsync(0);
+
+    const posts = api.mock.calls.filter(([, options]) => options?.method === "POST");
+    expect(posts).toHaveLength(1);
+    expect(posts[0]![0]).toBe("/v1/player/submissions/sub-1/manual-review");
+    expect(wrapper.text()).toContain("reason-from-server");
+    expect(buttonNamed(wrapper, /人工/)).toBeDefined();
   });
 
-  it("announces manual-review success once without duplicating visible success feedback", async () => {
-    api.mockImplementation((path?: string, options?: { method?: string }) => {
-      if (path?.includes("/manual-review") && options?.method === "POST") return Promise.resolve({});
-      return Promise.resolve({
-        ...baseSubmission,
-        submissionId: "submission-manual-ok",
-        status: "needs_review",
-        manualReviewEligible: true,
-      });
-    });
-    const wrapper = await mountSubmission("/me/submissions/submission-manual-ok");
-    await wrapper.get('[aria-label="申请人工核对"]').trigger("click");
-    await flushPromises();
-    const live = wrapper.get('[aria-live="polite"]');
-    expect(live.attributes("aria-live")).toBe("polite");
-    expect(live.text()).toContain("已提交申请，请等待核对结果。");
-    expect(live.text().match(/已提交申请/g)?.length).toBe(1);
-    expect(wrapper.find('[aria-label="申请人工核对"]').exists()).toBe(false);
-    expect(wrapper.findAll("[aria-live='polite']")).toHaveLength(1);
-  });
-
-
-
-  it("does not ask the player to select a challenge", async () => {
-    api.mockImplementation(() => Promise.resolve({
-      submissionId: "submission-needs-review",
-      status: "needs_review",
-      mapName: "花村",
-      createdAt: 0,
-      updatedAt: 1,
-      evidenceUrl: "https://example.test/evidence.png",
-    }));
-    const wrapper = await mountSubmission("/me/submissions/submission-needs-review");
-    expect(wrapper.text()).not.toContain("确认挑战");
-    expect(wrapper.text()).not.toContain("选择挑战");
-    expect(api).not.toHaveBeenCalledWith(expect.stringContaining("/challenge"), expect.objectContaining({ method: "POST" }));
-  });
-
-
-  it("shows approved grant state distinctly", async () => {
-    api.mockImplementation(() => Promise.resolve({
-      submissionId: "submission-approved",
-      status: "completed",
-      mapName: "花村",
-      createdAt: 0,
-      updatedAt: 2,
-      evidenceUrl: "https://example.test/evidence.png",
-      titleGrant: { grantId: "grant-1", titleKey: "CONQUEROR", titleName: "征服者", mapName: "花村" },
-    }));
-    const wrapper = await mountSubmission("/me/submissions/submission-approved");
-    expect(wrapper.text()).toContain("已获得称号");
-    expect(wrapper.text()).toContain("征服者");
-  });
-
-  it("shows safe mastery outcomes alongside an independent title outcome", async () => {
-    api.mockImplementation(() => Promise.resolve({
-      submissionId: "submission-mastery-created",
-      status: "completed",
-      mapName: "花村",
-      createdAt: 0,
-      updatedAt: 2,
-      evidenceUrl: "https://example.test/evidence.png",
-      titleGrant: { grantId: "grant-1", titleKey: "CONQUEROR", titleName: "征服者", mapName: "花村" },
-      verifiedRunOutcome: { status: "created", awardedXp: 225 },
-    }));
-    const created = await mountSubmission("/me/submissions/submission-mastery-created");
-    expect(created.text()).toContain("已获得称号");
-    expect(created.text()).toContain("精通记录已保存");
-    expect(created.text()).toContain("获得 225 XP");
-
-    api.mockImplementation(() => Promise.resolve({
-      submissionId: "submission-mastery-reused",
-      status: "completed",
-      mapName: "花村",
-      createdAt: 0,
-      updatedAt: 2,
-      evidenceUrl: "https://example.test/evidence.png",
-      verifiedRunOutcome: { status: "reused", awardedXp: 0 },
-    }));
-    const reused = await mountSubmission("/me/submissions/submission-mastery-reused");
-    expect(reused.text()).toContain("这次通关已记录");
-
-    api.mockImplementation(() => Promise.resolve({
-      submissionId: "submission-mastery-ineligible",
-      status: "rejected",
-      resubmissionRequired: true,
-      mapName: "花村",
-      createdAt: 0,
-      updatedAt: 2,
-      evidenceUrl: "https://example.test/evidence.png",
-      verifiedRunOutcome: { status: "ineligible", awardedXp: 0 },
-    }));
-    const ineligible = await mountSubmission("/me/submissions/submission-mastery-ineligible");
-    expect(ineligible.text()).toContain("本次未计入精通进度");
-  });
-
-  it("shows approved without grant as a distinct passed state", async () => {
-    api.mockImplementation(() => Promise.resolve({
-      submissionId: "submission-passed",
-      status: "completed",
-      mapName: "花村",
-      createdAt: 0,
-      updatedAt: 2,
-      evidenceUrl: "https://example.test/evidence.png",
-    }));
-    const wrapper = await mountSubmission("/me/submissions/submission-passed");
-    expect(wrapper.text()).toContain("已完成");
-    expect(wrapper.text()).not.toContain("已获得称号");
-  });
-
-  it("surfaces explicit refresh failures in the active status region", async () => {
-    let refreshed = false;
-    api.mockImplementation(() => {
-      if (refreshed) return Promise.reject(new Error("refresh failed"));
-      refreshed = true;
-      return Promise.resolve({
-        submissionId: "submission-refresh",
-        status: "processing",
-        mapName: "花村",
-        createdAt: 0,
-        updatedAt: 1,
-        evidenceUrl: "https://example.test/evidence.png",
-      });
-    });
-    const wrapper = await mountSubmission("/me/submissions/submission-refresh");
-    expect(wrapper.text()).toContain("处理中");
-    await wrapper.get('button[aria-label="刷新状态"]').trigger("click");
-    await flushPromises();
-    expect(wrapper.get('[aria-live="polite"]').text()).toContain("无法刷新状态");
-    expect(wrapper.text()).toContain("处理中");
-  });
-
-  it("renders the OCR feedback panel when the submission has a current OCR result", async () => {
-    api.mockImplementation(() => Promise.resolve({
-      ...baseSubmission,
-      status: "completed",
-      reason: undefined,
-      feedback: {
-        ocrResultId: "00000000-0000-4000-8000-000000000004",
-        accuracy: null,
-      },
-    }));
-    const wrapper = await mountSubmission("/me/submissions/submission-feedback");
-    const panel = wrapper.get('[aria-label="识别反馈"]');
-    expect(panel.text()).toContain("00000000-0000-4000-8000-000000000004");
-    expect(panel.text()).toContain("submission-1");
-  });
-
-  it("omits the OCR feedback panel when the submission has no OCR result", async () => {
-    api.mockImplementation(() => Promise.resolve({ ...baseSubmission, status: "completed", reason: undefined }));
-    const wrapper = await mountSubmission("/me/submissions/submission-no-feedback");
-    expect(wrapper.find('[aria-label="识别反馈"]').exists()).toBe(false);
-  });
-
-  describe("status polling", () => {
-    const processingSubmission = {
-      submissionId: "submission-processing",
-      status: "processing",
-      mapName: "花村",
-      createdAt: 0,
-      updatedAt: 1,
-      evidenceUrl: "https://example.test/evidence.png",
-    };
-    const processingPath = "/v1/me/submissions/submission-processing";
-    const mountProcessing = async () => {
-      const mounting = mountSubmission("/me/submissions/submission-processing");
-      // Route navigation waits on a 100ms repaint-guard timeout, which sits on the faked clock.
-      await vi.advanceTimersByTimeAsync(150);
-      return mounting;
-    };
-
-    afterEach(() => { vi.useRealTimers(); });
-
-    it("spaces automatic status polls further apart while processing", async () => {
-      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
-      const requestedAt: number[] = [];
-      api.mockImplementation((path?: string, options?: { method?: string }) => {
-        if (path === processingPath && !options?.method) requestedAt.push(Date.now());
-        return Promise.resolve({ ...processingSubmission });
-      });
-      await mountProcessing();
-      await vi.advanceTimersByTimeAsync(60_000);
-
-      // A fixed 2s cadence would have produced about 30 requests in 60s.
-      expect(requestedAt.length).toBeLessThanOrEqual(8);
-      const gaps = requestedAt.slice(1).map((time, index) => time - requestedAt[index]);
-      expect(gaps.length).toBeGreaterThanOrEqual(3);
-      for (let index = 1; index < gaps.length; index += 1) expect(gaps[index]).toBeGreaterThanOrEqual(gaps[index - 1]);
-      expect(gaps[gaps.length - 1]).toBeGreaterThan(gaps[0]);
-    });
-
-    it("stops polling after the overall limit and keeps manual refresh available", async () => {
-      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
-      let detailRequests = 0;
-      api.mockImplementation((path?: string, options?: { method?: string }) => {
-        if (path === processingPath && !options?.method) detailRequests += 1;
-        return Promise.resolve({ ...processingSubmission });
-      });
-      const wrapper = await mountProcessing();
-      await vi.advanceTimersByTimeAsync(140_000);
-
-      const requestsAtLimit = detailRequests;
-      expect(requestsAtLimit).toBeLessThanOrEqual(12);
-      const liveRegion = wrapper.get('[aria-live="polite"]');
-      expect(liveRegion.text()).toContain("自动更新已停止");
-      expect(liveRegion.text()).toContain("仍在处理中");
-      expect(wrapper.text()).toContain("处理中");
-
-      await vi.advanceTimersByTimeAsync(60_000);
-      expect(detailRequests).toBe(requestsAtLimit);
-
-      await wrapper.get('button[aria-label="刷新状态"]').trigger("click");
-      await flushPromises();
-      expect(detailRequests).toBe(requestsAtLimit + 1);
-    });
-
-    it("stops polling once the submission reaches a final state", async () => {
-      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
-      let detailRequests = 0;
-      api.mockImplementation((path?: string, options?: { method?: string }) => {
-        if (path === processingPath && !options?.method) {
-          detailRequests += 1;
-          return Promise.resolve(detailRequests >= 3 ? { ...processingSubmission, status: "completed" } : { ...processingSubmission });
-        }
-        return Promise.resolve({});
-      });
-      const wrapper = await mountProcessing();
-      await vi.advanceTimersByTimeAsync(20_000);
-
-      expect(wrapper.text()).toContain("已完成");
-      const settledRequests = detailRequests;
-      await vi.advanceTimersByTimeAsync(120_000);
-      expect(detailRequests).toBe(settledRequests);
-      expect(wrapper.find('[aria-live="polite"]').exists()).toBe(false);
-    });
+  it("shows the rejection reason the server provided", async () => {
+    api.mockResolvedValue(detail({ status: "rejected", reason: "reason-from-server" }));
+    expect((await mountPage()).text()).toContain("reason-from-server");
   });
 });

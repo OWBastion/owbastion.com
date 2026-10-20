@@ -53,8 +53,8 @@ export default defineNuxtConfig({
   },
   css: ["~/assets/css/main.css"],
   colorMode: {
-    preference: "light",
-    fallback: "light",
+    preference: "dark",
+    fallback: "dark",
     dataValue: "theme",
     storageKey: "owbastion-portal-theme",
   },
@@ -64,7 +64,7 @@ export default defineNuxtConfig({
       htmlAttrs: { lang: "zh-CN" },
       meta: [
         { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-        { name: "theme-color", content: "#f5f4ef" },
+        { name: "theme-color", content: "#0c1310" },
       ],
     },
     // G-07: opacity-only page cross-fade; reduced-motion falls back via global CSS.
