@@ -737,9 +737,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 /* Segmented control: a row of mutually exclusive toggle buttons (aria-pressed). */
-.seg { display: inline-flex; max-width: 100%; gap: 0.125rem; padding: 0.1875rem; overflow-x: auto; scrollbar-width: none; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-raised); }
-.seg button { min-height: var(--control-md); padding: 0 var(--space-4); border: 0; border-radius: calc(var(--radius-control) / 1.5); background: none; color: var(--muted); font-size: var(--type-body-sm-size); font-weight: 500; white-space: nowrap; cursor: pointer; }
-.seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: var(--elevation-1); }
 
 /* -------------------------------------------------------------------------- */
 /* Loading reveal (LoadingReveal.vue)                                         */

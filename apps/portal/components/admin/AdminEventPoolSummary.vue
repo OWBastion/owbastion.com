@@ -11,9 +11,9 @@ const emit = defineEmits<{ toggle: [version: EventVersion, availability: EventVe
     <div class="pool-summary__fact"><b class="num">{{ Number(poolWeight.toFixed(2)) }}</b><span>权重合计</span></div>
     <ul class="pool-summary__versions" aria-label="版本可用性">
       <li v-for="version in versions" :key="version.gameVersion" class="pool-summary__chip" :class="{ 'is-off': version.availability === 'suspended' }">
-        <button type="button" class="pool-summary__version pressable-soft" :disabled="saving !== null" :aria-pressed="version.availability === 'available'" :aria-label="`${version.availability === 'available' ? '挂起' : '恢复'}版本 ${version.gameVersion}`" @click="emit('toggle', version, version.availability === 'available' ? 'suspended' : 'available')">
+        <UButton class="pool-summary__version" color="neutral" variant="ghost" size="sm" :disabled="saving !== null" :aria-pressed="version.availability === 'available'" :aria-label="`${version.availability === 'available' ? '挂起' : '恢复'}版本 ${version.gameVersion}`" @click="emit('toggle', version, version.availability === 'available' ? 'suspended' : 'available')">
           <i aria-hidden="true" />{{ version.gameVersion }}
-        </button>
+        </UButton>
         <span v-if="version.availability === 'suspended'" class="pool-summary__seg pool-summary__seg--warn">已挂起</span>
         <NuxtLink v-if="version.mode" to="/admin/modes" class="pool-summary__seg pool-summary__seg--link" :aria-label="`${version.gameVersion} 属于独立模式 ${version.mode}`">仅 {{ version.mode }}</NuxtLink>
       </li>
@@ -27,7 +27,6 @@ const emit = defineEmits<{ toggle: [version: EventVersion, availability: EventVe
 .pool-summary__fact b { color: var(--text); font-size: var(--type-card-title-size, 1.125rem); }
 .pool-summary__versions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0 0 0 auto; padding: 0; list-style: none; }
 .pool-summary__chip { display: inline-flex; align-items: stretch; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--surface); }
-.pool-summary__version { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--control-sm, 2rem); padding: 0 var(--space-3); border: 0; background: none; color: var(--text); font: inherit; font-size: var(--type-label-sm-size); cursor: pointer; }
 .pool-summary__version i { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--success); }
 .pool-summary__chip.is-off .pool-summary__version { color: var(--quiet); }
 .pool-summary__chip.is-off .pool-summary__version i { background: var(--warning); }

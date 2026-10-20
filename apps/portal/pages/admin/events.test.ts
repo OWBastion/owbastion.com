@@ -44,10 +44,10 @@ describe("admin events workbench", () => {
 
   it("lists the implemented events with the candidate pool, and switches status", async () => {
     const wrapper = await mountPage();
-    expect(wrapper.findAll("tbody tr").map((row) => row.get("button").text())).toEqual(["梭哈", "先知"]);
+    expect(wrapper.findAll("tbody tr").map((row) => row.get(".event-table__open").text())).toEqual(["梭哈", "先知"]);
     expect(wrapper.get('[aria-label="候选池"]').text()).toContain("2");
     await wrapper.findAll('[aria-label="状态"] button').find((button) => button.text().startsWith("开发中"))!.trigger("click");
-    expect(wrapper.findAll("tbody tr").map((row) => row.get("button").text())).toEqual(["草稿事件"]);
+    expect(wrapper.findAll("tbody tr").map((row) => row.get(".event-table__open").text())).toEqual(["草稿事件"]);
   });
 
   it("stages an inline weight change with its probability effect and saves everything in one batch", async () => {
@@ -94,7 +94,7 @@ describe("admin events workbench", () => {
 
   it("stages bulk changes for the selected events into the same draft", async () => {
     const wrapper = await mountPage();
-    for (const name of ["梭哈", "先知"]) await rowOf(wrapper, name).get('input[type="checkbox"]').setValue(true);
+    for (const name of ["梭哈", "先知"]) await rowOf(wrapper, name).get('button[role="checkbox"]').trigger("click");
     expect(wrapper.text()).toContain("已选 2 项");
 
     const group = wrapper.findAllComponents({ name: "USelect" }).find((select) => select.props("placeholder") === "设事件组…")!;

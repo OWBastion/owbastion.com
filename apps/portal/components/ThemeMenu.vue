@@ -48,39 +48,6 @@ onMounted(() => {
       item: 'min-h-11 items-center gap-2.5 px-2.5 py-0',
     }"
   >
-    <button
-      class="theme-trigger hit-target-lg pressable"
-      type="button"
-      :aria-label="`当前主题：${currentLabel}，打开主题菜单`"
-    >
-      <UIcon :name="currentIcon" class="theme-trigger-icon" aria-hidden="true" />
-    </button>
+    <UButton :icon="currentIcon" color="neutral" variant="outline" :aria-label="`当前主题：${currentLabel}，打开主题菜单`" />
   </UDropdownMenu>
 </template>
-
-<style scoped>
-.theme-trigger {
-  display: grid;
-  width: 2.25rem;
-  height: 2.25rem;
-  place-items: center;
-  padding: 0;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-control);
-  color: var(--muted);
-  background: transparent;
-  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
-}
-@media (pointer: coarse) { .theme-trigger { width: var(--control-lg); height: var(--control-lg); } }
-.theme-trigger:hover,
-.theme-trigger[data-state="open"],
-.theme-trigger[aria-expanded="true"] {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-surface);
-}
-.theme-trigger-icon {
-  width: 17px;
-  height: 17px;
-}
-</style>

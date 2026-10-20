@@ -25,7 +25,7 @@ describe("admin player list", () => {
     adminApi.mockClear();
     const wrapper = await mountSuspended(AdminPlayerList);
     await flushPromises();
-    await wrapper.findAll(".chip").find((chip) => chip.text() === "已封禁")!.trigger("click");
+    await wrapper.findAll('[aria-label="筛选玩家状态"] button').find((chip) => chip.text() === "已封禁")!.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith(expect.stringContaining("status=banned"));
   });

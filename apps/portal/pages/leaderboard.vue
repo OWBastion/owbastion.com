@@ -142,9 +142,9 @@ const entryMeta = (entry: LeaderboardEntry) => board.value === "mastery"
   <main class="lb page-shell">
     <header class="lb-head">
       <h1 class="lb-title">排行榜</h1>
-      <div class="seg" role="group" aria-label="排行榜">
-        <button type="button" :aria-pressed="board === 'mastery'" @click="setBoard('mastery')">精通</button>
-        <button type="button" :aria-pressed="board === 'achievement'" @click="setBoard('achievement')">成就</button>
+      <div class="flex flex-wrap gap-2" role="group" aria-label="排行榜">
+        <FilterChip label="精通" :pressed="board === 'mastery'" @toggle="setBoard('mastery')" />
+        <FilterChip label="成就" :pressed="board === 'achievement'" @toggle="setBoard('achievement')" />
       </div>
     </header>
 

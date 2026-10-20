@@ -48,7 +48,7 @@ const stageNumber = (event: RandomEvent, raw: string) => emit("stage", event.eve
     <table>
       <thead>
         <tr>
-          <th class="event-table__check"><input type="checkbox" :checked="allSelected" aria-label="选择当前列表全部" @change="toggleAll(($event.target as HTMLInputElement).checked)"></th>
+          <th class="event-table__check"><UCheckbox :model-value="allSelected" aria-label="选择当前列表全部" @update:model-value="toggleAll($event === true)" /></th>
           <th :aria-sort="ariaSort('name')"><button type="button" class="event-table__sort" @click="sortBy('name')">事件 {{ arrow("name") }}</button></th>
           <th class="event-table__secondary">事件组</th>
           <th class="event-table__optional">类别</th>
@@ -60,7 +60,7 @@ const stageNumber = (event: RandomEvent, raw: string) => emit("stage", event.eve
       </thead>
       <tbody>
         <tr v-for="event in events" :key="event.eventId" :class="{ 'is-selected': selected.includes(event.eventId), 'is-changed': draftedFields(draft, event.eventId).size > 0, 'is-dim': event.releaseStatus !== 'implemented' || suspended.has(event.gameVersion) }">
-          <td class="event-table__check"><input type="checkbox" :checked="selected.includes(event.eventId)" :aria-label="`选择 ${event.name}`" @change="toggleOne(event.eventId, ($event.target as HTMLInputElement).checked)"></td>
+          <td class="event-table__check"><UCheckbox :model-value="selected.includes(event.eventId)" :aria-label="`选择 ${event.name}`" @update:model-value="toggleOne(event.eventId, $event === true)" /></td>
           <td>
             <div class="event-table__name">
               <button type="button" class="event-table__open" @click="emit('open', event.eventId)">{{ event.name }}</button>
@@ -103,7 +103,6 @@ tbody tr.is-changed td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 tbody tr.is-selected td { background: var(--accent-surface); }
 tbody tr.is-dim td:not(.event-table__check) { opacity: 0.6; }
 .event-table__check { width: 2.5rem; }
-.event-table__check input { width: 1rem; height: 1rem; accent-color: var(--accent); }
 .event-table__sort { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
 .event-table__sort:hover { color: var(--text); }
 .event-table__name { display: flex; align-items: center; gap: var(--space-2); min-width: 8rem; }

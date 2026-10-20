@@ -481,7 +481,7 @@ describe("achievement admin pages", () => {
     await form.findAll("textarea")[0]!.setValue("完成条件（修订措辞）");
     await flushPromises();
     expect(wrapper.text()).toContain("这次修改怎么保存");
-    await form.find('input[type="radio"][value="new_challenge"]').setValue(true);
+    await form.findAll('button[role="radio"]')[1]!.trigger("click");
     await form.trigger("submit");
     await flushPromises();
     const call = adminApi.mock.calls.find(([path, options]) => path === "/v1/achievements/ch-1" && options?.method === "PUT");
