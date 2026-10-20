@@ -34,6 +34,6 @@ useSeoMeta({
 .home__cta:hover, .home__cta:focus-visible { background: color-mix(in oklch, var(--accent) 86%, white); }
 .home__release { display: inline-flex; align-items: baseline; gap: var(--space-2); color: var(--quiet); font-size: var(--type-label-sm-size); text-decoration: none; }
 .home__release:hover { color: var(--text); }
-.home__release .num { color: var(--accent); font-weight: 700; }
+.home__release .num { color: var(--text); font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .home__cta { transition: none; } }
 </style>

@@ -60,7 +60,7 @@ const commentStatusLabel = (value: AdminReviewDetail["review"]["commentStatus"])
 .review-detail__facts dt { color: var(--quiet); font-size: var(--type-caption-size); font-weight: 700; }
 .review-detail__facts dd { margin: var(--space-2) 0 0; overflow-wrap: anywhere; }
 .table-meta { display: block; color: var(--quiet); font-size: var(--type-caption-size); }
-.review-detail__comment { margin: 0; padding: var(--space-4); border-inline-start: 3px solid var(--accent); border-radius: 0 var(--radius-control) var(--radius-control) 0; background: var(--accent-surface); white-space: pre-wrap; overflow-wrap: anywhere; }
+.review-detail__comment { margin: 0; padding: var(--space-4); border-inline-start: 3px solid var(--line-strong); border-radius: 0 var(--radius-control) var(--radius-control) 0; background: var(--accent-surface); white-space: pre-wrap; overflow-wrap: anywhere; }
 .review-detail__muted { margin: 0; color: var(--quiet); }
 .review-detail__audit li { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); overflow-wrap: anywhere; }
 .review-detail__audit li > div { display: grid; gap: var(--space-1); }

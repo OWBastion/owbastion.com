@@ -17,13 +17,13 @@ defineProps<{ eyebrow: string; points: Array<{ icon: string; text: string }> }>(
 </template>
 
 <style scoped>
-.auth-brand { position: relative; display: grid; align-content: center; gap: var(--space-4); min-height: 26rem; padding: clamp(var(--space-6), 4vw, var(--space-12)); overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-card); background: radial-gradient(70% 80% at 0% 100%, color-mix(in oklch, var(--accent) 16%, transparent), transparent 70%), var(--surface); }
-.auth-brand__mark { position: absolute; right: -3rem; bottom: -3rem; width: 22rem; height: 22rem; color: color-mix(in oklch, var(--accent) 22%, transparent); }
+.auth-brand { position: relative; display: grid; align-content: center; gap: var(--space-4); min-height: 26rem; padding: clamp(var(--space-6), 4vw, var(--space-12)); overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-card); background: radial-gradient(70% 80% at 0% 100%, color-mix(in oklch, var(--accent) 7%, transparent), transparent 70%), var(--surface); }
+.auth-brand__mark { position: absolute; right: -3rem; bottom: -3rem; width: 22rem; height: 22rem; color: color-mix(in oklch, var(--text) 6%, transparent); }
 .auth-brand__title { margin: 0; font-family: var(--font-display); font-size: clamp(2.25rem, 3.4vw, 4rem); font-weight: 700; letter-spacing: -.03em; line-height: 1; white-space: nowrap; }
-.auth-brand__title em { margin-left: .15em; color: var(--accent); font-style: normal; }
+.auth-brand__title em { margin-left: .15em; color: var(--muted); font-style: normal; }
 .auth-brand__list { position: relative; display: grid; gap: var(--space-3); margin: var(--space-4) 0 0; padding: 0; color: var(--muted); list-style: none; }
 .auth-brand__list li { display: flex; align-items: center; gap: var(--space-3); }
-.auth-brand__list [class*="i-lucide-"] { flex: none; width: 1.125rem; height: 1.125rem; color: var(--accent); }
+.auth-brand__list [class*="i-lucide-"] { flex: none; width: 1.125rem; height: 1.125rem; color: var(--muted); }
 @media (max-width: 63.99rem) {
   .auth-brand { min-height: 0; padding: var(--space-6); }
   .auth-brand__list { display: none; }

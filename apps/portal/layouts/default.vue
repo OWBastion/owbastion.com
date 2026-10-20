@@ -38,10 +38,10 @@ const showFooter = computed(() => !route.path.startsWith("/admin"));
 .site-footer__inner { display: grid; grid-template-columns: 1fr auto; gap: var(--space-4) var(--space-8); width: min(100% - 3rem, 90rem); margin: 0 auto; padding-block: var(--space-8); color: var(--quiet); font-size: var(--type-caption-size); }
 .site-footer__brand { display: grid; gap: var(--space-1); }
 .site-footer__brand strong { color: var(--text); font-size: 1rem; letter-spacing: .02em; }
-.site-footer__brand em { margin-left: .2em; color: var(--accent); font-style: normal; }
+.site-footer__brand em { margin-left: .2em; color: var(--muted); font-style: normal; }
 .site-footer__nav { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-5); }
 .site-footer__nav a { color: var(--muted); text-decoration: none; }
-.site-footer__nav a:hover, .site-footer__nav a:focus-visible { color: var(--accent); }
+.site-footer__nav a:hover, .site-footer__nav a:focus-visible { color: var(--text); }
 .site-footer__copy { grid-column: 1 / -1; }
 @media (max-width: 47.99rem) {
   .site-footer__inner { grid-template-columns: 1fr; }

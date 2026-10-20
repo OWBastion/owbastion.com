@@ -294,7 +294,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .eyebrow {
   margin: 0 0 .45rem;
-  color: var(--accent);
+  color: var(--muted);
   font-family: var(--font-display);
   text-transform: uppercase;
   font-size: var(--type-kicker-size);
@@ -380,8 +380,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .interactive-card:hover,
 .interactive-card:focus-visible {
-  border-color: color-mix(in oklch, var(--accent) 55%, var(--line-strong));
-  box-shadow: 0 0 0 1px color-mix(in oklch, var(--accent) 18%, transparent), var(--elevation-1);
+  border-color: var(--line-strong);
+  box-shadow: var(--elevation-1);
 }
 .interactive-card--static {
   cursor: default;
@@ -415,7 +415,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .invite-results { display: grid; gap: var(--space-2); }
 .invite-result { padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); }
 .invite-result__identity strong { overflow-wrap: anywhere; font-size: var(--type-body-sm-size); }
-.invite-result__identity code { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--type-caption-size); font-weight: 700; letter-spacing: .08em; }
+.invite-result__identity code { color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--type-caption-size); font-weight: 700; letter-spacing: .08em; }
 .field-hint {
   margin: 0;
   font-size: var(--type-caption-size);
@@ -953,10 +953,9 @@ a[data-slot="base"]:active:not([aria-disabled="true"]) {
 /* -------------------------------------------------------------------------- */
 body {
   background-image:
-    radial-gradient(60rem 32rem at 85% -10%, color-mix(in oklch, var(--accent) 5%, transparent), transparent 70%),
     linear-gradient(var(--grid-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-  background-size: auto, 3rem 3rem, 3rem 3rem;
+  background-size: 3rem 3rem, 3rem 3rem;
   background-attachment: fixed;
   isolation: isolate;
 }

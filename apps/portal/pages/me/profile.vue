@@ -206,12 +206,12 @@ onMounted(() => {
 .recent-runs { container-type: inline-size; display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .recent-runs > li { min-width: 0; }
 .recent-run { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); min-width: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
-.recent-run { border-left: 3px solid var(--accent); }
+.recent-run { border-left: 3px solid var(--line-strong); }
 .recent-run-copy { display: grid; min-width: 0; gap: var(--space-1); }
 .recent-run-copy strong { display: flex; align-items: baseline; gap: var(--space-2); overflow-wrap: anywhere; color: var(--text); font-size: .85rem; }
 .recent-run-copy strong small { color: var(--quiet); font-weight: 500; }
 .recent-run-copy span { color: var(--quiet); font-size: .73rem; }
-.recent-run-xp { flex: 0 0 auto; color: var(--accent); font-size: .8rem; }
+.recent-run-xp { flex: 0 0 auto; color: var(--muted); font-size: .8rem; }
 .profile-state { display: grid; gap: var(--space-4); justify-items: start; max-width: 40rem; padding: clamp(var(--space-6), 5vw, var(--space-8)); }
 .profile-state .body-copy { margin: 0; }
 .profile-skeleton { display: grid; }

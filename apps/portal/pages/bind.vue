@@ -80,7 +80,7 @@ async function copyCommand() {
 .binding-steps__dot { color: var(--accent); font-size: .875rem; font-weight: 700; }
 .binding-state, .binding-confirmation { display: grid; gap: var(--space-3); }
 .binding-heading { margin: 0 0 var(--space-2); font-family: var(--font-display); font-size: clamp(1.5rem, 4vw, 2rem); overflow-wrap: anywhere; }
-.binding-code { margin: var(--space-2) 0; padding: var(--space-4); border: 1px solid color-mix(in oklch, var(--accent) 46%, var(--line)); border-radius: var(--radius-control); overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: clamp(1.1rem, 4vw, 1.5rem); font-weight: 700; letter-spacing: .03em; background: var(--accent-surface); }
+.binding-code { margin: var(--space-2) 0; padding: var(--space-4); border: 1px solid var(--line-strong); border-radius: var(--radius-control); overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: clamp(1.1rem, 4vw, 1.5rem); font-weight: 700; letter-spacing: .03em; background: var(--accent-surface); }
 .binding-note { margin: 0; color: var(--muted); font-size: .88rem; line-height: 1.6; }
 .turnstile-slot { display: grid; gap: var(--space-3); justify-items: center; margin-top: var(--space-3); min-height: 65px; }
 .turnstile-widget { min-height: 65px; }

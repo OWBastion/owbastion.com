@@ -54,9 +54,9 @@ const drawsPerAppearance = computed(() => props.probability ? Math.max(1, Math.r
 
 <style scoped>
 .event-sheet { display: grid; gap: var(--space-4); min-width: 0; }
-.event-sheet__probability { display: grid; gap: var(--space-1); padding: var(--space-3); border-radius: var(--radius-card); background: var(--accent-surface); }
+.event-sheet__probability { display: grid; gap: var(--space-1); padding: var(--space-3); border-radius: var(--radius-card); background: var(--surface-raised); }
 .event-sheet__probability p { margin: 0; }
-.event-sheet__value { color: var(--accent); font-size: var(--type-headline-size); font-weight: 700; line-height: 1.1; }
+.event-sheet__value { color: var(--text); font-size: var(--type-headline-size); font-weight: 700; line-height: 1.1; }
 .event-sheet__saved { color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 600; }
 .event-sheet__footer { display: flex; flex: 1; align-items: center; gap: var(--space-2); min-width: 0; }
 .event-sheet__spacer { flex: 1; }

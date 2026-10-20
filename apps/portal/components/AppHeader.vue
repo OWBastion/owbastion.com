@@ -222,9 +222,9 @@ async function signOut() {
 .app-header { position: relative; z-index: 2; display: flex; height: 3.5rem; align-items: center; gap: var(--space-3); padding: 0 var(--space-2) 0 var(--space-4); border-bottom: 1px solid var(--line); }
 .brand { display: inline-flex; min-width: 0; flex: none; align-items: center; gap: var(--space-2); color: var(--text); font-family: var(--font-display); font-size: 1rem; font-weight: 700; letter-spacing: .02em; text-decoration: none; white-space: nowrap; }
 .brand-name { overflow: hidden; text-overflow: ellipsis; }
-.brand-name em { margin-left: .2em; color: var(--accent); font-style: normal; }
+.brand-name em { margin-left: .2em; color: var(--muted); font-style: normal; }
 .brand-mark { width: 1.625rem; height: 1.625rem; flex: 0 0 auto; object-fit: contain; }
-.sidebar-scope { margin: 0; color: var(--accent); font-size: var(--type-caption-size); font-weight: 600; letter-spacing: .16em; }
+.sidebar-scope { margin: 0; color: var(--muted); font-size: var(--type-caption-size); font-weight: 600; letter-spacing: .16em; }
 .main-nav { display: none; }
 .account-actions { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; font-size: .8125rem; font-weight: 500; }
 .account-name { display: none; }

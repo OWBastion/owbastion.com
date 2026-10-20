@@ -256,7 +256,7 @@ onMounted(() => { hydrated.value = true; });
 .event-list { display: grid; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); list-style: none; overflow: hidden; }
 .event-list > li + li { border-top: 1px solid var(--line); }
 .event-row { position: relative; display: grid; grid-template-columns: 2.75rem minmax(0, 1fr) minmax(7rem, 10rem); align-items: center; gap: var(--space-4); width: 100%; padding: var(--space-3) var(--space-4); border: 0; color: inherit; background: transparent; font: inherit; text-align: left; cursor: pointer; transition: background-color 140ms ease; }
-.event-row:hover { background: color-mix(in oklch, var(--accent) 5%, transparent); }
+.event-row:hover { background: var(--surface-raised); }
 .event-row.is-selected { background: color-mix(in oklch, var(--accent) 10%, transparent); }
 .event-row.is-selected::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--accent); }
 .event-row__rarity { display: grid; height: 2.75rem; place-items: center; border: 1px solid var(--line-strong); border-radius: var(--radius-control); color: var(--text); font-size: .8125rem; font-weight: 700; }
@@ -276,7 +276,7 @@ onMounted(() => { hydrated.value = true; });
 .detail { display: grid; gap: var(--space-4); }
 .detail-header-tags { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-2); }
 .detail-probability { display: grid; gap: var(--space-2); padding: var(--space-4); }
-.detail-probability__value { color: var(--accent); font-size: var(--type-headline-size); font-weight: 700; line-height: 1.1; }
+.detail-probability__value { color: var(--text); font-size: var(--type-headline-size); font-weight: 700; line-height: 1.1; }
 .detail-probability p { margin: 0; color: var(--muted); }
 .detail-probability__rank { color: var(--quiet); font-size: var(--type-caption-size); }
 .detail-probability b { color: var(--text); font-weight: 600; }
