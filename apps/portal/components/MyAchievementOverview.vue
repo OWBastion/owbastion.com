@@ -134,11 +134,11 @@ const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, 
 
 <style scoped>
 .collection { display: grid; gap: var(--space-12); }
-.equip-count { justify-self: start; margin: calc(-1 * var(--space-8)) 0 0; padding: var(--space-1) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-pill); color: var(--muted); font-size: var(--type-label-sm-size); }
+.equip-count { justify-self: end; margin: calc(-1 * var(--space-8)) 0 0; padding: var(--space-1) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-pill); color: var(--muted); font-size: var(--type-label-sm-size); }
 .equip-count.is-warn { border-color: var(--warning); color: var(--warning); }
 .series { display: grid; gap: var(--space-3); }
-.series__title { display: flex; align-items: baseline; gap: var(--space-3); margin: 0; color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 600; letter-spacing: .08em; }
-.series__title .num { color: var(--quiet); font-weight: 500; letter-spacing: 0; }
+.series__title { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); margin: 0; color: var(--muted); font-size: var(--type-label-size); font-weight: 600; letter-spacing: .1em; }
+.series__title .num { color: var(--quiet); font-size: var(--type-label-sm-size); font-weight: 500; letter-spacing: 0; }
 .maps { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr)); gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .map { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); color: inherit; text-decoration: none; }
 .map:hover, .map:focus-visible { border-color: color-mix(in oklch, var(--accent) 50%, var(--line)); }

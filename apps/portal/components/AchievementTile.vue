@@ -11,13 +11,13 @@ defineProps<{ name: string; iconUrl?: string | null; icon: string; earned: boole
 </template>
 
 <style scoped>
-.medal { --achievement-icon-size: clamp(4.25rem, 18vw, 5.25rem); position: relative; display: grid; justify-items: center; gap: var(--space-3); width: 100%; padding: var(--space-3) var(--space-1) var(--space-2); border: 0; background: none; color: var(--quiet); cursor: pointer; }
+.medal { --achievement-icon-size: clamp(5.5rem, 24vw, 7rem); position: relative; display: grid; justify-items: center; gap: var(--space-3); width: 100%; padding: var(--space-3) var(--space-1) var(--space-2); border: 0; background: none; color: var(--quiet); cursor: pointer; }
 /* A soft floor shadow seats each badge on the shelf. */
 .medal::before { position: absolute; top: calc(var(--space-3) + var(--achievement-icon-size) - .35rem); left: 50%; width: calc(var(--achievement-icon-size) * .7); height: .6rem; border-radius: 50%; background: radial-gradient(closest-side, rgb(0 0 0 / .45), transparent); content: ""; transform: translateX(-50%); transition: opacity 200ms ease, transform 320ms cubic-bezier(.34, 1.56, .64, 1); }
 .medal:not(.is-earned)::before { opacity: .4; }
 .medal.is-earned { color: var(--text); }
 .medal:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-card); }
-.medal__name { overflow: hidden; max-width: 100%; font-size: var(--type-caption-size); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.medal__name { overflow: hidden; max-width: 100%; font-size: var(--type-body-sm-size); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .medal.is-highlighted .medal__name { color: var(--accent); }
 .medal__check { position: absolute; top: var(--space-2); right: calc(50% - var(--achievement-icon-size) / 2 - .25rem); padding: .15rem; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-size: .75rem; }
 .medal:hover :deep(.achievement-icon), .medal:focus-visible :deep(.achievement-icon) { transform: translateY(-4px) scale(1.06); }
