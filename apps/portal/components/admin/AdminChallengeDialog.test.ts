@@ -28,4 +28,22 @@ describe("AdminChallengeDialog progress map selection", () => {
     await button("清空").trigger("click");
     expect(wrapper.text()).toContain("已选 0 / 3");
   });
+
+  it("saves a global title challenge without map fields", async () => {
+    const wrapper = await mountSuspended(AdminChallengeDialog, {
+      props: {
+        open: false, mode: "edit", title: { titleKey: "SKY", label: "万域天穹", scope: "global" }, challenge, siblings: [], saving: false, errorMessage: "", modes: [],
+        maps: [{ mapId: "map.a", mapName: "甲" }, { mapId: "map.b", mapName: "乙" }],
+      } as never,
+      global: { stubs: { AdminResponsiveDialog: dialogStub, USelect: { props: ["modelValue", "items"], template: "<div />" } } },
+    });
+    await wrapper.setProps({ open: true });
+    await wrapper.findAll("button").find((item) => item.text() === "全选")!.trigger("click");
+    await wrapper.get("form").trigger("submit");
+
+    const payload = wrapper.emitted("submit")![0]![0] as Record<string, unknown>;
+    expect(payload).toMatchObject({ saveMode: "new_challenge", progressRule: { type: "required_maps_completed", mapIds: ["map.a", "map.b"] } });
+    expect(payload).not.toHaveProperty("mapIds");
+    expect(payload).not.toHaveProperty("mapVariant");
+  });
 });
