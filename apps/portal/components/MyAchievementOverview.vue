@@ -54,6 +54,7 @@ type Tile = {
   owned?: OwnedTitle;
   earned: boolean;
   note?: string;
+  series: string;
   progress?: PlayerChallengeProgress;
 };
 const mapNameFor = (mapId: string) => props.maps.find((map) => map.mapId === mapId)?.mapName ?? mapId;
@@ -70,7 +71,7 @@ const cardTile = (card: AchievementCard): Tile => card.kind === "catalog"
       progress: card.challenge.progressRule ? progressByChallenge.value.get(card.challenge.challengeId) : undefined,
     }
   : { key: card.title.grantId, name: card.title.label, icon: { url: card.title.iconUrl, icon: card.title.icon }, condition: card.title.condition, owned: card.title, earned: true, note: "不再发放" };
-const tileGroups = computed(() => groups.value.map((group) => ({ name: group.category, tiles: group.cards.map(cardTile) })));
+const tileGroups = computed(() => groups.value.map((group) => ({ name: group.category, tiles: group.cards.map((card) => ({ ...cardTile(card), series: group.category })) })));
 
 const selectedKey = shallowRef<string | null>(null);
 // Looked up live so the sheet reflects an equip change as soon as the titles prop updates.
@@ -106,7 +107,7 @@ const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, 
 
     <UEmpty v-if="!tileGroups.length && !mapProgressRows.length" title="暂无记录" variant="naked" />
 
-    <UModal v-model:open="sheetOpen" :title="selected?.name ?? ''">
+    <UModal v-model:open="sheetOpen" :title="selected?.name ?? ''" :description="selected?.series">
       <template #body>
         <div v-if="selected" class="sheet">
           <AchievementIcon class="sheet__icon" entrance :url="selected.icon.url" :icon="selected.icon.icon" :earned="selected.earned" />

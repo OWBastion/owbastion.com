@@ -34,7 +34,7 @@ const noteOf = (challenge: PublicAchievement) => challenge.status === "scheduled
       </AchievementShelf>
     </AchievementWall>
 
-    <UModal v-model:open="sheetOpen" :title="selected?.titleName ?? ''">
+    <UModal v-model:open="sheetOpen" :title="selected?.titleName ?? ''" :description="selected?.category">
       <template #body>
         <div v-if="selected" class="sheet">
           <AchievementIcon class="sheet__icon" entrance :url="selected.iconUrl" :icon="selected.icon" earned />
