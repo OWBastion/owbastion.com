@@ -21,6 +21,9 @@ import {
 } from "@owbastion/contracts";
 import { maintainerRoute, parseBody, type AdminRouteDependencies, type ApiApp } from "./route-contract";
 
+const TITLE_IMAGE_PREFIX = "achievements/";
+type AssetsEnv = { ASSETS_BUCKET?: R2Bucket; ASSETS_PUBLIC_ORIGIN?: string };
+
 type ServiceOperation = (context: any, operation: string, action: () => Promise<any>) => Promise<any>;
 
 export const registerAdminCatalogRoutes = (app: ApiApp, dependencies: AdminRouteDependencies, logServiceOperation: ServiceOperation) => {
@@ -123,6 +126,23 @@ export const registerAdminCatalogRoutes = (app: ApiApp, dependencies: AdminRoute
 
   app.get("/v1/admin/titles", maintainerRoute(requireMaintainer, async (c, auth) => {
     return c.json({ contractVersion: "1", items: await logServiceOperation(c, "admin_list_titles", () => dependencies.services(c.env).listTitles({ mapId: c.req.query("mapId")?.trim() || undefined })) });
+  }));
+
+  app.get("/v1/admin/title-images", maintainerRoute(requireMaintainer, async (c) => {
+    const { ASSETS_BUCKET: bucket, ASSETS_PUBLIC_ORIGIN } = c.env as AssetsEnv;
+    const origin = ASSETS_PUBLIC_ORIGIN?.replace(/\/+$/, "");
+    if (!bucket || !origin) return errorResponse(c, 503, "ASSETS_BUCKET_UNAVAILABLE", "图片存储暂不可用");
+    const items: Array<{ name: string; url: string }> = [];
+    let cursor: string | undefined;
+    do {
+      const page = await bucket.list({ prefix: TITLE_IMAGE_PREFIX, cursor });
+      for (const object of page.objects) {
+        const name = object.key.slice(TITLE_IMAGE_PREFIX.length);
+        if (/^[^/]+\.(png|webp)$/i.test(name)) items.push({ name, url: `${origin}/${object.key}` });
+      }
+      cursor = page.truncated ? page.cursor : undefined;
+    } while (cursor);
+    return c.json({ contractVersion: "1", items });
   }));
 
   app.get("/v1/admin/events", maintainerRoute(requireMaintainer, async (c, auth) => {
