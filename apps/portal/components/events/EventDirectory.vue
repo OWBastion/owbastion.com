@@ -5,11 +5,12 @@ import EffectGlossaryTooltip from "~/components/events/EffectGlossaryTooltip.vue
 import PlayerReviewPanel from "~/components/reviews/PlayerReviewPanel.vue";
 import { useReviewSummaries } from "~/composables/useReviewSummaries";
 import { calculateEventProbabilities, formatProbability } from "~/utils/event-probabilities";
-import { emptyEventFilters, groupEvents, matchesEvent, sortEvents, type EventFilters } from "~/utils/event-filters";
+import { commonEffectTags, emptyEventFilters, facetCount, facetOptions, groupEvents, matchesEvent, sortEvents, type EventFacet, type EventFilters, type EventSort } from "~/utils/event-filters";
 import EventProbabilityMeter from "~/components/events/EventProbabilityMeter.vue";
 
 const props = defineProps<{ events: RandomEvent[]; authenticated: boolean }>();
 const filters = reactive<EventFilters>(emptyEventFilters());
+const sort = shallowRef<EventSort>("latest");
 const selected = shallowRef<RandomEvent | null>(null);
 const overlayOpen = shallowRef(false);
 const hydrated = shallowRef(false);
@@ -25,8 +26,25 @@ const probabilities = computed(() => new Map(props.events.map((event) => [event.
 const probability = (event: RandomEvent) => probabilities.value.get(event.eventId) ?? calculateEventProbabilities(event, props.events);
 const appearance = (event: RandomEvent) => probability(event).appearanceProbability;
 const maxAppearance = computed(() => Math.max(0, ...[...probabilities.value.values()].map((item) => item.appearanceProbability ?? 0)));
-const filteredEvents = computed(() => sortEvents(props.events.filter((event) => matchesEvent(event, filters)), "latest", appearance));
+const filteredEvents = computed(() => sortEvents(props.events.filter((event) => matchesEvent(event, filters)), sort.value, appearance));
 const sections = computed(() => groupEvents(filteredEvents.value, "none"));
+// Rank by base appearance chance across every event that has one, regardless of the active filters.
+const ranking = computed(() => {
+  const ranked = props.events.filter((event) => appearance(event) !== null).sort((left, right) => (appearance(right) ?? 0) - (appearance(left) ?? 0));
+  return { rankOf: new Map(ranked.map((event, index) => [event.eventId, index + 1])), total: ranked.length };
+});
+
+// Category is the one-tap filter; everything else is combinable and lives behind a single popover.
+const categoryOptions = computed(() => facetOptions(props.events, "categories"));
+const versionOptions = computed(() => [{ label: "全部版本", value: "all" }, ...[...new Set(props.events.map((event) => event.gameVersion))].sort((left, right) => right.localeCompare(left, undefined, { numeric: true })).map((value) => ({ label: value, value }))]);
+const facetSections = computed(() => ([["事件组", "groups", facetOptions(props.events, "groups")], ["稀有度", "rarities", facetOptions(props.events, "rarities")], ["常见效果", "tags", commonEffectTags(props.events)]] as const).filter(([, , options]) => options.length));
+const statusOptions = [{ label: "已实装", value: "implemented" }, { label: "已移除", value: "removed" }, { label: "全部", value: "all" }] as const;
+const sortOptions = [{ label: "最新", value: "latest" }, { label: "概率", value: "probability" }] as const;
+const isOn = (facet: EventFacet, value: string) => filters[facet].includes(value);
+const toggle = (facet: EventFacet, value: string) => { filters[facet] = isOn(facet, value) ? filters[facet].filter((item) => item !== value) : [...filters[facet], value]; };
+const extraFilterCount = computed(() => filters.groups.length + filters.rarities.length + filters.tags.length + (filters.version !== "all" ? 1 : 0) + (filters.status !== "implemented" ? 1 : 0));
+const hasFilters = computed(() => Boolean(filters.query.trim()) || filters.categories.length > 0 || extraFilterCount.value > 0);
+const clearFilters = () => Object.assign(filters, emptyEventFilters());
 const openEvent = (event: RandomEvent) => {
   selected.value = event;
   overlayOpen.value = !isSplit.value;
@@ -58,6 +76,29 @@ onMounted(() => { hydrated.value = true; });
   <section class="event-directory" aria-label="随机事件目录">
     <div class="filters">
       <UInput v-model="filters.query" class="filters__search" size="lg" icon="i-lucide-search" placeholder="搜索" aria-label="搜索事件" />
+      <div v-if="categoryOptions.length > 1" class="seg" role="group" aria-label="按类别筛选">
+        <button type="button" :aria-pressed="!filters.categories.length" @click="filters.categories = []">全部</button>
+        <button v-for="category in categoryOptions" :key="category" type="button" :aria-pressed="isOn('categories', category)" @click="filters.categories = isOn('categories', category) ? [] : [category]">{{ category }}</button>
+      </div>
+      <div class="seg" role="group" aria-label="排序方式">
+        <button v-for="option in sortOptions" :key="option.value" type="button" :aria-pressed="sort === option.value" @click="sort = option.value">{{ option.label }}</button>
+      </div>
+      <UPopover>
+        <UButton icon="i-lucide-sliders-horizontal" :label="extraFilterCount ? String(extraFilterCount) : undefined" color="neutral" :variant="extraFilterCount ? 'soft' : 'ghost'" aria-label="更多筛选" />
+        <template #content>
+          <div class="filters__more">
+            <div class="seg" role="group" aria-label="筛选事件状态">
+              <button v-for="option in statusOptions" :key="option.value" type="button" :aria-pressed="filters.status === option.value" @click="filters.status = option.value">{{ option.label }}</button>
+            </div>
+            <USelect v-model="filters.version" :items="versionOptions" aria-label="筛选事件版本" />
+            <fieldset v-for="[label, facet, options] in facetSections" :key="facet" class="filters__facet">
+              <legend>{{ label }}</legend>
+              <FilterChip v-for="value in options" :key="value" :label="value" :count="facetCount(events, filters, facet, value)" :pressed="isOn(facet, value)" @toggle="toggle(facet, value)" />
+            </fieldset>
+          </div>
+        </template>
+      </UPopover>
+      <UButton v-if="hasFilters" label="清除" color="neutral" variant="link" @click="clearFilters" />
     </div>
 
     <DefineHeaderTags>
@@ -74,6 +115,7 @@ onMounted(() => { hydrated.value = true; });
         <section v-if="appearance(selected) !== null" class="detail-probability surface-card" aria-label="出现概率">
           <div class="detail-probability__value num">{{ formatProbability(appearance(selected)) }}</div>
           <EventProbabilityMeter :probability="appearance(selected)" :max="maxAppearance" />
+          <p v-if="ranking.rankOf.get(selected.eventId)" class="detail-probability__rank num">概率第 {{ ranking.rankOf.get(selected.eventId) }} / {{ ranking.total }}</p>
         </section>
         <dl class="detail-grid">
           <div v-if="selected.durationSeconds !== null" class="detail-grid__row"><dt>持续</dt><dd>{{ selected.durationSeconds }} 秒</dd></div>
@@ -145,7 +187,7 @@ onMounted(() => { hydrated.value = true; });
         </ul>
       </section>
     </div>
-    <UEmpty v-else :title="events.length ? '没有找到' : '暂无事件'" variant="naked" />
+    <UEmpty v-else :title="events.length ? '没有找到' : '暂无事件'" variant="naked"><template v-if="events.length && hasFilters" #actions><UButton label="清除条件" color="neutral" variant="outline" @click="clearFilters" /></template></UEmpty>
     <aside v-if="splitActive && selected" class="detail-pane" aria-label="事件详情">
       <header class="detail-pane__head">
         <h2 class="detail-pane__title">{{ selected.name }}</h2>
@@ -197,7 +239,11 @@ onMounted(() => { hydrated.value = true; });
 
 <style scoped>
 .event-directory { display: grid; gap: var(--space-5); }
-.filters { max-width: 24rem; }
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.filters__search { width: min(100%, 24rem); }
+.filters__more { display: grid; gap: var(--space-4); width: min(22rem, 85vw); padding: var(--space-4); }
+.filters__facet { display: flex; flex-wrap: wrap; gap: var(--space-2); min-width: 0; margin: 0; padding: 0; border: 0; }
+.filters__facet legend { margin-bottom: var(--space-2); padding: 0; color: var(--quiet); font-size: var(--type-caption-size); }
 .event-groups { display: grid; gap: var(--space-8); }
 .event-group { display: grid; gap: var(--space-3); }
 .group-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding-bottom: var(--space-2); border-bottom: 1px solid var(--line); }
@@ -232,6 +278,7 @@ onMounted(() => { hydrated.value = true; });
 .detail-probability { display: grid; gap: var(--space-2); padding: var(--space-4); }
 .detail-probability__value { color: var(--accent); font-size: var(--type-headline-size); font-weight: 700; line-height: 1.1; }
 .detail-probability p { margin: 0; color: var(--muted); }
+.detail-probability__rank { color: var(--quiet); font-size: var(--type-caption-size); }
 .detail-probability b { color: var(--text); font-weight: 600; }
 .description { margin: 0; color: var(--text); line-height: 1.65; }
 .challenges { display: grid; gap: var(--space-2); }

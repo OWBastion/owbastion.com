@@ -73,7 +73,7 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
         :disabled="loading || !!fileError"
         type="submit"
       />
-      <p class="submit__privacy"><UIcon name="i-lucide-lock-keyhole" aria-hidden="true" />仅用于核对与识别，不公开</p>
+      <p class="submit__privacy"><UIcon name="i-lucide-lock-keyhole" aria-hidden="true" />用于核对、识别和改进识别模型，不公开</p>
     </UForm>
   </main>
 </template>
