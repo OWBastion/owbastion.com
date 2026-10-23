@@ -91,8 +91,8 @@ watch(modalOpen, (open) => {
   <section class="map-directory" aria-label="地图列表">
     <div v-if="props.maps.length" class="map-toolbar">
       <UInput v-model="query" class="map-toolbar__search" size="lg" icon="i-lucide-search" placeholder="搜索" aria-label="搜索地图" />
-      <div class="seg" role="group" aria-label="按评级筛选">
-        <button v-for="option in ratingOptions" :key="option.value" type="button" :aria-pressed="ratingFilter === option.value" @click="ratingFilter = option.value">{{ option.label }}</button>
+      <div class="flex flex-wrap gap-2" role="group" aria-label="按评级筛选">
+        <FilterChip v-for="option in ratingOptions" :key="option.value" :label="option.label" :pressed="ratingFilter === option.value" @toggle="ratingFilter = option.value" />
       </div>
     </div>
     <div v-if="groups.length" class="map-groups">
@@ -117,7 +117,7 @@ watch(modalOpen, (open) => {
 .map-group { display: grid; gap: var(--space-3); }
 .group-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding-bottom: var(--space-2); border-bottom: 1px solid var(--line); }
 .group-heading h2 { display: flex; align-items: baseline; gap: var(--space-3); margin: 0; font-size: var(--type-caption-size); font-weight: 600; letter-spacing: 0.01em; }
-.group-heading__bonus { color: var(--accent); font-weight: 600; }
+.group-heading__bonus { color: var(--text); font-weight: 600; }
 .group-heading > span { color: var(--quiet); }
 /* 17rem minimum track, capped at four columns. */
 .map-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, max(17rem, calc((100% - 3 * var(--space-4)) / 4))), 1fr)); gap: var(--space-4); }

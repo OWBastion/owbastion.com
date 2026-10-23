@@ -69,6 +69,6 @@ const mark = async (accuracy: AccuracyMark) => {
 <style scoped>
 .ocr-feedback { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
 .ocr-feedback__ask { margin-right: var(--space-2); color: var(--muted); font-size: var(--type-label-sm-size); }
-.ocr-feedback__note { margin-left: var(--space-2); color: var(--accent); font-size: var(--type-caption-size); }
+.ocr-feedback__note { margin-left: var(--space-2); color: var(--muted); font-size: var(--type-caption-size); }
 .ocr-feedback__note.is-error { color: var(--danger); }
 </style>

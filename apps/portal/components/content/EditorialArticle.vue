@@ -64,9 +64,9 @@ const showToc = computed(() => props.toc.length >= 3);
 .editorial-layout { min-width: 0; }
 .editorial-article { min-width: 0; }
 .editorial-article-header { position: relative; display: grid; gap: var(--space-4); margin-bottom: var(--space-8); padding-bottom: var(--space-8); border-bottom: 1px solid var(--line); }
-.editorial-article-header::after { content: ""; position: absolute; left: 0; bottom: -1px; width: 6rem; height: 2px; background: var(--accent); }
+.editorial-article-header::after { content: ""; position: absolute; left: 0; bottom: -1px; width: 6rem; height: 2px; background: var(--text); }
 .editorial-kicker { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; }
-.editorial-kind { color: var(--accent); font-weight: 600; }
+.editorial-kind { color: var(--muted); font-weight: 600; }
 .editorial-date { font-variant-numeric: tabular-nums; }
 .editorial-minutes::before { content: "·"; margin-right: var(--space-3); }
 .editorial-title { margin: 0; font-family: var(--font-display); font-size: var(--type-title-size); font-weight: 700; letter-spacing: var(--type-title-tracking); line-height: 1.12; text-wrap: balance; overflow-wrap: anywhere; }
@@ -83,7 +83,7 @@ const showToc = computed(() => props.toc.length >= 3);
 .editorial-article-body :deep(h2) { padding-top: 1.4em; border-top: 1px solid var(--line); font-family: var(--font-display); font-size: 1.375rem; font-weight: 700; letter-spacing: -0.01em; }
 .editorial-article-body :deep(h2:first-child) { margin-top: 0; padding-top: 0; border-top: 0; }
 /* h2 section → h3 group (accent bar) → h4 item (small, muted): each level reads as a step down. */
-.editorial-article-body :deep(h3) { padding-left: .7rem; border-left: 3px solid var(--accent); font-size: 1.1875rem; font-weight: 600; }
+.editorial-article-body :deep(h3) { padding-left: .7rem; border-left: 3px solid var(--line-strong); font-size: 1.1875rem; font-weight: 600; }
 .editorial-article-body :deep(h4) { color: var(--muted); font-size: .9375rem; font-weight: 600; letter-spacing: .01em; }
 .editorial-article-body :deep(:where(h2:first-child, h3:first-child, h4:first-child)) { margin-top: 0; }
 .editorial-article-body :deep(p) { margin: 0 0 1.25em; }
@@ -98,7 +98,7 @@ const showToc = computed(() => props.toc.length >= 3);
 /* MDC wraps heading text in an anchor link; headings keep their own color and weight instead of looking like underlined links. */
 .editorial-article-body :deep(:where(h2, h3, h4) a) { color: inherit; text-decoration: none; }
 /* A quoted opening line is the editor's note about the article, so it reads as a note, not as a quotation. */
-.editorial-article-body :deep(blockquote) { margin: 0 0 1.5em; padding: var(--space-3) var(--space-4); border-left: 3px solid var(--accent); border-radius: 0 var(--radius-control) var(--radius-control) 0; background: var(--surface); color: var(--muted); font-size: .95em; line-height: 1.7; }
+.editorial-article-body :deep(blockquote) { margin: 0 0 1.5em; padding: var(--space-3) var(--space-4); border-left: 3px solid var(--line-strong); border-radius: 0 var(--radius-control) var(--radius-control) 0; background: var(--surface); color: var(--muted); font-size: .95em; line-height: 1.7; }
 .editorial-article-body :deep(blockquote p:last-child) { margin-bottom: 0; }
 .editorial-article-body :deep(table) { display: block; max-width: 100%; margin: 0 0 1.25em; overflow-x: auto; border-collapse: collapse; font-size: .92em; }
 .editorial-article-body :deep(th), .editorial-article-body :deep(td) { padding: .5rem .75rem; border: 1px solid var(--line); text-align: left; vertical-align: top; }
@@ -135,7 +135,7 @@ const showToc = computed(() => props.toc.length >= 3);
   .editorial-article-description { font-size: 1.0625rem; }
 }
 @media (prefers-contrast: more) {
-  .changelog-version { color: var(--accent); -webkit-text-stroke: 0; }
+  .changelog-version { color: var(--text); -webkit-text-stroke: 0; }
   .editorial-article-body :deep(blockquote) { border-left-color: var(--text); }
 }
 </style>

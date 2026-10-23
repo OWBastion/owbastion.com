@@ -10,6 +10,8 @@ const filters: Array<{ label: string; value: Filter }> = [
   { label: "已完成", value: "completed" },
 ];
 const holderPages = computed(() => Math.max(1, Math.ceil(props.total / props.pageSize)));
+const holderItems = computed(() => props.holders.map((holder) => ({ value: holder.holderName, label: holder.holderName, holder })));
+const selectHolder = (holderName: string) => emit("select", props.holders.find((holder) => holder.holderName === holderName)!);
 const holderInitial = (name: string) => name.slice(0, 1).toUpperCase();
 </script>
 
@@ -40,25 +42,22 @@ const holderInitial = (name: string) => name.slice(0, 1).toUpperCase();
     </div>
     <div v-if="loading" class="holder-state" role="status">读取中…</div>
     <UEmpty v-else-if="!holders.length" title="暂无匹配持有者" variant="naked" />
-    <div v-else class="holder-list" role="listbox" aria-label="历史持有人">
-      <button
-        v-for="holder in holders"
-        :key="holder.holderName"
-        class="holder-item"
-        :class="{ 'holder-item--selected': holder.holderName === selectedHolderName }"
-        type="button"
-        role="option"
-        :aria-selected="holder.holderName === selectedHolderName"
-        @click="emit('select', holder)"
-      >
-        <span class="holder-avatar" aria-hidden="true">{{ holderInitial(holder.holderName) }}</span>
-        <span class="holder-copy content-stack">
-          <strong>{{ holder.holderName }}</strong>
-          <small>{{ holder.totalCount }} 项称号<span v-if="holder.unclaimedCount"> · {{ holder.unclaimedCount }} 项未关联</span></small>
+    <URadioGroup
+      v-else :model-value="selectedHolderName" :items="holderItems" variant="table" indicator="hidden" legend="历史持有人" class="holder-list"
+      :ui="{ legend: 'sr-only', fieldset: 'gap-0', item: 'rounded-none px-4 py-3 @sm:px-5', wrapper: 'w-full' }"
+      @update:model-value="selectHolder(String($event))"
+    >
+      <template #label="{ item }">
+        <span class="holder-item">
+          <span class="holder-avatar" aria-hidden="true">{{ holderInitial(item.holder.holderName) }}</span>
+          <span class="holder-copy content-stack">
+            <strong>{{ item.holder.holderName }}</strong>
+            <small>{{ item.holder.totalCount }} 项称号<span v-if="item.holder.unclaimedCount"> · {{ item.holder.unclaimedCount }} 项未关联</span></small>
+          </span>
+          <UBadge :label="item.holder.unclaimedCount ? '有未关联' : '已完成'" :color="item.holder.unclaimedCount ? 'warning' : 'success'" variant="subtle" />
         </span>
-        <UBadge :label="holder.unclaimedCount ? '有未关联' : '已完成'" :color="holder.unclaimedCount ? 'warning' : 'success'" variant="subtle" />
-      </button>
-    </div>
+      </template>
+    </URadioGroup>
     <template #footer>
       <div v-if="holderPages > 1" class="holder-pagination">
         <UPagination :page="page" :total="total" :items-per-page="pageSize" :disabled="loading" @update:page="emit('update:page', $event)" />
@@ -78,11 +77,7 @@ const holderInitial = (name: string) => name.slice(0, 1).toUpperCase();
 .holder-filters { display: flex; gap: var(--space-1); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--line); overflow-x: auto; }
 .holder-filters :deep(button) { white-space: nowrap; }
 .holder-list { display: grid; flex: 1; min-height: 0; max-height: 560px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
-.holder-item { display: flex; align-items: center; gap: var(--space-3); min-width: 0; min-height: 2.75rem; padding: var(--space-4) var(--space-5); border: 0; color: var(--text); background: transparent; text-align: left; transition: background 160ms ease; }
-.holder-item + .holder-item { border-top: 1px solid var(--line); }
-.holder-item:hover { background: color-mix(in oklch, var(--surface-raised) 64%, transparent); }
-.holder-item:focus-visible { z-index: 1; outline: 3px solid var(--accent); outline-offset: -3px; }
-.holder-item--selected { background: var(--accent-surface); }
+.holder-item { display: flex; align-items: center; gap: var(--space-3); width: 100%; min-width: 0; }
 .holder-avatar { display: grid; flex: 0 0 auto; width: 34px; height: 34px; place-items: center; border-radius: 50%; color: var(--on-accent); background: var(--accent); font-size: var(--type-label-sm-size); font-weight: 700; }
 .holder-copy { flex: 1; }
 .holder-copy strong, .holder-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -91,12 +86,9 @@ const holderInitial = (name: string) => name.slice(0, 1).toUpperCase();
 .holder-state { padding: var(--space-8) var(--space-5); color: var(--quiet); text-align: center; }
 .holder-pagination { display: flex; justify-content: center; }
 @container (max-width: 23.99rem) {
-  .holder-item { padding-inline: var(--space-4); }
   .holder-panel { height: auto; }
   .holder-panel :deep([data-slot="body"]) { display: block; }
   .holder-list { flex: none; max-height: 420px; }
 }
-@media (prefers-reduced-motion: reduce) { .holder-item { transition: background 120ms ease; } }
-@media (prefers-reduced-transparency: reduce) { .holder-item:hover { background: var(--surface-raised); } }
-@media (prefers-contrast: more) { .holder-item + .holder-item, .holder-panel :deep([data-slot="header"]), .holder-panel :deep([data-slot="footer"]) { border-color: var(--line-strong); } .holder-item:focus-visible { outline-color: var(--text); } }
+@media (prefers-contrast: more) { .holder-panel :deep([data-slot="header"]), .holder-panel :deep([data-slot="footer"]) { border-color: var(--line-strong); } }
 </style>

@@ -1,7 +1,7 @@
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
 import { reactive, ref } from "vue";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import AppHeader from "./AppHeader.vue";
 
 const route = reactive({ path: "/admin", fullPath: "/admin", query: {} as Record<string, string> });
@@ -9,25 +9,14 @@ mockNuxtImport("useRoute", () => () => route);
 const currentPlayer = ref<unknown>(null);
 mockNuxtImport("useCurrentPlayer", () => () => ({ player: currentPlayer, loaded: ref(true), refresh: async () => null, logout: async () => undefined }));
 
-/**
- * Mobile nav disclosure contract (documented for #62):
- * - Opening moves focus to the first focusable control inside the panel.
- * - Tab/Shift+Tab are trapped inside the panel (last -> first, first -> last).
- * - Arrow/Home/End are left to UNavigationMenu (no custom roving layer).
- * - Escape closes and restores focus to the trigger.
- * - Outside pointer and route changes close without focus restoration.
- */
-let focused: HTMLElement[];
-let focusSpy: ReturnType<typeof vi.spyOn>;
+// Overlay behavior (focus trap, Escape, scrim, scroll lock, focus return) belongs to USlideover; the stub only exposes open state.
+const slideoverStub = { props: ["open"], emits: ["update:open"], template: '<div><span @click="$emit(\'update:open\', !open)"><slot /></span><div v-if="open"><slot name="body" /></div></div>' };
 
 async function mountHeader() {
-  focused = [];
-  focusSpy = vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(function (this: HTMLElement) {
-    focused.push(this);
-  });
   return mountSuspended(AppHeader, {
     global: {
       stubs: {
+        USlideover: slideoverStub,
         ThemeMenu: true,
         LazyAccountMenu: true,
         NuxtLink: { props: ["to"], template: "<a :href=\"to\"><slot /></a>" },
@@ -50,111 +39,9 @@ describe("AppHeader", () => {
     expect(wrapper.text()).not.toContain("内容编辑");
     expect(wrapper.text()).not.toContain("天梯排名");
 
-    const toggle = wrapper.get('button[aria-label="打开菜单"]');
-    // aria-controls must be absent while the panel is not in the DOM (no-missing-references regression).
-    expect(toggle.attributes("aria-controls")).toBeUndefined();
-    expect(toggle.attributes("aria-expanded")).toBe("false");
-    await toggle.trigger("click");
-    expect(toggle.attributes("aria-expanded")).toBe("true");
-    // aria-controls must be present and reference the panel once it is in the DOM.
-    expect(toggle.attributes("aria-controls")).toBe("mobile-nav");
+    expect(wrapper.find("#mobile-nav").exists()).toBe(false);
+    await wrapper.get('button[aria-label="打开菜单"]').trigger("click");
     expect(wrapper.get("#mobile-nav").attributes("aria-label")).toBe("移动端管理导航");
-    focusSpy.mockRestore();
-  });
-
-  it("moves focus into the mobile nav and traps Tab within it", async () => {
-    route.path = "/";
-    route.fullPath = "/";
-    const wrapper = await mountHeader();
-    const toggle = wrapper.get('button[aria-label="打开菜单"]');
-
-    await toggle.trigger("click");
-    await flushPromises();
-
-    const nav = wrapper.get("#mobile-nav");
-    expect(nav.exists()).toBe(true);
-    // The trap wraps over every focusable control (links and the buttons nested in them), in DOM order.
-    const links = nav.findAll("a[href], button:not([disabled])");
-    // The wrap-around check needs at least two focusable controls; the link list itself is mutable navigation content.
-    expect(links.length).toBeGreaterThan(1);
-    const first = links[0];
-    const last = links[links.length - 1];
-
-    // Opening moves focus to the first focusable control.
-    expect(focused.at(-1)).toBe(first.element);
-
-    // Shift+Tab from the first control wraps to the last control.
-    focused = [];
-    const shiftTabEvent = new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true, cancelable: true });
-    first.element.dispatchEvent(shiftTabEvent);
-    expect(shiftTabEvent.defaultPrevented).toBe(true);
-    expect(focused.at(-1)).toBe(last.element);
-
-    // Tab from the last control wraps back to the first control.
-    focused = [];
-    const tabEvent = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
-    last.element.dispatchEvent(tabEvent);
-    expect(tabEvent.defaultPrevented).toBe(true);
-    expect(focused.at(-1)).toBe(first.element);
-
-    focusSpy.mockRestore();
-  });
-
-  it("closes on Escape and restores focus to the trigger", async () => {
-    route.path = "/";
-    route.fullPath = "/";
-    const wrapper = await mountHeader();
-    const toggle = wrapper.get('button[aria-label="打开菜单"]');
-    await toggle.trigger("click");
-    await flushPromises();
-    focused = [];
-
-    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-    await flushPromises();
-    await flushPromises();
-
-    expect(wrapper.find("#mobile-nav").exists()).toBe(false);
-    expect(focused.at(-1)).toBe(toggle.element);
-    focusSpy.mockRestore();
-  });
-
-  it("dims the page behind the mobile nav and closes from the scrim", async () => {
-    route.path = "/";
-    route.fullPath = "/";
-    const wrapper = await mountHeader();
-    await wrapper.get('button[aria-label="打开菜单"]').trigger("click");
-    await flushPromises();
-
-    const scrim = wrapper.get('[aria-hidden="true"]');
-    expect(scrim.attributes("aria-hidden")).toBe("true");
-    expect(wrapper.find("#mobile-nav").exists()).toBe(true);
-
-    focused = [];
-    await scrim.trigger("pointerdown");
-    await flushPromises();
-
-    expect(wrapper.find("#mobile-nav").exists()).toBe(false);
-    expect(scrim.element.isConnected).toBe(false);
-    expect(focused).toHaveLength(0);
-    focusSpy.mockRestore();
-  });
-
-  it("closes on outside pointer interaction without restoring focus", async () => {
-    route.path = "/admin";
-    route.fullPath = "/admin";
-    route.query = {};
-    const wrapper = await mountHeader();
-    await wrapper.get('button[aria-label="打开菜单"]').trigger("click");
-    await flushPromises();
-    expect(wrapper.find("#mobile-nav").exists()).toBe(true);
-
-    focused = [];
-    document.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
-    await flushPromises();
-
-    expect(wrapper.find("#mobile-nav").exists()).toBe(false);
-    expect(focused).toHaveLength(0);
-    focusSpy.mockRestore();
   });
 
   it("expands nested admin groups without closing the mobile panel", async () => {
@@ -183,7 +70,6 @@ describe("AppHeader", () => {
     await nav.get("a[href=\"/admin/bindings\"]").trigger("click");
     await flushPromises();
     expect(wrapper.find("#mobile-nav").exists()).toBe(false);
-    focusSpy.mockRestore();
   });
 
   it("closes the mobile panel when the route changes", async () => {
@@ -200,7 +86,6 @@ describe("AppHeader", () => {
     await flushPromises();
 
     expect(wrapper.find("#mobile-nav").exists()).toBe(false);
-    focusSpy.mockRestore();
   });
 
   it("exposes one concise update route on public navigation", async () => {
@@ -213,7 +98,6 @@ describe("AppHeader", () => {
     await wrapper.get('button[aria-label="打开菜单"]').trigger("click");
     expect(wrapper.findAll("#mobile-nav a").filter((link) => link.text() === "版本更新")).toHaveLength(1);
     expect(wrapper.find("#mobile-nav a[href=\"/changelog\"]").exists()).toBe(true);
-    focusSpy.mockRestore();
   });
 });
 
@@ -256,10 +140,9 @@ describe("AppHeader site navigation by sign-in state", () => {
     const nav = wrapper.get('nav[aria-label="主导航"]');
     for (const target of introduction) expect(nav.find(`a[href="${target}"]`).exists(), target).toBe(true);
     for (const target of ["/me", "/me/achievements", "/me/submissions/new"]) expect(nav.find(`a[href="${target}"]`).exists(), target).toBe(false);
-    focusSpy.mockRestore();
   });
 
-  it("defaults a signed-in player to personal URLs and groups the introduction pages", async () => {
+  it("lists a signed-in player's personal URLs and the introduction pages flat, without a submenu", async () => {
     currentPlayer.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
     route.path = "/me";
     route.fullPath = "/me";
@@ -267,28 +150,8 @@ describe("AppHeader site navigation by sign-in state", () => {
     await wrapper.get('button[aria-label="打开菜单"]').trigger("click");
     await flushPromises();
     const nav = wrapper.get("#mobile-nav");
-    for (const target of ["/me", "/me/achievements", "/me/submissions/new"]) expect(nav.find(`a[href="${target}"]`).exists(), target).toBe(true);
-    // The introduction pages are one group, collapsed until the player is on one of them.
-    expect(nav.find('a[href="/maps"]').exists()).toBe(false);
-    const group = nav.findAll("button").find((button) => button.text().includes("游戏介绍"));
-    expect(group).toBeTruthy();
-    await group!.trigger("click");
-    await flushPromises();
-    for (const target of introduction) expect(nav.find(`a[href="${target}"]`).exists(), target).toBe(true);
-    focusSpy.mockRestore();
-  });
-
-  it("keeps the introduction group open while a signed-in player reads an introduction page", async () => {
-    currentPlayer.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
-    route.path = "/maps";
-    route.fullPath = "/maps";
-    const wrapper = await mountHeader();
-    await wrapper.get('button[aria-label="打开菜单"]').trigger("click");
-    await flushPromises();
-    const nav = wrapper.get("#mobile-nav");
-    expect(nav.find('a[href="/maps"]').exists()).toBe(true);
-    expect(nav.find('a[href="/changelog"]').exists()).toBe(true);
-    focusSpy.mockRestore();
+    for (const target of ["/me", "/me/achievements", "/me/submissions/new", ...introduction]) expect(nav.find(`a[href="${target}"]`).exists(), target).toBe(true);
+    expect(nav.text()).not.toContain("游戏介绍");
     currentPlayer.value = null;
   });
 
@@ -310,7 +173,6 @@ describe("AppHeader site navigation by sign-in state", () => {
     const signedIn = await mountHeader();
     expect(isCurrent(signedIn, "/me/achievements")).toBe(true);
     expect(isCurrent(signedIn, "/me")).toBe(false);
-    focusSpy.mockRestore();
     currentPlayer.value = null;
   });
 });

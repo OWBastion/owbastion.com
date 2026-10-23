@@ -41,7 +41,7 @@ watch(revision, () => { void refresh(); });
     <div class="player-list__tools">
       <UInput v-model="query" class="player-list__search" size="md" icon="i-lucide-search" aria-label="搜索玩家" placeholder="搜索战网 ID 或 QQ 标识" />
       <div class="player-list__chips" role="group" aria-label="筛选玩家状态">
-        <button v-for="filter in statusFilters" :key="filter.value" type="button" class="chip" :aria-pressed="status === filter.value" @click="status = filter.value">{{ filter.label }}</button>
+        <FilterChip v-for="filter in statusFilters" :key="filter.value" :label="filter.label" :pressed="status === filter.value" @toggle="status = filter.value" />
         <span class="player-list__count">{{ loading ? "读取中…" : `${total} 位` }}</span>
       </div>
     </div>
@@ -71,9 +71,6 @@ watch(revision, () => { void refresh(); });
 .player-list__tools { display: grid; gap: var(--space-2); }
 .player-list__search { width: 100%; }
 .player-list__chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.chip { transition: background-color 120ms ease, transform 100ms ease-out; min-height: 2rem; padding: 0 var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-pill); background: transparent; color: var(--muted); font-size: var(--type-caption-size); font-weight: 600; cursor: pointer; }
-.chip:active { transform: scale(.96); }
-.chip[aria-pressed="true"] { border-color: transparent; background: var(--accent); color: var(--on-accent); }
 .player-list__count { margin-left: auto; color: var(--quiet); font-size: var(--type-caption-size); }
 .player-list__rows { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
 .player-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: 2.75rem; padding: var(--space-2) var(--space-3); border-radius: var(--radius-control); color: var(--text); text-decoration: none; transition: background-color 120ms ease, transform 100ms ease-out; }

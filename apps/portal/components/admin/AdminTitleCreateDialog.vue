@@ -37,6 +37,47 @@ watch(iconFile, (file) => {
   iconPreviewUrl.value = file ? URL.createObjectURL(file) : "";
 });
 onBeforeUnmount(() => { if (iconPreviewUrl.value) URL.revokeObjectURL(iconPreviewUrl.value); });
+const api = useAdminApi();
+type CdnImage = { name: string; url: string };
+const cdnPickerOpen = shallowRef(false);
+const cdnImages = shallowRef<CdnImage[] | null>(null);
+const cdnLoading = shallowRef(false);
+const cdnError = shallowRef("");
+const cdnQuery = shallowRef("");
+const filteredCdnImages = computed(() => {
+  const query = cdnQuery.value.trim().toLowerCase();
+  return (cdnImages.value ?? []).filter((image) => image.name.toLowerCase().includes(query));
+});
+// A same-named .png/.webp pair is one image; keep the WebP, which is what the CDN serves smaller.
+const cdnChoices = computed(() => {
+  const byStem = new Map<string, CdnImage>();
+  for (const image of filteredCdnImages.value) {
+    const stem = image.name.replace(/\.[^.]+$/, "");
+    if (!byStem.has(stem) || image.name.endsWith(".webp")) byStem.set(stem, image);
+  }
+  return [...byStem.values()];
+});
+async function loadCdnImages() {
+  cdnLoading.value = true;
+  cdnError.value = "";
+  try {
+    cdnImages.value = (await api<{ items: CdnImage[] }>("/v1/title-images")).items;
+  } catch {
+    cdnError.value = "无法读取 CDN 图片，请稍后重试。";
+  } finally {
+    cdnLoading.value = false;
+  }
+}
+watch(cdnPickerOpen, (open) => {
+  if (!open) return;
+  cdnQuery.value = "";
+  void loadCdnImages();
+});
+function pickCdnImage(image: CdnImage) {
+  iconFile.value = null;
+  form.iconUrl = image.url;
+  cdnPickerOpen.value = false;
+}
 const fileInput = useTemplateRef<HTMLInputElement>("fileInput");
 const iconPickerOpen = shallowRef(false);
 const form = reactive({
@@ -86,9 +127,19 @@ const dialogTitle = computed(() => props.mode === "edit" ? "编辑称号" : "新
 
 // A title colored in-game by hero color or RGB cannot be built from the swatches; keep it selectable so saving does not erase it.
 const legacyColor = computed(() => props.title?.color && props.title.color.kind !== "palette" ? props.title.color : null);
-const isColor = (color: AdminTitleColor) => JSON.stringify(color) === JSON.stringify(form.color);
 const iconChoices = computed(() => ICON_CHOICES.includes(form.icon) ? ICON_CHOICES : [form.icon, ...ICON_CHOICES]);
 const trimmedIconUrl = computed(() => form.iconUrl.trim());
+const iconItems = computed(() => iconChoices.value.map((name) => ({ value: name, label: name })));
+const cdnItems = computed(() => cdnChoices.value.map((image) => ({ value: image.url, title: image.name, label: image.name.replace(/\.[^.]+$/, "").replace(/^achievement-/, "") })));
+const colorItems = computed(() => [
+  { value: "none", label: "未设置", background: null },
+  ...TITLE_PALETTE_NAMES.map((name) => ({ value: `palette:${name}`, label: titleColorLabel({ kind: "palette", name }), background: titleColorBackground({ kind: "palette", name }) })),
+  ...(legacyColor.value ? [{ value: "legacy", label: titleColorLabel(legacyColor.value), background: titleColorBackground(legacyColor.value) ?? "var(--surface-sunken)" }] : []),
+]);
+const colorKey = computed(() => form.color === null ? "none" : form.color.kind === "palette" ? `palette:${form.color.name}` : "legacy");
+function setColorKey(key: string) {
+  form.color = key === "none" ? null : key === "legacy" ? legacyColor.value : { kind: "palette", name: key.slice("palette:".length) } as AdminTitleColor;
+}
 const customImage = computed(() => iconPreviewUrl.value || trimmedIconUrl.value);
 const previewColor = computed(() => titleColorBackground(form.color));
 
@@ -175,17 +226,15 @@ function submitEdit() {
 
           <div class="appearance-row">
             <span class="appearance-row__label" id="title-color-label">颜色</span>
-            <div class="swatches" role="radiogroup" aria-labelledby="title-color-label">
-              <button type="button" role="radio" class="swatch" :aria-checked="form.color === null" :disabled="saving" @click="form.color = null">
-                <span class="swatch__chip swatch__chip--none" /><span>未设置</span>
-              </button>
-              <button v-for="name in TITLE_PALETTE_NAMES" :key="name" type="button" role="radio" class="swatch" :aria-checked="isColor({ kind: 'palette', name })" :disabled="saving" @click="form.color = { kind: 'palette', name }">
-                <span class="swatch__chip" :style="{ background: titleColorBackground({ kind: 'palette', name }) }" /><span>{{ titleColorLabel({ kind: "palette", name }) }}</span>
-              </button>
-              <button v-if="legacyColor" type="button" role="radio" class="swatch" :aria-checked="isColor(legacyColor)" :disabled="saving" @click="form.color = legacyColor">
-                <span class="swatch__chip" :style="{ background: titleColorBackground(legacyColor) ?? 'var(--surface-sunken)' }" /><span>{{ titleColorLabel(legacyColor) }}</span>
-              </button>
-            </div>
+            <URadioGroup
+              :model-value="colorKey" :items="colorItems" variant="card" indicator="hidden" orientation="horizontal" legend="颜色" :disabled="saving"
+              :ui="{ legend: 'sr-only', fieldset: 'flex flex-wrap gap-2', item: 'w-auto p-1 pe-3 rounded-full' }"
+              @update:model-value="setColorKey(String($event))"
+            >
+              <template #label="{ item }">
+                <span class="swatch"><span class="swatch__chip" :class="{ 'swatch__chip--none': item.value === 'none' }" :style="item.background ? { background: item.background } : undefined" /><span>{{ item.label }}</span></span>
+              </template>
+            </URadioGroup>
           </div>
 
           <div class="appearance-row">
@@ -193,11 +242,13 @@ function submitEdit() {
             <UPopover v-model:open="iconPickerOpen">
               <UButton type="button" color="neutral" variant="outline" :disabled="saving" :icon="`i-lucide-${form.icon}`" :label="form.icon" trailing-icon="i-lucide-chevron-down" />
               <template #content>
-                <div class="icon-grid" role="listbox" aria-label="选择图标">
-                  <button v-for="name in iconChoices" :key="name" type="button" role="option" class="icon-grid__item" :aria-selected="name === form.icon" :title="name" :aria-label="name" @click="pickIcon(name)">
-                    <UIcon :name="`i-lucide-${name}`" />
-                  </button>
-                </div>
+                <URadioGroup
+                  :model-value="form.icon" :items="iconItems" variant="card" indicator="hidden" orientation="horizontal" legend="选择图标"
+                  :ui="{ legend: 'sr-only', fieldset: 'grid grid-cols-6 gap-1 p-2', item: 'size-10 p-0 items-center justify-center' }"
+                  @update:model-value="pickIcon(String($event))"
+                >
+                  <template #label="{ item }"><UIcon :name="`i-lucide-${item.value}`" class="size-5" :title="item.value" /></template>
+                </URadioGroup>
               </template>
             </UPopover>
           </div>
@@ -208,10 +259,28 @@ function submitEdit() {
               <div class="image-source__actions">
                 <input ref="fileInput" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" tabindex="-1" @change="onFileChosen">
                 <UButton type="button" color="neutral" variant="outline" icon="i-lucide-upload" label="上传图片" :disabled="saving" @click="fileInput?.click()" />
+                <UPopover v-model:open="cdnPickerOpen">
+                  <UButton type="button" color="neutral" variant="outline" icon="i-lucide-images" label="从 CDN 选择" :disabled="saving" />
+                  <template #content>
+                    <div class="cdn-picker">
+                      <UInput v-model="cdnQuery" class="w-full" icon="i-lucide-search" placeholder="搜索文件名" aria-label="搜索 CDN 图片" />
+                      <p v-if="cdnLoading" class="cdn-picker__status">正在读取…</p>
+                      <p v-else-if="cdnError" class="cdn-picker__status">{{ cdnError }}</p>
+                      <p v-else-if="!cdnChoices.length" class="cdn-picker__status">没有匹配的图片。</p>
+                      <URadioGroup
+                        v-else :model-value="trimmedIconUrl" :items="cdnItems" variant="card" indicator="hidden" orientation="horizontal" legend="选择 CDN 图片"
+                        :ui="{ legend: 'sr-only', fieldset: 'grid grid-cols-[repeat(auto-fill,minmax(5rem,1fr))] gap-2 max-h-80 overflow-y-auto', item: 'p-2 justify-center' }"
+                        @update:model-value="pickCdnImage(cdnChoices.find((image) => image.url === $event)!)"
+                      >
+                        <template #label="{ item }"><span class="cdn-picker__item" :title="item.title"><img :src="item.value" alt="" loading="lazy" /><span>{{ item.label }}</span></span></template>
+                      </URadioGroup>
+                    </div>
+                  </template>
+                </UPopover>
                 <UButton v-if="customImage" type="button" color="neutral" variant="ghost" icon="i-lucide-x" label="移除" :disabled="saving" @click="clearCustomImage" />
                 <span v-if="iconFile" class="image-source__file">{{ iconFile.name }}</span>
               </div>
-              <UInput v-model="form.iconUrl" class="w-full" type="url" placeholder="或粘贴 CDN 链接 https://…" maxlength="2048" :disabled="saving" @update:model-value="onIconUrlInput" />
+              <UInput v-model="form.iconUrl" class="w-full" type="url" placeholder="已选图片的 CDN 链接，也可直接粘贴" maxlength="2048" :disabled="saving" @update:model-value="onIconUrlInput" />
               <p class="image-source__hint">PNG、JPEG 或 WebP。设置后优先于上方图标。</p>
             </div>
           </div>
@@ -259,16 +328,14 @@ function submitEdit() {
 .appearance-preview__label.is-colored { color: transparent; background-clip: text; -webkit-background-clip: text; }
 .appearance-row { display: grid; grid-template-columns: 6rem minmax(0, 1fr); align-items: start; gap: var(--space-3); }
 .appearance-row__label { padding-top: var(--space-2); font-size: var(--type-caption-size); color: var(--muted); }
-.swatches { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.swatch { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1); border: 1px solid var(--line); border-radius: var(--radius-pill); background: transparent; color: inherit; cursor: pointer; }
-.swatch[aria-checked="true"] { border-color: var(--accent); background: color-mix(in oklch, var(--accent) 12%, transparent); }
-.swatch:disabled { cursor: not-allowed; opacity: 0.6; }
+.swatch { display: inline-flex; align-items: center; gap: var(--space-2); }
 .swatch__chip { width: 1.5rem; height: 1.5rem; border-radius: 50%; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.25); }
 .swatch__chip--none { background: repeating-linear-gradient(45deg, transparent 0 3px, var(--line-strong) 3px 4px); }
-.icon-grid { display: grid; grid-template-columns: repeat(6, 2.5rem); gap: var(--space-1); padding: var(--space-2); }
-.icon-grid__item { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; font-size: 1.25rem; border: 1px solid transparent; border-radius: var(--radius-control); background: transparent; color: inherit; cursor: pointer; }
-.icon-grid__item:hover { background: var(--surface-raised); }
-.icon-grid__item[aria-selected="true"] { border-color: var(--accent); color: var(--accent); }
+.cdn-picker { display: grid; gap: var(--space-2); width: min(28rem, 90vw); padding: var(--space-3); }
+.cdn-picker__status { margin: 0; padding: var(--space-4) 0; text-align: center; color: var(--muted); font-size: var(--type-caption-size); }
+.cdn-picker__item { display: grid; justify-items: center; gap: var(--space-1); min-width: 0; }
+.cdn-picker__item img { width: 3.5rem; height: 3.5rem; object-fit: contain; }
+.cdn-picker__item span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-caption-size); color: var(--muted); }
 .image-source { display: grid; gap: var(--space-2); min-width: 0; }
 .image-source__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .image-source__file { color: var(--muted); font-size: var(--type-caption-size); overflow-wrap: anywhere; }

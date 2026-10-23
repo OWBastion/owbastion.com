@@ -11,6 +11,7 @@ PORTAL_ORIGIN = "https://owbastion.com"
 PORTAL_PREVIEW_ORIGINS = "https://next.owbastion.com"
 OCRKIT_BASE_URL = "https://ocr.owbastion.com"
 EVIDENCE_PUBLIC_ORIGIN = "https://evidence.owbastion.codes"
+ASSETS_PUBLIC_ORIGIN = "https://cdn.owbastion.codes"
 OCR_AUTO_REVIEW_SAMPLE_RATE = "0"
 MASTERY_MIN_GAME_VERSION = "26.0811.1"
 MASTERY_SUPPORTED_OCR_LAYOUT_VERSIONS = "1280x720-v7,1280x800-v2,1280x720-v8,1280x800-v3,1280x720-v9,1280x800-v4"
@@ -44,6 +45,10 @@ id = "884487bfaf264bfeb4465ad4015128a6"
 [[r2_buckets]]
 binding = "EVIDENCE_BUCKET"
 bucket_name = "owbastion-codes-evidence"
+
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "cdn-owbastion-codes"
 
 [[queues.producers]]
 binding = "OCR_QUEUE"

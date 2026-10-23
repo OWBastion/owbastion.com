@@ -2295,6 +2295,16 @@
     }
    }
   },
+  "/v1/admin/title-images": {
+   "get": {
+    "operationId": "listAdminTitleImages",
+    "description": "Maintainer-only. Lists PNG and WebP files under the achievements/ prefix of the public asset bucket, with their CDN URLs, so editors can pick an icon image instead of pasting its URL. Returns 503 ASSETS_BUCKET_UNAVAILABLE when the bucket is not bound.",
+    "responses": {
+     "200": { "$ref": "#/components/responses/Json" },
+     "503": { "$ref": "#/components/responses/Json" }
+    }
+   }
+  },
   "/v1/admin/titles/{titleKey}/icon": {
    "post": {
     "operationId": "uploadAdminTitleIcon",

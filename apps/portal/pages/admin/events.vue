@@ -53,6 +53,8 @@ const groups = computed(() => [...new Set(effective.value.map((event) => event.e
 const categories = computed(() => [...new Set(effective.value.map((event) => event.category))].sort());
 const tags = computed(() => [...new Set(effective.value.flatMap((event) => event.effectTags))].sort());
 const versionNames = computed(() => versions.value.map((version) => version.gameVersion));
+const groupFilterItems = computed(() => [{ value: "all", label: "全部事件组" }, ...groups.value.map((value) => ({ value, label: value })), { value: NO_GROUP, label: "未分组" }]);
+const versionFilterItems = computed(() => [{ value: "all", label: "全部版本" }, ...versionNames.value.map((value) => ({ value, label: value }))]);
 const statusCount = (value: StatusFilter) => effective.value.filter((event) => value === "all" || event.releaseStatus === value).length;
 
 const visible = computed(() => {
@@ -269,15 +271,8 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", warnBeforeUnloa
       <div class="events-toolbar__status" role="group" aria-label="状态">
         <FilterChip v-for="[value, label] in ([['implemented', '已实装'], ['development', '开发中'], ['removed', '已移除'], ['all', '全部']] as const)" :key="value" :label="label" :count="statusCount(value)" :pressed="status === value" @toggle="status = value" />
       </div>
-      <select v-model="groupFilter" class="native-field" aria-label="事件组">
-        <option value="all">全部事件组</option>
-        <option v-for="group in groups" :key="group" :value="group">{{ group }}</option>
-        <option :value="NO_GROUP">未分组</option>
-      </select>
-      <select v-model="versionFilter" class="native-field" aria-label="版本">
-        <option value="all">全部版本</option>
-        <option v-for="version in versionNames" :key="version" :value="version">{{ version }}</option>
-      </select>
+      <USelect v-model="groupFilter" :items="groupFilterItems" size="md" aria-label="事件组" />
+      <USelect v-model="versionFilter" :items="versionFilterItems" size="md" aria-label="版本" />
       <FilterChip label="包含已归档" :pressed="showArchived" @toggle="showArchived = !showArchived" />
     </div>
 

@@ -94,7 +94,7 @@ describe("admin screenshot sets page", () => {
     await createButton?.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/screenshot-sets/candidates?page=1&pageSize=100");
-    await wrapper.get('.set-candidate input[type="checkbox"]').setValue(true);
+    await wrapper.get('.set-candidate button[role="checkbox"]').trigger("click");
     await wrapper.get('[role="dialog"]').findAll("button").find((button) => button.text().trim() === "创建草稿")?.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/screenshot-sets", expect.objectContaining({ method: "POST", body: { contractVersion: "1", excludedSourceIds: ["00000000-0000-4000-8000-000000000006"] } }));

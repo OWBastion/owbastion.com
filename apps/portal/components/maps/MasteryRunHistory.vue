@@ -55,7 +55,7 @@ const totalPages = computed(() => Math.max(1, Math.ceil((props.history?.total ??
 .mastery-history-copy strong { overflow-wrap: anywhere; color: var(--text); font-size: .82rem; }
 .mastery-history-copy span { color: var(--quiet); font-size: .73rem; }
 .mastery-history-outcome { display: flex; flex: 0 0 auto; align-items: center; gap: var(--space-2); }
-.mastery-history-outcome > strong { color: var(--accent); font-size: .8rem; }
+.mastery-history-outcome > strong { color: var(--text); font-size: .8rem; }
 .mastery-history-pagination { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .mastery-history-pagination > span { color: var(--quiet); font-size: .75rem; }
 @container (max-width: 23.99rem) {

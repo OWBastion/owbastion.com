@@ -7,13 +7,13 @@ Shared behavior and baseline.
 - Never make an action reachable by hover alone; touch and keyboard reach everything.
 - Prevent duplicate actions with `loading` and disabled states; dangerous actions use `color="error"`
   and state the consequence.
-- Motion is free to explore but must stay interruptible and turn off under reduced motion.
+- Motion uses the library designated in [ui-stack.md](ui-stack.md). It must stay interruptible and turn off under reduced motion.
 
 ## Accessibility baseline
 
 - Semantic headings (h1-h3 by hierarchy; each major section has a heading or `aria-label`),
   readable `aria-label` on icon-only controls, visible focus, Nuxt UI focus management for dialogs,
-  menus, forms (no hand-built session-style overlays).
+  menus, forms (no hand-built overlays, selects, or menus).
 - Loading, failure, empty, unavailable, and completed states have text or accessible status
   semantics, never color, icon, or position alone.
 - Honor `prefers-reduced-motion`, `prefers-reduced-transparency`, `prefers-contrast`.

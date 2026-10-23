@@ -13,6 +13,7 @@ const editBody = { contractVersion: "1", family: "achievement", saveMode: "in_pl
 const lifecycleBody = { contractVersion: "1", status: "active", retiredVersion: null, startsAt: null, endsAt: null };
 const endpoints = [
   ["GET", "/v1/admin/title-summaries", undefined],
+  ["GET", "/v1/admin/title-images", undefined],
   ["GET", "/v1/admin/titles/MULTI/challenges", undefined],
   ["POST", "/v1/admin/titles", titleBody],
   ["POST", "/v1/admin/titles/MULTI/challenges", challengeBody],
@@ -78,5 +79,19 @@ describe("admin title HTTP contract", () => {
     const response = await request(makeApp({ [service]: async () => { throw new Error(code); } }), method, path, body, "error");
     expect(response.status).toBe(status);
     expect(await response.json()).toMatchObject({ contractVersion: "1", error: { code, requestId: expect.any(String) } });
+  });
+});
+
+describe("admin title image listing", () => {
+  const bucket = (objects: string[]) => ({ list: async ({ prefix, cursor }: { prefix: string; cursor?: string }) => cursor
+    ? { objects: [{ key: "achievements/b.webp" }], truncated: false }
+    : { objects: objects.filter((key) => key.startsWith(prefix)).map((key) => ({ key })), truncated: true, cursor: "next" } }) as unknown as R2Bucket;
+  it("lists only png and webp files directly under achievements/ across pages", async () => {
+    const withBucket = { ASSETS_BUCKET: bucket(["achievements/a.png", "achievements/sub/x.png", "achievements/readme.txt", "evidence/secret.png"]), ASSETS_PUBLIC_ORIGIN: "https://cdn.example/" } as unknown as RuntimeEnv;
+    const response = await makeApp({}).request("http://localhost/v1/admin/title-images", {}, withBucket);
+    expect(await response.json()).toEqual({ contractVersion: "1", items: [{ name: "a.png", url: "https://cdn.example/achievements/a.png" }, { name: "b.webp", url: "https://cdn.example/achievements/b.webp" }] });
+  });
+  it("reports 503 when the bucket is not bound", async () => {
+    expect((await request(makeApp({}), "GET", "/v1/admin/title-images", undefined)).status).toBe(503);
   });
 });

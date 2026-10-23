@@ -50,15 +50,13 @@ function grantTitle() { tab.value = "titles"; void nextTick(() => titlesRef.valu
       <UAlert v-if="player.pendingSubmissionCount" color="info" variant="subtle" :title="`有 ${player.pendingSubmissionCount} 条提交等待审核`" :actions="[{ label: '去审核', to: '/admin/reviews', color: 'neutral', variant: 'outline' }]" />
     </div>
 
-    <div class="player__tabs" role="tablist" aria-label="玩家详情分区" :style="{ '--tab-index': tabs.findIndex((item) => item.id === tab) }">
-      <button v-for="item in tabs" :id="`player-tab-${item.id}`" :key="item.id" type="button" role="tab" class="player__tab" :aria-selected="tab === item.id" :aria-controls="`player-panel-${item.id}`" @click="tab = item.id">{{ item.label }}</button>
-    </div>
+    <UTabs v-model="tab" :items="tabs.map((item) => ({ label: item.label, value: item.id }))" :content="false" variant="link" aria-label="玩家详情分区" />
 
-    <section v-show="tab === 'titles'" id="player-panel-titles" role="tabpanel" aria-labelledby="player-tab-titles">
+    <section v-show="tab === 'titles'" id="player-panel-titles" role="tabpanel" aria-label="称号">
       <AdminPlayerTitles ref="titlesRef" :player-account-id="player.playerAccountId" :title-grants="player.titleGrants" :loading="loading" @changed="emit('changed')" />
     </section>
 
-    <section v-show="tab === 'timeline'" id="player-panel-timeline" role="tabpanel" aria-labelledby="player-tab-timeline">
+    <section v-show="tab === 'timeline'" id="player-panel-timeline" role="tabpanel" aria-label="动态">
       <ol v-if="timeline.length" class="timeline">
         <li v-for="entry in timeline" :key="entry.id" class="timeline__item">
           <div class="timeline__body"><strong>{{ entry.title }}</strong><small v-if="entry.detail">{{ entry.detail }}</small></div>
@@ -68,11 +66,11 @@ function grantTitle() { tab.value = "titles"; void nextTick(() => titlesRef.valu
       <p v-else class="player__empty">还没有动态。</p>
     </section>
 
-    <section v-if="tab === 'screenshots'" id="player-panel-screenshots" role="tabpanel" aria-labelledby="player-tab-screenshots">
+    <section v-if="tab === 'screenshots'" id="player-panel-screenshots" role="tabpanel" aria-label="截图">
       <AdminPlayerScreenshots :player-account-id="player.playerAccountId" />
     </section>
 
-    <section v-show="tab === 'account'" id="player-panel-account" role="tabpanel" aria-labelledby="player-tab-account" class="account">
+    <section v-show="tab === 'account'" id="player-panel-account" role="tabpanel" aria-label="账号" class="account">
       <dl class="account__ids">
         <div><dt>战网 ID</dt><dd><PlayerBattleTag :player-name="player.playerName" :player-id="player.playerId" /></dd></div>
         <div><dt>最近更新</dt><dd>{{ formatTime(player.updatedAt) }}</dd></div>
@@ -105,14 +103,9 @@ function grantTitle() { tab.value = "titles"; void nextTick(() => titlesRef.valu
 .player__actions > :first-child { flex: 1; }
 .player__alerts { display: grid; gap: var(--space-2); }
 .player__alerts:empty { display: none; }
-.player__tabs { position: relative; display: grid; grid-template-columns: repeat(4, 5.5rem); border-bottom: 1px solid var(--line); }
-.player__tabs::after { content: ""; position: absolute; bottom: -1px; left: 0; width: 5.5rem; height: 2px; background: var(--accent); transform: translateX(calc(var(--tab-index) * 100%)); transition: transform 320ms cubic-bezier(.2, .9, .3, 1); }
-.player__tab { min-height: 2.75rem; border: 0; background: transparent; color: var(--muted); font-weight: 600; cursor: pointer; transition: color 140ms ease, transform 100ms ease-out; }
-.player__tab:active { transform: scale(.96); }
-.player__tab[aria-selected="true"] { color: var(--text); }
 [role="tabpanel"] { animation: panel-in 180ms ease-out; }
 @keyframes panel-in { from { opacity: 0; transform: translateY(.25rem); } }
-@media (prefers-reduced-motion: reduce) { [role="tabpanel"] { animation: none; } .player__tabs::after { transition: none; } .player__tab { transition: none; } .player__tab:active { transform: none; } }
+@media (prefers-reduced-motion: reduce) { [role="tabpanel"] { animation: none; } }
 .player__empty { margin: 0; color: var(--quiet); }
 .timeline { display: grid; margin: 0; padding: 0; list-style: none; }
 .timeline__item { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }

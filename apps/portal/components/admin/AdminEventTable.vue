@@ -31,8 +31,15 @@ const delta = (id: string) => {
   const before = props.base.get(id) ?? 0, after = props.next.get(id) ?? 0, change = after - before;
   return Math.abs(change) < 1e-5 ? null : { up: change > 0, text: (Math.abs(change) * 100).toFixed(2) };
 };
-const groupOptions = (current: string | null) => current && !props.groups.includes(current) ? [...props.groups, current] : props.groups;
-const versionOptions = (current: string) => props.versions.includes(current) ? props.versions : [...props.versions, current];
+const cellUi = (eventId: string, field: keyof EventPatch) => ({
+  base: draftedFields(props.draft, eventId).has(field)
+    ? "w-full min-w-0 ring-[var(--accent)] bg-[var(--accent-surface)] font-semibold"
+    : "w-full min-w-0 ring-transparent bg-transparent hover:ring-[var(--line-strong)] hover:bg-[var(--surface)]",
+});
+const NO_GROUP = "__none";
+const groupItems = (current: string | null) => [{ value: NO_GROUP, label: "—" }, ...(current && !props.groups.includes(current) ? [...props.groups, current] : props.groups).map((value) => ({ value, label: value }))];
+const versionItems = (current: string) => (props.versions.includes(current) ? props.versions : [...props.versions, current]).map((value) => ({ value, label: value }));
+const statusItems = Object.entries(statusLabels).map(([value, label]) => ({ value, label }));
 const stageNumber = (event: RandomEvent, raw: string) => emit("stage", event.eventId, { weight: Math.max(0, Number.parseFloat(raw) || 0) });
 </script>
 
@@ -41,7 +48,7 @@ const stageNumber = (event: RandomEvent, raw: string) => emit("stage", event.eve
     <table>
       <thead>
         <tr>
-          <th class="event-table__check"><input type="checkbox" :checked="allSelected" aria-label="选择当前列表全部" @change="toggleAll(($event.target as HTMLInputElement).checked)"></th>
+          <th class="event-table__check"><UCheckbox :model-value="allSelected" aria-label="选择当前列表全部" @update:model-value="toggleAll($event === true)" /></th>
           <th :aria-sort="ariaSort('name')"><button type="button" class="event-table__sort" @click="sortBy('name')">事件 {{ arrow("name") }}</button></th>
           <th class="event-table__secondary">事件组</th>
           <th class="event-table__optional">类别</th>
@@ -53,7 +60,7 @@ const stageNumber = (event: RandomEvent, raw: string) => emit("stage", event.eve
       </thead>
       <tbody>
         <tr v-for="event in events" :key="event.eventId" :class="{ 'is-selected': selected.includes(event.eventId), 'is-changed': draftedFields(draft, event.eventId).size > 0, 'is-dim': event.releaseStatus !== 'implemented' || suspended.has(event.gameVersion) }">
-          <td class="event-table__check"><input type="checkbox" :checked="selected.includes(event.eventId)" :aria-label="`选择 ${event.name}`" @change="toggleOne(event.eventId, ($event.target as HTMLInputElement).checked)"></td>
+          <td class="event-table__check"><UCheckbox :model-value="selected.includes(event.eventId)" :aria-label="`选择 ${event.name}`" @update:model-value="toggleOne(event.eventId, $event === true)" /></td>
           <td>
             <div class="event-table__name">
               <button type="button" class="event-table__open" @click="emit('open', event.eventId)">{{ event.name }}</button>
@@ -61,13 +68,11 @@ const stageNumber = (event: RandomEvent, raw: string) => emit("stage", event.eve
             </div>
           </td>
           <td class="event-table__secondary">
-            <select class="native-field event-table__cell" :class="{ 'is-changed': draftedFields(draft, event.eventId).has('eventGroup') }" aria-label="事件组" :value="event.eventGroup ?? ''" @change="emit('stage', event.eventId, { eventGroup: ($event.target as HTMLSelectElement).value || null })">
-              <option value="">—</option><option v-for="group in groupOptions(event.eventGroup)" :key="group" :value="group">{{ group }}</option>
-            </select>
+            <USelect :model-value="event.eventGroup ?? NO_GROUP" :items="groupItems(event.eventGroup)" size="md" :ui="cellUi(event.eventId, 'eventGroup')" aria-label="事件组" @update:model-value="(value) => emit('stage', event.eventId, { eventGroup: value === NO_GROUP ? null : String(value) })" />
           </td>
           <td class="event-table__optional" :class="categoryTone(event.category)">{{ event.category }}</td>
           <td class="event-table__weight">
-            <input class="native-field event-table__cell event-table__number" :class="{ 'is-changed': draftedFields(draft, event.eventId).has('weight') }" type="number" step="0.05" min="0" aria-label="权重" :value="event.weight ?? ''" @change="stageNumber(event, ($event.target as HTMLInputElement).value)">
+            <UInput class="event-table__number" :ui="{ ...cellUi(event.eventId, 'weight'), base: `${cellUi(event.eventId, 'weight').base} text-right tabular-nums` }" type="number" step="0.05" min="0" size="md" aria-label="权重" :model-value="event.weight ?? undefined" @change="stageNumber(event, ($event.target as HTMLInputElement).value)" />
           </td>
           <td>
             <div class="event-table__probability">
@@ -77,14 +82,10 @@ const stageNumber = (event: RandomEvent, raw: string) => emit("stage", event.eve
             </div>
           </td>
           <td class="event-table__optional">
-            <select class="native-field event-table__cell" :class="{ 'is-changed': draftedFields(draft, event.eventId).has('gameVersion') }" aria-label="版本" :value="event.gameVersion" @change="emit('stage', event.eventId, { gameVersion: ($event.target as HTMLSelectElement).value })">
-              <option v-for="version in versionOptions(event.gameVersion)" :key="version" :value="version">{{ version }}</option>
-            </select>
+            <USelect :model-value="event.gameVersion" :items="versionItems(event.gameVersion)" size="md" :ui="cellUi(event.eventId, 'gameVersion')" aria-label="版本" @update:model-value="(value) => emit('stage', event.eventId, { gameVersion: String(value) })" />
           </td>
           <td class="event-table__secondary">
-            <select class="native-field event-table__cell" :class="{ 'is-changed': draftedFields(draft, event.eventId).has('releaseStatus') }" aria-label="状态" :value="event.releaseStatus" @change="emit('stage', event.eventId, { releaseStatus: ($event.target as HTMLSelectElement).value as RandomEvent['releaseStatus'] })">
-              <option v-for="(label, value) in statusLabels" :key="value" :value="value">{{ label }}</option>
-            </select>
+            <USelect :model-value="event.releaseStatus" :items="statusItems" size="md" :ui="cellUi(event.eventId, 'releaseStatus')" aria-label="状态" @update:model-value="(value) => emit('stage', event.eventId, { releaseStatus: value as RandomEvent['releaseStatus'] })" />
           </td>
         </tr>
       </tbody>
@@ -102,16 +103,12 @@ tbody tr.is-changed td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 tbody tr.is-selected td { background: var(--accent-surface); }
 tbody tr.is-dim td:not(.event-table__check) { opacity: 0.6; }
 .event-table__check { width: 2.5rem; }
-.event-table__check input { width: 1rem; height: 1rem; accent-color: var(--accent); }
 .event-table__sort { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
 .event-table__sort:hover { color: var(--text); }
 .event-table__name { display: flex; align-items: center; gap: var(--space-2); min-width: 8rem; }
 .event-table__open { padding: 0; border: 0; background: none; color: var(--text); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
 .event-table__open:hover, .event-table__open:focus-visible { color: var(--accent); text-decoration: underline; }
-.event-table__cell { width: 100%; min-width: 0; border-color: transparent; background: transparent; }
-.event-table__cell:hover { border-color: var(--line-strong); background: var(--surface); }
-.event-table__cell.is-changed { border-color: var(--accent); background: var(--accent-surface); font-weight: 600; }
-.event-table__number { width: 5rem; text-align: right; font-variant-numeric: tabular-nums; }
+.event-table__number { width: 5rem; }
 .event-table__weight { width: 6.5rem; }
 .event-table__probability { display: flex; align-items: center; gap: var(--space-2); min-width: 9rem; }
 .event-table__track { flex: 1; min-width: 2rem; height: 0.375rem; overflow: hidden; border-radius: var(--radius-pill); background: var(--line); }

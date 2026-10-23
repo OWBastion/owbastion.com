@@ -142,9 +142,9 @@ async function handleQqStart() {
 .account-help { margin: 0; padding-top: var(--space-4); border-top: 1px solid var(--line); color: var(--muted); font-size: .86rem; line-height: 1.55; }
 .turnstile-slot { display: grid; gap: var(--space-3); justify-items: center; min-height: 65px; }
 .turnstile-widget { min-height: 65px; }
-.challenge-panel { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid color-mix(in oklch, var(--accent) 46%, var(--line)); border-radius: var(--radius-card); background: var(--accent-surface); }
+.challenge-panel { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--line-strong); border-radius: var(--radius-card); background: var(--accent-surface); }
 .challenge-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); }
-.challenge-heading strong { color: var(--accent); font-size: .85rem; white-space: nowrap; }
+.challenge-heading strong { color: var(--text); font-size: .85rem; white-space: nowrap; }
 .login-code { margin: 0; overflow-wrap: anywhere; color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: clamp(1.3rem, 4vw, 2rem); font-weight: 600; letter-spacing: .04em; }
 .challenge-actions { display: flex; align-items: center; gap: var(--space-4); }
 .hint { margin: 0; color: var(--muted); font-size: .77rem; line-height: 1.55; }

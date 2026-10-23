@@ -47,6 +47,12 @@ const mapGroups = computed(() => {
 });
 const grantMeta = (grant: AdminPlayerDetail["titleGrants"][number]) => [grant.slot ? slotLabels[grant.slot] : grant.category, sourceLabels[grant.sourceType], formatTime(grant.grantedAt)].join(" · ");
 const equipableGrants = computed(() => props.titleGrants.filter((grant) => grant.equipable === true));
+const recoveryItems = computed(() => equipableGrants.value.map((grant) => ({
+  value: grant.grantId,
+  label: grant.label,
+  description: grant.scope === "map" ? grant.mapName ?? "地图称号" : grant.category,
+  disabled: recovering.value || (recoveryGrantIds.value.length >= 10 && !recoveryGrantIds.value.includes(grant.grantId)),
+})));
 const recoverySelectionError = computed(() => recoveryGrantIds.value.length > 10 ? "最多选择 10 个称号。" : "");
 
 async function loadOptions() {
@@ -196,13 +202,7 @@ defineExpose({ openGrant: () => { grantOpen.value = true; }, openEquip: openReco
         <form id="recover-player-titles" class="recovery-form" @submit.prevent="recover">
           <UAlert v-if="recoveryError" color="error" variant="subtle" :description="recoveryError" />
           <p class="recovery-note">修复只更新佩戴选择，不会回收或删除其他称号。</p>
-          <fieldset class="recovery-list">
-            <legend>可佩戴称号（已选择 {{ recoveryGrantIds.length }} / 10）</legend>
-            <label v-for="grant in equipableGrants" :key="grant.grantId" class="recovery-item">
-              <input v-model="recoveryGrantIds" type="checkbox" :value="grant.grantId" :disabled="recovering || (recoveryGrantIds.length >= 10 && !recoveryGrantIds.includes(grant.grantId))" />
-              <span>{{ grant.label }}<small>{{ grant.scope === 'map' ? grant.mapName ?? '地图称号' : grant.category }}</small></span>
-            </label>
-          </fieldset>
+          <UCheckboxGroup v-model="recoveryGrantIds" class="recovery-list" variant="card" :legend="`可佩戴称号（已选择 ${recoveryGrantIds.length} / 10）`" :items="recoveryItems" />
           <p v-if="recoverySelectionError" class="title-error" role="alert">{{ recoverySelectionError }}</p>
         </form>
       </template>
@@ -231,11 +231,6 @@ defineExpose({ openGrant: () => { grantOpen.value = true; }, openEquip: openReco
 .selected-titles__list { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .title-error { margin: 0; padding: var(--space-3); border-radius: var(--radius-control); color: var(--danger); background: color-mix(in oklch, var(--danger) 12%, var(--surface)); }
 .recovery-form { display: grid; gap: var(--space-4); }
+.recovery-list { max-height: 360px; overflow: auto; }
 .recovery-note { margin: 0; color: var(--muted); line-height: 1.55; }
-.recovery-list { display: grid; gap: var(--space-2); max-height: 360px; margin: 0; padding: 0; border: 0; overflow: auto; }
-.recovery-list legend { margin-bottom: var(--space-1); color: var(--text); font-size: var(--type-label-sm-size); font-weight: 700; }
-.recovery-item { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); cursor: pointer; }
-.recovery-item input { margin-top: var(--space-1); }
-.recovery-item span { display: grid; gap: var(--space-1); }
-.recovery-item small { color: var(--quiet); }
 </style>
