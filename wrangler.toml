@@ -20,22 +20,16 @@ pattern = "api.owbastion.com"
 custom_domain = true
 
 [observability]
-enabled = true
-head_sampling_rate = 0.1
+enabled = false
 
 [observability.issues]
-enabled = true
+enabled = false
 
 [observability.logs]
-enabled = true
-head_sampling_rate = 0.1
-persist = true
-invocation_logs = true
+enabled = false
 
 [observability.traces]
-enabled = true
-persist = true
-head_sampling_rate = 0.1
+enabled = false
 
 [[d1_databases]]
 binding = "DB"
