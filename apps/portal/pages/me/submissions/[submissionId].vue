@@ -142,9 +142,11 @@ onBeforeUnmount(stopOcrPoll);
         </ul>
       </template>
       <UButton
-        v-else-if="manualReviewEligible && !manualReviewRequested"
+        v-if="manualReviewEligible && !manualReviewRequested"
         label="申请人工核对"
         icon="i-lucide-user-check"
+        :color="data.resubmissionRequired ? 'neutral' : 'primary'"
+        :variant="data.resubmissionRequired ? 'outline' : 'solid'"
         size="xl"
         block
         :loading="requestingManualReview"
