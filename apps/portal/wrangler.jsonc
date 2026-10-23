@@ -13,9 +13,9 @@
   },
   "workers_dev": true,
   "observability": {
-    "enabled": true,
+    "enabled": false,
     "issues": {
-      "enabled": true,
+      "enabled": false,
     },
   },
   "vars": {
