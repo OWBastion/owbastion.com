@@ -79,6 +79,13 @@ describe("submission detail", () => {
     expect(buttonNamed(await mountPage(), /人工/)).toBeDefined();
   });
 
+  it("offers manual review next to resubmission when the server marks both as available", async () => {
+    api.mockResolvedValue(detail({ status: "rejected", resubmissionRequired: true, manualReviewEligible: true }));
+    const wrapper = await mountPage();
+    expect(buttonNamed(wrapper, /重新提交/)).toBeDefined();
+    expect(buttonNamed(wrapper, /人工/)).toBeDefined();
+  });
+
   it("requests manual review once and keeps the detail when the request fails, so it can be retried", async () => {
     const eligible = detail({ status: "rejected", manualReviewEligible: true, reason: "reason-from-server" });
     api.mockImplementation(async (path: string, options?: { method?: string }) => {

@@ -34,8 +34,8 @@ const tabItems = computed(() => {
   const items = player.value
     ? [
       { label: "总览", icon: "i-lucide-layout-dashboard", to: "/me", active: route.path === "/me" },
-      { label: "成就", icon: "i-lucide-award", to: "/me/achievements", active: pathActive("/me/achievements") },
-      { label: "提交", icon: "i-lucide-upload", to: "/me/submissions/new", active: pathActive("/me/submissions") },
+      { label: "我的成就", icon: "i-lucide-award", to: "/me/achievements", active: pathActive("/me/achievements") },
+      { label: "提交截图", icon: "i-lucide-upload", to: "/me/submissions/new", active: pathActive("/me/submissions") },
       { label: "排行榜", icon: "i-lucide-trophy", to: "/leaderboard", active: pathActive("/leaderboard") },
     ]
     : introductionPages.slice(0, 4).map((page) => ({ label: page.label, icon: page.icon, to: page.to, active: pathActive(page.to) }));
