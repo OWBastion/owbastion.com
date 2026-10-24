@@ -2,7 +2,7 @@
 import type { RandomEvent } from "~/types/random-event";
 import type { EventSort } from "~/components/admin/AdminEventTable.vue";
 import type { EventFieldValues } from "~/components/admin/AdminEventFields.vue";
-import { applyDraft, draftToUpdates, stage, undoUpdates, type EventDraft, type EventPatch } from "~/utils/event-draft";
+import { applyDraft, draftToUpdates, NO_EVENT_GROUP, stage, undoUpdates, type EventDraft, type EventPatch } from "~/utils/event-draft";
 import { bodyFromForm, emptyEventForm } from "~/utils/event-editor";
 import { calculatePoolProbabilities } from "~/utils/event-probabilities";
 import { portalErrorDetails } from "~/utils/portal-error";
@@ -14,7 +14,6 @@ useSeoMeta({ title: "事件管理 · 躲避堡垒 3" });
 type ImportPreview = { sourceHash: string; validRowCount: number; errors: Array<{ row: number; message: string }>; rows: Array<{ name: string; category: string; releaseStatus: string }> };
 type EventVersion = { gameVersion: string; availability: "available" | "suspended"; mode: string | null; eventCount: number };
 type StatusFilter = RandomEvent["releaseStatus"] | "all";
-const NO_GROUP = "__none";
 
 const api = useAdminApi();
 const toast = useToast();
@@ -53,14 +52,14 @@ const groups = computed(() => [...new Set(effective.value.map((event) => event.e
 const categories = computed(() => [...new Set(effective.value.map((event) => event.category))].sort());
 const tags = computed(() => [...new Set(effective.value.flatMap((event) => event.effectTags))].sort());
 const versionNames = computed(() => versions.value.map((version) => version.gameVersion));
-const groupFilterItems = computed(() => [{ value: "all", label: "全部事件组" }, ...groups.value.map((value) => ({ value, label: value })), { value: NO_GROUP, label: "未分组" }]);
+const groupFilterItems = computed(() => [{ value: "all", label: "全部事件组" }, ...groups.value.map((value) => ({ value, label: value })), { value: NO_EVENT_GROUP, label: "未分组" }]);
 const versionFilterItems = computed(() => [{ value: "all", label: "全部版本" }, ...versionNames.value.map((value) => ({ value, label: value }))]);
 const statusCount = (value: StatusFilter) => effective.value.filter((event) => value === "all" || event.releaseStatus === value).length;
 
 const visible = computed(() => {
   const text = query.value.trim();
   const rows = effective.value.filter((event) => (status.value === "all" || event.releaseStatus === status.value)
-    && (groupFilter.value === "all" || (groupFilter.value === NO_GROUP ? !event.eventGroup : event.eventGroup === groupFilter.value))
+    && (groupFilter.value === "all" || (groupFilter.value === NO_EVENT_GROUP ? !event.eventGroup : event.eventGroup === groupFilter.value))
     && (versionFilter.value === "all" || event.gameVersion === versionFilter.value)
     && (!text || [event.name, event.eventGroup ?? "", event.description, ...event.effectTags].some((value) => value.includes(text))));
   const { key, dir } = sort.value;

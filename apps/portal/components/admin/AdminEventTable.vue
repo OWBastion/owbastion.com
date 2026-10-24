@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { RandomEvent } from "~/types/random-event";
-import { draftedFields, statusLabels, type EventDraft, type EventPatch } from "~/utils/event-draft";
+import { draftedFields, eventStatusItems, NO_EVENT_GROUP, type EventDraft, type EventPatch } from "~/utils/event-draft";
 import { formatProbability } from "~/utils/event-probabilities";
 
 export type EventSortKey = "name" | "weight" | "probability" | "gameVersion";
@@ -32,14 +32,12 @@ const delta = (id: string) => {
   return Math.abs(change) < 1e-5 ? null : { up: change > 0, text: (Math.abs(change) * 100).toFixed(2) };
 };
 const cellUi = (eventId: string, field: keyof EventPatch) => ({
-  base: draftedFields(props.draft, eventId).has(field)
-    ? "w-full min-w-0 ring-[var(--accent)] bg-[var(--accent-surface)] font-semibold"
-    : "w-full min-w-0 ring-transparent bg-transparent hover:ring-[var(--line-strong)] hover:bg-[var(--surface)]",
+  base: `w-full min-w-0 ${draftedFields(props.draft, eventId).has(field)
+    ? "ring-[var(--accent)] bg-[var(--accent-surface)] font-semibold"
+    : "ring-transparent bg-transparent hover:ring-[var(--line-strong)] hover:bg-[var(--surface)]"}`,
 });
-const NO_GROUP = "__none";
-const groupItems = (current: string | null) => [{ value: NO_GROUP, label: "—" }, ...(current && !props.groups.includes(current) ? [...props.groups, current] : props.groups).map((value) => ({ value, label: value }))];
+const groupItems = (current: string | null) => [{ value: NO_EVENT_GROUP, label: "—" }, ...(current && !props.groups.includes(current) ? [...props.groups, current] : props.groups).map((value) => ({ value, label: value }))];
 const versionItems = (current: string) => (props.versions.includes(current) ? props.versions : [...props.versions, current]).map((value) => ({ value, label: value }));
-const statusItems = Object.entries(statusLabels).map(([value, label]) => ({ value, label }));
 const stageNumber = (event: RandomEvent, raw: string) => emit("stage", event.eventId, { weight: Math.max(0, Number.parseFloat(raw) || 0) });
 </script>
 
@@ -68,11 +66,11 @@ const stageNumber = (event: RandomEvent, raw: string) => emit("stage", event.eve
             </div>
           </td>
           <td class="event-table__secondary">
-            <USelect :model-value="event.eventGroup ?? NO_GROUP" :items="groupItems(event.eventGroup)" size="md" :ui="cellUi(event.eventId, 'eventGroup')" aria-label="事件组" @update:model-value="(value) => emit('stage', event.eventId, { eventGroup: value === NO_GROUP ? null : String(value) })" />
+            <USelect :model-value="event.eventGroup ?? NO_EVENT_GROUP" :items="groupItems(event.eventGroup)" size="md" :ui="cellUi(event.eventId, 'eventGroup')" aria-label="事件组" @update:model-value="(value) => emit('stage', event.eventId, { eventGroup: value === NO_EVENT_GROUP ? null : String(value) })" />
           </td>
           <td class="event-table__optional" :class="categoryTone(event.category)">{{ event.category }}</td>
           <td class="event-table__weight">
-            <UInput class="event-table__number" :ui="{ ...cellUi(event.eventId, 'weight'), base: `${cellUi(event.eventId, 'weight').base} text-right tabular-nums` }" type="number" step="0.05" min="0" size="md" aria-label="权重" :model-value="event.weight ?? undefined" @change="stageNumber(event, ($event.target as HTMLInputElement).value)" />
+            <UInput class="event-table__number" :ui="cellUi(event.eventId, 'weight')" type="number" step="0.05" min="0" size="md" aria-label="权重" :model-value="event.weight ?? undefined" @change="stageNumber(event, ($event.target as HTMLInputElement).value)" />
           </td>
           <td>
             <div class="event-table__probability">
@@ -85,7 +83,7 @@ const stageNumber = (event: RandomEvent, raw: string) => emit("stage", event.eve
             <USelect :model-value="event.gameVersion" :items="versionItems(event.gameVersion)" size="md" :ui="cellUi(event.eventId, 'gameVersion')" aria-label="版本" @update:model-value="(value) => emit('stage', event.eventId, { gameVersion: String(value) })" />
           </td>
           <td class="event-table__secondary">
-            <USelect :model-value="event.releaseStatus" :items="statusItems" size="md" :ui="cellUi(event.eventId, 'releaseStatus')" aria-label="状态" @update:model-value="(value) => emit('stage', event.eventId, { releaseStatus: value as RandomEvent['releaseStatus'] })" />
+            <USelect :model-value="event.releaseStatus" :items="eventStatusItems" size="md" :ui="cellUi(event.eventId, 'releaseStatus')" aria-label="状态" @update:model-value="(value) => emit('stage', event.eventId, { releaseStatus: value as RandomEvent['releaseStatus'] })" />
           </td>
         </tr>
       </tbody>
@@ -109,6 +107,7 @@ tbody tr.is-dim td:not(.event-table__check) { opacity: 0.6; }
 .event-table__open { padding: 0; border: 0; background: none; color: var(--text); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
 .event-table__open:hover, .event-table__open:focus-visible { color: var(--accent); text-decoration: underline; }
 .event-table__number { width: 5rem; }
+.event-table__number :deep(input) { text-align: right; font-variant-numeric: tabular-nums; }
 .event-table__weight { width: 6.5rem; }
 .event-table__probability { display: flex; align-items: center; gap: var(--space-2); min-width: 9rem; }
 .event-table__track { flex: 1; min-width: 2rem; height: 0.375rem; overflow: hidden; border-radius: var(--radius-pill); background: var(--line); }

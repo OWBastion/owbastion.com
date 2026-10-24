@@ -5,6 +5,9 @@ export type EventPatch = Partial<Pick<RandomEvent, "name" | "category" | "descri
 export type EventDraft = ReadonlyMap<string, EventPatch>;
 
 export const statusLabels = { implemented: "已实装", development: "开发中", removed: "已移除" } as const;
+export const eventStatusItems = Object.entries(statusLabels).map(([value, label]) => ({ value, label }));
+// Select-item sentinel standing in for "no event group"; staged patches serialize it back to null.
+export const NO_EVENT_GROUP = "__none";
 
 const patchKeys = ["name", "category", "description", "durationSeconds", "cooldownSeconds", "weight", "gameVersion", "eventGroup", "releaseStatus", "effectTags"] as const;
 const same = (left: unknown, right: unknown) => JSON.stringify(left ?? null) === JSON.stringify(right ?? null);

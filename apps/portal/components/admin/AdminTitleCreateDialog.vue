@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useObjectUrl } from "@vueuse/core";
 import type { AdminTitleColor, AdminTitleSummary } from "./admin-title-types";
 import { TITLE_PALETTE_NAMES, titleColorBackground, titleColorLabel } from "./admin-title-types";
 
@@ -31,12 +32,7 @@ const ICON_CHOICES = [
 ];
 
 const iconFile = shallowRef<File | null>(null);
-const iconPreviewUrl = shallowRef("");
-watch(iconFile, (file) => {
-  if (iconPreviewUrl.value) URL.revokeObjectURL(iconPreviewUrl.value);
-  iconPreviewUrl.value = file ? URL.createObjectURL(file) : "";
-});
-onBeforeUnmount(() => { if (iconPreviewUrl.value) URL.revokeObjectURL(iconPreviewUrl.value); });
+const iconPreviewUrl = useObjectUrl(iconFile);
 const api = useAdminApi();
 type CdnImage = { name: string; url: string };
 const cdnPickerOpen = shallowRef(false);
@@ -44,14 +40,12 @@ const cdnImages = shallowRef<CdnImage[] | null>(null);
 const cdnLoading = shallowRef(false);
 const cdnError = shallowRef("");
 const cdnQuery = shallowRef("");
-const filteredCdnImages = computed(() => {
-  const query = cdnQuery.value.trim().toLowerCase();
-  return (cdnImages.value ?? []).filter((image) => image.name.toLowerCase().includes(query));
-});
 // A same-named .png/.webp pair is one image; keep the WebP, which is what the CDN serves smaller.
 const cdnChoices = computed(() => {
+  const query = cdnQuery.value.trim().toLowerCase();
   const byStem = new Map<string, CdnImage>();
-  for (const image of filteredCdnImages.value) {
+  for (const image of cdnImages.value ?? []) {
+    if (!image.name.toLowerCase().includes(query)) continue;
     const stem = image.name.replace(/\.[^.]+$/, "");
     if (!byStem.has(stem) || image.name.endsWith(".webp")) byStem.set(stem, image);
   }
@@ -71,11 +65,11 @@ async function loadCdnImages() {
 watch(cdnPickerOpen, (open) => {
   if (!open) return;
   cdnQuery.value = "";
-  void loadCdnImages();
+  if (cdnImages.value === null && !cdnLoading.value) void loadCdnImages();
 });
-function pickCdnImage(image: CdnImage) {
+function pickCdnImage(url: string) {
   iconFile.value = null;
-  form.iconUrl = image.url;
+  form.iconUrl = url;
   cdnPickerOpen.value = false;
 }
 const fileInput = useTemplateRef<HTMLInputElement>("fileInput");
@@ -227,8 +221,8 @@ function submitEdit() {
           <div class="appearance-row">
             <span class="appearance-row__label" id="title-color-label">颜色</span>
             <URadioGroup
-              :model-value="colorKey" :items="colorItems" variant="card" indicator="hidden" orientation="horizontal" legend="颜色" :disabled="saving"
-              :ui="{ legend: 'sr-only', fieldset: 'flex flex-wrap gap-2', item: 'w-auto p-1 pe-3 rounded-full' }"
+              :model-value="colorKey" :items="colorItems" variant="card" indicator="hidden" orientation="horizontal" aria-labelledby="title-color-label" :disabled="saving"
+              :ui="{ fieldset: 'flex flex-wrap gap-2', item: 'w-auto p-1 pe-3 rounded-full' }"
               @update:model-value="setColorKey(String($event))"
             >
               <template #label="{ item }">
@@ -243,8 +237,8 @@ function submitEdit() {
               <UButton type="button" color="neutral" variant="outline" :disabled="saving" :icon="`i-lucide-${form.icon}`" :label="form.icon" trailing-icon="i-lucide-chevron-down" />
               <template #content>
                 <URadioGroup
-                  :model-value="form.icon" :items="iconItems" variant="card" indicator="hidden" orientation="horizontal" legend="选择图标"
-                  :ui="{ legend: 'sr-only', fieldset: 'grid grid-cols-6 gap-1 p-2', item: 'size-10 p-0 items-center justify-center' }"
+                  :model-value="form.icon" :items="iconItems" variant="card" indicator="hidden" orientation="horizontal" aria-label="选择图标"
+                  :ui="{ fieldset: 'grid grid-cols-6 gap-1 p-2', item: 'size-10 p-0 items-center justify-center' }"
                   @update:model-value="pickIcon(String($event))"
                 >
                   <template #label="{ item }"><UIcon :name="`i-lucide-${item.value}`" class="size-5" :title="item.value" /></template>
@@ -268,9 +262,9 @@ function submitEdit() {
                       <p v-else-if="cdnError" class="cdn-picker__status">{{ cdnError }}</p>
                       <p v-else-if="!cdnChoices.length" class="cdn-picker__status">没有匹配的图片。</p>
                       <URadioGroup
-                        v-else :model-value="trimmedIconUrl" :items="cdnItems" variant="card" indicator="hidden" orientation="horizontal" legend="选择 CDN 图片"
-                        :ui="{ legend: 'sr-only', fieldset: 'grid grid-cols-[repeat(auto-fill,minmax(5rem,1fr))] gap-2 max-h-80 overflow-y-auto', item: 'p-2 justify-center' }"
-                        @update:model-value="pickCdnImage(cdnChoices.find((image) => image.url === $event)!)"
+                        v-else :model-value="trimmedIconUrl" :items="cdnItems" variant="card" indicator="hidden" orientation="horizontal" aria-label="选择 CDN 图片"
+                        :ui="{ fieldset: 'grid grid-cols-[repeat(auto-fill,minmax(5rem,1fr))] gap-2 max-h-80 overflow-y-auto', item: 'p-2 justify-center' }"
+                        @update:model-value="pickCdnImage(String($event))"
                       >
                         <template #label="{ item }"><span class="cdn-picker__item" :title="item.title"><img :src="item.value" alt="" loading="lazy" /><span>{{ item.label }}</span></span></template>
                       </URadioGroup>
