@@ -301,8 +301,6 @@ function submit() {
 .challenge-enable__hint { color: var(--quiet); font-size: .75rem; }
 .challenge-siblings { display: grid; gap: var(--space-2); }
 .challenge-siblings__item { margin: 0; padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); font-size: .8125rem; }
-.title-cell-stack { display: grid; gap: 2px; }
-.table-meta { color: var(--quiet); font-size: var(--type-caption-size); }
 @container (max-width: 36rem) {
   .challenge-dialog-form { grid-template-columns: 1fr; }
 }
