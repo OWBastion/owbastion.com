@@ -6,8 +6,8 @@ import { buildPlayerTimeline } from "~/utils/player-timeline";
 const props = defineProps<{ player: AdminPlayerDetail; loading?: boolean }>();
 const emit = defineEmits<{ setStatus: [status: "active" | "banned"]; unbind: [bindingId: string]; editIdentity: []; issueRecovery: []; changed: [] }>();
 
-const tabs = [{ id: "titles", label: "称号" }, { id: "timeline", label: "动态" }, { id: "screenshots", label: "截图" }, { id: "account", label: "账号" }] as const;
-const tab = shallowRef<(typeof tabs)[number]["id"]>("titles");
+const tabs = [{ value: "titles", label: "称号" }, { value: "timeline", label: "动态" }, { value: "screenshots", label: "截图" }, { value: "account", label: "账号" }];
+const tab = shallowRef("titles");
 const titlesRef = useTemplateRef<{ openGrant: () => void; openEquip: () => void }>("titlesRef");
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const banned = computed(() => props.player.status === "banned");
@@ -50,7 +50,7 @@ function grantTitle() { tab.value = "titles"; void nextTick(() => titlesRef.valu
       <UAlert v-if="player.pendingSubmissionCount" color="info" variant="subtle" :title="`有 ${player.pendingSubmissionCount} 条提交等待审核`" :actions="[{ label: '去审核', to: '/admin/reviews', color: 'neutral', variant: 'outline' }]" />
     </div>
 
-    <UTabs v-model="tab" :items="tabs.map((item) => ({ label: item.label, value: item.id }))" :content="false" variant="link" aria-label="玩家详情分区" />
+    <UTabs v-model="tab" :items="tabs" :content="false" variant="link" aria-label="玩家详情分区" />
 
     <section v-show="tab === 'titles'" id="player-panel-titles" role="tabpanel" aria-label="称号">
       <AdminPlayerTitles ref="titlesRef" :player-account-id="player.playerAccountId" :title-grants="player.titleGrants" :loading="loading" @changed="emit('changed')" />

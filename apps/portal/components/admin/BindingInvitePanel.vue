@@ -28,6 +28,7 @@ const invitations = ref<Invitation[]>([]);
 const copiedInviteId = shallowRef<string | null>(null);
 
 const selectedHolder = computed(() => selectedHolderDetail.value?.holderName === selectedHolderName.value ? selectedHolderDetail.value : null);
+const holderItems = computed(() => holders.value.map((holder) => ({ value: holder.holderName, label: holder.holderName, description: `${holder.unclaimedCount} 项未关联` })));
 const selectedGrantIds = computed(() => selectedHolder.value?.grants.map((grant) => grant.grantId) ?? []);
 const parsedPlayer = computed(() => parseBattleTag(battleTag.value));
 const batch = computed(() => parseBattleTagBatch(batchInput.value));
@@ -166,8 +167,8 @@ onMounted(() => { void loadCandidates(); });
         <div v-if="loading" class="historical-state" role="status">读取中…</div>
         <div v-else-if="!holders.length" class="historical-state">暂无未关联称号。</div>
         <URadioGroup
-          v-else :model-value="selectedHolderName" :items="holders.map((holder) => ({ value: holder.holderName, label: holder.holderName, description: `${holder.unclaimedCount} 项未关联` }))" variant="table" indicator="hidden" legend="选择历史持有者"
-          class="historical-holders" :ui="{ legend: 'sr-only', fieldset: 'gap-0', item: 'rounded-none' }" @update:model-value="selectHolder(String($event))"
+          v-else :model-value="selectedHolderName" :items="holderItems" variant="table" indicator="hidden" aria-label="选择历史持有者"
+          class="historical-holders" :ui="{ fieldset: 'gap-0', item: 'rounded-none' }" @update:model-value="selectHolder(String($event))"
         />
         <UButton v-if="selectedHolderName" type="button" label="清除选择" color="neutral" variant="ghost" size="sm" class="justify-self-start" @click="selectHolder(selectedHolderName)" />
         <div v-if="detailLoading" class="historical-state" role="status">读取持有者详情…</div>

@@ -22,7 +22,6 @@ import {
 import { maintainerRoute, parseBody, type AdminRouteDependencies, type ApiApp } from "./route-contract";
 
 const TITLE_IMAGE_PREFIX = "achievements/";
-type AssetsEnv = { ASSETS_BUCKET?: R2Bucket; ASSETS_PUBLIC_ORIGIN?: string };
 
 type ServiceOperation = (context: any, operation: string, action: () => Promise<any>) => Promise<any>;
 
@@ -129,7 +128,7 @@ export const registerAdminCatalogRoutes = (app: ApiApp, dependencies: AdminRoute
   }));
 
   app.get("/v1/admin/title-images", maintainerRoute(requireMaintainer, async (c) => {
-    const { ASSETS_BUCKET: bucket, ASSETS_PUBLIC_ORIGIN } = c.env as AssetsEnv;
+    const { ASSETS_BUCKET: bucket, ASSETS_PUBLIC_ORIGIN } = c.env;
     const origin = ASSETS_PUBLIC_ORIGIN?.replace(/\/+$/, "");
     if (!bucket || !origin) return errorResponse(c, 503, "ASSETS_BUCKET_UNAVAILABLE", "图片存储暂不可用");
     const items: Array<{ name: string; url: string }> = [];
