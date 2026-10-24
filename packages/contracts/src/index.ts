@@ -10,7 +10,7 @@ const pageInfo = (maxPageSize?: number) => z.object({
 });
 
 const externalId = z.string().trim().min(1).max(256);
-const playerId = z.string().regex(/^\d{1,10}$/);
+const playerId = z.string().regex(/^\d{1,10}$/), playerName = z.string().trim().min(1).max(64);
 const retirementVersion = z.string().regex(/^\d{2}\.\d{4}\.[1-9]\d*$/);
 const storedRetirementVersion = z.string().trim().min(1).max(64);
 // One stored lifecycle for every Challenge entity; availability states such as
@@ -33,7 +33,7 @@ const historicalTitleGrantId = z.string().trim().min(1).max(256);
 export const historicalMigrationStatusSchema = z.enum(["not_requested", "authorized", "completed", "partial", "retry_required", "cancelled"]);
 export const adminHistoricalMigrationSummarySchema = z.object({ status: historicalMigrationStatusSchema, requestedCount: z.number().int().nonnegative(), completedCount: z.number().int().nonnegative(), conflictCount: z.number().int().nonnegative(), retryCount: z.number().int().nonnegative() });
 export const publicHistoricalMigrationSummarySchema = z.object({ status: z.enum(["not_requested", "pending", "completed", "partial", "retry_required", "cancelled"]), requestedCount: z.number().int().nonnegative(), restoredCount: z.number().int().nonnegative() });
-const adminBindingInviteRequestBaseSchema = z.object({ contractVersion, playerName: z.string().trim().min(1).max(64), playerId, historicalTitleGrantIds: z.array(historicalTitleGrantId).max(1000).default([]) });
+const adminBindingInviteRequestBaseSchema = z.object({ contractVersion, playerName, playerId, historicalTitleGrantIds: z.array(historicalTitleGrantId).max(1000).default([]) });
 export const adminBindingInviteRequestSchema = adminBindingInviteRequestBaseSchema.superRefine((value, context) => {
   if (new Set(value.historicalTitleGrantIds).size !== value.historicalTitleGrantIds.length) context.addIssue({ code: "custom", path: ["historicalTitleGrantIds"], message: "Duplicate historical title grant" });
 });
@@ -56,7 +56,7 @@ export const adminBindingInviteCodeResponseSchema = z.object({ contractVersion, 
 export const adminActiveBindingSchema = z.object({ bindingId: z.string().uuid(), playerName: z.string(), playerId, groupOpenId: externalId, memberOpenId: externalId, createdAt: z.number().int() });
 export const adminActiveBindingListResponseSchema = z.object({ contractVersion, items: z.array(adminActiveBindingSchema) });
 export const bindingInviteRedeemRequestSchema = z.object({ contractVersion, code: inviteCode }).strict();
-export const bindingInviteRedeemResponseSchema = z.object({ contractVersion, claimId: z.string().uuid(), claimToken: z.string().min(32), code: inviteClaimCode, playerName: z.string().trim().min(1).max(64), playerId, expiresAt: z.number().int() });
+export const bindingInviteRedeemResponseSchema = z.object({ contractVersion, claimId: z.string().uuid(), claimToken: z.string().min(32), code: inviteClaimCode, playerName, playerId, expiresAt: z.number().int() });
 export const bindingClaimStatusResponseSchema = z.object({ contractVersion, status: z.enum(["pending_confirmation", "pending_review", "approved", "rejected", "expired"]), expiresAt: z.number().int(), historicalMigration: publicHistoricalMigrationSummarySchema });
 export const bindingClaimSessionResponseSchema = z.object({ contractVersion, status: z.literal("authenticated") });
 export const qqBindingRequestSchema = z.object({
@@ -64,7 +64,7 @@ export const qqBindingRequestSchema = z.object({
   provider: z.literal("qq"),
   groupOpenId: externalId,
   memberOpenId: externalId,
-  playerName: z.string().trim().min(1).max(64),
+  playerName,
   playerId,
 });
 export const qqBindingResponseSchema = z.object({
@@ -74,7 +74,7 @@ export const qqBindingResponseSchema = z.object({
   provider: z.literal("qq"),
   groupOpenId: externalId,
   memberOpenId: externalId,
-  playerName: z.string().trim().min(1).max(64),
+  playerName,
   playerId,
 });
 export const qqBindingClaimVerifyRequestSchema = z.object({ contractVersion, provider: z.literal("qq"), code: inviteClaimCode, groupOpenId: externalId, memberOpenId: externalId, messageId: externalId });
@@ -166,7 +166,7 @@ const adminBindingSchema = z.object({
 export const adminPlayerSummarySchema = z.object({
   playerAccountId: z.string().uuid(),
   playerId,
-  playerName: z.string().trim().min(1).max(64),
+  playerName,
   status: adminPlayerStatus,
   bindingCount: z.number().int().nonnegative(),
   pendingSubmissionCount: z.number().int().nonnegative(),
@@ -174,7 +174,7 @@ export const adminPlayerSummarySchema = z.object({
 });
 export const adminPlayerListResponseSchema = z.object({ contractVersion, items: z.array(adminPlayerSummarySchema) }).merge(pageInfo());
 export const adminPlayerStatusRequestSchema = z.object({ contractVersion, status: adminPlayerStatus, reason: z.string().trim().max(256).optional() });
-export const adminPlayerIdentityRequestSchema = z.object({ contractVersion, playerName: z.string().trim().min(1).max(64) });
+export const adminPlayerIdentityRequestSchema = z.object({ contractVersion, playerName, playerId });
 
 const submissionStatus = z.enum(["upload_pending", "ocr_pending", "awaiting_player_confirmation", "ready_for_review", "ocr_review_required", "approved", "rejected", "resubmission_required"]);
 export const verifiedRunDifficultySchema = z.enum(["简单", "一般", "困难", "专家", "传奇", "地狱"]);
@@ -577,7 +577,7 @@ export const adminReviewSchema = z.object({
   targetName: z.string().trim().min(1).max(256),
   playerAccountId: z.string().uuid(),
   playerId,
-  playerName: z.string().trim().min(1).max(64),
+  playerName,
   rating: reviewRatingSchema,
   comment: reviewComment.nullable(),
   anonymous: z.boolean(),
@@ -691,9 +691,9 @@ export const agentEventListResponseSchema = z.object({ contractVersion, items: z
 export const agentMapListResponseSchema = z.object({ contractVersion, items: z.array(agentMapSchema) }).merge(agentPage);
 export const agentAchievementListResponseSchema = z.object({ contractVersion, items: z.array(challengeSchema) }).merge(agentPage);
 export const agentTitleListResponseSchema = z.object({ contractVersion, items: z.array(agentTitleSchema) }).merge(agentPage);
-export const agentPlayerTitleGrantSchema = z.object({ playerId, playerName: z.string().trim().min(1).max(64), titleKeys: z.array(externalId), allTitles: z.boolean() });
+export const agentPlayerTitleGrantSchema = z.object({ playerId, playerName, titleKeys: z.array(externalId), allTitles: z.boolean() });
 export const agentPlayerTitleGrantListResponseSchema = z.object({ contractVersion, items: z.array(agentPlayerTitleGrantSchema) }).merge(agentPage);
-export const agentMapTitleHolderSchema = z.object({ mapId: externalId, gameplayRevisionId: externalId, titleKey: externalId, slot: z.enum(["pioneer", "conqueror", "dominator"]).nullable(), slotSemantics: z.enum(["named", "none"]), playerId, playerName: z.string().trim().min(1).max(64) });
+export const agentMapTitleHolderSchema = z.object({ mapId: externalId, gameplayRevisionId: externalId, titleKey: externalId, slot: z.enum(["pioneer", "conqueror", "dominator"]).nullable(), slotSemantics: z.enum(["named", "none"]), playerId, playerName });
 export const agentMapTitleHolderListResponseSchema = z.object({ contractVersion, items: z.array(agentMapTitleHolderSchema) }).merge(agentPage);
 export const agentSearchResultSchema = z.object({ kind: z.enum(["event", "map", "achievement", "title"]), id: externalId, name: z.string().trim().min(1).max(256), summary: z.string().trim().min(1).max(4096) });
 export const agentSearchResponseSchema = z.object({ contractVersion, items: z.array(agentSearchResultSchema) }).merge(agentPage);
@@ -1183,7 +1183,7 @@ export const adminVerifiedRunSchema = z.object({
   runId: z.string().uuid(),
   playerAccountId: z.string().uuid(),
   playerId,
-  playerName: z.string().trim().min(1).max(64),
+  playerName,
   sourceSubmissionId: z.string().uuid(),
   mapId: externalId,
   mapName: z.string().trim().min(1).max(256),
@@ -1234,7 +1234,7 @@ export const adminVerifiedRunConflictSchema = z.object({
   submissionId: z.string().uuid(),
   submissionStatus: submissionStatus,
   playerAccountId: z.string().uuid(),
-  playerName: z.string().trim().min(1).max(64),
+  playerName,
   conflictFields: z.array(verifiedRunConflictFieldSchema).min(1),
   facts: z.object({
     mapName: z.string().trim().min(1).max(256).nullable(),
@@ -1574,7 +1574,7 @@ export const currentPlayerResponseSchema = z.object({
   contractVersion,
   player: z.object({
     playerId,
-    playerName: z.string().trim().min(1).max(64),
+    playerName,
     isAdmin: z.boolean().default(false),
     publicProfile: z.boolean().default(true),
     hideBattleTag: z.boolean().default(false),
@@ -1600,7 +1600,7 @@ export const adminPlayerHandleStatusSchema = z.enum(["pending", "active"]);
 export const adminPlayerHandleSchema = z.object({
   handleId: z.string().uuid(),
   playerAccountId: z.string().min(1).max(128),
-  playerName: z.string().trim().min(1).max(64),
+  playerName,
   handle: playerHandleSchema,
   // The Player's active handle while this row is a pending request; null for active rows.
   currentHandle: playerHandleSchema.nullable(),

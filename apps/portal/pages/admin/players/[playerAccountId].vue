@@ -55,17 +55,23 @@ function confirmAction() {
   const reason = banReason.value.trim();
   void runAction("无法更新玩家状态", action.status === "banned" ? "玩家已封禁" : "玩家已解封", () => api(`/v1/player-accounts/${current.playerAccountId}/status`, { method: "PUT", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", status: action.status, ...(reason ? { reason } : {}) } }));
 }
-async function updateIdentity(playerName: string) {
+const identityErrorMessages: Record<string, string> = {
+  PLAYER_BATTLETAG_CONFLICT: "该战网 ID 已被其他玩家使用。",
+  PLAYER_BATTLETAG_PENDING_INVITE: "原战网 ID 或新战网 ID 有未使用的邀请或未处理的绑定申请，撤销或处理后再试。",
+};
+async function updateIdentity(playerName: string, playerId: string) {
   const current = player.value;
   if (!current) return;
   actionLoading.value = true;
   try {
-    await api(`/v1/player-accounts/${current.playerAccountId}/identity`, { method: "PUT", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", playerName } });
+    await api(`/v1/player-accounts/${current.playerAccountId}/identity`, { method: "PUT", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", playerName, playerId } });
     toast.add({ title: "战网 ID 已更新", color: "success" });
     identityEditorOpen.value = false;
     await load();
   } catch (error) {
-    toast.add({ title: "无法更新战网 ID", description: portalErrorDetails(error).description, color: "error" });
+    const details = portalErrorDetails(error);
+    const message = details.code ? identityErrorMessages[details.code] : undefined;
+    toast.add({ title: "无法更新战网 ID", description: message ? (details.requestId ? `${message} Request-ID：${details.requestId}` : message) : details.description, color: "error" });
   } finally { actionLoading.value = false; }
 }
 </script>

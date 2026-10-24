@@ -1763,14 +1763,65 @@
   "/v1/admin/player-accounts/{playerAccountId}/identity": {
    "put": {
     "operationId": "updateAdminPlayerIdentity",
+    "description": "Maintainer-only, idempotent and audited. Replaces the account's full BattleTag (name and number) in place; facts stay on the same Player Account and the old BattleTag is released with no alias. PLAYER_BATTLETAG_CONFLICT (409) when another account uses the new BattleTag (normalized name + number); PLAYER_BATTLETAG_PENDING_INVITE (409) when the old or new BattleTag has an unused, unexpired, unrevoked invite or a pending binding claim; PLAYER_NOT_FOUND (404).",
     "parameters": [
      {
       "$ref": "#/components/parameters/playerAccountId"
+     },
+     {
+      "$ref": "#/components/parameters/idempotencyKey"
      }
     ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "required": [
+         "contractVersion",
+         "playerName",
+         "playerId"
+        ],
+        "properties": {
+         "contractVersion": {
+          "type": "string",
+          "enum": [
+           "1"
+          ]
+         },
+         "playerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+         },
+         "playerId": {
+          "type": "string",
+          "pattern": "^\\d{1,10}$"
+         }
+        }
+       }
+      }
+     }
+    },
     "responses": {
      "204": {
       "description": "Updated"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "404": {
+      "$ref": "#/components/responses/Json"
+     },
+     "409": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
      }
     }
    }

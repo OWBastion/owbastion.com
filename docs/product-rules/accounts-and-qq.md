@@ -56,6 +56,12 @@ bodies, or signed URLs.
   conflict, or retry-required; conflicts never reassign a grant, and a recoverable failure
   never rolls back account, binding, or session. Retry requires an active QQ binding (legacy
   Passkey-first invitations retry only against their recorded account).
+- Only maintainers change a BattleTag (name and number); players ask a maintainer, and there
+  is no self-service request. The change rewrites the account's BattleTag in place and never
+  moves facts, which stay on the Player Account. The old BattleTag is released at once, with no
+  alias or history. It is rejected while the old or new BattleTag has a usable invitation or an
+  undecided binding claim; the maintainer revokes the invitation first. In-game titles follow
+  the new name after the next Bastion build syncs.
 - Member OpenIDs are stable across groups for one robot: one active binding per
   `(provider, memberOpenId)` and account; revoked bindings stay auditable. Group OpenIDs are
   policy, source, environment, and audit context, never identity.
