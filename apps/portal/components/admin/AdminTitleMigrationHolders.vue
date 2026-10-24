@@ -43,8 +43,8 @@ const holderInitial = (name: string) => name.slice(0, 1).toUpperCase();
     <div v-if="loading" class="holder-state" role="status">读取中…</div>
     <UEmpty v-else-if="!holders.length" title="暂无匹配持有者" variant="naked" />
     <URadioGroup
-      v-else :model-value="selectedHolderName" :items="holderItems" variant="table" indicator="hidden" legend="历史持有人" class="holder-list"
-      :ui="{ legend: 'sr-only', fieldset: 'gap-0', item: 'rounded-none px-4 py-3 @sm:px-5', wrapper: 'w-full' }"
+      v-else :model-value="selectedHolderName" :items="holderItems" variant="table" indicator="hidden" aria-label="历史持有人" class="holder-list"
+      :ui="{ fieldset: 'gap-0', item: 'rounded-none px-4 py-3 @sm:px-5', wrapper: 'w-full' }"
       @update:model-value="selectHolder(String($event))"
     >
       <template #label="{ item }">

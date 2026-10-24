@@ -85,5 +85,5 @@ watch(revision, () => { void refresh(); });
 .tag--warning { background: color-mix(in oklch, var(--danger) 14%, var(--surface)); color: var(--danger); }
 .player-list__empty { margin: 0; padding: var(--space-5); color: var(--quiet); text-align: center; }
 .player-list__pager { display: flex; align-items: center; justify-content: space-between; color: var(--quiet); font-size: var(--type-caption-size); }
-@media (prefers-reduced-motion: reduce) { .chip, .player-row { transition: none; } .chip:active, .player-row:active { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .player-row { transition: none; } .player-row:active { transform: none; } }
 </style>

@@ -8,68 +8,57 @@ definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "总览 · 躲避堡垒 3" });
 
 type Metric = { count: number | null; error: string };
+type MetricCard = { title: string; to: string; icon: string; prominent?: boolean; state: Metric; read: () => Promise<number>; message: string };
 const api = useAdminApi();
 const waitingLimit = 5;
-
-// Every figure comes from the list endpoint that already owns it, so a number always matches the page it links to.
-// Reads settle independently: one failing must not hide the others.
-const metrics = {
-  reviews: reactive<Metric>({ count: null, error: "" }),
-  migration: reactive<Metric>({ count: null, error: "" }),
-  claims: reactive<Metric>({ count: null, error: "" }),
-  players: reactive<Metric>({ count: null, error: "" }),
-  runs: reactive<Metric>({ count: null, error: "" }),
-  maps: reactive<Metric>({ count: null, error: "" }),
-  events: reactive<Metric>({ count: null, error: "" }),
-};
 const waiting = reactive<{ items: AdminSubmission[] | null; error: string }>({ items: null, error: "" });
 
-const sources: Record<keyof typeof metrics, { read: () => Promise<number>; message: string }> = {
-  reviews: { read: async () => (await api<{ total: number }>(`/v1/submissions?page=1&pageSize=1&status=${reviewQueueStatuses}`)).total, message: "无法读取待核对截图数量。" },
-  migration: { read: async () => (await api<{ stats: { pendingHolderCount: number } }>("/v1/title-grants?filter=pending&page=1&pageSize=1")).stats.pendingHolderCount, message: "无法读取未迁移玩家数量。" },
-  claims: { read: async () => (await api<{ items: AdminBindingClaim[] }>("/v1/binding-claims")).items.filter((claim) => claim.status === "pending_review").length, message: "无法读取待处理绑定例外。" },
-  players: { read: async () => (await api<{ total: number }>("/v1/player-accounts?status=active&page=1&pageSize=1")).total, message: "无法读取玩家数量。" },
-  runs: { read: async () => (await api<{ total: number }>("/v1/verified-runs?page=1&pageSize=1")).total, message: "无法读取通关记录数量。" },
-  maps: { read: async () => (await api<{ items: unknown[] }>("/v1/maps")).items.length, message: "无法读取地图数量。" },
-  events: { read: async () => (await api<{ items: unknown[] }>("/v1/events?archived=false")).items.length, message: "无法读取随机事件数量。" },
-};
-
-async function settle(key: keyof typeof metrics) {
-  const metric = metrics[key];
-  metric.error = "";
+// The reviews tile and the waiting list share one request: the tile's count is the queue total.
+async function fetchWaiting() {
   try {
-    metric.count = await sources[key].read();
-  } catch (error) {
-    metric.count = null;
-    metric.error = portalErrorDetails(error, sources[key].message).description;
-  }
-}
-async function loadWaiting() {
-  waiting.error = "";
-  try {
-    waiting.items = (await api<{ items: AdminSubmission[] }>(`/v1/submissions?page=1&pageSize=${waitingLimit}&status=${reviewQueueStatuses}&order=oldest`)).items;
+    const data = await api<{ items: AdminSubmission[]; total: number }>(`/v1/submissions?page=1&pageSize=${waitingLimit}&status=${reviewQueueStatuses}&order=oldest`);
+    waiting.items = data.items;
+    waiting.error = "";
+    return data.total;
   } catch (error) {
     waiting.items = null;
     waiting.error = portalErrorDetails(error, "无法读取待核对截图。").description;
+    throw error;
+  }
+}
+
+const metric = (): Metric => reactive({ count: null, error: "" });
+const reviewsCard: MetricCard = { title: "截图待核对", to: "/admin/reviews", icon: "i-lucide-scan-eye", prominent: true, state: metric(), read: fetchWaiting, message: "无法读取待核对截图数量。" };
+// Every figure comes from the list endpoint that already owns it, so a number always matches the page it links to.
+const cards: MetricCard[] = [
+  reviewsCard,
+  { title: "称号待迁移", to: "/admin/title-migration", icon: "i-lucide-history", prominent: true, state: metric(), read: async () => (await api<{ stats: { pendingHolderCount: number } }>("/v1/title-grants?filter=pending&page=1&pageSize=1")).stats.pendingHolderCount, message: "无法读取未迁移玩家数量。" },
+  { title: "绑定例外", to: "/admin/bindings", icon: "i-lucide-link", prominent: true, state: metric(), read: async () => (await api<{ items: AdminBindingClaim[] }>("/v1/binding-claims")).items.filter((claim) => claim.status === "pending_review").length, message: "无法读取待处理绑定例外。" },
+  { title: "活跃玩家", to: "/admin/players", icon: "i-lucide-users", state: metric(), read: async () => (await api<{ total: number }>("/v1/player-accounts?status=active&page=1&pageSize=1")).total, message: "无法读取玩家数量。" },
+  { title: "通关记录", to: "/admin/verified-runs", icon: "i-lucide-trophy", state: metric(), read: async () => (await api<{ total: number }>("/v1/verified-runs?page=1&pageSize=1")).total, message: "无法读取通关记录数量。" },
+  { title: "地图", to: "/admin/maps", icon: "i-lucide-map", state: metric(), read: async () => (await api<{ items: unknown[] }>("/v1/maps")).items.length, message: "无法读取地图数量。" },
+  { title: "随机事件", to: "/admin/events", icon: "i-lucide-zap", state: metric(), read: async () => (await api<{ items: unknown[] }>("/v1/events?archived=false")).items.length, message: "无法读取随机事件数量。" },
+];
+const sections = [
+  { id: "todo", heading: "待处理", cards: cards.filter((card) => card.prominent) },
+  { id: "totals", heading: "平台概况", cards: cards.filter((card) => !card.prominent) },
+];
+
+// Reads settle independently: one failing must not hide the others.
+async function settle(card: MetricCard) {
+  card.state.error = "";
+  try {
+    card.state.count = await card.read();
+  } catch (error) {
+    card.state.count = null;
+    card.state.error = portalErrorDetails(error, card.message).description;
   }
 }
 
 const { loading, refresh } = useAdminAsyncData("admin-overview", async () => {
-  await Promise.all([...(Object.keys(metrics) as (keyof typeof metrics)[]).map(settle), loadWaiting()]);
+  await Promise.all(cards.map(settle));
   return true;
 });
-
-const todos = [
-  { key: "reviews", title: "截图待核对", to: "/admin/reviews", icon: "i-lucide-scan-eye" },
-  { key: "migration", title: "称号待迁移", to: "/admin/title-migration", icon: "i-lucide-history" },
-  { key: "claims", title: "绑定例外", to: "/admin/bindings", icon: "i-lucide-link" },
-] as const;
-const totals = [
-  { key: "players", title: "活跃玩家", to: "/admin/players", icon: "i-lucide-users" },
-  { key: "runs", title: "通关记录", to: "/admin/verified-runs", icon: "i-lucide-trophy" },
-  { key: "maps", title: "地图", to: "/admin/maps", icon: "i-lucide-map" },
-  { key: "events", title: "随机事件", to: "/admin/events", icon: "i-lucide-zap" },
-] as const;
 
 const now = useState("admin-overview-now", () => Date.now());
 onMounted(() => { now.value = Date.now(); });
@@ -87,33 +76,17 @@ function waitingFor(createdAt: number) {
       <UButton label="刷新" icon="i-lucide-refresh-cw" color="neutral" variant="outline" :loading="loading" @click="refresh" />
     </template>
 
-    <section class="dash-section" aria-labelledby="dash-todo">
-      <h2 id="dash-todo" class="dash-heading">待处理</h2>
-      <div class="dash-grid dash-grid--todo">
-        <template v-for="todo in todos" :key="todo.key">
-          <UAlert v-if="metrics[todo.key].error" color="error" variant="subtle" :title="todo.title" :description="metrics[todo.key].error">
-            <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" @click="settle(todo.key)" /></template>
+    <section v-for="section in sections" :key="section.id" class="dash-section" :aria-labelledby="`dash-${section.id}`">
+      <h2 :id="`dash-${section.id}`" class="dash-heading">{{ section.heading }}</h2>
+      <div class="dash-grid" :class="`dash-grid--${section.id}`">
+        <template v-for="card in section.cards" :key="card.title">
+          <UAlert v-if="card.state.error" color="error" variant="subtle" :title="card.title" :description="card.state.error">
+            <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" @click="settle(card)" /></template>
           </UAlert>
-          <NuxtLink v-else :to="todo.to" class="tile tile--todo" :class="{ 'is-hot': (metrics[todo.key].count ?? 0) > 0 }">
-            <span class="tile__label"><UIcon :name="todo.icon" aria-hidden="true" />{{ todo.title }}</span>
-            <USkeleton v-if="metrics[todo.key].count === null" class="tile__skeleton tile__skeleton--lg" role="status" aria-label="读取中…" />
-            <strong v-else class="tile__count tile__count--lg num">{{ metrics[todo.key].count }}</strong>
-          </NuxtLink>
-        </template>
-      </div>
-    </section>
-
-    <section class="dash-section" aria-labelledby="dash-totals">
-      <h2 id="dash-totals" class="dash-heading">平台概况</h2>
-      <div class="dash-grid dash-grid--totals">
-        <template v-for="total in totals" :key="total.key">
-          <UAlert v-if="metrics[total.key].error" color="error" variant="subtle" :title="total.title" :description="metrics[total.key].error">
-            <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" @click="settle(total.key)" /></template>
-          </UAlert>
-          <NuxtLink v-else :to="total.to" class="tile">
-            <span class="tile__label"><UIcon :name="total.icon" aria-hidden="true" />{{ total.title }}</span>
-            <USkeleton v-if="metrics[total.key].count === null" class="tile__skeleton" role="status" aria-label="读取中…" />
-            <strong v-else class="tile__count num">{{ metrics[total.key].count }}</strong>
+          <NuxtLink v-else :to="card.to" class="tile interactive-card" :class="{ 'is-hot': card.prominent && (card.state.count ?? 0) > 0 }">
+            <span class="tile__label"><UIcon :name="card.icon" aria-hidden="true" />{{ card.title }}</span>
+            <USkeleton v-if="card.state.count === null" class="tile__skeleton" :class="{ 'tile__skeleton--lg': card.prominent }" role="status" aria-label="读取中…" />
+            <strong v-else class="tile__count num" :class="{ 'tile__count--lg': card.prominent }">{{ card.state.count }}</strong>
           </NuxtLink>
         </template>
       </div>
@@ -126,7 +99,7 @@ function waitingFor(createdAt: number) {
           <UButton label="全部审核" to="/admin/reviews" trailing-icon="i-lucide-arrow-right" color="neutral" variant="link" size="sm" />
         </header>
         <UAlert v-if="waiting.error" color="error" variant="subtle" title="待核对截图" :description="waiting.error">
-          <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" @click="loadWaiting" /></template>
+          <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" @click="settle(reviewsCard)" /></template>
         </UAlert>
         <div v-else-if="waiting.items === null" class="panel__list" role="status" aria-label="读取中…">
           <USkeleton v-for="n in waitingLimit" :key="n" class="row-skeleton" />
@@ -163,8 +136,7 @@ function waitingFor(createdAt: number) {
 .dash-grid { display: grid; gap: var(--space-4); }
 .dash-grid--todo { grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); }
 .dash-grid--totals { grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr)); }
-.tile { position: relative; display: grid; gap: var(--space-2); padding: var(--space-5); overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); color: var(--muted); text-decoration: none; transition: border-color 160ms ease; }
-.tile:hover, .tile:focus-visible { border-color: var(--line-strong); }
+.tile { position: relative; display: grid; gap: var(--space-2); padding: var(--space-5); overflow: hidden; border-radius: var(--radius-card); color: var(--muted); }
 .tile.is-hot { border-color: color-mix(in oklch, var(--signal) 50%, var(--line)); background: radial-gradient(80% 120% at 100% 0%, color-mix(in oklch, var(--signal) 14%, transparent), transparent 65%), var(--surface); }
 .tile.is-hot::before { position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--signal); content: ""; }
 .tile__label { display: flex; align-items: center; gap: var(--space-2); font-size: var(--type-label-size); font-weight: 600; }
