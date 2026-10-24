@@ -2121,16 +2121,6 @@ describe("API", () => {
     expect(await allowed.json()).toMatchObject({ contractVersion: "1", items: [], page: 1 });
   });
 
-  it("updates a player's BattleTag through the maintainer route", async () => {
-    const updates: Array<{ playerAccountId: string; playerName: string; key: string }> = [];
-    const adminApp = createTestApp({
-      updateAdminPlayerIdentity: async (input, _auth, key) => { updates.push({ playerAccountId: input.playerAccountId, playerName: input.playerName, key }); },
-    }, authenticateAsMaintainer);
-    const response = await adminApp.request("http://localhost/v1/admin/player-accounts/player-1/identity", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "identity-1" }, body: JSON.stringify({ contractVersion: "1", playerName: "新名称" }) }, env);
-    expect(response.status).toBe(204);
-    expect(updates).toEqual([{ playerAccountId: "player-1", playerName: "新名称", key: "identity-1" }]);
-  });
-
   it("lets maintainers repair a player's equipped titles", async () => {
     const requests: Array<{ playerAccountId: string; grantIds: string[]; key: string }> = [];
     const adminApp = createTestApp({

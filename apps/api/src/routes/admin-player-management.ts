@@ -45,6 +45,7 @@ export const registerAdminPlayerManagementRoutes = (app: ApiApp, dependencies: A
       errors: {
         ...errorGroup(404, "The player does not exist", "PLAYER_NOT_FOUND"),
         ...errorGroup(409, "The BattleTag is already used by another player", "PLAYER_BATTLETAG_CONFLICT"),
+        ...errorGroup(409, "The old or new BattleTag has a pending invite or binding claim", "PLAYER_BATTLETAG_PENDING_INVITE"),
       },
     });
   });

@@ -1,9 +1,11 @@
-import { and, count, desc, eq, inArray, like, ne, or } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray, isNull, like, ne, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
 import type { AdminPlayerDetail, PlayerSubmissionStatus, VerifiedRunDifficulty } from "@owbastion/contracts";
 import {
+  bindingClaims,
+  bindingInvites,
   bindings,
   challengeCompletions,
   challenges,
@@ -203,13 +205,27 @@ export const createAdminPlayerServices = ({
     const account = await db.select().from(playerAccounts).where(eq(playerAccounts.id, input.playerAccountId)).get();
     if (!account) throw new Error("PLAYER_NOT_FOUND");
     const playerName = input.playerName.trim();
+    const { playerId } = input;
     const normalizedPlayerName = normalizePlayerName(playerName);
-    const conflict = await db.select({ id: playerAccounts.id }).from(playerAccounts).where(and(eq(playerAccounts.normalizedPlayerName, normalizedPlayerName), eq(playerAccounts.playerId, account.playerId), ne(playerAccounts.id, account.id))).get();
+    const conflict = await db.select({ id: playerAccounts.id }).from(playerAccounts).where(and(eq(playerAccounts.normalizedPlayerName, normalizedPlayerName), eq(playerAccounts.playerId, playerId), ne(playerAccounts.id, account.id))).get();
     if (conflict) throw new Error("PLAYER_BATTLETAG_CONFLICT");
     const timestamp = now();
-    await db.update(playerAccounts).set({ playerName, normalizedPlayerName, updatedAt: timestamp }).where(eq(playerAccounts.id, input.playerAccountId));
+    const inviteBattleTags = or(
+      and(eq(bindingInvites.normalizedPlayerName, account.normalizedPlayerName), eq(bindingInvites.playerId, account.playerId)),
+      and(eq(bindingInvites.normalizedPlayerName, normalizedPlayerName), eq(bindingInvites.playerId, playerId)),
+    );
+    const claimBattleTags = or(
+      and(eq(bindingClaims.normalizedPlayerName, account.normalizedPlayerName), eq(bindingClaims.playerId, account.playerId)),
+      and(eq(bindingClaims.normalizedPlayerName, normalizedPlayerName), eq(bindingClaims.playerId, playerId)),
+    );
+    const [pendingInvite, pendingClaim] = await Promise.all([
+      db.select({ id: bindingInvites.id }).from(bindingInvites).where(and(inviteBattleTags, isNull(bindingInvites.redeemedAt), isNull(bindingInvites.revokedAt), gt(bindingInvites.expiresAt, timestamp))).get(),
+      db.select({ id: bindingClaims.id }).from(bindingClaims).where(and(claimBattleTags, or(eq(bindingClaims.status, "pending_review"), and(eq(bindingClaims.status, "pending_confirmation"), gt(bindingClaims.expiresAt, timestamp))))).get(),
+    ]);
+    if (pendingInvite || pendingClaim) throw new Error("PLAYER_BATTLETAG_PENDING_INVITE");
+    await db.update(playerAccounts).set({ playerName, normalizedPlayerName, playerId, updatedAt: timestamp }).where(eq(playerAccounts.id, input.playerAccountId));
     await recordIdempotency(auth.subject, "admin.player.identity", idempotencyKey, input, {});
-    await recordAudit(auth, "admin.player.identity.update", "player_account", input.playerAccountId, { previousPlayerName: account.playerName, playerName, playerId: account.playerId });
+    await recordAudit(auth, "admin.player.identity.update", "player_account", input.playerAccountId, { previousPlayerName: account.playerName, previousPlayerId: account.playerId, playerName, playerId });
   },
 
   async removeAdminBinding(input, auth, idempotencyKey) {

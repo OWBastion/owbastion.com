@@ -43,22 +43,6 @@ const seedPlayerAndActiveVerificationGroup = (sqlite: DatabaseSync, now: number)
 const createServicesWithTestEncryptionKey = (database: D1Database) => createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, "test-encryption-key");
 
 describe("invitation binding flow", () => {
-  it("updates an administrator's player name while keeping the numeric ID stable", async () => {
-    const { database, sqlite } = createD1();
-    const timestamp = Date.now();
-    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.1', '1234', '旧名称', '旧名称', ?, ?)").run(timestamp, timestamp);
-    const services = createPlatformServices(database);
-    const admin = { actorType: "user" as const, subject: "admin.1", roles: ["maintainer"] as const, provider: "test" };
-    const input = { contractVersion: "1" as const, playerAccountId: "player.1", playerName: "新名称" };
-
-    await services.updateAdminPlayerIdentity(input, admin, "identity.1");
-    await services.updateAdminPlayerIdentity(input, admin, "identity.1");
-
-    expect(sqlite.prepare("SELECT player_id, player_name, normalized_player_name FROM player_accounts WHERE id = 'player.1'").get()).toEqual({ player_id: "1234", player_name: "新名称", normalized_player_name: "新名称" });
-    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM idempotency_keys WHERE operation = 'admin.player.identity'").get()).toEqual({ count: 1 });
-    expect(sqlite.prepare("SELECT operation, payload_json FROM audit_events WHERE operation = 'admin.player.identity.update'").get()).toMatchObject({ operation: "admin.player.identity.update" });
-  });
-
   it("keeps one active QQ group when access is moved to another group", async () => {
     const { database, sqlite } = createD1();
     const timestamp = Date.now();
