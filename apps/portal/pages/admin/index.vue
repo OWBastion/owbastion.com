@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { AdminBindingClaim, AdminSubmission } from "~/composables/useAdminApi";
-import { adminSectionGroups } from "~/utils/admin-sections";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { reviewQueueStatuses } from "~/utils/reviewQueue";
 
@@ -92,41 +91,27 @@ function waitingFor(createdAt: number) {
       </div>
     </section>
 
-    <div class="dash-columns">
-      <section class="panel" aria-labelledby="dash-waiting">
-        <header class="panel__header">
-          <h2 id="dash-waiting" class="dash-heading">等待最久的截图</h2>
-          <UButton label="全部审核" to="/admin/reviews" trailing-icon="i-lucide-arrow-right" color="neutral" variant="link" size="sm" />
-        </header>
-        <UAlert v-if="waiting.error" color="error" variant="subtle" title="待核对截图" :description="waiting.error">
-          <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" @click="settle(reviewsCard)" /></template>
-        </UAlert>
-        <div v-else-if="waiting.items === null" class="panel__list" role="status" aria-label="读取中…">
-          <USkeleton v-for="n in waitingLimit" :key="n" class="row-skeleton" />
-        </div>
-        <p v-else-if="!waiting.items.length" class="panel__empty">没有等待核对的截图。</p>
-        <ul v-else class="panel__list">
-          <li v-for="item in waiting.items" :key="item.submissionId">
-            <NuxtLink :to="`/admin/reviews/${encodeURIComponent(item.submissionId)}`" class="row">
-              <span class="row__main"><strong>{{ item.mapName }}</strong><small>{{ item.difficulty }} · {{ item.playerName }}</small></span>
-              <span class="row__wait num">已等 {{ waitingFor(item.createdAt) }}</span>
-            </NuxtLink>
-          </li>
-        </ul>
-      </section>
-
-      <section class="panel" aria-labelledby="dash-directory">
-        <header class="panel__header"><h2 id="dash-directory" class="dash-heading">全部管理项</h2></header>
-        <div class="directory">
-          <div v-for="group in adminSectionGroups" :key="group.label" class="directory__group">
-            <h3 class="directory__title"><UIcon :name="group.icon" aria-hidden="true" />{{ group.label }}</h3>
-            <ul>
-              <li v-for="section in group.sections" :key="section.to"><NuxtLink :to="section.to">{{ section.label }}</NuxtLink></li>
-            </ul>
-          </div>
-        </div>
-      </section>
-    </div>
+    <section class="panel" aria-labelledby="dash-waiting">
+      <header class="panel__header">
+        <h2 id="dash-waiting" class="dash-heading">等待最久的截图</h2>
+        <UButton label="全部审核" to="/admin/reviews" trailing-icon="i-lucide-arrow-right" color="neutral" variant="link" size="sm" />
+      </header>
+      <UAlert v-if="waiting.error" color="error" variant="subtle" title="待核对截图" :description="waiting.error">
+        <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" @click="settle(reviewsCard)" /></template>
+      </UAlert>
+      <div v-else-if="waiting.items === null" class="panel__list" role="status" aria-label="读取中…">
+        <USkeleton v-for="n in waitingLimit" :key="n" class="row-skeleton" />
+      </div>
+      <p v-else-if="!waiting.items.length" class="panel__empty">没有等待核对的截图。</p>
+      <ul v-else class="panel__list">
+        <li v-for="item in waiting.items" :key="item.submissionId">
+          <NuxtLink :to="`/admin/reviews/${encodeURIComponent(item.submissionId)}`" class="row">
+            <span class="row__main"><strong>{{ item.mapName }}</strong><small>{{ item.difficulty }} · {{ item.playerName }}</small></span>
+            <span class="row__wait num">已等 {{ waitingFor(item.createdAt) }}</span>
+          </NuxtLink>
+        </li>
+      </ul>
+    </section>
   </AdminWorkspace>
 </template>
 
@@ -145,7 +130,6 @@ function waitingFor(createdAt: number) {
 .tile.is-hot .tile__count { color: var(--signal); }
 .tile__skeleton { height: 2.2rem; }
 .tile__skeleton--lg { height: 3.5rem; }
-.dash-columns { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--space-4); align-items: start; }
 .panel { display: grid; gap: var(--space-3); padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
 .panel__header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .panel__list { display: grid; margin: 0; padding: 0; list-style: none; }
@@ -157,11 +141,5 @@ function waitingFor(createdAt: number) {
 .row__main small { color: var(--quiet); overflow-wrap: anywhere; }
 .row__wait { flex: none; color: var(--muted); font-size: var(--type-caption-size); }
 .row-skeleton { height: 2.75rem; margin-block: var(--space-1); }
-.directory { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 9rem), 1fr)); gap: var(--space-4); }
-.directory__title { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-2); color: var(--muted); font-size: var(--type-caption-size); font-weight: 600; }
-.directory ul { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
-.directory a { color: var(--text); font-size: var(--type-label-size); text-decoration: none; }
-.directory a:hover, .directory a:focus-visible { text-decoration: underline; }
-@media (max-width: 63.99rem) { .dash-columns { grid-template-columns: minmax(0, 1fr); } }
 @media (prefers-reduced-motion: reduce) { .tile { transition: none; } }
 </style>
