@@ -43,6 +43,15 @@ describe("AdminVerifiedRunCorrectionForm", () => {
     ]]);
   });
 
+  it("converts a screenshot-style duration to seconds", async () => {
+    const wrapper = await mountForm();
+
+    await wrapper.findAll("label").find((label) => label.text().includes("通关用时"))!.get("input").setValue("1小时2分3秒");
+    await wrapper.find("form").trigger("submit");
+
+    expect(wrapper.emitted("submit")![0]![0]).toMatchObject({ changes: { completionDurationSeconds: 3723 } });
+  });
+
   it("drops a removed event row from the emitted event counters", async () => {
     const wrapper = await mountForm();
 
