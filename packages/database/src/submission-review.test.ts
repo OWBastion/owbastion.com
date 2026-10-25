@@ -257,6 +257,17 @@ describe("maintainer Challenge confirmation during submission review", () => {
     expect((await services.listAdminSubmissions({ playerAccountId: "no-such-player", page: 1, pageSize: 20 }, auth)).items).toEqual([]);
   });
 
+  it("links each listed submission to its latest screenshot", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedIncompleteMapEvidence(sqlite);
+    sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, object_key, upload_status, created_at) VALUES ('attachment.old', 'submission.confirm', 'portal', 'old', 'image/png', 'evidence/old.png', 'stored', ?), ('attachment.new', 'submission.confirm', 'portal', 'new', 'image/png', 'evidence/new.png', 'stored', ?)").run(now - 1000, now);
+    const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, "https://evidence.example/");
+    const { items } = await services.listAdminSubmissions({ page: 1, pageSize: 20 }, auth);
+    expect(items.find((item) => item.submissionId === "submission.confirm")?.evidenceUrl).toBe("https://evidence.example/evidence/new.png");
+    expect(items.filter((item) => item.submissionId !== "submission.confirm").every((item) => item.evidenceUrl === null)).toBe(true);
+  });
+
   it("adds an eligible Challenge that OCR did not propose and recomputes corrected evidence with the same matcher", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
