@@ -10,6 +10,11 @@ const items = shallowRef<AdminSubmission[]>([]);
 const total = shallowRef(0);
 const loading = shallowRef(true);
 const errorMessage = shallowRef("");
+// A Portal or QQ upload stores the placeholder "成就挑战" as map until review, so prefer the Challenge's map, then the recognised one.
+const mapLabel = (item: AdminSubmission) => {
+  const recognised = (item.ocr as { data?: { map_name?: unknown } } | null)?.data?.map_name;
+  return (item.challenge?.family === "map" ? item.challenge.mapName : "") || (typeof recognised === "string" && recognised.trim()) || item.mapName;
+};
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 
 async function load(append = false) {
@@ -36,7 +41,7 @@ onMounted(() => load());
         <NuxtLink :to="`/admin/reviews/${encodeURIComponent(item.submissionId)}`" class="shots__card pressable-soft">
           <img v-if="item.evidenceUrl" :src="item.evidenceUrl" alt="" loading="lazy" />
           <span v-else class="shots__placeholder">无截图</span>
-          <span class="shots__meta"><strong>{{ item.mapName }}</strong><StatusBadge :label="submissionStatusText[item.status] ?? item.status" :tone="submissionStatusTone(item.status)" /><time>{{ formatTime(item.updatedAt) }}</time></span>
+          <span class="shots__meta"><strong>{{ mapLabel(item) }}</strong><StatusBadge :label="submissionStatusText[item.status] ?? item.status" :tone="submissionStatusTone(item.status)" /><time>{{ formatTime(item.updatedAt) }}</time></span>
         </NuxtLink>
       </li>
     </ul>
