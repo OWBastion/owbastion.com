@@ -9,14 +9,16 @@ const sunsetting = { ...base, challengeId: "c-sun", titleKey: "SUN", titleName: 
 const ended = { ...base, challengeId: "c-ended", titleKey: "ENDED", titleName: "往日荣光", condition: "已结束的挑战", status: "ended" };
 
 describe("AchievementCatalog", () => {
-  it("lists ended titles after open ones and labels them in the detail sheet", async () => {
+  it("lists ended titles after open ones and marks them with a status icon and explains it in the detail sheet", async () => {
     const wrapper = await mountSuspended(AchievementCatalog, { props: { challenges: [ended, live, sunsetting] as never[] }, attachTo: document.body });
     const names = wrapper.findAll("button").map((button) => button.text());
     expect(names.findIndex((name) => name.includes("进行中"))).toBeLessThan(names.findIndex((name) => name.includes("往日荣光")));
     await wrapper.findAll("button").find((button) => button.text().includes("往日荣光"))!.trigger("click");
     await flushPromises();
-    expect(wrapper.text()).toContain("即将结束");
-    expect(wrapper.text()).toContain("不再发放");
+    expect(wrapper.find('[aria-label="即将结束"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="不再发放"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain("26.1101.1");
+    expect(wrapper.text()).not.toContain("不再发放");
     expect(document.body.textContent).toContain("不再发放");
     wrapper.unmount();
   });

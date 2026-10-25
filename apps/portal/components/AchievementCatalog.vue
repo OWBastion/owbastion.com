@@ -2,6 +2,7 @@
 import type { Challenge } from "@owbastion/contracts";
 import type { OwnedTitle } from "~/types/title";
 import { achievementState, findOwnedTitle } from "~/utils/achievement-status";
+import { availabilityNote, availabilityOf } from "~/utils/achievement-availability";
 
 export type PublicAchievement = Extract<Challenge, { family: "achievement" }>;
 
@@ -22,7 +23,7 @@ const groups = computed(() => {
 const selected = shallowRef<PublicAchievement | null>(null);
 const sheetOpen = computed({ get: () => selected.value !== null, set: (value) => { if (!value) selected.value = null; } });
 const earnedOf = (challenge: PublicAchievement) => challenge.status === "scheduled" ? false : challenge.status === "ended" ? stateOf(challenge) !== "none" : !props.titles || stateOf(challenge) !== "none";
-const noteOf = (challenge: PublicAchievement) => challenge.status === "scheduled" ? "未开放" : challenge.status === "ended" ? "不再发放" : challenge.status === "sunsetting" ? "即将结束" : undefined;
+const noteOf = (challenge: PublicAchievement) => { const availability = availabilityOf(challenge.status); return availability && availabilityNote(availability, challenge.retiredVersion); };
 </script>
 
 <template>
@@ -30,7 +31,7 @@ const noteOf = (challenge: PublicAchievement) => challenge.status === "scheduled
     <AchievementWall>
       <AchievementShelf v-for="(group, groupIndex) in groups" :key="group.anchor" :title="group.category" :heading-id="`${group.anchor}-title`" :count="group.obtained === null ? String(group.challenges.length) : `${group.obtained}/${group.challenges.length}`">
         <li v-for="(challenge, index) in group.challenges" :key="challenge.challengeId">
-          <AchievementTile :name="challenge.titleName" :icon-url="challenge.iconUrl" :icon="challenge.icon" :earned="earnedOf(challenge)" :note="noteOf(challenge)" :checked="Boolean(titles) && stateOf(challenge) !== 'none'" check-label="已获得" :shine-delay="groupIndex * .8 + index * .22" @click="selected = challenge" />
+          <AchievementTile :name="challenge.titleName" :icon-url="challenge.iconUrl" :icon="challenge.icon" :earned="earnedOf(challenge)" :availability="availabilityOf(challenge.status)" :retired-version="challenge.retiredVersion" :checked="Boolean(titles) && stateOf(challenge) !== 'none'" check-label="已获得" :shine-delay="groupIndex * .8 + index * .22" @click="selected = challenge" />
         </li>
       </AchievementShelf>
     </AchievementWall>
@@ -39,7 +40,7 @@ const noteOf = (challenge: PublicAchievement) => challenge.status === "scheduled
       <template #body>
         <div v-if="selected" class="sheet">
           <AchievementIcon class="sheet__icon" entrance :url="selected.iconUrl" :icon="selected.icon" earned />
-          <p v-if="noteOf(selected)" class="sheet__note">{{ noteOf(selected) }}{{ selected.status === "sunsetting" && selected.retiredVersion ? ` · ${selected.retiredVersion}` : "" }}</p>
+          <p v-if="noteOf(selected)" class="sheet__note">{{ noteOf(selected) }}</p>
           <p class="sheet__condition">{{ selected.condition }}</p>
           <p v-if="titles && stateOf(selected) !== 'none'" class="sheet__owned"><UIcon name="i-lucide-check" aria-hidden="true" />已获得</p>
         </div>
