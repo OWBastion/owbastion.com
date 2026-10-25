@@ -8,8 +8,10 @@ import type {
   AdminTitleUpdateResponse,
 } from "./admin-title-types";
 import { challengeWindowLabel, submissionModeLabel, titleAcquisitionLabel, titleColorLabel, titleDisplayKindLabel, titleScopeLabel } from "./admin-title-types";
-import type { AdminMap, DerivedStatus, StandaloneModeOption } from "./admin-achievement-types";
-import { achievementStatusLabel, achievementStatusTone, challengeDisplayStatus } from "./admin-achievement-types";
+import type { AdminMap, StandaloneModeOption } from "./admin-achievement-types";
+import { achievementStatusLabel, achievementStatusTone, challengeDisplayStatus, compareAttention } from "./admin-achievement-types";
+import type { TitleSort, TitleView } from "./admin-title-view";
+import { inTitleView, sortTitles, titleViewTabs, useEndedChallengeFold } from "./admin-title-view";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
 
@@ -30,8 +32,8 @@ const retirementVersions = reactive<Record<string, string>>({});
 const search = shallowRef("");
 const categoryFilter = shallowRef("all");
 const scopeFilter = shallowRef<"all" | "global" | "map">("all");
-const statusFilter = shallowRef<"all" | DerivedStatus>("all");
-const sortMode = shallowRef<"category_label" | "label" | "status">("category_label");
+const view = shallowRef<TitleView>("attention");
+const sortMode = shallowRef<TitleSort>("attention");
 
 const titleDialogOpen = shallowRef(false);
 const titleDialogMode = shallowRef<"create" | "edit">("create");
@@ -53,34 +55,26 @@ const searchHaystack = (title: AdminTitleSummary) => {
   const conditions = (challengesByTitle.get(title.titleKey) ?? []).map((challenge) => challenge.condition).join(" ");
   return `${title.label} ${title.titleKey} ${title.category} ${conditions}`.toLocaleLowerCase();
 };
-const filteredTitles = computed(() => {
+const matchesFilters = (title: AdminTitleSummary) => {
   const query = search.value.trim().toLocaleLowerCase();
-  return titles.value.filter((title) =>
-    (!query || searchHaystack(title).includes(query))
+  return (!query || searchHaystack(title).includes(query))
     && (categoryFilter.value === "all" || title.category === categoryFilter.value)
-    && (scopeFilter.value === "all" || title.scope === scopeFilter.value)
-    && (statusFilter.value === "all" || title.status === statusFilter.value));
-});
-const statusOrder: Record<DerivedStatus, number> = { draft: 0, scheduled: 1, active: 2, sunsetting: 3, ended: 4 };
-const sortedTitles = computed(() => {
-  const items = [...filteredTitles.value];
-  if (sortMode.value === "label") return items.sort((a, b) => a.label.localeCompare(b.label, "zh-CN"));
-  if (sortMode.value === "status") return items.sort((a, b) => statusOrder[a.status] - statusOrder[b.status] || a.label.localeCompare(b.label, "zh-CN"));
-  return items.sort((a, b) => a.category.localeCompare(b.category, "zh-CN") || a.label.localeCompare(b.label, "zh-CN"));
-});
+    && (scopeFilter.value === "all" || title.scope === scopeFilter.value);
+};
+const viewTabs = computed(() => titleViewTabs(titles.value.filter(matchesFilters)));
+const filteredTitles = computed(() => titles.value.filter((title) => matchesFilters(title) && inTitleView(title, view.value)));
+const sortedTitles = computed(() => sortTitles(filteredTitles.value, sortMode.value));
 const activeFilterChips = computed(() => {
   const chips: string[] = [];
   if (search.value.trim()) chips.push(`搜索“${search.value.trim()}”`);
   if (categoryFilter.value !== "all") chips.push(categoryFilter.value);
   if (scopeFilter.value !== "all") chips.push(titleScopeLabel(scopeFilter.value));
-  if (statusFilter.value !== "all") chips.push(achievementStatusLabel(statusFilter.value));
   return chips;
 });
 function clearFilters() {
   search.value = "";
   categoryFilter.value = "all";
   scopeFilter.value = "all";
-  statusFilter.value = "all";
 }
 
 const adminData = useAdminAsyncData("admin-title-summaries", async () => {
@@ -133,6 +127,7 @@ function toggleExpand(title: AdminTitleSummary) {
 function challengesOf(title: AdminTitleSummary) {
   return challengesByTitle.get(title.titleKey) ?? [];
 }
+const endedFold = useEndedChallengeFold(challengesOf);
 function siblingsOf(title: AdminTitleSummary, excludeId?: string) {
   return challengesOf(title).filter((challenge) => challenge.challengeId !== excludeId);
 }
@@ -437,9 +432,10 @@ async function submitChallenge(payload: Record<string, unknown>) {
         <UInput v-model="search" class="title-toolbar__search" aria-label="搜索称号或完成条件" placeholder="搜索称号或完成条件" icon="i-lucide-search" />
         <USelect v-model="categoryFilter" aria-label="筛选系列" :items="[{ label: '全部系列', value: 'all' }, ...categories.map((category) => ({ label: category, value: category }))]" />
         <USelect v-model="scopeFilter" aria-label="筛选范围" :items="[{ label: '全部范围', value: 'all' }, { label: '全局称号', value: 'global' }, { label: '地图称号', value: 'map' }]" />
-        <USelect v-model="statusFilter" aria-label="筛选称号状态" :items="[{ label: '全部状态', value: 'all' }, { label: '草稿', value: 'draft' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已结束', value: 'ended' }]" />
-        <USelect v-model="sortMode" aria-label="排序方式" :items="[{ label: '系列 · 称号', value: 'category_label' }, { label: '称号', value: 'label' }, { label: '状态', value: 'status' }]" />
+        <USelect v-model="sortMode" aria-label="排序方式" :items="[{ label: '关注度', value: 'attention' }, { label: '系列 · 称号', value: 'category_label' }, { label: '称号', value: 'label' }]" />
       </div>
+
+      <UTabs v-model="view" :items="viewTabs" :content="false" variant="link" aria-label="称号状态视图" />
 
       <div v-if="loading" class="title-state" aria-busy="true">
         <div class="title-skeleton" v-for="index in 4" :key="index"><USkeleton class="title-skeleton__line" /><USkeleton class="title-skeleton__badge" /></div>
@@ -524,7 +520,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
                         <UButton size="sm" color="neutral" variant="outline" label="添加第一条挑战" @click="openAddChallenge(title)" />
                       </div>
                       <ul v-else class="title-challenges" :aria-label="`${title.label}的获取方式`">
-                        <li v-for="challenge in challengesOf(title)" :key="challenge.challengeId" class="title-challenge">
+                        <li v-for="challenge in endedFold.visible(title)" :key="challenge.challengeId" class="title-challenge">
                           <div class="title-cell-stack title-challenge__condition">
                             <span>{{ challenge.condition }}</span>
                             <small v-if="challenge.replacedByChallengeId" class="table-meta">完成条件变更后由上一条取代</small>
@@ -556,6 +552,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
                           </div>
                         </li>
                       </ul>
+                      <UButton v-if="endedFold.canFold(title)" size="sm" color="neutral" variant="ghost" :label="endedFold.toggleLabel(title)" @click="endedFold.toggle(title)" />
                     </template>
                   </div>
                 </td>
@@ -586,7 +583,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
                 <div v-if="challengesLoading.has(title.titleKey)" role="status" class="table-meta">读取中…</div>
                 <UAlert v-else-if="challengesError.get(title.titleKey)" color="error" variant="subtle" :description="challengesError.get(title.titleKey)" />
                 <div v-else-if="!challengesOf(title).length" class="title-empty-card">还没有获取方式，玩家无法获得这个称号。</div>
-                <div v-for="challenge in challengesOf(title)" :key="challenge.challengeId" class="title-record__challenge">
+                <div v-for="challenge in endedFold.visible(title)" :key="challenge.challengeId" class="title-record__challenge">
                   <div class="title-record__challenge-head">
                     <span>{{ challenge.condition }}</span>
                     <StatusBadge :label="achievementStatusLabel(challengeDisplayStatus(challenge))" :tone="achievementStatusTone(challengeDisplayStatus(challenge))" />
@@ -610,6 +607,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
                     </div>
                   </form>
                 </div>
+                <UButton v-if="endedFold.canFold(title)" size="sm" color="neutral" variant="ghost" :label="endedFold.toggleLabel(title)" @click="endedFold.toggle(title)" />
               </template>
               <div class="title-record__foot">
                 <UButton v-if="title.acquisition.kind !== 'map_rule'" size="sm" color="neutral" variant="outline" icon="i-lucide-plus" label="添加挑战" @click="openAddChallenge(title)" />

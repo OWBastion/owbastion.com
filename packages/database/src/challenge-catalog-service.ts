@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, notExists, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, notExists, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { parseChallengeProgressRule } from "@owbastion/domain";
 import type { Challenge } from "@owbastion/contracts";
@@ -375,10 +375,43 @@ export const createChallengeCatalogServices = ({ db, now, platformCache, pioneer
     });
   };
 
+  // Gallery projection: every released, publicly visible title except the
+  // developer-reserved series. A title with no open path shows once as ended.
+  const listPublicAchievements = async (): Promise<Array<Extract<Challenge, { family: "achievement" }>>> => {
+    const rows = await platformCache.cached("catalog", "pub-achievement-gallery-rows", () => db.select({ challenge: titleChallenges, title: titleCatalog })
+      .from(titleChallenges)
+      .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
+      .where(and(ne(titleChallenges.status, "draft"), eq(titleCatalog.lifecycle, "active"), eq(titleCatalog.publicVisibility, 1), ne(titleCatalog.category, "开发保留"))));
+    const timestamp = now();
+    const byTitle = new globalThis.Map<string, typeof rows>();
+    for (const row of rows) {
+      if ((row.challenge.scope ?? "global") === "map" && row.challenge.mapVariant) continue;
+      byTitle.set(row.title.key, [...(byTitle.get(row.title.key) ?? []), row]);
+    }
+    return [...byTitle.values()].flatMap((group): Array<Extract<Challenge, { family: "achievement" }>> => {
+      const open = group.flatMap(({ challenge, title }) => {
+        const fields = publicTitleChallengeFields(challenge, title, timestamp);
+        return fields ? [{ ...toTitleChallengeBase(challenge, title), ...fields }] : [];
+      });
+      if (open.length) return open;
+      const released = group.filter(({ challenge, title }) => challenge.gameVersion?.trim() && title.gameVersion?.trim());
+      const latest = released.sort((left, right) => (right.challenge.endsAt ?? 0) - (left.challenge.endsAt ?? 0) || left.challenge.id.localeCompare(right.challenge.id))[0];
+      return latest ? [{
+        ...toTitleChallengeBase(latest.challenge, latest.title),
+        gameVersion: latest.challenge.gameVersion!.trim(),
+        status: "ended" as const,
+        startsAt: latest.challenge.startsAt ?? undefined,
+        endsAt: latest.challenge.endsAt ?? undefined,
+        retiredVersion: latest.challenge.retiredVersion ?? undefined,
+      }] : [];
+    }).sort((left, right) => left.category.localeCompare(right.category, "zh-CN") || left.titleName.localeCompare(right.titleName, "zh-CN"));
+  };
+
   return {
     enabledMapChallengeAssignment,
     fetchAllPublicChallenges,
     fetchPlayerAutoMatchChallenges,
+    listPublicAchievements,
     loadChallengeMapIds,
     loadMapScopedTitleChallenges,
     loadMapTitleRuleChallenges,

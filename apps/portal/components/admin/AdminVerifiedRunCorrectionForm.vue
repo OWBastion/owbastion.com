@@ -2,6 +2,7 @@
 import type { AdminVerifiedRun, AdminVerifiedRunCorrectionChanges } from "~/composables/useAdminApi";
 import type { AdminMapEditor } from "~/composables/useAdminMapEditor";
 import { lifecycleLabels } from "~/utils/map-lifecycle";
+import { formatDuration, parseDurationSeconds } from "~/utils/duration";
 
 const props = defineProps<{
   run: AdminVerifiedRun;
@@ -21,7 +22,7 @@ const draft = reactive({
   difficulty: props.run.difficulty,
   gameVersion: props.run.gameVersion,
   matchCode: props.run.matchCode,
-  completionDurationSeconds: String(props.run.completionDurationSeconds),
+  completionDuration: formatDuration(props.run.completionDurationSeconds),
   deaths: props.run.deaths == null ? "" : String(props.run.deaths),
   skips: props.run.skips == null ? "" : String(props.run.skips),
   eventCounters: Object.entries(props.run.eventCounters).map(([eventId, count]) => ({ eventId, count: String(count) })),
@@ -61,6 +62,8 @@ function submit() {
   try {
     if (!draft.mapId || !draft.gameplayRevisionId) throw new Error("请选择地图和版本修订");
     if (!draft.gameVersion.trim()) throw new Error("游戏版本不能为空");
+    const completionDurationSeconds = parseDurationSeconds(draft.completionDuration);
+    if (!completionDurationSeconds) throw new Error("通关用时格式应为 1小时2分3秒，且大于零");
     const eventCounters = Object.fromEntries(draft.eventCounters.map((row) => {
       const count = Number(row.count);
       if (!row.count.trim() || !Number.isInteger(count) || count < 0) throw new Error("事件次数必须是非负整数");
@@ -73,7 +76,7 @@ function submit() {
         difficulty: draft.difficulty,
         gameVersion: draft.gameVersion.trim(),
         matchCode: draft.matchCode.trim(),
-        completionDurationSeconds: parseCount(draft.completionDurationSeconds, "通关用时", true)!,
+        completionDurationSeconds,
         deaths: parseCount(draft.deaths, "死亡次数"),
         skips: parseCount(draft.skips, "跳过次数"),
         eventCounters,
@@ -98,7 +101,7 @@ function submit() {
       <UFormField label="难度" required><USelect v-model="draft.difficulty" :items="difficulties.map((value) => ({ label: value, value }))" :disabled="saving" class="w-full" /></UFormField>
       <UFormField label="游戏版本" required><UInput v-model="draft.gameVersion" required :disabled="saving" /></UFormField>
       <UFormField label="对局码" required><UInput v-model="draft.matchCode" required :disabled="saving" /></UFormField>
-      <UFormField label="通关用时（秒）" required><UInput v-model="draft.completionDurationSeconds" type="number" min="1" step="1" required :disabled="saving" /></UFormField>
+      <UFormField label="通关用时" required><UInput v-model="draft.completionDuration" placeholder="例如 1小时2分3秒" required :disabled="saving" /></UFormField>
       <UFormField label="死亡次数" hint="留空表示未知"><UInput v-model="draft.deaths" type="number" min="0" step="1" :disabled="saving" /></UFormField>
       <UFormField label="跳过次数" hint="留空表示未知"><UInput v-model="draft.skips" type="number" min="0" step="1" :disabled="saving" /></UFormField>
     </div>

@@ -50,6 +50,28 @@ describe("title challenge availability derivation", () => {
     const defaultsToLatest = await services.createAdminTitleChallenge({ contractVersion: "1", titleKey: "FUTURE_TITLE", condition: "另一挑战", submissionMode: "manual", status: "active" }, auth, "latest");
     expect(defaultsToLatest.gameVersion).toBe("26.1003.10");
   });
+  it("lists every released public title in the gallery, marking fully ended ones", async () => {
+    const fixture = createD1(); fixtures.push(fixture); installSchema(fixture.sqlite);
+    fixture.sqlite.prepare("INSERT INTO random_event_versions (game_version,created_at,updated_at) VALUES ('26.0811.1',1,1)").run();
+    const services = createPlatformServices(fixture.database);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
+    const release = async (titleKey: string, category: string, publicVisibility = true) => {
+      await services.createAdminTitle({ contractVersion: "1", titleKey, label: titleKey, icon: "trophy", category, scope: "global", displayKind: "fixed", publicVisibility }, auth, `title-${titleKey}`);
+      const challenge = await services.createAdminTitleChallenge({ contractVersion: "1", titleKey, condition: `完成 ${titleKey}`, submissionMode: "manual", status: "active" }, auth, `challenge-${titleKey}`);
+      await services.updateAdminCatalogTitle({ contractVersion: "1", titleKey, lifecycle: "active" }, auth, `enable-${titleKey}`);
+      return challenge;
+    };
+    await release("LIVE", "系列");
+    const retired = await release("RETIRED", "系列");
+    await release("DEV_ONLY", "开发保留");
+    await release("HIDDEN", "系列", false);
+    await services.createAdminTitle({ contractVersion: "1", titleKey: "DRAFT", label: "DRAFT", icon: "trophy", category: "系列", scope: "global", displayKind: "fixed", publicVisibility: true }, auth, "title-DRAFT");
+    await services.updateAdminChallengeLifecycle({ contractVersion: "1", status: "archived", challengeId: retired.challengeId }, auth, "archive-RETIRED");
+
+    const gallery = await services.listPublicAchievements();
+    expect(gallery.map(({ titleKey, status }) => [titleKey, status])).toEqual([["LIVE", "active"], ["RETIRED", "ended"]]);
+    expect((await services.listChallenges({ family: "achievement" })).map((challenge) => challenge.titleKey)).not.toContain("RETIRED");
+  });
   it("uses a half-open Pioneer window at every boundary", () => {
     expect(pioneerExceptionIsSubmittable(1, 2_000, 3_000, 1_999)).toBe(false);
     expect(pioneerExceptionIsSubmittable(1, 2_000, 3_000, 2_000)).toBe(true);

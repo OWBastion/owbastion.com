@@ -15,13 +15,14 @@ const groups = computed(() => {
       category,
       anchor: `series-${index}`,
       obtained: props.titles ? challenges.filter((challenge) => stateOf(challenge) !== "none").length : null,
-      challenges: [...challenges].sort((left, right) => left.titleName.localeCompare(right.titleName, "zh-CN")),
+      challenges: [...challenges].sort((left, right) => Number(left.status === "ended") - Number(right.status === "ended") || left.titleName.localeCompare(right.titleName, "zh-CN")),
     }))
     .sort((left, right) => left.category.localeCompare(right.category, "zh-CN"));
 });
 const selected = shallowRef<PublicAchievement | null>(null);
 const sheetOpen = computed({ get: () => selected.value !== null, set: (value) => { if (!value) selected.value = null; } });
-const noteOf = (challenge: PublicAchievement) => challenge.status === "scheduled" ? "未开放" : challenge.status === "sunsetting" ? `即将结束${challenge.retiredVersion ? ` · ${challenge.retiredVersion}` : ""}` : undefined;
+const earnedOf = (challenge: PublicAchievement) => challenge.status === "scheduled" ? false : challenge.status === "ended" ? stateOf(challenge) !== "none" : !props.titles || stateOf(challenge) !== "none";
+const noteOf = (challenge: PublicAchievement) => challenge.status === "scheduled" ? "未开放" : challenge.status === "ended" ? "已结束" : challenge.status === "sunsetting" ? `即将结束${challenge.retiredVersion ? ` · ${challenge.retiredVersion}` : ""}` : undefined;
 </script>
 
 <template>
@@ -29,7 +30,7 @@ const noteOf = (challenge: PublicAchievement) => challenge.status === "scheduled
     <AchievementWall>
       <AchievementShelf v-for="(group, groupIndex) in groups" :key="group.anchor" :title="group.category" :heading-id="`${group.anchor}-title`" :count="group.obtained === null ? String(group.challenges.length) : `${group.obtained}/${group.challenges.length}`">
         <li v-for="(challenge, index) in group.challenges" :key="challenge.challengeId">
-          <AchievementTile :name="challenge.titleName" :icon-url="challenge.iconUrl" :icon="challenge.icon" :earned="challenge.status !== 'scheduled' && (!titles || stateOf(challenge) !== 'none')" :checked="Boolean(titles) && stateOf(challenge) !== 'none'" check-label="已获得" :shine-delay="groupIndex * .8 + index * .22" @click="selected = challenge" />
+          <AchievementTile :name="challenge.titleName" :icon-url="challenge.iconUrl" :icon="challenge.icon" :earned="earnedOf(challenge)" :checked="Boolean(titles) && stateOf(challenge) !== 'none'" check-label="已获得" :shine-delay="groupIndex * .8 + index * .22" @click="selected = challenge" />
         </li>
       </AchievementShelf>
     </AchievementWall>

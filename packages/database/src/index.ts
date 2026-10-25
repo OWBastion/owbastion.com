@@ -71,10 +71,8 @@ export const titleIconVersionOf = (objectKey: string): string => {
   const dotIndex = fileName.lastIndexOf(".");
   return dotIndex === -1 ? fileName : fileName.slice(0, dotIndex);
 };
-// Public availability is derived from the stored lifecycle plus the open
-// window: a draft or archived challenge never projects, an active challenge
-// before its start shows as "scheduled", and an announced retiredVersion shows
-// as "sunsetting".
+// Public availability derives from lifecycle and open window: draft or archived
+// never projects, a future start is "scheduled", a retiredVersion is "sunsetting".
 export const titleChallengeIsSubmittable = (status: string, startsAt: number | null, endsAt: number | null, timestamp: number, gameVersion: string | null | undefined = "known") => {
   const publicStatus = publicTitleChallengeStatus(status, startsAt, endsAt, timestamp, gameVersion);
   return publicStatus === "active" || publicStatus === "sunsetting";
@@ -194,7 +192,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     loadMapTitleRuleChallenges,
     loadTitleChallengeRevisions,
     mapChallengeQuery,
-    publicEventChallenges,
+    listPublicAchievements, publicEventChallenges,
     publicTitleChallengeFields,
     toPublicMapChallenge,
     toPublicTitleChallenge,
@@ -2035,7 +2033,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       }
       return items;
     },
-
+    listPublicAchievements,
     ...createAdminCatalogServices({
       database,
       db,
