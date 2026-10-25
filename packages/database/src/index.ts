@@ -1,7 +1,7 @@
 import { count, desc, eq, and, or, inArray, isNull, isNotNull, ne, lte, lt, gte, notExists, sql, asc } from "drizzle-orm";
 
 import { drizzle } from "drizzle-orm/d1";
-import { latestEvidenceKeys } from "./submission-evidence";
+import { evidenceKeys } from "./submission-evidence";
 import { createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, passkeyUserHandleMatches, verifyPasskeyAuthentication, verifyPasskeyRegistration } from "@owbastion/auth";
 import { buildMasteryMapProfile, buildMasteryProfiles, calculateVerifiedRunXpV3, difficultyAtLeastSatisfied, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, isWellFormedGameVersion, matchGameMode, normalizeGameMode, regularGameModeLabel, eventWeightTotalCode, runCodeEventWeightTotal, parseCanonicalChallengeConditions, parseChallengeProgressRule, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode, publicTitleChallengeStatus } from "@owbastion/domain";
 export { publicTitleChallengeStatus } from "@owbastion/domain";
@@ -1125,7 +1125,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   };
 
   const loadAdminSubmission = async (row: typeof submissions.$inferSelect) => {
-    const [details, keys] = await Promise.all([resolveAdminSubmissionDetails([row]), latestEvidenceKeys(db, [row.id])]);
+    const [details, keys] = await Promise.all([resolveAdminSubmissionDetails([row]), evidenceKeys(db, [row.id])]);
     return { ...asAdminSubmission(row, details), evidenceUrl: publicEvidenceUrl(keys.get(row.id)) };
   };
 
@@ -2142,7 +2142,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       ]);
       const visibleRows = rows.slice(0, input.pageSize);
       const details = await resolveAdminSubmissionDetails(visibleRows);
-      const keys = await latestEvidenceKeys(db, visibleRows.map((row) => row.id));
+      const keys = await evidenceKeys(db, visibleRows.map((row) => row.id));
       return { contractVersion: "1" as const, items: visibleRows.map((row) => ({ ...asAdminSubmission(row, details), evidenceUrl: publicEvidenceUrl(keys.get(row.id)) })), page: input.page, pageSize: input.pageSize, total, hasMore: rows.length > input.pageSize };
     },
 
@@ -2164,7 +2164,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       if (!ocrQueue) throw new Error("OCR_NOT_CONFIGURED");
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
-      if (!(await latestEvidenceKeys(db, [row.id])).get(row.id)) throw new Error("EVIDENCE_NOT_FOUND");
+      const objectKey = (await evidenceKeys(db, [row.id])).get(row.id); if (!objectKey) throw new Error("EVIDENCE_NOT_FOUND");
 
       const latestResult = await db.select({ id: ocrResults.id, errorCode: ocrResults.errorCode, createdAt: ocrResults.createdAt })
         .from(ocrResults)
@@ -2202,7 +2202,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         throw new Error("OCR_RETRY_IN_PROGRESS");
       }
       try {
-        await ocrQueue.send({ version: 2, jobId: pendingResultId, submissionId: row.id, objectKey: attachment.objectKey, manual: true, ...(requestId ? { requestId } : {}) });
+        await ocrQueue.send({ version: 2, jobId: pendingResultId, submissionId: row.id, objectKey, manual: true, ...(requestId ? { requestId } : {}) });
         logOcrEvent("job_enqueued", { submissionId: row.id, attempt: 0, manual: true, requestId: requestId ?? null });
       } catch (error) {
         logOcrEvent("job_enqueue_failed", { submissionId: row.id, attempt: 0, manual: true, requestId: requestId ?? null, ...errorDetails(error) });
