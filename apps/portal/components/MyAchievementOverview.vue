@@ -3,6 +3,7 @@ import type { PublicAchievement } from "./AchievementCatalog.vue";
 import type { OwnedTitle } from "~/types/title";
 import type { PlayerChallengeProgress, PortalMap } from "~/composables/usePortalApi";
 import { findOwnedTitle } from "~/utils/achievement-status";
+import { type AchievementAvailability, availabilityNote, availabilityOf } from "~/utils/achievement-availability";
 import { formatDate } from "~/utils/date-time";
 import { buildMapProgressRows, type MapProgressChallenge } from "~/utils/map-progress";
 
@@ -54,7 +55,8 @@ type Tile = {
   condition: string;
   owned?: OwnedTitle;
   earned: boolean;
-  note?: string;
+  availability?: AchievementAvailability;
+  retiredVersion?: string | null;
   series: string;
   progress?: PlayerChallengeProgress;
 };
@@ -68,10 +70,11 @@ const cardTile = (card: AchievementCard): Omit<Tile, "series"> => card.kind === 
       condition: card.challenge.condition,
       owned: ownedGlobalTitleForCard(card),
       earned: isAchievementCardEarned(card),
-      note: card.challenge.status === "scheduled" ? "未开放" : card.challenge.status === "sunsetting" ? "即将结束" : card.challenge.status === "ended" ? "不再发放" : undefined,
+      availability: availabilityOf(card.challenge.status),
+      retiredVersion: card.challenge.retiredVersion,
       progress: card.challenge.progressRule ? progressByChallenge.value.get(card.challenge.challengeId) : undefined,
     }
-  : { key: card.title.grantId, name: card.title.label, icon: { url: card.title.iconUrl, icon: card.title.icon }, condition: card.title.condition, owned: card.title, earned: true, note: "不再发放" };
+  : { key: card.title.grantId, name: card.title.label, icon: { url: card.title.iconUrl, icon: card.title.icon }, condition: card.title.condition, owned: card.title, earned: true, availability: "ended" };
 const tileGroups = computed(() => groups.value.map((group) => ({ name: group.category, tiles: group.cards.map((card) => ({ ...cardTile(card), series: group.category })) })));
 
 const selectedKey = shallowRef<string | null>(null);
@@ -89,7 +92,7 @@ const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, 
     <AchievementWall v-if="tileGroups.length">
       <AchievementShelf v-for="(group, groupIndex) in tileGroups" :key="group.name" :title="group.name" :heading-id="`my-series-${groupIndex}`" :count="`${group.tiles.filter((tile) => tile.earned).length}/${group.tiles.length}`">
         <li v-for="(tile, index) in group.tiles" :key="tile.key">
-          <AchievementTile :name="tile.name" :icon-url="tile.icon.url" :icon="tile.icon.icon" :earned="tile.earned" :note="tile.note" :checked="tile.owned?.equipped" :highlighted="tile.owned?.equipped" check-label="已佩戴" :shine-delay="groupIndex * .8 + index * .22" @click="selectedKey = tile.key" />
+          <AchievementTile :name="tile.name" :icon-url="tile.icon.url" :icon="tile.icon.icon" :earned="tile.earned" :availability="tile.availability" :retired-version="tile.retiredVersion" :checked="tile.owned?.equipped" :highlighted="tile.owned?.equipped" check-label="已佩戴" :shine-delay="groupIndex * .8 + index * .22" @click="selectedKey = tile.key" />
         </li>
       </AchievementShelf>
     </AchievementWall>
@@ -112,7 +115,7 @@ const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, 
       <template #body>
         <div v-if="selected" class="sheet">
           <AchievementIcon class="sheet__icon" entrance :url="selected.icon.url" :icon="selected.icon.icon" :earned="selected.earned" />
-          <p v-if="selected.note" class="sheet__note">{{ selected.note }}</p>
+          <p v-if="selected.availability" class="sheet__note">{{ availabilityNote(selected.availability, selected.retiredVersion) }}</p>
           <p class="sheet__condition">{{ selected.condition }}</p>
           <p v-if="selected.owned" class="sheet__granted num">获得于 {{ formatDate(selected.owned.grantedAt) }}</p>
           <p v-if="selected.progress" class="sheet__progress">
