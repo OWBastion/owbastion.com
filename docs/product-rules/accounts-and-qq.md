@@ -31,7 +31,8 @@ bodies, or signed URLs.
   titles, and player data need authentication.
 - Channel writes need an idempotency key: equal retries replay the original response, a
   changed reuse is rejected.
-- `/v1/me` shows the profile and up to five recent submissions; players read only their own
+- `/v1/me` shows the profile and up to five recent submissions; `/v1/me/submissions` pages
+  the same player-safe summary over the caller's full history. Players read only their own
   submission detail, screenshot, and a constrained OCR summary, and their own mastery via
   `/v1/me/mastery` (active runs; invalidated entries may remain in history without reason).
 

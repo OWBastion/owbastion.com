@@ -20,7 +20,6 @@ import {
   adminScreenshotSetDiscardRequestSchema,
   screenshotSetStatusSchema,
   playerUploadSessionRequestSchema,
-  ocrAccuracyFeedbackRequestSchema,
   adminPlayerEquippedTitlesRequestSchema,
   playerProfileVisibilityRequestSchema,
 } from "@owbastion/contracts";
@@ -40,6 +39,7 @@ import { registerLeaderboardRoutes } from "./routes/leaderboard";
 import { registerPlayerHandleRoutes } from "./routes/player-handles";
 import { equippedTitleErrors, registerPlayerTitleRoutes } from "./routes/player-titles";
 import { registerReviewRoutes } from "./routes/reviews";
+import { registerPlayerSubmissionRoutes } from "./routes/player-submissions";
 import { hasOnlyUniqueQueryNames, parsePagination } from "./query-params";
 import { createTurnstileGuard, type TurnstileGuard } from "./turnstile";
 
@@ -121,13 +121,6 @@ const idempotencyConflict = { status: 409, message: "The idempotency key was use
 const idempotencyErrors: RouteErrorMap = { IDEMPOTENCY_CONFLICT: idempotencyConflict };
 const unauthenticatedErrors: RouteErrorMap = { UNAUTHENTICATED: { status: 401, message: "Authentication is required" } };
 const submissionNotFoundErrors: RouteErrorMap = errorGroup(404, "The submission does not exist", "SUBMISSION_NOT_FOUND");
-const ocrFeedbackErrors: RouteErrorMap = {
-  ...unauthenticatedErrors,
-  ...submissionNotFoundErrors,
-  ...errorGroup(409, "Feedback is unavailable for this submission", "OCR_FEEDBACK_UNAVAILABLE", "OCR_RESULT_NOT_FOUND"),
-  OCR_PROMPT_STALE: { status: 409, message: "The recognition prompt is no longer current; refresh the submission" },
-  ...idempotencyErrors,
-};
 const playerUploadSessionErrors: RouteErrorMap = {
   ...errorGroup(422, "The challenge revision is not available", "CHALLENGE_NOT_FOUND", "GAMEPLAY_REVISION_REQUIRED"),
   CHALLENGE_AUTOMATIC: { status: 422, message: "该称号满足条件后自动获得，无需提交截图。" },
@@ -532,30 +525,7 @@ export const createApp = (dependencies: AppDependencies) => {
   });
 
   registerPlayerTitleRoutes(app, { servicesFor, allowPortal, errorResponse, portalSessionToken, respondToMappedError });
-
-  app.get("/v1/me/submissions/:submissionId", portalPlayerRoute(async (c, access) => {
-    try {
-      return c.json(await dependencies.services(c.env).getPlayerSubmission({ submissionId: c.req.param("submissionId")! }, access.sessionToken));
-    } catch (error) {
-      return respondToMappedError(c, error, submissionNotFoundErrors);
-    }
-  }));
-
-  // Screenshot-level accuracy marking (#253): one accurate/inaccurate mark per
-  // recognition result; the latest value wins. No transcription is accepted.
-  app.post("/v1/me/submissions/:submissionId/ocr-feedback", portalPlayerRoute(async (c, access) => {
-    c.header("Cache-Control", "private, no-store");
-    const idempotencyKey = c.req.header("idempotency-key");
-    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = ocrAccuracyFeedbackRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try {
-      const response = await dependencies.services(c.env).submitPlayerOcrFeedback({ ...parsed.data, submissionId: c.req.param("submissionId")! }, access.sessionToken, idempotencyKey);
-      return c.json(response);
-    } catch (error) {
-      return respondToMappedError(c, error, ocrFeedbackErrors);
-    }
-  }));
+  registerPlayerSubmissionRoutes(app, { services: dependencies.services, portalPlayerRoute, errorResponse });
 
   app.post("/v1/auth/logout", async (c) => {
     allowPortal(c);

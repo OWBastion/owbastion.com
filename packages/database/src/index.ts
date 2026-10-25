@@ -11,6 +11,7 @@ import { achievementChallengeMaps, achievementChallenges, attachments, auditEven
 import { userEvidenceObjectKey } from "./object-key";
 import { fetchQqAttachmentImage } from "./qq-attachment";
 import { createPlayerUploadServices, maxUploadBytes, playerSubmissionStatus } from "./player-upload-service";
+import { createPlayerSubmissionServices, playerSubmissionSummary, playerSubmissionSummaryColumns, playerVerifiedRunSubmissionOutcome, playerVerifiedRunSubmissionOutcomeFields } from "./player-submission-service";
 import { autoMatchMapIds, autoMatchTitleKeys, autoMatchTitleNames, scopeAutoMatchEvidence, matchOcrAgainstChallenges, type AutoMatchCandidate, type CanonicalOcrChallenge } from "./ocr-auto-match";
 import { assessVerifiedRunOcrEvidence, hasReliableVerifiedRunField, normalizeOcrDifficulty, standaloneOcrMode, type OcrResponse } from "./ocr-response";
 import { createCanonicalChallengeServices, type CanonicalChallengeInput, type CanonicalChallengePlan, type CanonicalChallengeResolver } from "./canonical-challenge-service";
@@ -592,15 +593,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     if (!submissionIds.length) return new globalThis.Map<string, VerifiedRunSubmissionOutcome>();
     const rows = await db.select().from(submissionOutcomes).where(and(inArray(submissionOutcomes.submissionId, submissionIds), eq(submissionOutcomes.outcomeKey, "verified_run")));
     return new globalThis.Map(rows.map((row) => [row.submissionId, asVerifiedRunSubmissionOutcome(row)]));
-  };
-
-  const playerVerifiedRunSubmissionOutcome = (outcome: VerifiedRunSubmissionOutcome) => outcome.status === "conflict"
-    ? null
-    : { status: outcome.status, awardedXp: outcome.status === "created" ? outcome.awardedXp : 0 };
-
-  const playerVerifiedRunSubmissionOutcomeFields = (outcome: VerifiedRunSubmissionOutcome | null | undefined) => {
-    const safeOutcome = outcome ? playerVerifiedRunSubmissionOutcome(outcome) : null;
-    return safeOutcome ? { verifiedRunOutcome: safeOutcome } : {};
   };
 
   const masterySubmissionOutcomeStatement = (submissionId: string, outcome: VerifiedRunSubmissionOutcome) => {
@@ -3014,21 +3006,20 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const access = await getCurrentPortalPlayer(input.sessionToken);
       if (!access) return null;
       const { player } = access;
-      const recentSubmissions = await db.select({ submissionId: submissions.id, status: submissions.status, mapName: submissions.mapName, challengeId: submissions.challengeId, difficulty: submissions.difficulty, reason: submissions.reviewReason, createdAt: submissions.createdAt, updatedAt: submissions.updatedAt })
+      const recentSubmissions = await db.select(playerSubmissionSummaryColumns)
         .from(submissions)
         .where(eq(submissions.playerAccountId, player.id))
         .orderBy(desc(submissions.createdAt))
         .limit(5);
-      const verifiedRunOutcomes = await loadVerifiedRunSubmissionOutcomes(recentSubmissions.map((submission) => submission.submissionId));
+      const verifiedRunOutcomes = await loadVerifiedRunSubmissionOutcomes(recentSubmissions.map((submission) => submission.id));
       return {
         contractVersion: "1" as const,
         player: { playerId: player.playerId, playerName: player.playerName, isAdmin: player.isAdmin === 1, publicProfile: player.publicProfile === 1, hideBattleTag: player.hideBattleTag === 1 },
-        recentSubmissions: recentSubmissions.map((submission) => {
-          const verifiedRunOutcome = verifiedRunOutcomes.get(submission.submissionId);
-          return { submissionId: submission.submissionId, status: playerSubmissionStatus(submission.status), resubmissionRequired: submission.status === "resubmission_required", mapName: submission.mapName, challengeId: submission.challengeId ?? undefined, difficulty: submission.difficulty ?? undefined, reason: verifiedRunOutcome?.status === "conflict" ? undefined : submission.reason ?? undefined, ...playerVerifiedRunSubmissionOutcomeFields(verifiedRunOutcome), createdAt: submission.createdAt, updatedAt: submission.updatedAt };
-        }),
+        recentSubmissions: recentSubmissions.map((submission) => playerSubmissionSummary(submission, verifiedRunOutcomes.get(submission.id))),
       };
     },
+
+    ...createPlayerSubmissionServices({ db, getCurrentPortalPlayer, loadVerifiedRunSubmissionOutcomes }),
 
     async updateCurrentPlayerProfileVisibility(input, idempotencyKey) {
       const operation = "player.profile.visibility.update";
@@ -3190,7 +3181,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const submission = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!submission) throw new Error("SUBMISSION_NOT_FOUND");
       const verifiedRunOutcome = await loadVerifiedRunSubmissionOutcome(submission.id);
-      return { contractVersion: "1" as const, submissionId: submission.id, status: playerSubmissionStatus(submission.status), resubmissionRequired: submission.status === "resubmission_required", mapName: submission.mapName, challengeId: submission.challengeId ?? undefined, difficulty: submission.difficulty ?? undefined, reason: verifiedRunOutcome?.status === "conflict" ? undefined : submission.reviewReason ?? undefined, ...playerVerifiedRunSubmissionOutcomeFields(verifiedRunOutcome), createdAt: submission.createdAt, updatedAt: submission.updatedAt };
+      return { contractVersion: "1" as const, ...playerSubmissionSummary(submission, verifiedRunOutcome) };
     },
     ...createReviewServices(database, db, {
       ...databaseServiceDependencies,

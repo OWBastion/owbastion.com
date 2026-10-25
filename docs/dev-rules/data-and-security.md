@@ -95,6 +95,7 @@ They stay `private, no-store`.
 ## Player and Agents reads
 
 - `GET /v1/me`: name, numeric player ID, up to five recent submissions.
+  `GET /v1/me/submissions`: the caller's own submissions, paged, same fields.
   Player-title read: only the caller's active Grants plus public display data.
   `GET /v1/me/mastery`: active run projections only (map, difficulty, settlement
   metrics, XP, personal bests, bounded history). Neither returns run codes,

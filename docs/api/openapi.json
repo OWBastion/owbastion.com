@@ -493,6 +493,31 @@
     }
    }
   },
+  "/v1/me/submissions": {
+   "get": {
+    "operationId": "listCurrentPlayerSubmissions",
+    "description": "Lists the authenticated Player Account's own Submissions newest first. Items carry the same player-safe fields as recentSubmissions on /v1/me; they exclude evidence URLs, OCR payloads, match codes, Verified Run IDs, conflict internals, and QQ/account identity.",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/submissionsPage"
+     },
+     {
+      "$ref": "#/components/parameters/submissionsPageSize"
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
   "/v1/me/submissions/{submissionId}": {
    "get": {
     "operationId": "getPlayerSubmission",
@@ -3671,6 +3696,27 @@
     }
    },
    "masteryPageSize": {
+    "name": "pageSize",
+    "in": "query",
+    "required": false,
+    "schema": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 50,
+     "default": 20
+    }
+   },
+   "submissionsPage": {
+    "name": "page",
+    "in": "query",
+    "required": false,
+    "schema": {
+     "type": "integer",
+     "minimum": 1,
+     "default": 1
+    }
+   },
+   "submissionsPageSize": {
     "name": "pageSize",
     "in": "query",
     "required": false,

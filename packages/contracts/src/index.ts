@@ -1,10 +1,12 @@
 import { z } from "zod";
-import { contractVersion, externalId, pageInfo } from "./common";
+import { contractVersion, externalId, pageInfo } from "./shared";
 import { randomEventSchema } from "./random-event";
+import { playerVerifiedRunSubmissionOutcomeSchema, submissionStatusResponseSchema } from "./player-submissions";
 
-export { contractVersion } from "./common";
+export { contractVersion } from "./shared";
 export * from "./random-event";
 export * from "./player-title-wear";
+export { submissionStatusResponseSchema, playerSubmissionListResponseSchema } from "./player-submissions";
 
 const playerId = z.string().regex(/^\d{1,10}$/), playerName = z.string().trim().min(1).max(64);
 const retirementVersion = z.string().regex(/^\d{2}\.\d{4}\.[1-9]\d*$/);
@@ -179,11 +181,6 @@ const masteryAcceptanceSourceSchema = z.enum(["submission_automatic", "submissio
 const verifiedRunConflictFieldSchema = z.enum(["match_code", "map", "gameplay_revision", "map_variant", "difficulty", "game_version", "completion_duration", "deaths", "skips", "event_counters"]);
 const gameplayRevisionLifecycleSchema = z.enum(["preparing", "default", "selectable", "historical"]);
 const verifiedRunSubmissionOutcomeStatus = z.enum(["created", "reused", "ineligible", "conflict", "invalidated"]);
-const playerVerifiedRunSubmissionOutcomeStatus = z.enum(["created", "reused", "ineligible", "invalidated"]);
-const playerVerifiedRunSubmissionOutcomeSchema = z.object({
-  status: playerVerifiedRunSubmissionOutcomeStatus,
-  awardedXp: z.number().int().nonnegative(),
-}).strict();
 const adminVerifiedRunSubmissionOutcomeSchema = z.object({
   status: verifiedRunSubmissionOutcomeStatus,
   awardedXp: z.number().int().nonnegative(),
@@ -1297,20 +1294,6 @@ export const adminVerifiedRunCorrectionResponseSchema = z.object({
   affectedProjections: z.array(adminVerifiedRunProjectionSchema).min(1).max(2),
 }).strict();
 
-export const submissionStatusResponseSchema = z.object({
-  contractVersion,
-  submissionId: z.string().uuid(),
-  status: z.enum(["processing", "needs_review", "completed", "rejected"]),
-  resubmissionRequired: z.boolean().optional(),
-  mapName: z.string(),
-  challengeId: z.string().optional(),
-  difficulty: z.string().optional(),
-  reason: z.string().optional(),
-  createdAt: z.number().int(),
-  updatedAt: z.number().int(),
-  verifiedRunOutcome: playerVerifiedRunSubmissionOutcomeSchema.optional(),
-});
-
 export const playerSubmissionOcrSummarySchema = z.object({
   mapName: z.string().nullable(),
   difficulty: z.string().nullable(),
@@ -1870,6 +1853,7 @@ export type AdminPlayerStatusRequest = z.infer<typeof adminPlayerStatusRequestSc
 export type AdminPlayerIdentityRequest = z.infer<typeof adminPlayerIdentityRequestSchema>;
 export type SubmissionStatusResponse = z.infer<typeof submissionStatusResponseSchema>;
 export type PlayerSubmissionStatus = SubmissionStatusResponse["status"];
+export type { PlayerSubmissionListResponse } from "./player-submissions";
 export type PlayerSubmissionDetail = z.infer<typeof playerSubmissionDetailSchema>;
 export type OcrAccuracyMark = z.infer<typeof ocrAccuracyMarkSchema>;
 export type OcrAccuracyFeedbackRequest = z.infer<typeof ocrAccuracyFeedbackRequestSchema>;
