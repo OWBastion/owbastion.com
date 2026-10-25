@@ -3,6 +3,7 @@ import { matchGameMode } from "@owbastion/domain";
 import type { AdminSubmission, AdminSubmissionReviewInput, AdminSubmissionReviewPreview } from "~/composables/useAdminApi";
 import { ocrStatusLabel, ocrStatusTone } from "~/utils/ocrStatus";
 import { mapVariantLabel } from "~/utils/map-variant";
+import { formatDuration, parseDurationSeconds } from "~/utils/duration";
 
 type OcrField = { value?: unknown; confidence?: unknown; status?: unknown };
 type OcrPayload = { data?: Record<string, unknown>; fields?: Record<string, OcrField>; warnings?: unknown; model_version?: unknown; request_id?: unknown };
@@ -20,11 +21,11 @@ const annotatableFields = [
   { key: "achievement_titles", label: "左侧成就面板" },
   { key: "version", label: "游戏版本" },
   { key: "run_code", label: "对局码" },
-  { key: "duration_seconds", label: "通关用时（秒）" },
+  { key: "duration_seconds", label: "通关用时" },
   { key: "deaths", label: "死亡次数" },
   { key: "skips", label: "跳过次数" },
 ] as const;
-const typedFieldPlaceholder: Record<string, string> = { version: "例如 2026.0928.1", duration_seconds: "整数秒", deaths: "整数", skips: "整数" };
+const typedFieldPlaceholder: Record<string, string> = { version: "例如 2026.0928.1", duration_seconds: "例如 1小时2分3秒", deaths: "整数", skips: "整数" };
 const ocrPayload = computed(() => props.submission.ocr as OcrPayload | null);
 const modelVersion = computed(() => typeof ocrPayload.value?.model_version === "string" && ocrPayload.value.model_version ? ocrPayload.value.model_version : null);
 const checkedTitles = computed(() => Array.isArray(ocrPayload.value?.data?.achievement_titles) ? ocrPayload.value?.data?.achievement_titles.filter((value): value is string => typeof value === "string" && value.trim().length > 0) : []);
@@ -69,7 +70,7 @@ watch(() => ocrPayload.value?.data, (data) => {
   if (!data) return;
   for (const field of annotatableFields) {
     const value = data[field.key];
-    correctionInputs[field.key] = Array.isArray(value) ? value.join("、") : value === null || value === undefined ? "" : String(value);
+    correctionInputs[field.key] = Array.isArray(value) ? value.join("、") : field.key === "duration_seconds" && typeof value === "number" ? formatDuration(value) : value === null || value === undefined ? "" : String(value);
     initialInputs[field.key] = correctionInputs[field.key]!;
   }
 }, { immediate: true });
@@ -103,7 +104,7 @@ const selectedTitles = computed({
   get: () => correctionInputs.achievement_titles?.split("、").filter(Boolean) ?? [],
   set: (value: string[]) => { correctionInputs.achievement_titles = value.join("、"); },
 });
-const fieldCorrections = computed(() => annotatableFields.filter((field) => confirmedFields.value.includes(field.key) && (field.key === "achievement_titles" || correctionInputs[field.key]?.trim())).map((field) => ({ fieldKey: field.key, reviewedValue: field.key === "achievement_titles" ? (correctionInputs[field.key] ?? "").split(/[、,，\n]/).map((value) => value.trim()).filter(Boolean).join("、") : correctionInputs[field.key]!.trim() })));
+const fieldCorrections = computed(() => annotatableFields.filter((field) => confirmedFields.value.includes(field.key) && (field.key === "achievement_titles" || correctionInputs[field.key]?.trim())).map((field) => ({ fieldKey: field.key, reviewedValue: field.key === "achievement_titles" ? (correctionInputs[field.key] ?? "").split(/[、,，\n]/).map((value) => value.trim()).filter(Boolean).join("、") : field.key === "duration_seconds" ? String(parseDurationSeconds(correctionInputs[field.key]!) ?? correctionInputs[field.key]!.trim()) : correctionInputs[field.key]!.trim() })));
 watch(fieldCorrections, (value) => emit("field-corrections", value), { immediate: true });
 const toggleFieldConfirmation = (fieldKey: string, checked: boolean) => {
   confirmedFields.value = checked ? [...new Set([...confirmedFields.value, fieldKey])] : confirmedFields.value.filter((key) => key !== fieldKey);
@@ -111,7 +112,7 @@ const toggleFieldConfirmation = (fieldKey: string, checked: boolean) => {
 
 
 const ocrValue = (value: unknown) => value === null || value === undefined ? "未识别" : value === true ? "已识别完成" : value === false ? "未识别完成" : String(value);
-const ocrDisplayValue = (name: string, value: unknown) => name === "map_variant" ? mapVariantLabel(value) : name === "mode" && (value === null || value === undefined || value === "") ? "常规（随机事件）" : ocrValue(value);
+const ocrDisplayValue = (name: string, value: unknown) => name === "duration_seconds" && typeof value === "number" ? formatDuration(value) : name === "map_variant" ? mapVariantLabel(value) : name === "mode" && (value === null || value === undefined || value === "") ? "常规（随机事件）" : ocrValue(value);
 const ocrConfidence = (value: unknown) => typeof value === "number" ? `${Math.round(value * 100)}%` : "—";
 const hasOcrConfidence = (value: unknown) => typeof value === "number";
 const ocrFieldStatusLabel = (status: unknown) => {
@@ -148,6 +149,7 @@ const unresolvable = (key: string, value: unknown) => {
   const text = typeof value === "string" ? value.trim() : "";
   if (!text) return false;
   if (key === "map_name") return mapNames.value.length > 0 && !mapNames.value.includes(text);
+  if (key === "duration_seconds") return parseDurationSeconds(text) === null;
   if (key === "mode") {
     const known = props.preview?.knownModes;
     if (!known) return false;
@@ -244,7 +246,7 @@ const confirmField = (key: string) => toggleFieldConfirmation(key, true);
         <div class="check-editor__control">
           <USelectMenu v-if="openRow.key === 'achievement_titles'" v-model="selectedTitles" multiple :items="withCurrent(titleNames, selectedTitles)" :aria-label="`截图中的${openRow.label}完整值`" placeholder="截图中的成就（无则留空）" :disabled="disabled" @update:model-value="confirmField(openRow.key)" />
           <UInputMenu v-else-if="openRow.key === 'run_code'" :model-value="correctionInputs[openRow.key] ?? ''" :items="preview?.matchCodeCandidates ?? []" create-item :aria-label="`截图中的${openRow.label}`" placeholder="对局码" :disabled="disabled" @update:model-value="correctionInputs[openRow.key] = String($event ?? ''); confirmField(openRow.key)" @create="correctionInputs[openRow.key] = String($event).trim(); confirmField(openRow.key)" />
-          <UInput v-else-if="openRow.key in typedFieldPlaceholder" v-model="correctionInputs[openRow.key]" :inputmode="['duration_seconds', 'deaths', 'skips'].includes(openRow.key) ? 'numeric' : 'text'" :aria-label="`截图中的${openRow.label}`" :placeholder="typedFieldPlaceholder[openRow.key]" :disabled="disabled" @update:model-value="confirmField(openRow.key)" />
+          <UInput v-else-if="openRow.key in typedFieldPlaceholder" v-model="correctionInputs[openRow.key]" :inputmode="['deaths', 'skips'].includes(openRow.key) ? 'numeric' : 'text'" :aria-label="`截图中的${openRow.label}`" :placeholder="typedFieldPlaceholder[openRow.key]" :disabled="disabled" @update:model-value="confirmField(openRow.key)" />
           <USelect v-else v-model="correctionInputs[openRow.key]" :items="fieldChoices(openRow.key)" :aria-label="`截图中的${openRow.label}完整值`" :placeholder="openRow.label" :disabled="disabled" @update:model-value="confirmField(openRow.key)" />
           <UButton v-if="!openRow.attested" type="button" icon="i-lucide-check" label="确认" size="sm" color="neutral" variant="outline" :aria-label="`核对${openRow.label}`" :disabled="disabled || (openRow.key !== 'achievement_titles' && !(correctionInputs[openRow.key] ?? '').trim())" @click="confirmField(openRow.key)" />
           <UButton v-else type="button" icon="i-lucide-undo-2" label="撤销" size="sm" color="neutral" variant="ghost" :aria-label="`撤销核对${openRow.label}`" :disabled="disabled" @click="toggleFieldConfirmation(openRow.key, false)" />
