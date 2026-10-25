@@ -1,11 +1,12 @@
 <script setup lang="ts">
-defineProps<{ name: string; iconUrl?: string | null; icon: string; earned: boolean; checked?: boolean; checkLabel?: string; highlighted?: boolean; shineDelay?: number }>();
+defineProps<{ name: string; iconUrl?: string | null; icon: string; earned: boolean; note?: string; checked?: boolean; checkLabel?: string; highlighted?: boolean; shineDelay?: number }>();
 </script>
 
 <template>
   <button type="button" class="medal" :class="{ 'is-earned': earned, 'is-highlighted': highlighted }">
     <AchievementIcon :url="iconUrl" :icon="icon" :earned="earned" :shine-delay="shineDelay" />
     <span class="medal__name">{{ name }}</span>
+    <span v-if="note" class="medal__note">{{ note }}</span>
     <UIcon v-if="checked" name="i-lucide-check" class="medal__check" :aria-label="checkLabel" />
   </button>
 </template>
@@ -18,6 +19,7 @@ defineProps<{ name: string; iconUrl?: string | null; icon: string; earned: boole
 .medal.is-earned { color: var(--text); }
 .medal:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-card); }
 .medal__name { overflow: hidden; max-width: 100%; font-size: var(--type-body-sm-size); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.medal__note { margin-top: calc(var(--space-2) * -1); font-size: var(--type-label-sm-size); }
 .medal.is-highlighted .medal__name { color: var(--accent); }
 .medal__check { position: absolute; top: var(--space-2); right: calc(50% - var(--achievement-icon-size) / 2 - .25rem); padding: .15rem; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-size: .75rem; }
 .medal:hover :deep(.achievement-icon), .medal:focus-visible :deep(.achievement-icon) { transform: translateY(-4px) scale(1.06); }
