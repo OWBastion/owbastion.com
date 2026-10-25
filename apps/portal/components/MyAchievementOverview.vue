@@ -68,7 +68,7 @@ const cardTile = (card: AchievementCard): Omit<Tile, "series"> => card.kind === 
       condition: card.challenge.condition,
       owned: ownedGlobalTitleForCard(card),
       earned: isAchievementCardEarned(card),
-      note: card.challenge.status === "scheduled" ? "未开放" : card.challenge.status === "sunsetting" ? "即将结束" : undefined,
+      note: card.challenge.status === "scheduled" ? "未开放" : card.challenge.status === "sunsetting" ? "即将结束" : card.challenge.status === "ended" ? "已结束" : undefined,
       progress: card.challenge.progressRule ? progressByChallenge.value.get(card.challenge.challengeId) : undefined,
     }
   : { key: card.title.grantId, name: card.title.label, icon: { url: card.title.iconUrl, icon: card.title.icon }, condition: card.title.condition, owned: card.title, earned: true, note: "不再发放" };

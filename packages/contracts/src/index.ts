@@ -258,7 +258,7 @@ export const achievementChallengeSchema = z.object({
   ...titleDisplayFields,
   evidenceRule: z.string().trim().min(1).max(2048),
   gameVersion: z.string().trim().min(1).max(64),
-  status: z.enum(["scheduled", "active", "sunsetting"]),
+  status: titleAvailabilityStatus,
   startsAt: scheduleTimestamp.optional(),
   endsAt: scheduleTimestamp.optional(),
   retiredVersion: storedRetirementVersion.optional(),

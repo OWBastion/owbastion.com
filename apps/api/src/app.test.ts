@@ -343,9 +343,9 @@ describe("API", () => {
     const cacheApp = createTestApp({
       listChallenges: async (input) => {
         if (input?.family === "map") mapChallengeCalls += 1;
-        if (input?.family === "achievement") achievementCalls += 1;
         return [];
       },
+      listPublicAchievements: async () => { achievementCalls += 1; return []; },
       listRandomEvents: async () => { eventCalls += 1; return [{ eventId: "event.test", name: "稳住", category: "增益", rarity: "R", description: "测试事件", durationSeconds: 60, cooldownSeconds: .32, weight: 1, gameVersion: "5.0", eventGroup: null, effectTags: [], effectAnnotations: [], releaseStatus: "implemented", archived: false, challenges: [] }]; },
       getRandomEvent: async () => { singleEventCalls += 1; return { eventId: "event.test", name: "稳住", category: "增益", rarity: "R", description: "测试事件", durationSeconds: 60, cooldownSeconds: .32, weight: 1, gameVersion: "5.0", eventGroup: null, effectTags: [], effectAnnotations: [], releaseStatus: "implemented", archived: false, challenges: [] }; },
     }, anonymousAuth);
@@ -1862,7 +1862,7 @@ describe("API", () => {
 
   it("serves the public achievement catalog without a player session", async () => {
     const publicApp = createTestApp({
-      listChallenges: async (input) => input?.family === "achievement" ? [{ challengeId: "title.flawless", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "FLAWLESS", titleName: "完美无缺", icon: "zap", category: "极限操作系列", condition: "单局跳过英雄次数为 0 且通关。", evidenceRule: "完整截图", gameVersion: "2026.07.15", status: "sunsetting", retiredVersion: "26.0713.1", submissionMode: "manual" }] : [],
+      listPublicAchievements: async () => [{ challengeId: "title.flawless", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "FLAWLESS", titleName: "完美无缺", icon: "zap", category: "极限操作系列", condition: "单局跳过英雄次数为 0 且通关。", evidenceRule: "完整截图", gameVersion: "2026.07.15", status: "sunsetting", retiredVersion: "26.0713.1", submissionMode: "manual" }],
     }, anonymousAuth);
     const response = await publicApp.request("http://localhost/v1/public/achievements", {}, env);
     expect(response.status).toBe(200);

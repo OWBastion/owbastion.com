@@ -14,7 +14,7 @@ export const registerPublicCatalogRoutes = (app: ApiApp, dependencies: PublicCat
     allowPortal(c);
     return cachedCatalogResponse(c, {
       operation: "catalog_public_achievements",
-      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_achievements", () => services(c.env).listChallenges({ family: "achievement" })) }),
+      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_achievements", () => services(c.env).listPublicAchievements()) }),
     });
   });
 

@@ -240,6 +240,11 @@ afterEach(() => {
   Object.assign(challengeLists, defaultChallengeLists);
 });
 
+async function selectView(wrapper: VueWrapper, prefix: string) {
+  await wrapper.findAll("button").find((button) => button.text().startsWith(prefix))!.trigger("click");
+  await flushPromises();
+}
+
 async function expand(wrapper: VueWrapper, label: string) {
   await wrapper.get(`button[aria-label="展开${label}的获取方式"]`).trigger("click");
   await flushPromises();
@@ -257,9 +262,20 @@ describe("achievement admin pages", () => {
     expect(wrapper.text()).toContain("守望先锋");
     expect(wrapper.text()).toContain("2 条挑战 · 1 条可完成");
     expect(wrapper.text()).toContain("地图称号规则");
+    expect(wrapper.text()).toContain("轻装上阵");
+    await selectView(wrapper, "全部");
     expect(wrapper.text()).toContain("无获取方式");
     expect(wrapper.text()).toContain("已结束");
-    expect(wrapper.text()).toContain("轻装上阵");
+  });
+
+  it("leads with titles that need attention and keeps ended ones in their own view", async () => {
+    const wrapper = await mountPage("titles");
+    expect(wrapper.text()).not.toContain("福星高照");
+    expect(wrapper.text()).not.toContain("到此一游");
+    await selectView(wrapper, "已结束");
+    expect(wrapper.text()).toContain("福星高照");
+    expect(wrapper.text()).toContain("到此一游");
+    expect(wrapper.text()).not.toContain("守望先锋");
   });
 
   it("expands a title and lists its challenges with actions", async () => {
@@ -271,6 +287,8 @@ describe("achievement admin pages", () => {
     expect(wrapper.text()).toContain("引入 26.0301.1");
     expect(wrapper.findAll('button[aria-label="计划下线守望先锋的挑战"]')).toHaveLength(1);
     expect(wrapper.findAll('button[aria-label="结束守望先锋的挑战"]')).toHaveLength(1);
+    expect(wrapper.findAll('button[aria-label="重开守望先锋的挑战"]')).toHaveLength(0);
+    await selectView(wrapper, "显示已结束 1 条");
     expect(wrapper.findAll('button[aria-label="重开守望先锋的挑战"]')).toHaveLength(1);
   });
 
@@ -285,6 +303,7 @@ describe("achievement admin pages", () => {
 
   it("shows the empty acquisition card for ended titles without challenges", async () => {
     const wrapper = await mountPage("titles");
+    await selectView(wrapper, "已结束");
     await expand(wrapper, "福星高照");
     expect(wrapper.text()).toContain("还没有获取方式，玩家无法获得这个称号。");
     expect(wrapper.findAll("button").some((button) => button.text() === "添加挑战")).toBe(true);
@@ -372,6 +391,7 @@ describe("achievement admin pages", () => {
 
   it("offers no 结束 button for a title whose acquisition window already lapsed", async () => {
     const wrapper = await mountPage("titles");
+    await selectView(wrapper, "已结束");
     expect(wrapper.text()).toContain("到此一游");
     expect(wrapper.find('button[aria-label="结束到此一游"]').exists()).toBe(false);
     expect(wrapper.find('button[aria-label="重开到此一游"]').exists()).toBe(false);

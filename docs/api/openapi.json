@@ -1046,6 +1046,7 @@
   "/v1/public/achievements": {
    "get": {
     "operationId": "listPublicAchievements",
+    "description": "Achievement gallery: every released, publicly visible title except the developer-reserved series. Item status is scheduled, active, sunsetting or ended; a title whose every path has ended appears once with status ended. Draft titles are never listed.",
     "responses": {
      "200": {
       "$ref": "#/components/responses/Json"

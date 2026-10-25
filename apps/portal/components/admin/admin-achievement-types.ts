@@ -65,3 +65,9 @@ export const achievementStatusTone = (status: DerivedStatus): StatusTone =>
     : status === "scheduled" || status === "draft" ? "info"
       : status === "sunsetting" ? "warning"
         : "default";
+
+// Admin lists lead with what needs attention; ended rows sit behind their own view.
+export type StatusView = "attention" | "ended" | "all";
+export const inStatusView = (status: DerivedStatus, view: StatusView) => view === "all" || (view === "ended") === (status === "ended");
+const attentionRank: Record<DerivedStatus, number> = { sunsetting: 0, draft: 1, scheduled: 2, active: 3, ended: 4 };
+export const compareAttention = (left: DerivedStatus, right: DerivedStatus) => attentionRank[left] - attentionRank[right];

@@ -6,8 +6,8 @@ import type {
   AdminMapTitleInheritanceResponse,
   Map as ApiMap,
 } from "@owbastion/contracts";
-import type { DerivedStatus, MapAchievement } from "~/components/admin/admin-achievement-types";
-import { achievementStatusLabel, achievementStatusTone, challengeDisplayStatus } from "~/components/admin/admin-achievement-types";
+import type { DerivedStatus, MapAchievement, StatusView } from "~/components/admin/admin-achievement-types";
+import { achievementStatusLabel, achievementStatusTone, challengeDisplayStatus, compareAttention, inStatusView } from "~/components/admin/admin-achievement-types";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
 import { mapVariantLabel } from "~/utils/map-variant";
@@ -59,7 +59,8 @@ const ruleMapManagerOpen = shallowRef(false);
 const exceptionDraft = reactive<Exception>({ enabled: true, condition: null, evidenceRule: null, submissionMode: null, slot: null, startsAt: null, endsAt: null });
 const form = reactive({ titleKey: "", kind: "", condition: "", evidenceRule: "", submissionMode: "manual" as Rule["submissionMode"], displayKind: "fixed" as Rule["displayKind"], slot: null as Rule["slot"], mapVariant: undefined as "classic" | undefined, defaultScope: "all_active" as Rule["defaultScope"], status: "active" as Rule["status"], introducedVersion: "", retiredVersion: "" });
 
-const defaultRuleSorting: SortingState = [{ id: "titleName", desc: false }];
+// Rows arrive in attention order; an empty default keeps it until a column is sorted.
+const defaultRuleSorting: SortingState = [];
 const ruleSorting = shallowRef<SortingState>([...defaultRuleSorting]);
 const ruleSortingOptions = [
   { id: "titleName", label: "称号" },
@@ -67,7 +68,7 @@ const ruleSortingOptions = [
   { id: "exceptionCount", label: "地图例外数" },
   { id: "status", label: "状态" },
 ];
-const defaultMapSorting: SortingState = [{ id: "titleName", desc: false }];
+const defaultMapSorting: SortingState = [];
 const mapSorting = shallowRef<SortingState>([...defaultMapSorting]);
 const mapSortingOptions = [
   { id: "titleName", label: "挑战" },
@@ -106,6 +107,18 @@ const ruleSummaries = computed<RuleSummary[]>(() => rules.value.map((rule) => {
   const rows = inheritances.value.filter((item) => item.rule.ruleId === rule.ruleId);
   return { ...rule, effectiveMapCount: rows.filter((item) => item.projected).length, exceptionCount: rows.filter((item) => item.exception !== null).length };
 }));
+const statusView = shallowRef<StatusView>("attention");
+const ruleDisplayStatus = (rule: Pick<Rule, "status" | "retiredVersion">) => challengeDisplayStatus({ status: rule.status, retiredVersion: rule.retiredVersion });
+const statusViewTabs = (statuses: DerivedStatus[]) => [
+  { label: `关注 ${statuses.filter((status) => inStatusView(status, "attention")).length}`, value: "attention" },
+  { label: `已结束 ${statuses.filter((status) => inStatusView(status, "ended")).length}`, value: "ended" },
+  { label: `全部 ${statuses.length}`, value: "all" },
+];
+const byAttention = <T extends { titleName: string }>(rows: T[], statusOf: (row: T) => DerivedStatus) => rows
+  .filter((row) => inStatusView(statusOf(row), statusView.value))
+  .sort((left, right) => compareAttention(statusOf(left), statusOf(right)) || left.titleName.localeCompare(right.titleName, "zh-CN"));
+const visibleRuleSummaries = computed(() => byAttention([...ruleSummaries.value], ruleDisplayStatus));
+const ruleViewTabs = computed(() => statusViewTabs(ruleSummaries.value.map(ruleDisplayStatus)));
 const selectedInheritance = computed(() => inheritances.value.filter((item) => item.mapId === selectedMapId.value));
 const mapRows = computed<MapViewRow[]>(() => {
   const projections = selectedInheritance.value.map((item) => ({
@@ -133,6 +146,8 @@ const mapRows = computed<MapViewRow[]>(() => {
   }));
   return [...projections, ...genuineChallenges];
 });
+const visibleMapRows = computed(() => byAttention([...mapRows.value], (row) => row.displayStatus));
+const mapViewTabs = computed(() => statusViewTabs(mapRows.value.map((row) => row.displayStatus)));
 const selectedException = computed(() => inheritances.value.find((item) => `${item.mapId}:${item.rule.ruleId}` === editingExceptionId.value) ?? null);
 const selectedExceptionMapName = computed(() => props.maps.find((map) => map.mapId === selectedException.value?.mapId)?.mapName ?? selectedException.value?.mapId ?? "");
 const managedRuleMaps = computed(() => managingRule.value ? inheritances.value.filter((item) => item.rule.ruleId === managingRule.value?.ruleId) : []);
@@ -251,20 +266,22 @@ watch(() => props.maps, () => { if (!selectedMapId.value && props.maps[0]) selec
 
     <template v-if="viewMode === 'rules'">
       <div class="section-toolbar"><UButton label="新建规则" @click="editRule()" /></div>
-      <AdminDataTable v-model:sorting="ruleSorting" :sorting-options="ruleSortingOptions" :default-sorting="defaultRuleSorting" :data="ruleSummaries" :columns="ruleColumns" :loading="loadingRules" empty="暂无地图称号规则。" row-key="ruleId" table-key="unified-map-achievement-rules" table-min-width="900px" class="admin-table">
+      <UTabs v-model="statusView" :items="ruleViewTabs" :content="false" variant="link" aria-label="规则状态视图" />
+      <AdminDataTable v-model:sorting="ruleSorting" :sorting-options="ruleSortingOptions" :default-sorting="defaultRuleSorting" :data="visibleRuleSummaries" :columns="ruleColumns" :loading="loadingRules" empty="暂无地图称号规则。" row-key="ruleId" table-key="unified-map-achievement-rules" table-min-width="900px" class="admin-table">
         <template #titleName-cell="{ row }"><strong>{{ row.original.titleName }}</strong><small class="type-caption">{{ kindLabel(row.original.kind) }} · {{ scopeLabel(row.original.defaultScope) }}</small></template>
         <template #effectiveMapCount-cell="{ row }"><span>{{ row.original.effectiveMapCount }} 张</span></template>
         <template #exceptionCount-cell="{ row }"><span>{{ row.original.exceptionCount }} 项</span></template>
         <template #displayKind-cell="{ row }"><span>{{ displayKindLabel(row.original.displayKind) }}</span></template>
         <template #submissionMode-cell="{ row }"><span>{{ submissionModeLabel(row.original.submissionMode) }}</span></template>
-        <template #status-cell="{ row }"><StatusBadge :label="statusLabel(challengeDisplayStatus({ status: row.original.status, retiredVersion: row.original.retiredVersion }))" :tone="statusTone(challengeDisplayStatus({ status: row.original.status, retiredVersion: row.original.retiredVersion }))" /></template>
+        <template #status-cell="{ row }"><StatusBadge :label="statusLabel(ruleDisplayStatus(row.original))" :tone="statusTone(ruleDisplayStatus(row.original))" /></template>
         <template #actions-cell="{ row }"><div class="table-actions"><UButton v-if="row.original.kind.trim().toLocaleLowerCase() === 'pioneer'" label="管理开放窗口" size="sm" color="neutral" variant="soft" @click="openRuleMapManager(row.original)" /><UButton label="编辑规则" size="sm" color="neutral" variant="outline" @click="editRule(row.original)" /></div></template>
       </AdminDataTable>
     </template>
 
     <template v-else>
       <div class="section-toolbar"><USelect v-model="selectedMapId" aria-label="选择地图" :items="props.maps.map((map) => ({ label: map.mapName, value: map.mapId }))" /><span class="type-caption">{{ mapName }} · {{ mapRows.length }} 项</span></div>
-      <AdminDataTable v-model:sorting="mapSorting" :sorting-options="mapSortingOptions" :default-sorting="defaultMapSorting" :data="mapRows" :columns="mapColumns" :loading="loadingRules || props.loading" empty="暂无地图成就。" :row-key="(row) => row.rowId" :table-key="`unified-map-achievements-${selectedMapId}`" table-min-width="860px" class="admin-table">
+      <UTabs v-model="statusView" :items="mapViewTabs" :content="false" variant="link" aria-label="地图挑战状态视图" />
+      <AdminDataTable v-model:sorting="mapSorting" :sorting-options="mapSortingOptions" :default-sorting="defaultMapSorting" :data="visibleMapRows" :columns="mapColumns" :loading="loadingRules || props.loading" empty="暂无地图成就。" :row-key="(row) => row.rowId" :table-key="`unified-map-achievements-${selectedMapId}`" table-min-width="860px" class="admin-table">
         <template #titleName-cell="{ row }"><strong>{{ row.original.titleName }}</strong><small class="type-caption">{{ row.original.rowType === 'projection' ? `${mapVariantLabel(row.original.rule?.mapVariant)} · ${row.original.inheritance?.projected ? '有效结果' : '未启用规则'}` : `${mapVariantLabel(row.original.challenge?.mapVariant)} · 真实单图挑战` }}</small></template>
         <template #source-cell="{ row }"><span>{{ row.original.source }}</span></template>
         <template #condition-cell="{ row }"><span class="condition-cell">{{ row.original.condition || '暂无记录' }}</span></template>
