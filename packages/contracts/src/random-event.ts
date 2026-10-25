@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { contractVersion, externalId } from "./common";
+import { contractVersion, externalId } from "./shared";
 // index.ts re-exports this module, so challengeSchema is read lazily at parse
 // time to keep the circular module edge from evaluating an uninitialized binding.
 import { challengeSchema } from "./index";

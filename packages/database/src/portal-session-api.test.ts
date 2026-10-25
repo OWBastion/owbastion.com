@@ -73,6 +73,36 @@ describe("Portal API session authentication", () => {
     expect((await request("/v1/me/submissions/submission.player", "player")).status).toBe(200);
   });
 
+  it("pages the caller's full submission history without exposing other players'", async () => {
+    const { request, sqlite } = await setup();
+    const timestamp = Date.now();
+    for (let i = 1; i <= 3; i += 1) {
+      sqlite.prepare("INSERT INTO submissions (id, player_account_id, status, challenge_type, map_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES (?, 'player', 'ocr_pending', 'custom', 'Test Map', 'portal', 'fixture', ?, ?, ?)")
+        .run(`submission.player.${i}`, `extra-${i}`, timestamp + i, timestamp + i);
+    }
+    expect((await request("/v1/me/submissions")).status).toBe(401);
+
+    const page1 = await request("/v1/me/submissions?page=1&pageSize=2", "player");
+    expect(page1.status).toBe(200);
+    expect(page1.headers.get("cache-control")).toBe("private, no-store");
+    expect(await page1.json()).toEqual({ contractVersion: "1", page: 1, pageSize: 2, total: 4, hasMore: true, items: [
+      { submissionId: "submission.player.3", status: "processing", resubmissionRequired: false, mapName: "Test Map", createdAt: timestamp + 3, updatedAt: timestamp + 3 },
+      { submissionId: "submission.player.2", status: "processing", resubmissionRequired: false, mapName: "Test Map", createdAt: timestamp + 2, updatedAt: timestamp + 2 },
+    ] });
+
+    const page2 = await request("/v1/me/submissions?page=2&pageSize=2", "player");
+    expect(await page2.json()).toEqual({ contractVersion: "1", page: 2, pageSize: 2, total: 4, hasMore: false, items: [
+      { submissionId: "submission.player.1", status: "processing", resubmissionRequired: false, mapName: "Test Map", createdAt: timestamp + 1, updatedAt: timestamp + 1 },
+      { submissionId: "submission.player", status: "processing", resubmissionRequired: false, mapName: "Test Map", createdAt: expect.any(Number), updatedAt: expect.any(Number) },
+    ] });
+
+    expect(await (await request("/v1/me/submissions", "admin")).json()).toMatchObject({ total: 1, items: [{ submissionId: "submission.admin" }] });
+
+    for (const path of ["/v1/me/submissions?page=0", "/v1/me/submissions?pageSize=51", "/v1/me/submissions?page=1&page=2", "/v1/me/submissions?bogus=1"]) {
+      expect((await request(path, "player")).status).toBe(422);
+    }
+  });
+
   it("rejects missing, invalid, expired, deleted and banned sessions", async () => {
     const { request, sqlite } = await setup();
     for (const path of ["/v1/admin/map-title-rules", "/v1/me/mastery"]) {

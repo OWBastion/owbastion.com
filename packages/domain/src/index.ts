@@ -3,6 +3,7 @@ import type {
   SubmissionStatusResponse,
   PlayerSubmissionStatus,
   PlayerSubmissionDetail,
+  PlayerSubmissionListResponse,
   QqLoginAttemptRequest,
   QqLoginAttemptResponse,
   QqLoginStatusResponse,
@@ -315,6 +316,7 @@ export type PlatformServices = {
   decideAdminBindingClaim(input: { claimId: string } & AdminBindingClaimDecisionRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
   getSubmission(input: { submissionId: string }, auth: AuthContext): Promise<SubmissionStatusResponse>;
   getPlayerSubmission(input: { submissionId: string }, sessionToken: string): Promise<PlayerSubmissionDetail>;
+  listCurrentPlayerSubmissions(input: { sessionToken: string; page: number; pageSize: number }): Promise<PlayerSubmissionListResponse | null>;
   submitPlayerOcrFeedback(input: Omit<OcrAccuracyFeedbackRequest, "contractVersion"> & { submissionId: string }, sessionToken: string, idempotencyKey: string): Promise<OcrAccuracyFeedbackResponse>;
   submitAdminOcrAccuracy(input: Omit<OcrAccuracyFeedbackRequest, "contractVersion"> & { submissionId: string }, auth: AuthContext, idempotencyKey: string): Promise<OcrAccuracyFeedbackResponse>;
   listAdminScreenshotSetCandidates(input: { page: number; pageSize: number }, auth: AuthContext): Promise<AdminScreenshotSetCandidateListResponse>;
