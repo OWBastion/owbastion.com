@@ -103,7 +103,10 @@ onMounted(() => {
       </NuxtLink>
 
       <section v-if="recentSubmissions.length" class="hub-recent" aria-labelledby="recent-title">
-        <h2 id="recent-title" class="hub-recent__title">最近</h2>
+        <div class="hub-recent__head">
+          <h2 id="recent-title" class="hub-recent__title">最近</h2>
+          <NuxtLink to="/me/submissions" class="hub-recent__all">全部</NuxtLink>
+        </div>
         <PlayerRecentSubmissions :submissions="recentSubmissions" />
       </section>
 
@@ -148,7 +151,10 @@ onMounted(() => {
 .hub-cta--warn { background: var(--signal); color: oklch(20% .03 75); }
 .hub-cta--warn:hover, .hub-cta--warn:focus-visible { box-shadow: 0 .75rem 2rem -1rem var(--signal); }
 .hub-recent { display: grid; gap: var(--space-2); }
+.hub-recent__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
 .hub-recent__title { margin: 0; color: var(--quiet); font-family: var(--font-display); font-size: var(--type-caption-size); font-weight: 600; letter-spacing: .14em; }
+.hub-recent__all { color: var(--muted); font-size: var(--type-caption-size); text-decoration: none; }
+.hub-recent__all:hover { color: var(--text); }
 .hub-nudge { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin: 0; }
 .hub-nudge a { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--muted); font-size: var(--type-label-sm-size); text-decoration: none; }
 .hub-nudge a:hover { color: var(--text); }
