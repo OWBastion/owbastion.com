@@ -289,6 +289,7 @@ const CATALOG_TABLES = new Set([
   "standalone_modes",
   "random_event_map_challenges",
   "random_event_title_challenges",
+  "random_event_outcomes",
   "random_event_imports",
   "effect_glossary_terms",
 ]);

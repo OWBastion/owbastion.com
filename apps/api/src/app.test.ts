@@ -7,7 +7,7 @@ import { withPublicCache } from "./public-cache";
 const auth = async () => ({ actorType: "service" as const, subject: "qqbot", roles: ["channel:write"], provider: "test" });
 const maintainerContext = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
 const authenticateAsMaintainer = async () => maintainerContext;
-const anonymousAuth = async () => null;
+const anonymousAuth = async () => null; const randomEventFixture = { eventId: "event.test", name: "稳住", category: "增益", rarity: "R", description: "测试事件", durationSeconds: 60, cooldownSeconds: .32, weight: 1, gameVersion: "5.0", eventGroup: null, effectTags: [] as string[], effectAnnotations: [], releaseStatus: "implemented" as const, archived: false, challenges: [], outcomes: [] };
 const defaultServices: Partial<PlatformServices> = {
   submitQqScreenshot: async () => ({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000010", status: "processing" }),
   recordVerifiedRun: async () => { throw new Error("VERIFIED_RUN_NOT_IMPLEMENTED"); },
@@ -216,7 +216,7 @@ describe("API", () => {
   });
 
   it("lists public random events without development records", async () => {
-    const eventApp = createTestApp({ listRandomEvents: async () => [{ eventId: "event.test", name: "稳住", category: "增益", rarity: "R", description: "测试事件", durationSeconds: 60, cooldownSeconds: .32, weight: 1, gameVersion: "5.0", eventGroup: null, effectTags: ["护盾"], effectAnnotations: [], releaseStatus: "implemented", archived: false, challenges: [] }] });
+    const eventApp = createTestApp({ listRandomEvents: async () => [{ ...randomEventFixture, effectTags: ["护盾"] }] });
     const response = await eventApp.request("http://localhost/v1/events", {}, env);
     expect(response.status).toBe(200);
     expect((await response.json() as { items: Array<{ name: string }> }).items[0]?.name).toBe("稳住");
@@ -346,8 +346,8 @@ describe("API", () => {
         return [];
       },
       listPublicAchievements: async () => { achievementCalls += 1; return []; },
-      listRandomEvents: async () => { eventCalls += 1; return [{ eventId: "event.test", name: "稳住", category: "增益", rarity: "R", description: "测试事件", durationSeconds: 60, cooldownSeconds: .32, weight: 1, gameVersion: "5.0", eventGroup: null, effectTags: [], effectAnnotations: [], releaseStatus: "implemented", archived: false, challenges: [] }]; },
-      getRandomEvent: async () => { singleEventCalls += 1; return { eventId: "event.test", name: "稳住", category: "增益", rarity: "R", description: "测试事件", durationSeconds: 60, cooldownSeconds: .32, weight: 1, gameVersion: "5.0", eventGroup: null, effectTags: [], effectAnnotations: [], releaseStatus: "implemented", archived: false, challenges: [] }; },
+      listRandomEvents: async () => { eventCalls += 1; return [randomEventFixture]; },
+      getRandomEvent: async () => { singleEventCalls += 1; return randomEventFixture; },
     }, anonymousAuth);
 
     const cookieHeader = { headers: { cookie: "owb_session=player-session" } };

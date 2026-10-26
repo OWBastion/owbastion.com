@@ -22,6 +22,7 @@ import {
   qqLoginAttemptsSchema,
   qqSessionsSchema,
   randomEventMapChallengesSchema,
+  randomEventOutcomesSchema,
   randomEventTitleChallengesSchema,
   randomEventVersionsSchema,
   randomEventsSchema,
@@ -267,6 +268,7 @@ export const installSchema = (sqlite: DatabaseSync) => {
     ${randomEventVersionsSchema}
     ${randomEventMapChallengesSchema}
     ${randomEventTitleChallengesSchema}
+    ${randomEventOutcomesSchema}
     CREATE TABLE random_event_imports (
       id TEXT PRIMARY KEY NOT NULL,
       source_hash TEXT NOT NULL,

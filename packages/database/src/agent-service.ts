@@ -4,6 +4,7 @@ import type {
   AgentSearchResult,
   AgentTitle,
   Challenge,
+  RandomEvent,
   Title,
 } from "@owbastion/contracts";
 import type {
@@ -86,6 +87,8 @@ export const createAgentServices = (db: ReturnType<typeof drizzle>, dependencies
     const passed = boundaries.reduce((count, { startsAt, endsAt }) => count + Number(startsAt !== null && startsAt <= timestamp) + Number(endsAt !== null && endsAt <= timestamp), 0);
     return platformCache.cached("catalog", `agent-map-projections:${input.mapId ?? "all"}:${passed}`, () => projectAgentMaps(database, input, now));
   };
+  // Event search covers the event's own text plus its outcomes' names and descriptions.
+  const eventSearchFields = (event: RandomEvent) => [event.name, event.description, event.eventGroup ?? "", ...event.effectTags, ...event.outcomes.flatMap((outcome) => [outcome.name, outcome.description])];
   const asMapAgentTitle = (
     title: typeof titleCatalog.$inferSelect,
     mapId: string,
@@ -104,7 +107,7 @@ export const createAgentServices = (db: ReturnType<typeof drizzle>, dependencies
       const [events, suspendedVersions] = await Promise.all([this.listRandomEvents({ category: input.category, rarity: input.rarity, status: input.status }), suspendedEventVersions()]);
       const query = input.query?.toLocaleLowerCase();
       const available = events.filter((event) => !suspendedVersions.has(event.gameVersion));
-      const filtered = query ? available.filter((event) => [event.name, event.description, event.eventGroup ?? "", ...event.effectTags].some((value) => value.toLocaleLowerCase().includes(query))) : available;
+      const filtered = query ? available.filter((event) => eventSearchFields(event).some((value) => value.toLocaleLowerCase().includes(query))) : available;
       return paginate(filtered, input.page, input.pageSize);
     },
     async getAgentEvent(this: PlatformServices, input) {
@@ -257,7 +260,7 @@ export const createAgentServices = (db: ReturnType<typeof drizzle>, dependencies
         include("title") ? listGlobalAgentTitles() : [],
       ]);
       const results: AgentSearchResult[] = [];
-      if (!input.kind || input.kind === "event") results.push(...events.filter((event) => !suspendedVersions.has(event.gameVersion) && [event.name, event.description, event.eventGroup ?? "", ...event.effectTags].some((value) => value.toLocaleLowerCase().includes(query))).map((event) => ({ kind: "event" as const, id: event.eventId, name: event.name, summary: event.description })));
+      if (!input.kind || input.kind === "event") results.push(...events.filter((event) => !suspendedVersions.has(event.gameVersion) && eventSearchFields(event).some((value) => value.toLocaleLowerCase().includes(query))).map((event) => ({ kind: "event" as const, id: event.eventId, name: event.name, summary: event.description })));
       if (!input.kind || input.kind === "map") results.push(...maps.filter((map) => [map.mapName, ...map.mechanics].some((value) => value.toLocaleLowerCase().includes(query))).map((map) => ({ kind: "map" as const, id: map.mapId, name: map.mapName, summary: map.mechanics.join("、") || `游戏版本 ${map.gameVersion}` })));
       if (!input.kind || input.kind === "achievement") results.push(...achievements.filter((challenge): challenge is Extract<Challenge, { family: "achievement" }> => challenge.family === "achievement" && [challenge.titleName, challenge.category, challenge.condition, challenge.evidenceRule].some((value) => value.toLocaleLowerCase().includes(query))).map((challenge) => ({ kind: "achievement" as const, id: challenge.challengeId, name: challenge.titleName, summary: challenge.condition })));
       if (!input.kind || input.kind === "title") results.push(...titles.filter((title) => [title.label, title.category, title.condition].some((value) => value.toLocaleLowerCase().includes(query))).map((title) => ({ kind: "title" as const, id: title.titleKey, name: title.label, summary: title.condition })));

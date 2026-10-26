@@ -368,6 +368,15 @@ export const randomEventTitleChallengesSchema = `CREATE TABLE random_event_title
       challenge_id TEXT NOT NULL REFERENCES title_challenges(id),
       PRIMARY KEY (event_id, challenge_id)
     );`;
+export const randomEventOutcomesSchema = `CREATE TABLE random_event_outcomes (
+      event_id TEXT NOT NULL REFERENCES random_events(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      polarity TEXT NOT NULL CHECK (polarity IN ('buff', 'debuff')),
+      description TEXT NOT NULL,
+      effect_tags_json TEXT NOT NULL DEFAULT '[]',
+      PRIMARY KEY (event_id, position)
+    );`;
 export const qqGroupAccessSchema = `CREATE TABLE qq_group_access (
     group_open_id TEXT PRIMARY KEY NOT NULL, display_name TEXT NOT NULL DEFAULT '', environment TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
     bind_enabled INTEGER NOT NULL DEFAULT 0, verify_enabled INTEGER NOT NULL DEFAULT 0,
