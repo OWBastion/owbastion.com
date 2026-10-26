@@ -9,6 +9,30 @@ export type CanonicalOcrChallenge = {
   conditions: CanonicalChallengeConditions | null;
 };
 
+export const autoMatchTitleKeys = (candidates: CanonicalOcrChallenge[]) => new Set(candidates.flatMap(({ conditions }) => conditions?.conditions.flatMap((condition) => condition.type === "achievement_title" ? [condition.titleKey] : []) ?? []));
+
+export const autoMatchTitleNames = (candidates: CanonicalOcrChallenge[], conditionTitleNames: ReadonlyMap<string, string>) => {
+  const titleKeys = autoMatchTitleKeys(candidates);
+  const names = new Map([...conditionTitleNames].filter(([key]) => titleKeys.has(key)));
+  for (const { challenge } of candidates) {
+    if (challenge.family === "achievement" && challenge.titleKey) names.set(challenge.titleKey, challenge.titleName);
+    else if (challenge.family === "map" && challenge.titleKey) names.set(challenge.titleKey, challenge.name);
+  }
+  return names;
+};
+
+export const autoMatchMapIds = (activeMaps: readonly { id: string; name: string }[]) => {
+  const mapIdsByName = new Map<string, string>();
+  const ambiguousMapNames = new Set<string>();
+  for (const map of activeMaps) {
+    const key = map.name.trim().toLocaleLowerCase();
+    if (mapIdsByName.has(key)) ambiguousMapNames.add(key);
+    else mapIdsByName.set(key, map.id);
+  }
+  for (const key of ambiguousMapNames) mapIdsByName.delete(key);
+  return mapIdsByName;
+};
+
 export type AutoMatchCandidate = CanonicalOcrChallenge & {
   evaluation: ChallengeConditionEvaluation;
   quality: OcrQualityGate;

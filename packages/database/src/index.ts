@@ -11,7 +11,7 @@ import { achievementChallengeMaps, achievementChallenges, attachments, auditEven
 import { userEvidenceObjectKey } from "./object-key";
 import { fetchQqAttachmentImage } from "./qq-attachment";
 import { createPlayerUploadServices, maxUploadBytes, playerSubmissionStatus } from "./player-upload-service";
-import { matchOcrAgainstChallenges, type AutoMatchCandidate, type CanonicalOcrChallenge } from "./ocr-auto-match";
+import { autoMatchMapIds, autoMatchTitleKeys, autoMatchTitleNames, matchOcrAgainstChallenges, type AutoMatchCandidate, type CanonicalOcrChallenge } from "./ocr-auto-match";
 import { assessVerifiedRunOcrEvidence, hasReliableVerifiedRunField, normalizeOcrDifficulty, standaloneOcrMode, type OcrResponse } from "./ocr-response";
 import { createCanonicalChallengeServices, type CanonicalChallengeInput, type CanonicalChallengePlan, type CanonicalChallengeResolver } from "./canonical-challenge-service";
 import { createChallengeCompletionServices, type ChallengeCompletionAward } from "./challenge-completion-service";
@@ -1004,12 +1004,11 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     return { status, verifiedRunId: recorded.run.runId, awardedXp: status === "created" ? recorded.run.awardedXp : 0, reason: status === "reused" ? "same_player_run_code" : null, conflictFields: [] };
   };
 
-  const resolveAutoMatchGameplayRevisionId = async (row: typeof submissions.$inferSelect, response: OcrResponse) => {
+  const resolveAutoMatchGameplayRevisionId = async (row: typeof submissions.$inferSelect, response: OcrResponse, activeMaps: typeof maps.$inferSelect[]) => {
     const mapName = typeof response.data?.map_name === "string" ? response.data.map_name.trim() : "";
     const rawMapVariant = typeof response.data?.map_variant === "string" ? response.data.map_variant.trim() : "";
     if (!mapName || (rawMapVariant && rawMapVariant !== "classic")) return null;
-    const matchingMaps = (await loadActiveMaps())
-      .filter((map) => normalizedOcrLabel(map.name) === normalizedOcrLabel(mapName));
+    const matchingMaps = activeMaps.filter((map) => normalizedOcrLabel(map.name) === normalizedOcrLabel(mapName));
     if (matchingMaps.length !== 1 || (row.targetMapId && row.targetMapId !== matchingMaps[0]?.id)) return null;
     const mapVariant = rawMapVariant === "classic" ? "classic" : await requiredMasteryMapVariant(row);
     const revision = await resolveMasteryGameplayRevision({
@@ -1487,7 +1486,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
 
 
 
-  const prepareCanonicalAutoMatchChallenges = async (items: Challenge[], eligibilityAt: number) => {
+  const prepareCanonicalAutoMatchChallenges = async (items: Challenge[], eligibilityAt: number, activeMaps: typeof maps.$inferSelect[]) => {
     const resolved: CanonicalOcrChallenge[] = [];
     const snapshots = new Map<string, MapTitleRuleSnapshot>();
     const itemSnapshots = await batchResolveAutomaticSnapshots(items, eligibilityAt);
@@ -1517,35 +1516,32 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       snapshots.set(canonicalChallengeId, snapshot);
     });
 
-    const titleKeys = [...new Set(resolved.flatMap(({ conditions }) => conditions?.conditions.flatMap((condition) => condition.type === "achievement_title" ? [condition.titleKey] : []) ?? []))];
+    const titleKeys = [...autoMatchTitleKeys(resolved)];
     const titleRows = titleKeys.length ? await db.select({ key: titleCatalog.key, label: titleCatalog.label }).from(titleCatalog).where(sql`${titleCatalog.key} IN (SELECT value FROM json_each(${JSON.stringify(titleKeys)}))`) : [];
     const titleNamesByKey = new Map(titleRows.map(({ key, label }) => [key, label]));
-    for (const { challenge } of resolved) {
-      if (challenge.family === "achievement" && challenge.titleKey) titleNamesByKey.set(challenge.titleKey, challenge.titleName);
-      else if (challenge.family === "map" && challenge.titleKey) titleNamesByKey.set(challenge.titleKey, challenge.name);
-    }
-    const activeMaps = await loadActiveMaps();
-    const mapIdsByName = new Map<string, string>();
-    const ambiguousMapNames = new Set<string>();
-    for (const map of activeMaps) {
-      const key = map.name.trim().toLocaleLowerCase();
-      if (mapIdsByName.has(key)) ambiguousMapNames.add(key);
-      else mapIdsByName.set(key, map.id);
-    }
-    for (const key of ambiguousMapNames) mapIdsByName.delete(key);
+    const mapIdsByName = autoMatchMapIds(activeMaps);
     const canonicalChallengePlans = new globalThis.Map(plans.map((plan) => [plan.row.id, plan]));
     return { candidates: resolved, snapshots, canonicalChallengePlans, titleNamesByKey, mapIdsByName };
   };
 
-  const preparePlayerAutoMatchChallenges = async (row: typeof submissions.$inferSelect, response: OcrResponse) => {
-    const [items, gameplayRevisionId] = await Promise.all([
+  const loadAutoMatchBasis = async (row: typeof submissions.$inferSelect, response: OcrResponse) => {
+    const activeMapsPromise = Promise.resolve(loadActiveMaps());
+    const [items, activeMaps, gameplayRevisionId] = await Promise.all([
       fetchPlayerAutoMatchChallenges(row.playerAccountId, row.createdAt),
-      resolveAutoMatchGameplayRevisionId(row, response),
+      activeMapsPromise,
+      activeMapsPromise.then((maps) => resolveAutoMatchGameplayRevisionId(row, response, maps)),
     ]);
-    return prepareCanonicalAutoMatchChallenges(
+    return { items, activeMaps, gameplayRevisionId };
+  };
+
+  const preparePlayerAutoMatchChallenges = async (row: typeof submissions.$inferSelect, response: OcrResponse) => {
+    const { items, activeMaps, gameplayRevisionId } = await loadAutoMatchBasis(row, response);
+    const prepared = await prepareCanonicalAutoMatchChallenges(
       items.filter((challenge) => challenge.family !== "map" || challenge.gameplayRevisionId === gameplayRevisionId),
       row.createdAt,
+      activeMaps,
     );
+    return { ...prepared, titleNamesByKey: autoMatchTitleNames(prepared.candidates, prepared.titleNamesByKey) };
   };
 
   const {
@@ -1580,10 +1576,14 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     // A failed recognition leaves no evidence; the reviewer's own field corrections then stand in for it.
     if (!rawResponse && !fieldCorrections?.length) throw new Error("SUBMISSION_NOT_REVIEWABLE");
     const correctedResponse = applySubmissionFieldCorrections(rawResponse ?? { ok: true, data: {}, fields: {} }, fieldCorrections);
-    const [evidencePrepared, linkablePrepared] = await Promise.all([
-      preparePlayerAutoMatchChallenges(row, correctedResponse),
-      prepareCanonicalAutoMatchChallenges(await fetchPlayerAutoMatchChallenges(row.playerAccountId, row.createdAt), row.createdAt),
-    ]);
+    const { items, activeMaps, gameplayRevisionId } = await loadAutoMatchBasis(row, correctedResponse);
+    const linkablePrepared = await prepareCanonicalAutoMatchChallenges(items, row.createdAt, activeMaps);
+    const evidenceCandidates = linkablePrepared.candidates.filter(({ challenge }) => challenge.family !== "map" || challenge.gameplayRevisionId === gameplayRevisionId);
+    const evidencePrepared = {
+      ...linkablePrepared,
+      candidates: evidenceCandidates,
+      titleNamesByKey: autoMatchTitleNames(evidenceCandidates, linkablePrepared.titleNamesByKey),
+    };
     const decision = matchOcrAgainstChallenges(evidencePrepared.candidates, correctedResponse, evidencePrepared.mapIdsByName, evidencePrepared.titleNamesByKey, true);
     // A maintainer may also link any Challenge the player can currently complete, whatever map or
     // revision the evidence resolves to. Those are never matched from evidence (which would let a
@@ -1597,9 +1597,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     }));
     const prepared = {
       ...evidencePrepared,
-      snapshots: new globalThis.Map([...linkablePrepared.snapshots, ...evidencePrepared.snapshots]),
-      canonicalChallengePlans: new globalThis.Map([...linkablePrepared.canonicalChallengePlans, ...evidencePrepared.canonicalChallengePlans]),
-      titleNamesByKey: new globalThis.Map([...linkablePrepared.titleNamesByKey, ...evidencePrepared.titleNamesByKey]),
+      titleNamesByKey: new globalThis.Map([...autoMatchTitleNames(linkablePrepared.candidates, linkablePrepared.titleNamesByKey), ...evidencePrepared.titleNamesByKey]),
     };
     const candidatesById = new globalThis.Map([...decision.candidates, ...linkable].map((candidate) => [candidate.canonicalChallengeId, candidate]));
     const ineligibleConfirmations = confirmedChallengeIds.filter((challengeId) => !candidatesById.has(challengeId));

@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { createPlatformServices } from "./index";
-import { createD1, createTestDatabase, fakeEvidenceBucket, installSchema, localVerifiedRunEvidenceCompatibility, masteryOcr, now, seedCompat, seedException, seedMap, seedMasteryPlayer, seedMasterySubmission, seedRule, seedTitle } from "../test/map-title-rule-fixtures";
+import { createD1, createTestDatabase, fakeEvidenceBucket, installSchema, seedRevisionAssignment, localVerifiedRunEvidenceCompatibility, masteryOcr, now, seedCompat, seedException, seedMap, seedMasteryPlayer, seedMasterySubmission, seedRule, seedTitle } from "../test/map-title-rule-fixtures";
 
 describe("maintainer Challenge confirmation during submission review", () => {
   const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
@@ -58,6 +58,18 @@ describe("maintainer Challenge confirmation during submission review", () => {
     expect(grant).toEqual({ title_key: "NEW_TITLE", status: "active", source_id: "submission.add", challenge_id: candidate!.challengeId, authoring_id: challenge.challengeId });
     await services.reviewSubmission(request, auth, "approve-new-path");
     expect(sqlite.prepare("SELECT count(*) AS n FROM player_title_grants WHERE title_key='NEW_TITLE'").get()).toEqual({ n: 1 });
+  });
+
+  it("keeps an out-of-revision reward label from changing achievement evidence", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedAchievementEvidence(sqlite, ["称号 HERO"]);
+    seedMap(sqlite, "map.other");
+    sqlite.prepare("INSERT INTO achievement_challenges (id, map_id, type, name, difficulty, condition, evidence_rule, submission_mode, reward_title_key, game_version, status, introduced_version, created_at, updated_at) VALUES ('challenge.other', 'map.other', 'difficulty_completion', '另一个地图的奖励名称', '困难', '完成通关', '上传截图', 'automatic', 'HERO', '2026.07.15', 'active', '2026.07.15', ?, ?)").run(now, now);
+    seedRevisionAssignment(sqlite, { gameplayRevisionId: "revision:map.other:initial", mapId: "map.other", challengeFamily: "map_challenge", challengeId: "challenge.other" });
+    const preview = await createPlatformServices(database).previewSubmissionReview({ submissionId: "submission.add" }, auth);
+    expect(preview.candidates.find((candidate) => candidate.family === "achievement")).toMatchObject({ evidence: "matched", selectedBy: "conditions", titleName: "称号 HERO" });
+    expect(preview.candidates.find((candidate) => candidate.family === "map")).toMatchObject({ evidence: "not_matched", selectedBy: null });
   });
 
   it("brings regular map Challenges back when the reviewer corrects a misread mode", async () => {

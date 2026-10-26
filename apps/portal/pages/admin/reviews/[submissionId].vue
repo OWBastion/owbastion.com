@@ -31,6 +31,7 @@ const previewKey = ref<string | null>(null);
 const previewLoading = ref(false);
 const previewError = ref("");
 let previewSequence = 0;
+let pendingPreviewKey: string | null = null;
 /** Single page title: challenge target only (detail body no longer repeats an h2). */
 const pageTitle = computed(() => {
   const detail = submission.value;
@@ -45,6 +46,9 @@ const adminData = useAdminAsyncData("submission-review-detail", () => api<AdminS
   onStart: () => { errorMessage.value = ""; refreshError.value = ""; },
   onData: (response) => {
     if (response.evidenceUrl !== submission.value?.evidenceUrl) evidenceError.value = false;
+    previewSequence++;
+    pendingPreviewKey = null;
+    previewKey.value = null;
     submission.value = response;
     void loadPreview();
   },
@@ -91,8 +95,10 @@ async function loadPreview() {
     previewError.value = "";
     return;
   }
-  const sequence = ++previewSequence;
   const key = reviewInputKey.value;
+  if (previewKey.value === key || pendingPreviewKey === key) return;
+  const sequence = ++previewSequence;
+  pendingPreviewKey = key;
   previewLoading.value = true;
   previewError.value = "";
   try {
@@ -106,14 +112,28 @@ async function loadPreview() {
     previewError.value = details.code ? reviewBlockingMessage(details.code) : details.description;
     previewKey.value = null;
   } finally {
-    if (sequence === previewSequence) previewLoading.value = false;
+    if (sequence === previewSequence) {
+      pendingPreviewKey = null;
+      previewLoading.value = false;
+    }
   }
 }
 
+watch(reviewInputKey, () => {
+  previewSequence++;
+  pendingPreviewKey = null;
+  previewError.value = "";
+  previewLoading.value = previewKey.value !== reviewInputKey.value && Boolean(submission.value?.ocr || reviewInput.value.fieldCorrections.length);
+}, { flush: "sync" });
 watchDebounced(reviewInputKey, () => { void loadPreview(); }, { debounce: 300 });
+onBeforeUnmount(() => { previewSequence++; });
 
 function updateReviewInput(value: AdminSubmissionReviewInput) {
-  reviewInput.value = value;
+  reviewInput.value = {
+    fieldCorrections: value.fieldCorrections.map((correction) => ({ ...correction, reviewedValue: correction.reviewedValue.trim() }))
+      .sort((a, b) => a.fieldKey.localeCompare(b.fieldKey)),
+    confirmedChallengeIds: [...new Set(value.confirmedChallengeIds)].sort(),
+  };
 }
 
 /** Next submission of the default queue, so a maintainer can keep reviewing without returning to the list. Filtered queue views go back to that list instead. */
