@@ -178,6 +178,13 @@ silently replaced.
   there are no Event Revisions, and Bastion implementation history is not copied in. A
   rework that changes Challenge semantics updates both owners and archives and recreates
   affected Challenges.
+- A composite Event (category `复合`) carries its outcome items in
+  `random_event_outcomes`: ordered, equally likely results that Bastion picks
+  internally after drawing the Event. Outcomes are not Events — they have no
+  independent ID, weight, Challenge links, or Reviews — and exist only through
+  the owning Event's create/update/archive lifecycle. The composite Event's
+  `effectTags` are the union of its outcomes' tags, and its weight, rarity,
+  duration, and cooldown stay on the Event.
 - Map and Event share `draft`/`active`/`retired` (map status, unrelated to the title
   lifecycle). Unused drafts may be deleted; once
   referenced by durable facts, retirement preserves identity. Metadata edits never create

@@ -1202,6 +1202,7 @@
   "/v1/events": {
    "get": {
     "operationId": "listRandomEvents",
+    "description": "Public event directory. Every event carries outcomes: for category 复合 events an ordered list of internal result items (position, name, polarity buff/debuff, description, effectTags), empty otherwise. Outcomes are equally likely internal picks, not independently drawable events; they have no own weight, challenges, or reviews. A composite event's effectTags and effectAnnotations are derived from the union of its outcome tags.",
     "responses": {
      "200": {
       "$ref": "#/components/responses/Json"
@@ -1227,7 +1228,7 @@
   "/v1/agents/events": {
    "get": {
     "operationId": "listAgentEvents",
-    "description": "Read-only Bastion build projection. Each event carries an optional eventGroup label (null when unset); it is display metadata and does not affect Bastion eligibility. Events belonging to a suspended game version are omitted entirely; the projection does not expose the operational availability state. Without status, the projection covers implemented and removed events; an explicit status selects that single releaseStatus, including development events outside the default projection.",
+    "description": "Read-only Bastion build projection. Each event carries an optional eventGroup label (null when unset); it is display metadata and does not affect Bastion eligibility. Events belonging to a suspended game version are omitted entirely; the projection does not expose the operational availability state. Without status, the projection covers implemented and removed events; an explicit status selects that single releaseStatus, including development events outside the default projection. Each event also carries outcomes: the ordered, equally likely internal result items of a 复合 event (empty for atomic events). The query filter matches outcome names and descriptions in addition to the event's own fields.",
     "parameters": [
      {
       "$ref": "#/components/parameters/agentPage"
@@ -1258,7 +1259,7 @@
   "/v1/agents/events/{eventId}": {
    "get": {
     "operationId": "getAgentEvent",
-    "description": "Returns an event only when its game version is available to the Bastion build projection and its releaseStatus matches the requested status filter; without status, only implemented or removed events are returned.",
+    "description": "Returns an event only when its game version is available to the Bastion build projection and its releaseStatus matches the requested status filter; without status, only implemented or removed events are returned. The response includes the event's ordered outcomes for category 复合 events.",
     "parameters": [
      {
       "$ref": "#/components/parameters/eventId"
@@ -1461,7 +1462,7 @@
   "/v1/agents/search": {
    "get": {
     "operationId": "searchAgentContent",
-    "description": "kind=title searches the same global title build projection as listAgentTitles and getAgentTitle; player release metadata and challenge lifecycle do not filter those stable definitions. status filters event results by releaseStatus the same way as listAgentEvents; other kinds are unaffected.",
+    "description": "kind=title searches the same global title build projection as listAgentTitles and getAgentTitle; player release metadata and challenge lifecycle do not filter those stable definitions. status filters event results by releaseStatus the same way as listAgentEvents; other kinds are unaffected. Event matching also covers outcome names and descriptions.",
     "parameters": [
      {
       "$ref": "#/components/parameters/agentPage"
@@ -2162,6 +2163,7 @@
    },
    "post": {
     "operationId": "createAdminRandomEvent",
+    "description": "Maintainer-only. Creates one event. Category 复合 requires at least two outcomes covering both buff and debuff; other categories must carry no outcomes. The outcome set is written atomically with the event, and a composite event's effectTags are stored as the union of its outcome tags.",
     "responses": {
      "201": {
       "$ref": "#/components/responses/Json"
@@ -2172,7 +2174,7 @@
   "/v1/admin/events/batch": {
    "post": {
     "operationId": "batchUpdateAdminRandomEvents",
-    "description": "Maintainer-only. Changes only the listed fields of up to 100 distinct events, all or nothing, and records one audit event. Requires an Idempotency-Key. Challenge links are not part of a batch.",
+    "description": "Maintainer-only. Changes only the listed fields of up to 100 distinct events, all or nothing, and records one audit event. Requires an Idempotency-Key. Challenge links and outcome sets are not part of a batch; a category or effectTags change that would break a 复合 event's outcome invariants fails with EVENT_OUTCOMES_INVALID.",
     "responses": {
      "200": {
       "$ref": "#/components/responses/Json"
@@ -2183,6 +2185,7 @@
   "/v1/admin/events/{eventId}": {
    "put": {
     "operationId": "updateAdminRandomEvent",
+    "description": "Maintainer-only. Replaces the event's editable fields. A present outcomes array replaces the stored set atomically and in write order; an omitted field keeps the stored set. Category 复合 requires at least two outcomes covering both polarities; other categories require an empty set.",
     "parameters": [
      {
       "$ref": "#/components/parameters/eventId"
