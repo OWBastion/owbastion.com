@@ -12,6 +12,7 @@ import {
   mapsSchema,
   playerAccountsSchema,
   randomEventMapChallengesSchema,
+  randomEventOutcomesSchema,
   randomEventTitleChallengesSchema,
   randomEventsSchema,
   standaloneModesSchema,
@@ -78,6 +79,7 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
     );
     ${randomEventMapChallengesSchema}
     ${randomEventTitleChallengesSchema}
+    ${randomEventOutcomesSchema}
     ${effectGlossaryTermsSchema}
     ${playerAccountsSchema}
     CREATE TABLE player_title_entitlements (player_account_id TEXT PRIMARY KEY, all_titles INTEGER NOT NULL DEFAULT 1);

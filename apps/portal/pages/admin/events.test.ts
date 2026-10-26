@@ -5,7 +5,7 @@ import EventsAdminPage from "./events.vue";
 
 const event = (eventId: string, name: string, overrides: Record<string, unknown> = {}) => ({
   eventId, name, category: "增益", rarity: "R", description: `${name}说明`, durationSeconds: 30, cooldownSeconds: 10, weight: 1,
-  gameVersion: "5.0", eventGroup: null, effectTags: ["测试"], effectAnnotations: [], releaseStatus: "implemented", archived: false, challenges: [], ...overrides,
+  gameVersion: "5.0", eventGroup: null, effectTags: ["测试"], effectAnnotations: [], releaseStatus: "implemented", archived: false, challenges: [], outcomes: [], ...overrides,
 });
 let store: Array<ReturnType<typeof event>> = [];
 let versionAvailability = "available";
@@ -25,6 +25,12 @@ const adminApi = vi.fn(async (path: string, options?: Options) => {
     return { contractVersion: "1", items: updates.map((update) => store.find((item) => item.eventId === update.eventId)) };
   }
   if (path === "/v1/events" && options?.method === "POST") { const created = event("n", String(options.body?.name)); store = [created, ...store]; return created; }
+  if (path.startsWith("/v1/events/") && options?.method === "PUT") {
+    const eventId = path.slice("/v1/events/".length);
+    const body = options.body as Record<string, unknown>;
+    store = store.map((item) => item.eventId === eventId ? { ...item, ...body, eventGroup: body.eventGroup === "" ? null : (body.eventGroup ?? item.eventGroup) } as typeof item : item);
+    return store.find((item) => item.eventId === eventId);
+  }
   if (path === "/v1/events/a" && options?.method === "DELETE") { store = store.filter((item) => item.eventId !== "a"); return {}; }
   throw new Error(`Unexpected request: ${path}`);
 });
@@ -133,6 +139,69 @@ describe("admin events workbench", () => {
     await name.trigger("change");
     expect(wrapper.get('[role="status"]').text()).toContain("1 项未保存的修改");
     expect(sheet.text()).toContain("改动已进入页面顶部的草稿");
+  });
+
+  it("shows the outcome count in the table and saves staged outcome edits through the single-event endpoint", async () => {
+    store = [event("d", "命运掷骰", { category: "复合", outcomes: [
+      { position: 0, name: "顺风", polarity: "buff", description: "增益结果", effectTags: [] },
+      { position: 1, name: "逆风", polarity: "debuff", description: "减益结果", effectTags: [] },
+    ] })];
+    const wrapper = await mountPage();
+    expect(rowOf(wrapper, "命运掷骰").text()).toContain("2 项");
+
+    await rowOf(wrapper, "命运掷骰").get(".event-table__open").trigger("click");
+    await flushPromises();
+    const sheet = wrapper.get('[role="dialog"]');
+    expect(sheet.text()).toContain("结果项");
+    const name = sheet.find('input[aria-label="结果项名称"]');
+    (name.element as HTMLInputElement).value = "疾风";
+    await name.trigger("change");
+    expect(wrapper.get('[role="status"]').text()).toContain("1 项未保存的修改");
+
+    await wrapper.findAll("button").find((button) => button.text() === "保存全部")!.trigger("click");
+    await flushPromises();
+    expect(adminApi.mock.calls.some(([path]) => path === "/v1/events/batch")).toBe(false);
+    const put = adminApi.mock.calls.find(([path, options]) => path === "/v1/events/d" && options?.method === "PUT")!;
+    expect(put[1]!.body).toMatchObject({ contractVersion: "1", name: "命运掷骰", category: "复合", challengeLinks: [], outcomes: [
+      { name: "疾风", polarity: "buff", description: "增益结果", effectTags: [] },
+      { name: "逆风", polarity: "debuff", description: "减益结果", effectTags: [] },
+    ] });
+  });
+
+  it("creates a composite event with ordered outcomes from the sheet", async () => {
+    const wrapper = await mountPage();
+    await wrapper.findAll("button").find((button) => button.text() === "新建事件")!.trigger("click");
+    await flushPromises();
+    const sheet = wrapper.get('[role="dialog"]');
+    expect(sheet.text()).not.toContain("结果项");
+
+    wrapper.findComponent({ name: "AdminEventFields" }).vm.$emit("patch", { category: "复合" });
+    await flushPromises();
+    const addOutcome = () => sheet.findAll("button").find((button) => button.text() === "添加结果项")!;
+    await addOutcome().trigger("click");
+    await addOutcome().trigger("click");
+    await flushPromises();
+
+    const names = sheet.findAll('input[aria-label="结果项名称"]');
+    (names[0]!.element as HTMLInputElement).value = "顺风";
+    await names[0]!.trigger("change");
+    (names[1]!.element as HTMLInputElement).value = "逆风";
+    await names[1]!.trigger("change");
+    const polarities = sheet.findAllComponents({ name: "USelect" }).filter((select) => ["buff", "debuff"].includes(String(select.props("modelValue"))));
+    polarities[1]!.vm.$emit("update:modelValue", "debuff");
+    await flushPromises();
+
+    const name = sheet.find("input[required]");
+    (name.element as HTMLInputElement).value = "复合新事件";
+    await name.trigger("change");
+    await sheet.findAll("button").find((button) => button.text() === "创建事件")!.trigger("click");
+    await flushPromises();
+    const body = adminApi.mock.calls.find(([path, options]) => path === "/v1/events" && options?.method === "POST")![1]!.body as Record<string, unknown>;
+    expect(body).toMatchObject({ name: "复合新事件", category: "复合", outcomes: [
+      { name: "顺风", polarity: "buff" },
+      { name: "逆风", polarity: "debuff" },
+    ] });
+    expect((body.outcomes as Array<Record<string, unknown>>).every((outcome) => !("position" in outcome))).toBe(true);
   });
 
   it("creates an event from the sheet and archives with a second confirming click", async () => {

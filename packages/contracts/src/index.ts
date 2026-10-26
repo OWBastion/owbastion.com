@@ -1,6 +1,9 @@
 import { z } from "zod";
+import { contractVersion, externalId } from "./common";
+import { randomEventSchema } from "./random-event";
 
-export const contractVersion = z.literal("1");
+export { contractVersion } from "./common";
+export * from "./random-event";
 
 const pageInfo = (maxPageSize?: number) => z.object({
   page: z.number().int().positive(),
@@ -9,7 +12,6 @@ const pageInfo = (maxPageSize?: number) => z.object({
   hasMore: z.boolean(),
 });
 
-const externalId = z.string().trim().min(1).max(256);
 const playerId = z.string().regex(/^\d{1,10}$/), playerName = z.string().trim().min(1).max(64);
 const retirementVersion = z.string().regex(/^\d{2}\.\d{4}\.[1-9]\d*$/);
 const storedRetirementVersion = z.string().trim().min(1).max(64);
@@ -465,34 +467,6 @@ export const agentGameplayRevisionSchema = z.object({
 });
 
 export const agentMapSchema = mapSchema.extend({ gameplayRevisions: z.array(agentGameplayRevisionSchema).max(32) }).strict();
-
-const randomEventStatus = z.enum(["development", "implemented", "removed"]);
-const randomEventVersionAvailability = z.enum(["available", "suspended"]);
-const randomEventLinkSchema = z.object({ family: z.enum(["map", "achievement"]), challengeId: externalId });
-const effectGlossaryTermSchema = z.object({ key: z.string().trim().min(1).max(64), nameZh: z.string().trim().min(1).max(128), aliases: z.array(z.string().trim().min(1).max(128)).max(16), category: z.string().trim().min(1).max(64), summary: z.string().trim().min(1).max(512), definition: z.string().trim().min(1).max(4096), rules: z.array(z.string().trim().min(1).max(512)).max(16), sourceVersion: z.string().trim().min(1).max(64) });
-const randomEventEffectAnnotationSchema = z.object({ tag: z.string().trim().min(1).max(64), term: effectGlossaryTermSchema });
-export const randomEventSchema = z.object({
-  eventId: externalId, name: z.string().trim().min(1).max(256), category: z.string().trim().min(1).max(64), rarity: z.string().trim().max(32), description: z.string().trim().max(4096),
-  durationSeconds: z.number().int().nonnegative().nullable(), cooldownSeconds: z.number().nonnegative().nullable(), weight: z.number().nonnegative().nullable(),
-  gameVersion: z.string().trim().min(1).max(64), eventGroup: z.string().max(64).nullable(), effectTags: z.array(z.string().trim().min(1).max(64)).max(16), effectAnnotations: z.array(randomEventEffectAnnotationSchema).max(16), releaseStatus: randomEventStatus, archived: z.boolean(), challenges: z.array(challengeSchema),
-});
-export const randomEventListResponseSchema = z.object({ contractVersion, items: z.array(randomEventSchema) });
-// Optional on write: omitting it leaves the group unchanged; an empty string clears it.
-const randomEventGroupInput = z.string().trim().max(64).transform((value) => value || null).nullable().optional();
-const randomEventWriteFields = z.object({ name: z.string().trim().min(1).max(256), category: z.string().trim().min(1).max(64), description: z.string().trim().max(4096), durationSeconds: z.number().int().nonnegative().nullable(), cooldownSeconds: z.number().nonnegative().nullable(), weight: z.number().nonnegative().nullable(), gameVersion: z.string().trim().min(1).max(64), eventGroup: randomEventGroupInput, effectTags: z.array(z.string().trim().min(1).max(64)).max(16), releaseStatus: randomEventStatus, challengeLinks: z.array(randomEventLinkSchema).max(64) }).strict();
-export const adminRandomEventCreateRequestSchema = z.object({ contractVersion }).merge(randomEventWriteFields);
-export const adminRandomEventUpdateRequestSchema = z.object({ contractVersion }).merge(randomEventWriteFields);
-// A batch changes only the listed fields of up to 100 distinct events, all or nothing; challenge links are not part of it.
-const randomEventBatchUpdate = randomEventWriteFields.omit({ challengeLinks: true }).partial().extend({ eventId: externalId }).strict()
-  .refine((update) => Object.keys(update).length > 1, "A batch update must change at least one field");
-export const adminRandomEventBatchRequestSchema = z.object({ contractVersion, updates: z.array(randomEventBatchUpdate).min(1).max(100) }).strict()
-  .refine((request) => new Set(request.updates.map((update) => update.eventId)).size === request.updates.length, "Each event may appear once");
-export const adminRandomEventBatchResponseSchema = z.object({ contractVersion, items: z.array(randomEventSchema) });
-export const adminRandomEventImportRequestSchema = z.object({ contractVersion, fileName: z.string().trim().min(1).max(256), csv: z.string().min(1).max(512 * 1024) }).strict();
-// mode names the standalone mode whose build owns this pool (set from that mode); null is the regular build.
-export const randomEventVersionSchema = z.object({ gameVersion: z.string().trim().min(1).max(64), availability: randomEventVersionAvailability, mode: z.string().nullable(), eventCount: z.number().int().nonnegative() }).strict();
-export const adminRandomEventVersionListResponseSchema = z.object({ contractVersion, items: z.array(randomEventVersionSchema) }).strict();
-export const adminRandomEventVersionAvailabilityRequestSchema = z.object({ contractVersion, availability: randomEventVersionAvailability }).strict();
 
 // A standalone mode is configured in one place: its maps (each played on the mode's own selectable
 // Gameplay Revision, created and retired by the platform), the event pools its build owns, and the
@@ -1962,8 +1936,7 @@ export type Challenge = z.infer<typeof challengeSchema>;
 export type Map = z.infer<typeof mapSchema>;
 export type AgentSpatialConfig = z.infer<typeof agentSpatialConfigSchema>;
 export type AgentMap = z.infer<typeof agentMapSchema>;
-export type RandomEvent = z.infer<typeof randomEventSchema>;
-export type RandomEventListResponse = z.infer<typeof randomEventListResponseSchema>;
+
 export type ReviewTargetType = z.infer<typeof reviewTargetTypeSchema>;
 export type ReviewRating = z.infer<typeof reviewRatingSchema>;
 export type ReviewTarget = z.infer<typeof reviewTargetSchema>;
@@ -1977,13 +1950,7 @@ export type AdminReview = z.infer<typeof adminReviewSchema>;
 export type AdminReviewAudit = z.infer<typeof adminReviewAuditSchema>;
 export type AdminReviewListResponse = z.infer<typeof adminReviewListResponseSchema>;
 export type AdminReviewDetailResponse = z.infer<typeof adminReviewDetailResponseSchema>;
-export type AdminRandomEventCreateRequest = z.infer<typeof adminRandomEventCreateRequestSchema>;
-export type AdminRandomEventUpdateRequest = z.infer<typeof adminRandomEventUpdateRequestSchema>;
-export type AdminRandomEventBatchRequest = z.infer<typeof adminRandomEventBatchRequestSchema>;
-export type AdminRandomEventImportRequest = z.infer<typeof adminRandomEventImportRequestSchema>;
-export type RandomEventVersion = z.infer<typeof randomEventVersionSchema>;
-export type AdminRandomEventVersionListResponse = z.infer<typeof adminRandomEventVersionListResponseSchema>;
-export type AdminRandomEventVersionAvailabilityRequest = z.infer<typeof adminRandomEventVersionAvailabilityRequestSchema>;
+
 export type AdminStandaloneMode = z.infer<typeof adminStandaloneModeSchema>;
 export type AdminStandaloneModeListResponse = z.infer<typeof adminStandaloneModeListResponseSchema>;
 export type AdminStandaloneModeUpsertRequest = z.infer<typeof adminStandaloneModeUpsertRequestSchema>;

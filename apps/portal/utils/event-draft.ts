@@ -1,12 +1,12 @@
 import type { RandomEvent } from "~/types/random-event";
 
 // The fields the batch API can change; a draft holds only what differs from the saved event.
-export type EventPatch = Partial<Pick<RandomEvent, "name" | "category" | "description" | "durationSeconds" | "cooldownSeconds" | "weight" | "gameVersion" | "eventGroup" | "releaseStatus" | "effectTags">>;
+export type EventPatch = Partial<Pick<RandomEvent, "name" | "category" | "description" | "durationSeconds" | "cooldownSeconds" | "weight" | "gameVersion" | "eventGroup" | "releaseStatus" | "effectTags" | "outcomes">>;
 export type EventDraft = ReadonlyMap<string, EventPatch>;
 
 export const statusLabels = { implemented: "已实装", development: "开发中", removed: "已移除" } as const;
 
-const patchKeys = ["name", "category", "description", "durationSeconds", "cooldownSeconds", "weight", "gameVersion", "eventGroup", "releaseStatus", "effectTags"] as const;
+const patchKeys = ["name", "category", "description", "durationSeconds", "cooldownSeconds", "weight", "gameVersion", "eventGroup", "releaseStatus", "effectTags", "outcomes"] as const;
 const same = (left: unknown, right: unknown) => JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
 
 // Stage a change; a value equal to the saved one removes itself, and an event with nothing left leaves the draft.
@@ -24,7 +24,7 @@ export const applyDraft = (events: RandomEvent[], draft: EventDraft) => draft.si
 export const draftToUpdates = (draft: EventDraft) => [...draft].map(([eventId, patch]) => ({ eventId, ...patch, ...("eventGroup" in patch ? { eventGroup: patch.eventGroup ?? "" } : {}) }));
 
 // The request that puts the saved events back as they were before the draft was applied.
-export function undoUpdates(before: RandomEvent[], draft: EventDraft) {
+export function undoUpdates(before: RandomEvent[], draft: EventDraft): Array<{ eventId: string } & Record<string, unknown>> {
   const byId = new Map(before.map((event) => [event.eventId, event]));
   return [...draft].flatMap(([eventId, patch]) => {
     const event = byId.get(eventId);

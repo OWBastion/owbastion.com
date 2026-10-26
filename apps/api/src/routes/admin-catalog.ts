@@ -162,6 +162,7 @@ export const registerAdminCatalogRoutes = (app: ApiApp, dependencies: AdminRoute
     action: (input, auth, key) => dependencies.services(c.env).createAdminRandomEvent(input, auth, key),
     errors: {
       ...errorGroup(422, "The challenge does not exist", "CHALLENGE_NOT_FOUND"),
+      ...errorGroup(422, "The event outcomes are invalid", "EVENT_OUTCOMES_INVALID"),
     },
   }));
   app.post("/v1/admin/events/batch", (c) => adminMutation(c, {
@@ -169,6 +170,7 @@ export const registerAdminCatalogRoutes = (app: ApiApp, dependencies: AdminRoute
     action: async (input, auth, key) => ({ contractVersion: "1" as const, items: await dependencies.services(c.env).batchUpdateAdminRandomEvents(input, auth, key) }),
     errors: {
       ...errorGroup(404, "An event in the batch does not exist", "EVENT_NOT_FOUND"),
+      ...errorGroup(422, "The event outcomes are invalid", "EVENT_OUTCOMES_INVALID"),
     },
   }));
   app.put("/v1/admin/events/:eventId", (c) => adminMutation(c, {
@@ -177,6 +179,7 @@ export const registerAdminCatalogRoutes = (app: ApiApp, dependencies: AdminRoute
     errors: {
       ...errorGroup(404, "The event does not exist", "EVENT_NOT_FOUND"),
       ...errorGroup(422, "The challenge does not exist", "CHALLENGE_NOT_FOUND"),
+      ...errorGroup(422, "The event outcomes are invalid", "EVENT_OUTCOMES_INVALID"),
     },
   }));
   app.delete("/v1/admin/events/:eventId", (c) => adminMutation(c, {

@@ -2,11 +2,12 @@ import { count, desc, eq, and, inArray, isNull, like, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { randomEventRarityForWeight } from "@owbastion/domain";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
-import type { AdminRandomEventBatchRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventVersionListResponse, Challenge, RandomEvent, RandomEventVersion } from "@owbastion/contracts";
-import { achievementChallenges, effectGlossaryTerms, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, titleChallenges } from "./schema";
+import type { AdminRandomEventBatchRequest, AdminRandomEventVersionListResponse, Challenge, RandomEvent, RandomEventOutcome, RandomEventVersion } from "@owbastion/contracts";
+import { effectGlossaryTerms, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions } from "./schema";
+import { parseEventImport } from "./random-event-import";
+import { chunked, insertLinkStatement, loadEventLinkIndex, replaceLinkStatements, validateEventLinks } from "./random-event-links";
+import { assertBatchOutcomeUpdate, assertEventOutcomes, groupOutcomesByEvent, loadAllOutcomeRows, loadEventOutcomeInputs, loadEventOutcomes, outcomeInsertStatements, replaceOutcomeStatements, writeEffectTags } from "./random-event-outcomes";
 import type { PlatformCache } from "./platform-cache";
-
-type EventImportRow = Omit<AdminRandomEventCreateRequest, "contractVersion">;
 type RandomEventPlatformServices = Pick<PlatformServices,
   | "listRandomEvents"
   | "getRandomEvent"
@@ -33,20 +34,6 @@ type RandomEventDependencies = {
 
 export const createRandomEventServices = (database: D1Database, db: ReturnType<typeof drizzle>, dependencies: RandomEventDependencies) => {
   const { now, platformCache, hashRequest, replayOrConflict, recordIdempotency, recordAudit, publicEventChallenges, fetchAllPublicChallenges } = dependencies;
-  const eventImportHeaders = ["事件名称", "事件效果", "事件类别", "稀有度级别", "类别概率", "内置冷却", "持续时间（秒）", "权重", "组内总权重", "组内个数", "单次失败率(Q)", "保底触发率", "最终出现概率", "全局出现概率", "版本", "效果类型", "事件状态"];
-  const parseCsv = (csv: string) => {
-    const rows: string[][] = []; let row: string[] = []; let field = ""; let quoted = false;
-    for (let index = 0; index < csv.length; index += 1) { const char = csv[index]; const next = csv[index + 1]; if (quoted) { if (char === '"' && next === '"') { field += '"'; index += 1; } else if (char === '"') quoted = false; else field += char; } else if (char === '"') quoted = true; else if (char === ",") { row.push(field.trim()); field = ""; } else if (char === "\n") { row.push(field.trim()); rows.push(row); row = []; field = ""; } else if (char !== "\r") field += char; }
-    if (quoted) throw new Error("CSV_QUOTE_INVALID"); if (field || row.length) { row.push(field.trim()); rows.push(row); } return rows;
-  };
-  const parseEventImport = async (input: AdminRandomEventImportRequest) => {
-    const rows = parseCsv(input.csv.replace(/^\uFEFF/, "")); const errors: Array<{ row: number; message: string }> = [];
-    if (!rows.length || eventImportHeaders.some((header, index) => rows[0][index] !== header)) return { sourceHash: await hashRequest(input.csv), rows: [] as EventImportRow[], errors: [{ row: 1, message: `表头必须为：${eventImportHeaders.join("、")}` }] };
-    const parsed: EventImportRow[] = [];
-    rows.slice(1).forEach((values, index) => { const rowNumber = index + 2; if (!values.some(Boolean)) return; const number = (value: string) => value === "" ? null : Number(value); const status = values[16] === "已实装" ? "implemented" : values[16] === "已移除" ? "removed" : values[16] === "开发中" ? "development" : ""; const candidate = { name: values[0], description: values[1], category: values[2], cooldownSeconds: number(values[5]), durationSeconds: number(values[6]), weight: number(values[7]), gameVersion: values[14], eventGroup: rows[0][17] === "事件组" ? values[17]?.trim() || null : null, effectTags: values[15] ? values[15].split(/[、,]/).map((tag) => tag.trim()).filter(Boolean) : [], releaseStatus: status, challengeLinks: [] }; const valid = candidate.name && candidate.category && candidate.description && candidate.gameVersion && status && [candidate.cooldownSeconds, candidate.durationSeconds, candidate.weight].every((value) => value === null || Number.isFinite(value) && value >= 0) && Number.isInteger(candidate.durationSeconds ?? 0); if (!valid) errors.push({ row: rowNumber, message: "字段缺失、状态或数值格式无效" }); else parsed.push(candidate as EventImportRow); });
-    const duplicates = new Set<string>(); parsed.forEach((item) => { if (duplicates.has(item.name)) errors.push({ row: rows.findIndex((values) => values[0] === item.name) + 1, message: "文件内事件名称重复" }); duplicates.add(item.name); });
-    return { sourceHash: await hashRequest(input.csv), rows: parsed, errors };
-  };
 
   const glossary = async () => (await platformCache.cached("catalog", "glossary-terms", () => db.select().from(effectGlossaryTerms))).map((term) => ({ key: term.key, nameZh: term.nameZh, aliases: JSON.parse(term.aliasesJson) as string[], category: term.category, summary: term.summary, definition: term.definition, rules: JSON.parse(term.rulesJson) as string[], sourceVersion: term.sourceVersion }));
   type GlossaryTerm = Awaited<ReturnType<typeof glossary>>[number];
@@ -65,6 +52,7 @@ export const createRandomEventServices = (database: D1Database, db: ReturnType<t
     effectTags: string[],
     effectAnnotations: EffectAnnotation[],
     challenges: Challenge[],
+    outcomes: RandomEventOutcome[],
   ): RandomEvent => ({
     eventId: row.id,
     name: row.name,
@@ -81,32 +69,13 @@ export const createRandomEventServices = (database: D1Database, db: ReturnType<t
     releaseStatus: row.releaseStatus as RandomEvent["releaseStatus"],
     archived: row.archivedAt !== null,
     challenges,
+    outcomes,
   });
   const asRandomEvent = async (row: typeof randomEvents.$inferSelect): Promise<RandomEvent> => {
     const effectTags = JSON.parse(row.effectTagsJson) as string[];
-    return toRandomEvent(row, effectTags, await annotateEffects(effectTags), await publicEventChallenges(row.id));
+    return toRandomEvent(row, effectTags, await annotateEffects(effectTags), await publicEventChallenges(row.id), await loadEventOutcomes(db, row.id));
   };
   const suspendedEventVersions = async () => new Set((await platformCache.cached("catalog", "suspended-event-versions", () => db.select({ gameVersion: randomEventVersions.gameVersion }).from(randomEventVersions).where(eq(randomEventVersions.availability, "suspended")))).map((row) => row.gameVersion));
-  // chunked so a large import cannot exceed the SQLite variable limit.
-  const d1InChunk = 500;
-  const chunked = <T>(items: T[]): T[][] => { const out: T[][] = []; for (let i = 0; i < items.length; i += d1InChunk) out.push(items.slice(i, i + d1InChunk)); return out; };
-  const loadEventLinkIndex = async (links: EventImportRow["challengeLinks"]) => {
-    const mapIds = [...new Set(links.filter((link) => link.family === "map").map((link) => link.challengeId))];
-    const titleIds = [...new Set(links.filter((link) => link.family === "achievement").map((link) => link.challengeId))];
-    const [mapRows, titleRows] = await Promise.all([
-      mapIds.length ? Promise.all(chunked(mapIds).map((ids) => db.select({ id: achievementChallenges.id }).from(achievementChallenges).where(inArray(achievementChallenges.id, ids)))).then((parts) => parts.flat()) : Promise.resolve([] as Array<{ id: string }>),
-      titleIds.length ? Promise.all(chunked(titleIds).map((ids) => db.select({ id: titleChallenges.id }).from(titleChallenges).where(inArray(titleChallenges.id, ids)))).then((parts) => parts.flat()) : Promise.resolve([] as Array<{ id: string }>),
-    ]);
-    return { map: new Set(mapRows.map((row) => row.id)), title: new Set(titleRows.map((row) => row.id)) };
-  };
-  const validateEventLinks = async (links: EventImportRow["challengeLinks"]) => {
-    const index = await loadEventLinkIndex(links);
-    for (const link of links) {
-      const found = link.family === "map" ? index.map.has(link.challengeId) : index.title.has(link.challengeId);
-      if (!found) throw new Error("CHALLENGE_NOT_FOUND");
-    }
-  };
-  const replaceEventLinks = async (eventId: string, links: EventImportRow["challengeLinks"]) => { await db.delete(randomEventMapChallenges).where(eq(randomEventMapChallenges.eventId, eventId)); await db.delete(randomEventTitleChallenges).where(eq(randomEventTitleChallenges.eventId, eventId)); const mapsLinks = links.filter((link) => link.family === "map"); const titleLinks = links.filter((link) => link.family === "achievement"); if (mapsLinks.length) await db.insert(randomEventMapChallenges).values(mapsLinks.map((link) => ({ eventId, challengeId: link.challengeId }))); if (titleLinks.length) await db.insert(randomEventTitleChallenges).values(titleLinks.map((link) => ({ eventId, challengeId: link.challengeId }))); };
 
   return {
     services: {
@@ -117,13 +86,14 @@ export const createRandomEventServices = (database: D1Database, db: ReturnType<t
           // Batch path: 3 parallel queries regardless of event count, then in-memory assembly.
           // Cold-cache cost: O(1) queries instead of O(4N).
           const eventIds = rows.map((row) => row.id);
-          const [mapLinks, titleLinks, allChallenges, terms] = await Promise.all([
+          const [mapLinks, titleLinks, allChallenges, terms, outcomeRows] = await Promise.all([
             // D1 limits bound SQL parameters. Read the small catalog link tables once
             // and discard links outside the selected public event IDs below.
             platformCache.cached("catalog", "event-map-links:all", () => db.select().from(randomEventMapChallenges)),
             platformCache.cached("catalog", "event-title-links:all", () => db.select().from(randomEventTitleChallenges)),
             fetchAllPublicChallenges(),
             glossary(),
+            platformCache.cached("catalog", "event-outcomes:all", () => loadAllOutcomeRows(db)),
           ]);
           const termForTag = effectTermLookup(terms);
           const challengeById = new Map(allChallenges.map((c) => [c.challengeId, c]));
@@ -134,9 +104,10 @@ export const createRandomEventServices = (database: D1Database, db: ReturnType<t
               if (challenge) challengesByEvent.get(link.eventId)?.push(challenge);
             }
           }
+          const outcomesByEvent = groupOutcomesByEvent(outcomeRows);
         return rows.map((row) => {
           const effectTags = JSON.parse(row.effectTagsJson) as string[];
-          return toRandomEvent(row, effectTags, annotateEffectTags(effectTags, termForTag), challengesByEvent.get(row.id) ?? []);
+          return toRandomEvent(row, effectTags, annotateEffectTags(effectTags, termForTag), challengesByEvent.get(row.id) ?? [], outcomesByEvent.get(row.id) ?? []);
         });
       },
       async getRandomEvent(input) {
@@ -174,23 +145,42 @@ export const createRandomEventServices = (database: D1Database, db: ReturnType<t
       },
       async createAdminRandomEvent(input, auth, idempotencyKey) {
         const replay = await replayOrConflict<RandomEvent>(db, auth.subject, "admin.random-event.create", idempotencyKey, input); if (replay) return replay;
-        await validateEventLinks(input.challengeLinks); const timestamp = now(); const eventId = `event.${crypto.randomUUID()}`;
-        await db.insert(randomEvents).values({ id: eventId, name: input.name, category: input.category, rarity: randomEventRarityForWeight(input.weight), description: input.description, durationSeconds: input.durationSeconds, cooldownSeconds: input.cooldownSeconds, weight: input.weight, gameVersion: input.gameVersion, eventGroup: input.eventGroup ?? null, effectTagsJson: JSON.stringify([...new Set(input.effectTags)]), releaseStatus: input.releaseStatus, createdAt: timestamp, updatedAt: timestamp });
-        await replaceEventLinks(eventId, input.challengeLinks); const response = await asRandomEvent((await db.select().from(randomEvents).where(eq(randomEvents.id, eventId)).get())!);
+        const outcomes = input.outcomes ?? [];
+        assertEventOutcomes(input.category, outcomes);
+        await validateEventLinks(db, input.challengeLinks); const timestamp = now(); const eventId = `event.${crypto.randomUUID()}`;
+        // One batch keeps the event row, challenge links, and outcome rows atomic.
+        await database.batch([
+          database.prepare("INSERT INTO random_events (id,name,category,rarity,description,duration_seconds,cooldown_seconds,weight,game_version,event_group,effect_tags_json,release_status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(eventId, input.name, input.category, randomEventRarityForWeight(input.weight), input.description, input.durationSeconds, input.cooldownSeconds, input.weight, input.gameVersion, input.eventGroup ?? null, writeEffectTags(input.category, input.effectTags, outcomes), input.releaseStatus, timestamp, timestamp),
+          ...input.challengeLinks.map((link) => insertLinkStatement(database, eventId, link)),
+          ...outcomeInsertStatements(database, eventId, outcomes),
+        ]);
+        const response = await asRandomEvent((await db.select().from(randomEvents).where(eq(randomEvents.id, eventId)).get())!);
         await recordIdempotency(db, auth.subject, "admin.random-event.create", idempotencyKey, input, response); await recordAudit(db, auth, "admin.random-event.create", "random_event", eventId, input); return response;
       },
       async updateAdminRandomEvent(input, auth, idempotencyKey) {
         const replay = await replayOrConflict<RandomEvent>(db, auth.subject, "admin.random-event.update", idempotencyKey, input); if (replay) return replay;
-        const existing = await db.select().from(randomEvents).where(eq(randomEvents.id, input.eventId)).get(); if (!existing) throw new Error("EVENT_NOT_FOUND"); await validateEventLinks(input.challengeLinks);
-        await db.update(randomEvents).set({ name: input.name, category: input.category, rarity: randomEventRarityForWeight(input.weight), description: input.description, durationSeconds: input.durationSeconds, cooldownSeconds: input.cooldownSeconds, weight: input.weight, gameVersion: input.gameVersion, ...(input.eventGroup !== undefined ? { eventGroup: input.eventGroup } : {}), effectTagsJson: JSON.stringify([...new Set(input.effectTags)]), releaseStatus: input.releaseStatus, updatedAt: now() }).where(eq(randomEvents.id, input.eventId)); await replaceEventLinks(input.eventId, input.challengeLinks);
+        const existing = await db.select().from(randomEvents).where(eq(randomEvents.id, input.eventId)).get(); if (!existing) throw new Error("EVENT_NOT_FOUND");
+        // An omitted outcomes field keeps the stored set; a present one replaces it.
+        const outcomes = input.outcomes ?? await loadEventOutcomeInputs(db, input.eventId);
+        assertEventOutcomes(input.category, outcomes);
+        await validateEventLinks(db, input.challengeLinks);
+        const sets = ["name = ?", "category = ?", "rarity = ?", "description = ?", "duration_seconds = ?", "cooldown_seconds = ?", "weight = ?", "game_version = ?", "effect_tags_json = ?", "release_status = ?"];
+        const values: unknown[] = [input.name, input.category, randomEventRarityForWeight(input.weight), input.description, input.durationSeconds, input.cooldownSeconds, input.weight, input.gameVersion, writeEffectTags(input.category, input.effectTags, outcomes), input.releaseStatus];
+        if (input.eventGroup !== undefined) { sets.push("event_group = ?"); values.push(input.eventGroup); }
+        await database.batch([
+          database.prepare(`UPDATE random_events SET ${sets.join(", ")}, updated_at = ? WHERE id = ?`).bind(...values, now(), input.eventId),
+          ...replaceLinkStatements(database, input.eventId, input.challengeLinks),
+          ...(input.outcomes === undefined ? [] : replaceOutcomeStatements(database, input.eventId, input.outcomes)),
+        ]);
         const response = await asRandomEvent((await db.select().from(randomEvents).where(eq(randomEvents.id, input.eventId)).get())!); await recordIdempotency(db, auth.subject, "admin.random-event.update", idempotencyKey, input, response); await recordAudit(db, auth, "admin.random-event.update", "random_event", input.eventId, input); return response;
       },
       async batchUpdateAdminRandomEvents(input: AdminRandomEventBatchRequest, auth, idempotencyKey): Promise<RandomEvent[]> {
         const operation = "admin.random-event.batch-update";
         const replay = await replayOrConflict<RandomEvent[]>(db, auth.subject, operation, idempotencyKey, input); if (replay) return replay;
         const ids = input.updates.map((update) => update.eventId);
-        const existing = await db.select({ id: randomEvents.id }).from(randomEvents).where(inArray(randomEvents.id, ids));
+        const existing = await db.select({ id: randomEvents.id, category: randomEvents.category }).from(randomEvents).where(inArray(randomEvents.id, ids));
         if (existing.length !== ids.length) throw new Error("EVENT_NOT_FOUND");
+        await assertBatchOutcomeUpdate(db, input.updates, existing);
         const timestamp = now();
         const columns: Record<string, string> = { name: "name", category: "category", description: "description", durationSeconds: "duration_seconds", cooldownSeconds: "cooldown_seconds", weight: "weight", gameVersion: "game_version", eventGroup: "event_group", releaseStatus: "release_status" };
         const statements = input.updates.map(({ eventId, ...patch }) => {
@@ -213,17 +203,17 @@ export const createRandomEventServices = (database: D1Database, db: ReturnType<t
         const event = await db.select().from(randomEvents).where(eq(randomEvents.id, input.eventId)).get(); if (!event) throw new Error("EVENT_NOT_FOUND"); await db.update(randomEvents).set({ archivedAt: now(), archivedBy: auth.subject, updatedAt: now() }).where(eq(randomEvents.id, input.eventId)); await recordIdempotency(db, auth.subject, "admin.random-event.archive", idempotencyKey, input, {}); await recordAudit(db, auth, "admin.random-event.archive", "random_event", input.eventId, {});
       },
       async previewAdminRandomEventImport(input) {
-        const parsed = await parseEventImport(input); for (const item of parsed.rows) { try { await validateEventLinks(item.challengeLinks); } catch { parsed.errors.push({ row: 0, message: `未知挑战关联：${item.name}` }); } }
+        const parsed = await parseEventImport(input, hashRequest); for (const item of parsed.rows) { try { await validateEventLinks(db, item.challengeLinks); } catch { parsed.errors.push({ row: 0, message: `未知挑战关联：${item.name}` }); } }
         return { sourceHash: parsed.sourceHash, validRowCount: parsed.errors.length ? 0 : parsed.rows.length, errors: parsed.errors, rows: parsed.rows.slice(0, 20).map((row) => ({ name: row.name, category: row.category, releaseStatus: row.releaseStatus })) };
       },
       async importAdminRandomEvents(input, auth, idempotencyKey) {
         const replay = await replayOrConflict<{ importedCount: number }>(db, auth.subject, "admin.random-event.import", idempotencyKey, input); if (replay) return replay;
-        const parsed = await parseEventImport(input); if (parsed.errors.length) throw new Error("EVENT_IMPORT_INVALID"); const duplicate = await db.select().from(randomEventImports).where(eq(randomEventImports.sourceHash, parsed.sourceHash)).get(); if (duplicate) throw new Error("EVENT_IMPORT_DUPLICATE");
+        const parsed = await parseEventImport(input, hashRequest); if (parsed.errors.length) throw new Error("EVENT_IMPORT_INVALID"); const duplicate = await db.select().from(randomEventImports).where(eq(randomEventImports.sourceHash, parsed.sourceHash)).get(); if (duplicate) throw new Error("EVENT_IMPORT_DUPLICATE");
         // Validate every row's links and name conflicts up front: the import
         // aborts on the first error, so a single batched membership check per
         // family plus one name lookup preserves semantics with O(1) queries
         // instead of O(rows × links).
-        const importLinkIndex = await loadEventLinkIndex(parsed.rows.flatMap((item) => item.challengeLinks));
+        const importLinkIndex = await loadEventLinkIndex(db, parsed.rows.flatMap((item) => item.challengeLinks));
         const importNames = [...new Set(parsed.rows.map((item) => item.name))];
         const existingNames = new Set((await Promise.all(chunked(importNames).map((names) => db.select({ name: randomEvents.name }).from(randomEvents).where(inArray(randomEvents.name, names))))).flat().map((row) => row.name));
         for (const item of parsed.rows) { for (const link of item.challengeLinks) { if (!(link.family === "map" ? importLinkIndex.map.has(link.challengeId) : importLinkIndex.title.has(link.challengeId))) throw new Error("CHALLENGE_NOT_FOUND"); } if (existingNames.has(item.name)) throw new Error("EVENT_IMPORT_NAME_CONFLICT"); }

@@ -70,7 +70,7 @@ const stageNumber = (event: RandomEvent, raw: string) => emit("stage", event.eve
           <td class="event-table__secondary">
             <USelect :model-value="event.eventGroup ?? NO_GROUP" :items="groupItems(event.eventGroup)" size="md" :ui="cellUi(event.eventId, 'eventGroup')" aria-label="事件组" @update:model-value="(value) => emit('stage', event.eventId, { eventGroup: value === NO_GROUP ? null : String(value) })" />
           </td>
-          <td class="event-table__optional" :class="categoryTone(event.category)">{{ event.category }}</td>
+          <td class="event-table__optional" :class="categoryTone(event.category)">{{ event.category }}<span v-if="event.outcomes.length" class="event-table__outcomes num">{{ event.outcomes.length }} 项</span></td>
           <td class="event-table__weight">
             <UInput class="event-table__number" :ui="{ ...cellUi(event.eventId, 'weight'), base: `${cellUi(event.eventId, 'weight').base} text-right tabular-nums` }" type="number" step="0.05" min="0" size="md" aria-label="权重" :model-value="event.weight ?? undefined" @change="stageNumber(event, ($event.target as HTMLInputElement).value)" />
           </td>
@@ -117,6 +117,7 @@ tbody tr.is-dim td:not(.event-table__check) { opacity: 0.6; }
 .event-table__delta { min-width: 3.5rem; font-size: var(--type-caption-size); font-weight: 600; }
 .event-table__delta.is-up { color: var(--success); }
 .event-table__delta.is-down { color: var(--danger); }
+.event-table__outcomes { margin-left: var(--space-1); color: var(--muted); font-size: var(--type-caption-size); font-weight: 400; }
 .is-success { color: var(--success); }
 .is-error { color: var(--danger); }
 .is-info { color: var(--info); }

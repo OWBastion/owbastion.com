@@ -3,6 +3,7 @@ import {
   effectGlossaryTermsSchema,
   idempotencyKeysRequiredIdSchema,
   mapsSchema,
+  randomEventOutcomesSchema,
   randomEventsSchema,
   standaloneModesSchema,
   titleCatalogSchema,
@@ -22,6 +23,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   );
   CREATE TABLE random_event_map_challenges (event_id TEXT NOT NULL, challenge_id TEXT NOT NULL, PRIMARY KEY (event_id, challenge_id));
   CREATE TABLE random_event_title_challenges (event_id TEXT NOT NULL, challenge_id TEXT NOT NULL, PRIMARY KEY (event_id, challenge_id));
+  ${randomEventOutcomesSchema}
   ${mapsSchema}
   CREATE TABLE map_metadata (
     map_id TEXT PRIMARY KEY NOT NULL, difficulty_rating TEXT, mechanics_json TEXT NOT NULL DEFAULT '[]',

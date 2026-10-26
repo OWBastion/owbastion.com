@@ -41,6 +41,11 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   );
   CREATE TABLE random_event_map_challenges (event_id TEXT NOT NULL, challenge_id TEXT NOT NULL, PRIMARY KEY (event_id, challenge_id));
   CREATE TABLE random_event_title_challenges (event_id TEXT NOT NULL, challenge_id TEXT NOT NULL, PRIMARY KEY (event_id, challenge_id));
+  CREATE TABLE random_event_outcomes (
+    event_id TEXT NOT NULL REFERENCES random_events(id) ON DELETE CASCADE, position INTEGER NOT NULL,
+    name TEXT NOT NULL, polarity TEXT NOT NULL CHECK (polarity IN ('buff', 'debuff')),
+    description TEXT NOT NULL, effect_tags_json TEXT NOT NULL DEFAULT '[]', PRIMARY KEY (event_id, position)
+  );
   CREATE TABLE maps (
     id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, game_version TEXT NOT NULL, status TEXT NOT NULL,
     introduced_version TEXT NOT NULL, retired_version TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
