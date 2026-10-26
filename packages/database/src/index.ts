@@ -37,6 +37,7 @@ import { createAdminVerifiedRunServices } from "./admin-verified-run-service";
 import { createAdminMapServices } from "./admin-map-service";
 import { createAdminCatalogServices } from "./admin-catalog-service";
 import { createSubmissionOcrServices } from "./submission-ocr-service";
+import { createSubmissionReviewPersistence } from "./submission-review-persistence";
 import type { VerifiedRunSubmissionOutcome, VerifiedRunSubmissionOutcomeStatus } from "./submission-ocr-service";
 
 export { maxReviewCommentLength, reviewSampleThreshold } from "./review-service";
@@ -1832,26 +1833,10 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     return conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run };
   };
 
-  type SubmissionReviewWrite = {
-    row: typeof submissions.$inferSelect;
-    input: Parameters<PlatformServices["reviewSubmission"]>[0];
-    auth: AuthContext;
-    reviewId: string; timestamp: number;
-    idempotencyKeyId: string; requestHash: string;
-    response: AdminSubmissionReviewResponse; reviewAudit: unknown;
-    statements: D1PreparedStatement[]; trailingStatements: D1PreparedStatement[];
-  };
-
-  const persistSubmissionReview = async (review: SubmissionReviewWrite) => {
-    await database.batch([
-      database.prepare("INSERT INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, id, ?, ?, ?, ? FROM submissions WHERE id = ?").bind(review.reviewId, review.input.decision, review.input.reason ?? null, review.auth.subject, review.timestamp, review.row.id),
-      ...review.statements,
-      database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, 'submission.review', ?, ?, ? FROM submission_reviews WHERE id = ?").bind(review.idempotencyKeyId, review.auth.subject, review.requestHash, JSON.stringify(review.response), review.timestamp, review.reviewId),
-      database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'submission.review', 'submission', submission_id, ?, ? FROM submission_reviews WHERE id = ?").bind(crypto.randomUUID(), crypto.randomUUID(), review.auth.actorType, review.auth.subject, JSON.stringify(review.reviewAudit), review.timestamp, review.reviewId),
-      ...review.trailingStatements,
-    ] as [D1PreparedStatement, ...D1PreparedStatement[]]);
-    if (!(await db.select({ id: idempotencyKeys.id }).from(idempotencyKeys).where(eq(idempotencyKeys.id, review.idempotencyKeyId)).get())) throw new Error("SUBMISSION_NOT_REVIEWABLE");
-  };
+  const { persistSubmissionReview, reconcileReviewedSubmissionProgress } = createSubmissionReviewPersistence(database, db, {
+    loadVerifiedRunSubmissionOutcome,
+    reconcileVerifiedRunProgressChallenges,
+  });
 
   const { prepareVerifiedRunTransitionStatements, transitionVerifiedRun, ...adminVerifiedRunServices } = createAdminVerifiedRunServices({
     database,
@@ -2769,7 +2754,11 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
 
     async reviewSubmission(input, auth, idempotencyKey): Promise<AdminSubmissionReviewResponse> {
       const replay = await replayOrConflict<AdminSubmissionReviewResponse>(db, auth.subject, "submission.review", idempotencyKey, input);
-      if (replay) return replay;
+      if (replay) {
+        // Approval may have committed before progress reconciliation failed.
+        if (replay.decision === "approved") await reconcileReviewedSubmissionProgress(input.submissionId, auth.subject);
+        return replay;
+      }
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
       let reviewClaim: string | null = null;
@@ -2862,7 +2851,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           for (const { reward, alreadyOwned, canonicalChallengeId } of grantResults) if (!alreadyOwned) trailingStatements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'challenge.completion.submission', 'challenge_completion', (SELECT id FROM challenge_completions WHERE player_account_id = ? AND challenge_id = ? AND status = 'active' AND source_type = 'submission' AND source_id = ?), ?, ?) ").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, row.playerAccountId, canonicalChallengeId, row.id, JSON.stringify({ submissionId: row.id, challengeId: canonicalChallengeId, titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId }), timestamp));
           for (const { reward, grantId, alreadyOwned } of grantResults) if (!alreadyOwned) trailingStatements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'submission.grant', 'player_title_grant', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, grantId, JSON.stringify({ submissionId: row.id, titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, mapVariant: reward.snapshot?.mapVariant ?? submissionSnapshot?.mapVariant ?? null, ruleId: reward.snapshot?.ruleId ?? submissionSnapshot?.ruleId ?? null, ruleRevision: reward.snapshot?.ruleRevision ?? submissionSnapshot?.ruleRevision ?? null, alreadyOwned }), timestamp));
           await persistSubmissionReview({ row, input, auth, reviewId, timestamp, idempotencyKeyId, requestHash, response, reviewAudit, statements, trailingStatements });
-if (verifiedRunPlan?.superseded) await reconcileVerifiedRunProgressChallenges({ verifiedRunIds: [verifiedRunPlan.superseded.runId], actorId: auth.subject });
           return response;
         }
 
@@ -2890,7 +2878,6 @@ if (verifiedRunPlan?.superseded) await reconcileVerifiedRunProgressChallenges({ 
         ).bind(input.decision, input.reason ?? null, input.decision, timestamp, row.id, reviewId));
         const trailingStatements: D1PreparedStatement[] = [];
         await persistSubmissionReview({ row, input, auth, reviewId, timestamp, idempotencyKeyId, requestHash, response, reviewAudit, statements, trailingStatements });
-if (verifiedRunPlan?.superseded) await reconcileVerifiedRunProgressChallenges({ verifiedRunIds: [verifiedRunPlan.superseded.runId], actorId: auth.subject });
         return response;
       } finally {
         if (reviewClaim) await db.update(ocrResults).set({ callbackClaimed: 0 }).where(eq(ocrResults.id, reviewClaim));
