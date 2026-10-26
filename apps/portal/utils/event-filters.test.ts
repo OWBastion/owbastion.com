@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { RandomEvent } from "~/types/random-event";
 import { commonEffectTags, emptyEventFilters, facetCount, groupEvents, matchesEvent, sortEvents, UNGROUPED } from "./event-filters";
 
-const event = (eventId: string, overrides: Partial<RandomEvent> = {}): RandomEvent => ({ eventId, name: eventId, category: "增益", rarity: "R", description: "", durationSeconds: null, cooldownSeconds: null, weight: 1, gameVersion: "5.0", eventGroup: null, effectTags: [], effectAnnotations: [], releaseStatus: "implemented", archived: false, challenges: [], ...overrides });
+const event = (eventId: string, overrides: Partial<RandomEvent> = {}): RandomEvent => ({ eventId, name: eventId, category: "增益", rarity: "R", description: "", durationSeconds: null, cooldownSeconds: null, weight: 1, gameVersion: "5.0", eventGroup: null, effectTags: [], effectAnnotations: [], releaseStatus: "implemented", archived: false, challenges: [], outcomes: [], ...overrides });
 
 const events = [
   event("a", { eventGroup: "赌徒", effectTags: ["心之钢", "永久"], category: "机制" }),

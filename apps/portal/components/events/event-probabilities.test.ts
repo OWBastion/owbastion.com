@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { calculateEventProbabilities } from "~/utils/event-probabilities";
 import type { RandomEvent } from "~/types/random-event";
 
-const event = (eventId: string, weight: number | null, overrides: Partial<RandomEvent> = {}): RandomEvent => ({ eventId, name: eventId, category: "机制", rarity: "R", description: "", durationSeconds: 1, cooldownSeconds: 0.32, weight, gameVersion: "5.0", effectTags: [], effectAnnotations: [], releaseStatus: "implemented", archived: false, challenges: [], ...overrides });
+const event = (eventId: string, weight: number | null, overrides: Partial<RandomEvent> = {}): RandomEvent => ({ eventId, name: eventId, category: "机制", rarity: "R", description: "", durationSeconds: 1, cooldownSeconds: 0.32, weight, gameVersion: "5.0", effectTags: [], effectAnnotations: [], releaseStatus: "implemented", archived: false, challenges: [], outcomes: [], ...overrides });
 
 describe("event probabilities", () => {
   it("draws from one global pool regardless of category", () => {

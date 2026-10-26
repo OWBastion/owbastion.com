@@ -63,6 +63,9 @@ const challengeHref = (challenge: EventChallenge) => challenge.family === "map"
 const challengeAction = (challenge: EventChallenge) => challenge.family === "map" ? "查看地图" : "查看成就";
 const categoryColor = (value: string) => value === "减益" ? "error" : value === "增益" ? "success" : value === "机制" ? "info" : "neutral";
 const unannotatedEffectTags = (event: RandomEvent) => event.effectTags.filter((value) => !event.effectAnnotations.some((annotation) => annotation.tag === value));
+// Outcome tags share the event's glossary annotations.
+const outcomeAnnotations = (event: RandomEvent, outcome: RandomEvent["outcomes"][number]) => event.effectAnnotations.filter((annotation) => outcome.effectTags.includes(annotation.tag));
+const unannotatedOutcomeTags = (event: RandomEvent, outcome: RandomEvent["outcomes"][number]) => outcome.effectTags.filter((tag) => !event.effectAnnotations.some((annotation) => annotation.tag === tag));
 const reviewSummaries = useReviewSummaries("event", () => props.events.map((event) => event.eventId));
 const reviewLoading = computed(() => reviewSummaries.loading.value);
 const reviewError = computed(() => reviewSummaries.error.value);
@@ -137,6 +140,20 @@ onMounted(() => { hydrated.value = true; });
           <EffectGlossaryTooltip v-for="annotation in selected.effectAnnotations" :key="annotation.term.key" :annotation="annotation" />
           <UBadge v-for="tag in unannotatedEffectTags(selected)" :key="`detail-${tag}`" :label="tag" color="neutral" variant="subtle" />
         </div>
+        <section v-if="selected.outcomes.length" class="outcomes" aria-label="结果项">
+          <h3 class="type-card-title">结果项</h3>
+          <article v-for="outcome in selected.outcomes" :key="outcome.position" class="outcome surface-card">
+            <div class="outcome__head">
+              <UBadge :label="outcome.polarity === 'buff' ? '增益' : '减益'" :color="outcome.polarity === 'buff' ? 'success' : 'error'" variant="subtle" />
+              <strong>{{ outcome.name }}</strong>
+            </div>
+            <p class="outcome__desc">{{ outcome.description }}</p>
+            <div v-if="outcome.effectTags.length" class="event-tags">
+              <EffectGlossaryTooltip v-for="annotation in outcomeAnnotations(selected, outcome)" :key="`outcome-${outcome.position}-${annotation.term.key}`" :annotation="annotation" />
+              <UBadge v-for="tag in unannotatedOutcomeTags(selected, outcome)" :key="`outcome-${outcome.position}-${tag}`" :label="tag" color="neutral" variant="subtle" />
+            </div>
+          </article>
+        </section>
         <section v-if="selected.challenges.length" class="challenges">
           <h3 class="type-card-title">挑战</h3>
           <NuxtLink
@@ -283,6 +300,11 @@ onMounted(() => { hydrated.value = true; });
 .description { margin: 0; color: var(--text); line-height: 1.65; }
 .challenges { display: grid; gap: var(--space-2); }
 .challenges h3 { margin: 0; }
+.outcomes { display: grid; gap: var(--space-2); }
+.outcomes h3 { margin: 0; }
+.outcome { display: grid; gap: var(--space-2); padding: var(--space-3); }
+.outcome__head { display: flex; align-items: center; gap: var(--space-2); }
+.outcome__desc { margin: 0; color: var(--muted); font-size: var(--type-body-sm-size); line-height: 1.6; }
 .challenge-link {
   display: flex;
   justify-content: space-between;

@@ -3,7 +3,7 @@ import type { RandomEvent } from "~/types/random-event";
 import type { EventSort } from "~/components/admin/AdminEventTable.vue";
 import type { EventFieldValues } from "~/components/admin/AdminEventFields.vue";
 import { applyDraft, draftToUpdates, stage, undoUpdates, type EventDraft, type EventPatch } from "~/utils/event-draft";
-import { bodyFromForm, emptyEventForm } from "~/utils/event-editor";
+import { bodyFromEvent, bodyFromForm, emptyEventForm } from "~/utils/event-editor";
 import { calculatePoolProbabilities } from "~/utils/event-probabilities";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
@@ -31,7 +31,7 @@ const sort = shallowRef<EventSort>({ key: "gameVersion", dir: -1 });
 const sheetId = shallowRef<string | null>(null);
 const sheetOpen = shallowRef(false);
 const creating = shallowRef(false);
-const createValues = reactive<EventFieldValues>({ name: "", eventGroup: null, category: "", gameVersion: "", releaseStatus: "development", weight: null, durationSeconds: null, cooldownSeconds: null, description: "", effectTags: [] });
+const createValues = reactive<EventFieldValues>({ name: "", eventGroup: null, category: "", gameVersion: "", releaseStatus: "development", weight: null, durationSeconds: null, cooldownSeconds: null, description: "", effectTags: [], outcomes: [] });
 const saving = shallowRef(false);
 const creatingNow = shallowRef(false);
 const versionSaving = shallowRef<string | null>(null);
@@ -109,10 +109,21 @@ function stageWeight(operation: "set" | "add" | "multiply", value: number) {
     stageOne(id, { weight: Math.max(0, Number(weight.toFixed(3))) });
   }
 }
-async function batch(updates: Array<Record<string, unknown>>) {
-  const result = await api<{ items: RandomEvent[] }>("/v1/events/batch", { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", updates } });
-  const saved = new Map(result.items.map((event) => [event.eventId, event]));
-  events.value = events.value.map((event) => saved.get(event.eventId) ?? event);
+// Outcome sets are not part of the batch contract; updates carrying them go
+// through the single-event endpoint with the event's full write body.
+async function saveUpdates(updates: Array<Record<string, unknown> & { eventId: string }>) {
+  const batched = updates.filter((update) => !("outcomes" in update));
+  if (batched.length) {
+    const result = await api<{ items: RandomEvent[] }>("/v1/events/batch", { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", updates: batched } });
+    const saved = new Map(result.items.map((event) => [event.eventId, event]));
+    events.value = events.value.map((event) => saved.get(event.eventId) ?? event);
+  }
+  for (const update of updates.filter((item) => "outcomes" in item)) {
+    const event = events.value.find((item) => item.eventId === update.eventId);
+    if (!event) continue;
+    const saved = await api<RandomEvent>(`/v1/events/${encodeURIComponent(update.eventId)}`, { method: "PUT", headers: { "Idempotency-Key": createRequestId() }, body: bodyFromEvent({ ...event, ...update }) });
+    events.value = events.value.map((item) => item.eventId === saved.eventId ? saved : item);
+  }
 }
 async function saveDraft() {
   const updates = draftToUpdates(draft.value);
@@ -120,7 +131,7 @@ async function saveDraft() {
   saving.value = true;
   error.value = "";
   try {
-    await batch(updates);
+    await saveUpdates(updates);
     draft.value = new Map();
     toast.add({ title: `已保存 ${updates.length} 项修改`, color: "success", actions: [{ label: "撤销", color: "neutral", variant: "outline", onClick: () => undoBatch(undo) }] });
   } catch (cause) {
@@ -129,9 +140,9 @@ async function saveDraft() {
     saving.value = false;
   }
 }
-async function undoBatch(updates: Array<Record<string, unknown>>) {
+async function undoBatch(updates: Array<{ eventId: string } & Record<string, unknown>>) {
   try {
-    await batch(updates);
+    await saveUpdates(updates);
     toast.add({ title: "已撤销", color: "success" });
   } catch (cause) {
     error.value = portalErrorDetails(cause, "无法撤销修改。").description;

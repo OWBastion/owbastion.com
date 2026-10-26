@@ -32,7 +32,7 @@ describe("Portal SSR", async () => {
         : path === "/v1/public/achievements"
           ? [{ challengeId: "title.ssr", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "SSR", titleName: "SSR 成就称号", icon: "trophy", category: "SSR 测试", condition: "完成 SSR 验证", evidenceRule: "完整截图", gameVersion: "3.2.0", status: "active", submissionMode: "manual" }]
           : path === "/v1/events"
-            ? [{ eventId: "event.ssr", name: "SSR 随机事件", category: "增益", rarity: "常见", description: "SSR 目录内容", durationSeconds: 60, cooldownSeconds: 0, weight: 1, gameVersion: "3.2.0", effectTags: [], effectAnnotations: [], releaseStatus: "implemented", archived: false, challenges: [] }]
+            ? [{ eventId: "event.ssr", name: "SSR 随机事件", category: "增益", rarity: "常见", description: "SSR 目录内容", durationSeconds: 60, cooldownSeconds: 0, weight: 1, gameVersion: "3.2.0", effectTags: [], effectAnnotations: [], releaseStatus: "implemented", archived: false, challenges: [], outcomes: [] }]
             : null;
     if (path === "/v1/me") {
       response.statusCode = request.headers.cookie ? 200 : 401;
