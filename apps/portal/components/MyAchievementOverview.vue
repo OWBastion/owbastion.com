@@ -98,7 +98,13 @@ const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, 
     </AchievementWall>
 
     <section v-if="mapProgressRows.length" class="series" aria-labelledby="map-achievements-title">
-      <h2 id="map-achievements-title" class="series__title">地图<span class="num">{{ mapProgressRows.reduce((sum, row) => sum + row.earnedChallenges.length, 0) }}/{{ mapProgressRows.reduce((sum, row) => sum + row.challenges.length, 0) }}</span></h2>
+      <div class="series__bar">
+        <h2 id="map-achievements-title" class="series__title">地图<span class="num">{{ mapProgressRows.reduce((sum, row) => sum + row.earnedChallenges.length, 0) }}/{{ mapProgressRows.reduce((sum, row) => sum + row.challenges.length, 0) }}</span></h2>
+        <UPopover :content="{ align: 'end' }">
+          <UButton icon="i-lucide-settings-2" color="neutral" variant="ghost" size="xs" aria-label="地图称号设置" />
+          <template #content><PlayerMapTitleWearCard /></template>
+        </UPopover>
+      </div>
       <ul class="maps">
         <li v-for="row in mapProgressRows" :key="row.map.mapId">
           <NuxtLink :to="`/me/achievements/maps/${encodeURIComponent(row.map.mapId)}`" class="map" :class="{ 'is-complete': row.earnedChallenges.length === row.challenges.length }">
@@ -144,6 +150,8 @@ const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, 
 .equip-count { justify-self: end; margin: calc(-1 * var(--space-8)) 0 0; padding: var(--space-1) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-pill); color: var(--muted); font-size: var(--type-label-sm-size); }
 .equip-count.is-warn { border-color: var(--warning); color: var(--warning); }
 .series { display: grid; gap: var(--space-3); }
+.series__bar { display: flex; align-items: center; gap: var(--space-2); }
+.series__bar .series__title { flex: 1; }
 .series__title { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); margin: 0; color: var(--muted); font-size: var(--type-label-size); font-weight: 600; letter-spacing: .1em; }
 .series__title .num { color: var(--quiet); font-size: var(--type-label-sm-size); font-weight: 500; letter-spacing: 0; }
 .maps { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr)); gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
