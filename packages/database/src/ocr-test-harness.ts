@@ -18,6 +18,7 @@ import {
   ocrFeedbackProposalsWithoutReviewStateSchema,
   ocrResultsSchema,
   playerAccountsSchema,
+  playerTitleWearSchema,
   qqGroupAccessSchema,
   qqLoginAttemptsSchema,
   qqSessionsSchema,
@@ -93,6 +94,7 @@ export const installSchema = (sqlite: DatabaseSync) => {
     CREATE UNIQUE INDEX map_title_rule_compat_rule_map_idx
       ON map_title_rule_compat (rule_id, map_id);
     ${playerAccountsSchema}
+    ${playerTitleWearSchema}
     CREATE TABLE player_title_entitlements (player_account_id TEXT PRIMARY KEY, all_titles INTEGER NOT NULL DEFAULT 1);
     CREATE TABLE player_title_grants (
       id TEXT PRIMARY KEY NOT NULL,

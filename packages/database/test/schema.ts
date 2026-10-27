@@ -58,6 +58,11 @@ export const bindingInvitesSchema = `CREATE TABLE binding_invites (
     revoked_at INTEGER, revoked_by TEXT
   );`;
 
+export const playerTitleWearSchema = `CREATE TABLE player_title_wear (
+    player_account_id TEXT PRIMARY KEY NOT NULL REFERENCES player_accounts(id),
+    wear_map_titles INTEGER NOT NULL, updated_at INTEGER NOT NULL
+  );`;
+
 export const portalSessionsSchema = `CREATE TABLE portal_sessions (
     id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL, token_hash TEXT NOT NULL,
     expires_at INTEGER NOT NULL

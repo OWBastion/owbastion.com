@@ -51,6 +51,10 @@ Platform-owned metadata and its authoring rules. Lifecycle semantics:
   Portal prompts an idempotent selection (maintainers may manage the equipped set);
   both paths replace only the equipped selection after the same active-global
   validation.
+- Map-title wear: each player has one account-level preference, `wearMapTitles` (default
+  on; no stored row means on). Turning it off omits the player from the Agents
+  `map-title-holders` projection, so Bastion stops showing their map titles from the next
+  build. It never changes Grants, achievement counts, leaderboards, or public profiles.
 - Player title reads keep active Grants of ended definitions visible; ended
   definitions stay out of ordinary acquisition and review issuance, but remain equippable
   when active and global.

@@ -12,7 +12,7 @@ and pushes nothing. Privacy limits: [data-and-security.md](../dev-rules/data-and
   visible, earnable, or equippable to players.
 - Global active grants: `/v1/agents/player-title-grants` (never revision-scoped map
   grants). Map holders: `/v1/agents/map-title-holders?mapId=...`, each item carrying
-  `gameplayRevisionId`. Both read D1, never expose historical or revoked grants, and use
+  `gameplayRevisionId`. Map holders omit players whose `wearMapTitles` preference is off. Both read D1, never expose historical or revoked grants, and use
   the same readiness filter as maps.
 - An active map whose enabled revision projection is incomplete returns
   `503 AGENT_MAP_TITLE_PROJECTION_UNAVAILABLE`, never a trustworthy-looking empty page;
