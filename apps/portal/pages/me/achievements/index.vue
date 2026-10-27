@@ -9,7 +9,7 @@ definePageMeta({ middleware: "auth" });
 useSeoMeta({ title: "我的成就 · 躲避堡垒 3" });
 
 const { player, refresh } = useCurrentPlayer();
-const { items: ownedTitles, allTitles, refresh: refreshTitles, replaceEquipped } = usePlayerTitles();
+const { items: ownedTitles, allTitles, refresh: refreshTitles, refreshMapTitleWear, replaceEquipped } = usePlayerTitles();
 const { items: challengeProgress, refresh: refreshChallengeProgress } = usePlayerChallengeProgress();
 const { data: catalog, pending: loading, error: catalogError } = useAsyncData("my-achievement-directory", async () => {
   const [achievementResponse, mapResponse, mapChallengeResponse] = await Promise.all([
@@ -31,7 +31,7 @@ onMounted(async () => {
   try {
     const currentPlayer = await refresh();
     if (currentPlayer) {
-      await Promise.all([refreshTitles(), refreshChallengeProgress()]);
+      await Promise.all([refreshTitles(), refreshMapTitleWear(), refreshChallengeProgress()]);
     }
   } catch (cause) {
     playerError.value = portalErrorDetails(cause, "无法读取成就，请稍后重试。").description;
