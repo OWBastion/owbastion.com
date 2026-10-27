@@ -25,12 +25,17 @@ const refreshError = ref("");
 const queuePath = useAdminReviewQueuePath();
 const submissionId = computed(() => String(route.params.submissionId));
 const reviewInput = shallowRef<AdminSubmissionReviewInput>({ fieldCorrections: [], confirmedChallengeIds: [] });
-const reviewInputKey = computed(() => JSON.stringify(reviewInput.value));
+const reviewInputKey = computed(() => JSON.stringify({
+  fieldCorrections: reviewInput.value.fieldCorrections.map((correction) => ({ ...correction, reviewedValue: correction.reviewedValue.trim() }))
+    .sort((a, b) => a.fieldKey < b.fieldKey ? -1 : a.fieldKey > b.fieldKey ? 1 : 0),
+  confirmedChallengeIds: [...new Set(reviewInput.value.confirmedChallengeIds)].sort(),
+}));
 const preview = shallowRef<AdminSubmissionReviewPreview | null>(null);
 const previewKey = ref<string | null>(null);
 const previewLoading = ref(false);
 const previewError = ref("");
 let previewSequence = 0;
+let pendingPreviewKey: string | null = null;
 /** Single page title: challenge target only (detail body no longer repeats an h2). */
 const pageTitle = computed(() => {
   const detail = submission.value;
@@ -45,6 +50,9 @@ const adminData = useAdminAsyncData("submission-review-detail", () => api<AdminS
   onStart: () => { errorMessage.value = ""; refreshError.value = ""; },
   onData: (response) => {
     if (response.evidenceUrl !== submission.value?.evidenceUrl) evidenceError.value = false;
+    previewSequence++;
+    pendingPreviewKey = null;
+    previewKey.value = null;
     submission.value = response;
     void loadPreview();
   },
@@ -85,32 +93,43 @@ async function loadPreview() {
   // Without a recognition result only the reviewer's field corrections can produce evidence.
   if (!submission.value || (!submission.value.ocr && !fieldCorrections.length)) {
     previewSequence++;
+    pendingPreviewKey = null;
     preview.value = null;
     previewKey.value = reviewInputKey.value;
     previewLoading.value = false;
     previewError.value = "";
     return;
   }
-  const sequence = ++previewSequence;
   const key = reviewInputKey.value;
+  if (previewKey.value === key || pendingPreviewKey === key) return;
+  const sequence = ++previewSequence;
+  pendingPreviewKey = key;
   previewLoading.value = true;
   previewError.value = "";
   try {
     const result = await api<AdminSubmissionReviewPreview>(`/v1/submissions/${encodeURIComponent(submission.value.submissionId)}/review/preview`, { method: "POST", body: { contractVersion: "1", ...(fieldCorrections.length ? { fieldCorrections } : {}), ...(confirmedChallengeIds.length ? { confirmedChallengeIds } : {}) } });
-    if (sequence !== previewSequence) return;
+    if (sequence !== previewSequence || key !== reviewInputKey.value) return;
     preview.value = result;
     previewKey.value = key;
   } catch (error) {
-    if (sequence !== previewSequence) return;
+    if (sequence !== previewSequence || key !== reviewInputKey.value) return;
     const details = portalErrorDetails(error, "无法计算通过后的结果，请稍后重试。");
     previewError.value = details.code ? reviewBlockingMessage(details.code) : details.description;
     previewKey.value = null;
   } finally {
-    if (sequence === previewSequence) previewLoading.value = false;
+    if (sequence === previewSequence) {
+      pendingPreviewKey = null;
+      if (key === reviewInputKey.value) previewLoading.value = false;
+    }
   }
 }
 
+watch(reviewInputKey, () => {
+  previewError.value = "";
+  previewLoading.value = previewKey.value !== reviewInputKey.value && Boolean(submission.value?.ocr || reviewInput.value.fieldCorrections.length);
+}, { flush: "sync" });
 watchDebounced(reviewInputKey, () => { void loadPreview(); }, { debounce: 300 });
+onBeforeUnmount(() => { previewSequence++; });
 
 function updateReviewInput(value: AdminSubmissionReviewInput) {
   reviewInput.value = value;

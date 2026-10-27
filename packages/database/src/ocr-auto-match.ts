@@ -9,6 +9,40 @@ export type CanonicalOcrChallenge = {
   conditions: CanonicalChallengeConditions | null;
 };
 
+export const autoMatchTitleKeys = (candidates: CanonicalOcrChallenge[]) => new Set(candidates.flatMap(({ conditions }) => conditions?.conditions.flatMap((condition) => condition.type === "achievement_title" ? [condition.titleKey] : []) ?? []));
+
+export const autoMatchTitleNames = (candidates: CanonicalOcrChallenge[], conditionTitleNames: ReadonlyMap<string, string>) => {
+  // Preparation already loads only the title keys referenced by Conditions.
+  const candidateNames = new Map<string, string>();
+  for (const { challenge } of candidates) {
+    if (!challenge.titleKey) continue;
+    const name = challenge.family === "achievement" ? challenge.titleName : challenge.name;
+    const previous = candidateNames.get(challenge.titleKey);
+    // Shared reward keys can have different display names; use a stable code-unit tie-break.
+    if (previous === undefined || name < previous) candidateNames.set(challenge.titleKey, name);
+  }
+  return new Map([...conditionTitleNames, ...candidateNames]);
+};
+
+export const scopeAutoMatchEvidence = <T extends { candidates: CanonicalOcrChallenge[]; titleNamesByKey: ReadonlyMap<string, string> }>(prepared: T, gameplayRevisionId: string | null) => {
+  const candidates = prepared.candidates.filter(({ challenge }) => challenge.family !== "map" || challenge.gameplayRevisionId === gameplayRevisionId);
+  const titleKeys = autoMatchTitleKeys(candidates);
+  const conditionTitleNames = new Map([...prepared.titleNamesByKey].filter(([key]) => titleKeys.has(key)));
+  return { ...prepared, candidates, titleNamesByKey: autoMatchTitleNames(candidates, conditionTitleNames) };
+};
+
+export const autoMatchMapIds = (activeMaps: readonly { id: string; name: string }[]) => {
+  const mapIdsByName = new Map<string, string>();
+  const ambiguousMapNames = new Set<string>();
+  for (const map of activeMaps) {
+    const key = map.name.trim().toLocaleLowerCase();
+    if (mapIdsByName.has(key)) ambiguousMapNames.add(key);
+    else mapIdsByName.set(key, map.id);
+  }
+  for (const key of ambiguousMapNames) mapIdsByName.delete(key);
+  return mapIdsByName;
+};
+
 export type AutoMatchCandidate = CanonicalOcrChallenge & {
   evaluation: ChallengeConditionEvaluation;
   quality: OcrQualityGate;
