@@ -1202,7 +1202,7 @@
   "/v1/events": {
    "get": {
     "operationId": "listRandomEvents",
-    "description": "Public event directory. Every event carries outcomes: for category 复合 events an ordered list of internal result items (position, name, polarity buff/debuff, description, effectTags), empty otherwise. Outcomes are equally likely internal picks, not independently drawable events; they have no own weight, challenges, or reviews. A composite event's effectTags and effectAnnotations are derived from the union of its outcome tags.",
+    "description": "Public event directory. Every event carries outcomes: for category 复合 events an ordered list of internal result items (position, name, polarity buff/debuff, description, effectTags), empty otherwise. Outcomes are equally likely internal picks, not independently drawable events; they have no own weight, challenges, or reviews. A composite event's effectTags and effectAnnotations are derived from the union of its outcome tags. Without status it lists implemented and removed events. status selects one releaseStatus (implemented, removed or development); status=all lists every non-archived event, including development events.",
     "responses": {
      "200": {
       "$ref": "#/components/responses/Json"
