@@ -345,6 +345,43 @@
     }
    }
   },
+  "/v1/me/titles/map-wear": {
+   "get": {
+    "operationId": "getCurrentPlayerMapTitleWear",
+    "description": "Returns the signed-in player's map-title wear preference (`wearMapTitles`, default true).",
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   },
+   "put": {
+    "operationId": "updateCurrentPlayerMapTitleWear",
+    "description": "Replaces the signed-in player's map-title wear preference. When false, the player is omitted from the Agents map-title-holders projection, so Bastion no longer shows their map-scoped titles from the next build. Grants, achievements, leaderboards, and public profiles are unchanged.",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/idempotencyKey"
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     },
+     "409": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
   "/v1/me/titles/equipped": {
    "put": {
     "operationId": "replaceCurrentPlayerEquippedTitles",

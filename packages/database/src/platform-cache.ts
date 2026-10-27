@@ -298,6 +298,7 @@ const GRANT_TABLES = new Set([
   "player_title_grants",
   "player_title_entitlements",
   "player_equipped_titles",
+  "player_title_wear",
 ]);
 const WRITE_TARGET_RE = /\b(?:insert|replace)\s+(?:or\s+\w+\s+)?into\s+["'`[]?(\w+)|\bupdate\b(?:\s+or\s+\w+)?\s+["'`[]?(\w+)|\bdelete\s+from\s+["'`[]?(\w+)/gi;
 

@@ -21,7 +21,7 @@ import {
   screenshotSetStatusSchema,
   playerUploadSessionRequestSchema,
   ocrAccuracyFeedbackRequestSchema,
-  playerEquippedTitlesRequestSchema, adminPlayerEquippedTitlesRequestSchema,
+  adminPlayerEquippedTitlesRequestSchema,
   playerProfileVisibilityRequestSchema,
 } from "@owbastion/contracts";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
@@ -38,6 +38,7 @@ import { registerPortalAuthenticationRoutes } from "./routes/portal-authenticati
 import { registerPublicCatalogRoutes } from "./routes/public-catalog";
 import { registerLeaderboardRoutes } from "./routes/leaderboard";
 import { registerPlayerHandleRoutes } from "./routes/player-handles";
+import { equippedTitleErrors, registerPlayerTitleRoutes } from "./routes/player-titles";
 import { registerReviewRoutes } from "./routes/reviews";
 import { hasOnlyUniqueQueryNames, parsePagination } from "./query-params";
 import { createTurnstileGuard, type TurnstileGuard } from "./turnstile";
@@ -144,10 +145,6 @@ const idempotencyConflict = { status: 409, message: "The idempotency key was use
 const idempotencyErrors: RouteErrorMap = { IDEMPOTENCY_CONFLICT: idempotencyConflict };
 const unauthenticatedErrors: RouteErrorMap = { UNAUTHENTICATED: { status: 401, message: "Authentication is required" } };
 const submissionNotFoundErrors: RouteErrorMap = errorGroup(404, "The submission does not exist", "SUBMISSION_NOT_FOUND");
-const equippedTitleErrors: RouteErrorMap = {
-  ...errorGroup(422, "The selected titles cannot be equipped", "EQUIPPED_TITLE_GRANT_INVALID", "EQUIPPED_TITLE_LIMIT_EXCEEDED"),
-  ...idempotencyErrors,
-};
 const ocrFeedbackErrors: RouteErrorMap = {
   ...unauthenticatedErrors,
   ...submissionNotFoundErrors,
@@ -520,29 +517,6 @@ export const createApp = (dependencies: AppDependencies) => {
     return c.json(progress);
   });
 
-  app.get("/v1/me/titles", async (c) => {
-    allowPortal(c);
-    c.header("Cache-Control", "private, no-store");
-    const sessionToken = portalSessionToken(c.req.raw);
-    if (!sessionToken) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
-    const titles = await servicesFor(c).listCurrentPlayerTitles({ sessionToken });
-    if (!titles) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
-    return c.json({ contractVersion: "1", ...titles });
-  });
-  app.put("/v1/me/titles/equipped", async (c) => {
-    allowPortal(c);
-    const sessionToken = portalSessionToken(c.req.raw);
-    if (!sessionToken) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
-    const idempotencyKey = c.req.header("idempotency-key");
-    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = playerEquippedTitlesRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await servicesFor(c).replaceCurrentPlayerEquippedTitles({ ...parsed.data, sessionToken }, idempotencyKey)); }
-    catch (error) {
-      return respondToMappedError(c, error, { ...unauthenticatedErrors, ...equippedTitleErrors });
-    }
-  });
-
   app.put("/v1/me/profile/visibility", async (c) => {
     allowPortal(c);
     c.header("Cache-Control", "private, no-store");
@@ -580,6 +554,8 @@ export const createApp = (dependencies: AppDependencies) => {
     errorResponse,
     logServiceOperation,
   });
+
+  registerPlayerTitleRoutes(app, { servicesFor, allowPortal, errorResponse, portalSessionToken, respondToMappedError });
 
   app.get("/v1/me/submissions/:submissionId", portalPlayerRoute(async (c, access) => {
     try {

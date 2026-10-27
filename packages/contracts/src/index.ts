@@ -1,16 +1,10 @@
 import { z } from "zod";
-import { contractVersion, externalId } from "./common";
+import { contractVersion, externalId, pageInfo } from "./common";
 import { randomEventSchema } from "./random-event";
 
 export { contractVersion } from "./common";
 export * from "./random-event";
-
-const pageInfo = (maxPageSize?: number) => z.object({
-  page: z.number().int().positive(),
-  pageSize: maxPageSize === undefined ? z.number().int().positive() : z.number().int().positive().max(maxPageSize),
-  total: z.number().int().nonnegative(),
-  hasMore: z.boolean(),
-});
+export * from "./player-title-wear";
 
 const playerId = z.string().regex(/^\d{1,10}$/), playerName = z.string().trim().min(1).max(64);
 const retirementVersion = z.string().regex(/^\d{2}\.\d{4}\.[1-9]\d*$/);

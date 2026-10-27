@@ -4,6 +4,7 @@ import type { PlatformServices } from "@owbastion/domain";
 import type { AdminManualTitleGrantRequest, AdminManualTitleGrantTarget, AdminManualTitleGrantResponse, AdminManualTitleGrantBatchResponse } from "@owbastion/contracts";
 import { auditEvents, challengeCompletions, challenges, gameplayRevisions, historicalTitleGrants, idempotencyKeys, maps, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, titleCatalog } from "./schema";
 import type { resolvePortalSession } from "./portal-session";
+import { createEquippedTitleServices, type EquippedTitleServices } from "./equipped-title-service";
 
 export type ManualTitleGrantResolution = {
   title: { key: string; label: string; scope: string; lifecycle: string };
@@ -30,10 +31,8 @@ type Dependencies = {
   resolveManualTitleGrantTarget: (input: Pick<AdminManualTitleGrantRequest, "titleKey" | "mapId" | "gameplayRevisionId">) => Promise<ManualTitleGrantResolution>;
 };
 
-type PlayerTitleServices = Pick<PlatformServices,
+type PlayerTitleServices = EquippedTitleServices & Pick<PlatformServices,
   | "listCurrentPlayerTitles"
-  | "replaceCurrentPlayerEquippedTitles"
-  | "replaceAdminPlayerEquippedTitles"
   | "listHistoricalTitleGrants"
   | "getHistoricalTitleHolder"
   | "createAdminTitleGrant"
@@ -86,46 +85,7 @@ export const createPlayerTitleServices = (
       return { items: rows.map(({ grant, title, mapName, revisionMapId, equipped }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapId: grant.mapId ?? undefined, gameplayRevisionId: grant.gameplayRevisionId ?? undefined, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, equipped: title.scope === "global" && Boolean(equipped) && (grant.mapId === null && grant.gameplayRevisionId === null || grant.mapId === revisionMapId) })), allTitles: entitlement?.allTitles === 1 };
     },
 
-    async replaceCurrentPlayerEquippedTitles(input, idempotencyKey) {
-      const operation = "player.title.equipped.replace";
-      const current = await getCurrentPortalPlayer(input.sessionToken);
-      if (!current) throw new Error("UNAUTHENTICATED");
-      const request = { grantIds: input.grantIds };
-      const replay = await replayOrConflict<{ contractVersion: "1"; grantIds: string[] }>(current.player.id, operation, idempotencyKey, request);
-      if (replay) return replay;
-      if (input.grantIds.length > 10 || new Set(input.grantIds).size !== input.grantIds.length) throw new Error("EQUIPPED_TITLE_LIMIT_EXCEEDED");
-      const grants = await findEquipableGrantIds(current.player.id, input.grantIds);
-      if (grants.length !== input.grantIds.length) throw new Error("EQUIPPED_TITLE_GRANT_INVALID");
-      const timestamp = now(); const response = { contractVersion: "1" as const, grantIds: [...input.grantIds] };
-      await database.batch([
-        database.prepare("DELETE FROM player_equipped_titles WHERE player_account_id = ?").bind(current.player.id),
-        ...response.grantIds.map((grantId) => database.prepare("INSERT INTO player_equipped_titles (grant_id, player_account_id, equipped_at) VALUES (?, ?, ?)").bind(grantId, current.player.id, timestamp)),
-        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(`${current.player.id}:${operation}:${idempotencyKey}`, current.player.id, operation, await hashRequest(request), JSON.stringify(response), timestamp),
-        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), "user", current.player.id, operation, "player_equipped_titles", current.player.id, JSON.stringify(request), timestamp),
-      ]);
-      return response;
-    },
-
-    async replaceAdminPlayerEquippedTitles(input, auth, idempotencyKey) {
-      const operation = "admin.player.title.equipped.replace";
-      const request = { playerAccountId: input.playerAccountId, grantIds: input.grantIds };
-      const replay = await replayOrConflict<{ contractVersion: "1"; grantIds: string[] }>(auth.subject, operation, idempotencyKey, request);
-      if (replay) return replay;
-      const account = await db.select({ id: playerAccounts.id }).from(playerAccounts).where(eq(playerAccounts.id, input.playerAccountId)).get();
-      if (!account) throw new Error("PLAYER_NOT_FOUND");
-      if (input.grantIds.length > 10 || new Set(input.grantIds).size !== input.grantIds.length) throw new Error("EQUIPPED_TITLE_LIMIT_EXCEEDED");
-      const grants = await findEquipableGrantIds(account.id, input.grantIds);
-      if (grants.length !== input.grantIds.length) throw new Error("EQUIPPED_TITLE_GRANT_INVALID");
-      const timestamp = now();
-      const response = { contractVersion: "1" as const, grantIds: [...input.grantIds] };
-      await database.batch([
-        database.prepare("DELETE FROM player_equipped_titles WHERE player_account_id = ?").bind(account.id),
-        ...response.grantIds.map((grantId) => database.prepare("INSERT INTO player_equipped_titles (grant_id, player_account_id, equipped_at) VALUES (?, ?, ?)").bind(grantId, account.id, timestamp)),
-        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(`${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, await hashRequest(request), JSON.stringify(response), timestamp),
-        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, "player_equipped_titles", account.id, JSON.stringify({ grantIds: input.grantIds, recovery: true }), timestamp),
-      ]);
-      return response;
-    },
+    ...createEquippedTitleServices(database, db, { now, hashRequest, replayOrConflict, getCurrentPortalPlayer, findEquipableGrantIds }),
 
     async listHistoricalTitleGrants(input) {
       const filter = input.filter ?? "all";

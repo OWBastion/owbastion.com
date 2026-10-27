@@ -31,6 +31,7 @@ import {
   titleCatalog,
   titleChallenges,
 } from "./schema";
+import { playerTitleWear } from "./equipped-title-service";
 import type { PlatformCache } from "./platform-cache";
 
 type AgentServices = Pick<PlatformServices,
@@ -203,9 +204,10 @@ export const createAgentServices = (db: ReturnType<typeof drizzle>, dependencies
       const rows = await platformCache.cached("grants", `agent-map-title-holders:${input.mapId}`, () => db.select({ mapId: playerTitleGrants.mapId, gameplayRevisionId: playerTitleGrants.gameplayRevisionId, titleKey: playerTitleGrants.titleKey, slot: playerTitleGrants.slot, playerId: playerAccounts.playerId, playerName: playerAccounts.playerName })
         .from(playerTitleGrants)
         .innerJoin(playerAccounts, eq(playerTitleGrants.playerAccountId, playerAccounts.id))
+        .leftJoin(playerTitleWear, eq(playerTitleWear.playerAccountId, playerAccounts.id))
         .innerJoin(gameplayRevisions, and(eq(playerTitleGrants.gameplayRevisionId, gameplayRevisions.id), eq(gameplayRevisions.mapId, input.mapId), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])))
         .innerJoin(titleCatalog, and(eq(playerTitleGrants.titleKey, titleCatalog.key), ne(titleCatalog.lifecycle, "draft"), eq(titleCatalog.publicVisibility, 1), eq(titleCatalog.scope, "map"), isNotNull(titleCatalog.gameVersion)))
-        .where(and(eq(playerTitleGrants.status, "active"), eq(playerTitleGrants.mapId, input.mapId), inArray(playerTitleGrants.gameplayRevisionId, projectableRevisionIds)))
+        .where(and(eq(playerTitleGrants.status, "active"), or(isNull(playerTitleWear.playerAccountId), ne(playerTitleWear.wearMapTitles, 0)), eq(playerTitleGrants.mapId, input.mapId), inArray(playerTitleGrants.gameplayRevisionId, projectableRevisionIds)))
         .orderBy(playerTitleGrants.gameplayRevisionId, playerTitleGrants.slot, playerAccounts.playerId, playerTitleGrants.titleKey));
       return paginate(rows.map((row) => ({ mapId: row.mapId!, gameplayRevisionId: row.gameplayRevisionId!, titleKey: row.titleKey, slot: row.slot as "pioneer" | "conqueror" | "dominator" | null, slotSemantics: row.slot ? "named" as const : "none" as const, playerId: row.playerId, playerName: row.playerName })), input.page, input.pageSize);
     },
