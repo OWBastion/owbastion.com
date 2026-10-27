@@ -12,13 +12,23 @@ export type CanonicalOcrChallenge = {
 export const autoMatchTitleKeys = (candidates: CanonicalOcrChallenge[]) => new Set(candidates.flatMap(({ conditions }) => conditions?.conditions.flatMap((condition) => condition.type === "achievement_title" ? [condition.titleKey] : []) ?? []));
 
 export const autoMatchTitleNames = (candidates: CanonicalOcrChallenge[], conditionTitleNames: ReadonlyMap<string, string>) => {
-  const titleKeys = autoMatchTitleKeys(candidates);
-  const names = new Map([...conditionTitleNames].filter(([key]) => titleKeys.has(key)));
+  // Preparation already loads only the title keys referenced by Conditions.
+  const candidateNames = new Map<string, string>();
   for (const { challenge } of candidates) {
-    if (challenge.family === "achievement" && challenge.titleKey) names.set(challenge.titleKey, challenge.titleName);
-    else if (challenge.family === "map" && challenge.titleKey) names.set(challenge.titleKey, challenge.name);
+    if (!challenge.titleKey) continue;
+    const name = challenge.family === "achievement" ? challenge.titleName : challenge.name;
+    const previous = candidateNames.get(challenge.titleKey);
+    // Shared reward keys can have different display names; use a stable code-unit tie-break.
+    if (previous === undefined || name < previous) candidateNames.set(challenge.titleKey, name);
   }
-  return names;
+  return new Map([...conditionTitleNames, ...candidateNames]);
+};
+
+export const scopeAutoMatchEvidence = <T extends { candidates: CanonicalOcrChallenge[]; titleNamesByKey: ReadonlyMap<string, string> }>(prepared: T, gameplayRevisionId: string | null) => {
+  const candidates = prepared.candidates.filter(({ challenge }) => challenge.family !== "map" || challenge.gameplayRevisionId === gameplayRevisionId);
+  const titleKeys = autoMatchTitleKeys(candidates);
+  const conditionTitleNames = new Map([...prepared.titleNamesByKey].filter(([key]) => titleKeys.has(key)));
+  return { ...prepared, candidates, titleNamesByKey: autoMatchTitleNames(candidates, conditionTitleNames) };
 };
 
 export const autoMatchMapIds = (activeMaps: readonly { id: string; name: string }[]) => {

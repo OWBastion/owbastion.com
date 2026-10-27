@@ -11,7 +11,7 @@ import { achievementChallengeMaps, achievementChallenges, attachments, auditEven
 import { userEvidenceObjectKey } from "./object-key";
 import { fetchQqAttachmentImage } from "./qq-attachment";
 import { createPlayerUploadServices, maxUploadBytes, playerSubmissionStatus } from "./player-upload-service";
-import { autoMatchMapIds, autoMatchTitleKeys, autoMatchTitleNames, matchOcrAgainstChallenges, type AutoMatchCandidate, type CanonicalOcrChallenge } from "./ocr-auto-match";
+import { autoMatchMapIds, autoMatchTitleKeys, autoMatchTitleNames, scopeAutoMatchEvidence, matchOcrAgainstChallenges, type AutoMatchCandidate, type CanonicalOcrChallenge } from "./ocr-auto-match";
 import { assessVerifiedRunOcrEvidence, hasReliableVerifiedRunField, normalizeOcrDifficulty, standaloneOcrMode, type OcrResponse } from "./ocr-response";
 import { createCanonicalChallengeServices, type CanonicalChallengeInput, type CanonicalChallengePlan, type CanonicalChallengeResolver } from "./canonical-challenge-service";
 import { createChallengeCompletionServices, type ChallengeCompletionAward } from "./challenge-completion-service";
@@ -1525,11 +1525,11 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   };
 
   const loadAutoMatchBasis = async (row: typeof submissions.$inferSelect, response: OcrResponse) => {
-    const activeMapsPromise = Promise.resolve(loadActiveMaps());
+    const activeMapsPromise = loadActiveMaps();
     const [items, activeMaps, gameplayRevisionId] = await Promise.all([
       fetchPlayerAutoMatchChallenges(row.playerAccountId, row.createdAt),
       activeMapsPromise,
-      activeMapsPromise.then((maps) => resolveAutoMatchGameplayRevisionId(row, response, maps)),
+      activeMapsPromise.then((activeMaps) => resolveAutoMatchGameplayRevisionId(row, response, activeMaps)),
     ]);
     return { items, activeMaps, gameplayRevisionId };
   };
@@ -1578,12 +1578,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     const correctedResponse = applySubmissionFieldCorrections(rawResponse ?? { ok: true, data: {}, fields: {} }, fieldCorrections);
     const { items, activeMaps, gameplayRevisionId } = await loadAutoMatchBasis(row, correctedResponse);
     const linkablePrepared = await prepareCanonicalAutoMatchChallenges(items, row.createdAt, activeMaps);
-    const evidenceCandidates = linkablePrepared.candidates.filter(({ challenge }) => challenge.family !== "map" || challenge.gameplayRevisionId === gameplayRevisionId);
-    const evidencePrepared = {
-      ...linkablePrepared,
-      candidates: evidenceCandidates,
-      titleNamesByKey: autoMatchTitleNames(evidenceCandidates, linkablePrepared.titleNamesByKey),
-    };
+    const evidencePrepared = scopeAutoMatchEvidence(linkablePrepared, gameplayRevisionId);
     const decision = matchOcrAgainstChallenges(evidencePrepared.candidates, correctedResponse, evidencePrepared.mapIdsByName, evidencePrepared.titleNamesByKey, true);
     // A maintainer may also link any Challenge the player can currently complete, whatever map or
     // revision the evidence resolves to. Those are never matched from evidence (which would let a

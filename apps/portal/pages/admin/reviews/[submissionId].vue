@@ -25,7 +25,11 @@ const refreshError = ref("");
 const queuePath = useAdminReviewQueuePath();
 const submissionId = computed(() => String(route.params.submissionId));
 const reviewInput = shallowRef<AdminSubmissionReviewInput>({ fieldCorrections: [], confirmedChallengeIds: [] });
-const reviewInputKey = computed(() => JSON.stringify(reviewInput.value));
+const reviewInputKey = computed(() => JSON.stringify({
+  fieldCorrections: reviewInput.value.fieldCorrections.map((correction) => ({ ...correction, reviewedValue: correction.reviewedValue.trim() }))
+    .sort((a, b) => a.fieldKey < b.fieldKey ? -1 : a.fieldKey > b.fieldKey ? 1 : 0),
+  confirmedChallengeIds: [...new Set(reviewInput.value.confirmedChallengeIds)].sort(),
+}));
 const preview = shallowRef<AdminSubmissionReviewPreview | null>(null);
 const previewKey = ref<string | null>(null);
 const previewLoading = ref(false);
@@ -89,6 +93,7 @@ async function loadPreview() {
   // Without a recognition result only the reviewer's field corrections can produce evidence.
   if (!submission.value || (!submission.value.ocr && !fieldCorrections.length)) {
     previewSequence++;
+    pendingPreviewKey = null;
     preview.value = null;
     previewKey.value = reviewInputKey.value;
     previewLoading.value = false;
@@ -103,25 +108,23 @@ async function loadPreview() {
   previewError.value = "";
   try {
     const result = await api<AdminSubmissionReviewPreview>(`/v1/submissions/${encodeURIComponent(submission.value.submissionId)}/review/preview`, { method: "POST", body: { contractVersion: "1", ...(fieldCorrections.length ? { fieldCorrections } : {}), ...(confirmedChallengeIds.length ? { confirmedChallengeIds } : {}) } });
-    if (sequence !== previewSequence) return;
+    if (sequence !== previewSequence || key !== reviewInputKey.value) return;
     preview.value = result;
     previewKey.value = key;
   } catch (error) {
-    if (sequence !== previewSequence) return;
+    if (sequence !== previewSequence || key !== reviewInputKey.value) return;
     const details = portalErrorDetails(error, "无法计算通过后的结果，请稍后重试。");
     previewError.value = details.code ? reviewBlockingMessage(details.code) : details.description;
     previewKey.value = null;
   } finally {
     if (sequence === previewSequence) {
       pendingPreviewKey = null;
-      previewLoading.value = false;
+      if (key === reviewInputKey.value) previewLoading.value = false;
     }
   }
 }
 
 watch(reviewInputKey, () => {
-  previewSequence++;
-  pendingPreviewKey = null;
   previewError.value = "";
   previewLoading.value = previewKey.value !== reviewInputKey.value && Boolean(submission.value?.ocr || reviewInput.value.fieldCorrections.length);
 }, { flush: "sync" });
@@ -129,11 +132,7 @@ watchDebounced(reviewInputKey, () => { void loadPreview(); }, { debounce: 300 })
 onBeforeUnmount(() => { previewSequence++; });
 
 function updateReviewInput(value: AdminSubmissionReviewInput) {
-  reviewInput.value = {
-    fieldCorrections: value.fieldCorrections.map((correction) => ({ ...correction, reviewedValue: correction.reviewedValue.trim() }))
-      .sort((a, b) => a.fieldKey.localeCompare(b.fieldKey)),
-    confirmedChallengeIds: [...new Set(value.confirmedChallengeIds)].sort(),
-  };
+  reviewInput.value = value;
 }
 
 /** Next submission of the default queue, so a maintainer can keep reviewing without returning to the list. Filtered queue views go back to that list instead. */
