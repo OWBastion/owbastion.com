@@ -9,7 +9,7 @@ definePageMeta({ middleware: "auth" });
 useSeoMeta({ title: "我的成就 · 躲避堡垒 3" });
 
 const { player, refresh } = useCurrentPlayer();
-const { items: ownedTitles, allTitles, refresh: refreshTitles, replaceEquipped } = usePlayerTitles();
+const { items: ownedTitles, allTitles, wearMapTitles, refresh: refreshTitles, refreshMapTitleWear, replaceEquipped, updateMapTitleWear } = usePlayerTitles();
 const { items: challengeProgress, refresh: refreshChallengeProgress } = usePlayerChallengeProgress();
 const { data: catalog, pending: loading, error: catalogError } = useAsyncData("my-achievement-directory", async () => {
   const [achievementResponse, mapResponse, mapChallengeResponse] = await Promise.all([
@@ -31,7 +31,7 @@ onMounted(async () => {
   try {
     const currentPlayer = await refresh();
     if (currentPlayer) {
-      await Promise.all([refreshTitles(), refreshChallengeProgress()]);
+      await Promise.all([refreshTitles(), refreshMapTitleWear(), refreshChallengeProgress()]);
     }
   } catch (cause) {
     playerError.value = portalErrorDetails(cause, "无法读取成就，请稍后重试。").description;
@@ -51,6 +51,13 @@ const updateEquipped = async (grantId: string) => {
   catch (cause) { ownedTitles.value = prior; equipError.value = portalErrorDetails(cause, "无法保存佩戴称号，请稍后重试。").description; }
   finally { savingEquip.value = false; }
 };
+const savingWear = shallowRef(false);
+const setMapTitleWear = async (wear: boolean) => {
+  savingWear.value = true; equipError.value = "";
+  try { await updateMapTitleWear(wear); }
+  catch (cause) { equipError.value = portalErrorDetails(cause, "无法保存地图称号设置，请稍后重试。").description; }
+  finally { savingWear.value = false; }
+};
 </script>
 
 <template>
@@ -59,7 +66,7 @@ const updateEquipped = async (grantId: string) => {
     <LoadingReveal>
       <AchievementWallSkeleton v-if="loading" role="status" aria-label="读取中…" />
       <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取成就" :description="error" />
-      <div v-else-if="player" class="collection-host"><MyAchievementOverview :challenges="challenges" :titles="ownedTitles" :maps="maps" :map-challenges="mapChallenges" :challenge-progress="challengeProgress" :saving-equip="savingEquip" :all-titles="allTitles" @toggle-equipped="updateEquipped" /><UAlert v-if="equipError" class="equip-error" color="error" variant="subtle" :description="equipError" /></div>
+      <div v-else-if="player" class="collection-host"><div class="wear-row"><strong>佩戴地图称号</strong><USwitch :model-value="wearMapTitles" :disabled="savingWear" aria-label="佩戴地图称号" @update:model-value="setMapTitleWear" /></div><MyAchievementOverview :challenges="challenges" :titles="ownedTitles" :maps="maps" :map-challenges="mapChallenges" :challenge-progress="challengeProgress" :saving-equip="savingEquip" :all-titles="allTitles" @toggle-equipped="updateEquipped" /><UAlert v-if="equipError" class="equip-error" color="error" variant="subtle" :description="equipError" /></div>
     </LoadingReveal>
   </main>
 </template>
@@ -67,4 +74,6 @@ const updateEquipped = async (grantId: string) => {
 <style scoped>
 .collection-host { container-type: inline-size; }
 .equip-error { margin-top: var(--space-4); }
+.wear-row { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-4); margin-bottom: var(--space-4); }
+.wear-row strong { color: var(--text); font-size: .85rem; }
 </style>
