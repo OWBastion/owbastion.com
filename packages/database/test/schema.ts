@@ -408,3 +408,6 @@ export const qqSessionsSchema = `CREATE TABLE qq_sessions (
 // The player handle table and its partial unique indexes, taken straight from the
 // migration so tests exercise the real concurrency guards.
 export const playerHandlesSchema = readFileSync(new URL("../../../migrations/0104_player_handles.sql", import.meta.url), "utf8");
+
+// Player invitation tables and indexes, taken straight from the migration.
+export const playerInvitationsSchema = readFileSync(new URL("../../../migrations/0111_player_invitations.sql", import.meta.url), "utf8");

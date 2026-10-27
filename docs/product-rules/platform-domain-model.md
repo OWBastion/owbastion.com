@@ -196,8 +196,8 @@ silently replaced.
   Submissions, and reviews reference it. Passkey = Portal authentication; BattleTag = game
   identity; QQ identity = optional channel identity; Invitation = temporary first
   admission. Changing QQ, BattleTag display, or Passkeys never moves facts.
-- Onboarding: admin invitation, verified QQ binding for the invited BattleTag, account
-  creation, then QQ login or authenticated Passkey registration. Multiple Passkeys are
+- Onboarding: admin invitation (or a Player code for a new registration), verified QQ binding
+  for the invited BattleTag, account creation, then QQ login or authenticated Passkey registration. Multiple Passkeys are
   allowed. No password or email login. If all Passkeys are lost, recovery stays
   admin-assisted. Only Player and admin boundaries; no RBAC until real distinct roles exist.
 

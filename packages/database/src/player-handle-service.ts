@@ -4,7 +4,8 @@ import type { AuthContext, PlatformServices } from "@owbastion/domain";
 import { validatePlayerHandle } from "@owbastion/domain";
 import type { PlayerHandleStateResponse } from "@owbastion/contracts";
 import { playerAccounts, playerHandles } from "./schema";
-import { hashRequest, resolvePortalSession } from "./portal-session";
+import { createBatchStatements } from "./batch-statements";
+import { resolvePortalSession } from "./portal-session";
 
 type PlayerHandleServices = Pick<PlatformServices,
   | "getCurrentPlayerHandle"
@@ -29,18 +30,9 @@ const isUniqueViolation = (error: unknown, column: string) => error instanceof E
 // and audit event in one batch; the partial unique indexes on `player_handles`
 // are the concurrency-safe authority for "one holder per normalized handle".
 export const createPlayerHandleServices = ({ database, db, now, replayOrConflict }: Dependencies): PlayerHandleServices => {
-  const idempotencyStatement = async (actorId: string, operation: string, key: string, input: unknown, response: unknown, timestamp: number, guard?: { sql: string; params: unknown[] }) => {
-    const values = [`${actorId}:${operation}:${key}`, actorId, operation, await hashRequest(input), JSON.stringify(response), timestamp];
-    return guard
-      ? database.prepare(`INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, ?, ?, ?, ? WHERE ${guard.sql}`).bind(...values, ...guard.params)
-      : database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(...values);
-  };
-  const auditStatement = (actorType: string, actorId: string, operation: string, entityId: string, payload: unknown, timestamp: number, guard?: { sql: string; params: unknown[] }) => {
-    const values = [crypto.randomUUID(), crypto.randomUUID(), actorType, actorId, operation, "player_handles", entityId, JSON.stringify(payload), timestamp];
-    return guard
-      ? database.prepare(`INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${guard.sql}`).bind(...values, ...guard.params)
-      : database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(...values);
-  };
+  const batchStatements = createBatchStatements(database);
+  const idempotencyStatement = batchStatements.idempotency;
+  const auditStatement = batchStatements.audit("player_handles");
 
   const stateFor = async (playerAccountId: string): Promise<PlayerHandleStateResponse> => {
     const rows = await db.select().from(playerHandles).where(eq(playerHandles.playerAccountId, playerAccountId));

@@ -1,6 +1,6 @@
 import { normalizePlayerHandle } from "@owbastion/domain";
 import { playerHandleRequestSchema } from "@owbastion/contracts";
-import { parseBody, routeErrorResponse, maintainerRoute, type AdminRouteDependencies, type ApiApp, type RouteErrorMap } from "./route-contract";
+import { createPlayerWrite, maintainerRoute, type AdminRouteDependencies, type ApiApp, type RouteErrorMap } from "./route-contract";
 
 type PlayerHandleDependencies = AdminRouteDependencies & {
   allowPortal: (context: any) => void;
@@ -23,20 +23,7 @@ const writeErrors: RouteErrorMap = {
 export const registerPlayerHandleRoutes = (app: ApiApp, dependencies: PlayerHandleDependencies) => {
   const { services, allowPortal, errorResponse, requirePortalPlayer, logServiceOperation, requireMaintainer, errorGroup, adminMutation } = dependencies;
 
-  const playerWrite = <Body>(schema: { safeParse(value: unknown): { success: true; data: Body } | { success: false } } | null, action: (context: any, sessionToken: string, idempotencyKey: string, body: Body) => Promise<unknown>) => async (c: any) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
-    const idempotencyKey = c.req.header("idempotency-key");
-    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = schema ? schema.safeParse(await parseBody(c.req.raw)) : null;
-    if (parsed && !parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await action(c, access.sessionToken!, idempotencyKey, (parsed as { data: Body } | null)?.data as Body)); }
-    catch (error) {
-      const response = routeErrorResponse(c, error, writeErrors, errorResponse);
-      if (response) return response;
-      throw error;
-    }
-  };
+  const playerWrite = createPlayerWrite({ requirePortalPlayer, errorResponse }, writeErrors);
 
   app.get("/v1/me/handle", async (c) => {
     const access = await requirePortalPlayer(c);

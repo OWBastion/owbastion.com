@@ -57,3 +57,29 @@ export const maintainerRoute = (
   if (access.error) return access.error;
   return action(context, access.auth!);
 };
+
+type PlayerWriteDependencies = {
+  requirePortalPlayer: (context: any) => Promise<{ error?: Response; sessionToken?: string }>;
+  errorResponse: AdminRouteDependencies["errorResponse"];
+};
+
+// A Portal-session write: authenticated, idempotent, body validated against the contract.
+export const createPlayerWrite = ({ requirePortalPlayer, errorResponse }: PlayerWriteDependencies, errors: RouteErrorMap) =>
+  <Body>(
+    schema: { safeParse(value: unknown): { success: true; data: Body } | { success: false } } | null,
+    action: (context: any, sessionToken: string, idempotencyKey: string, body: Body) => Promise<unknown>,
+    status: 200 | 201 = 200,
+  ) => async (c: any) => {
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = schema ? schema.safeParse(await parseBody(c.req.raw)) : null;
+    if (parsed && !parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await action(c, access.sessionToken!, idempotencyKey, (parsed as { data: Body } | null)?.data as Body), status); }
+    catch (error) {
+      const response = routeErrorResponse(c, error, errors, errorResponse);
+      if (response) return response;
+      throw error;
+    }
+  };

@@ -38,6 +38,7 @@ import { registerPortalAuthenticationRoutes } from "./routes/portal-authenticati
 import { registerPublicCatalogRoutes } from "./routes/public-catalog";
 import { registerLeaderboardRoutes } from "./routes/leaderboard";
 import { registerPlayerHandleRoutes } from "./routes/player-handles";
+import { registerPlayerInvitationRoutes } from "./routes/player-invitations";
 import { equippedTitleErrors, registerPlayerTitleRoutes } from "./routes/player-titles";
 import { registerReviewRoutes } from "./routes/reviews";
 import { hasOnlyUniqueQueryNames, parsePagination } from "./query-params";
@@ -432,19 +433,10 @@ export const createApp = (dependencies: AppDependencies) => {
   };
 
   const requireTurnstile = dependencies.turnstile ?? createTurnstileGuard(errorResponse);
-  registerBindingInviteRoutes(app, { services: dependencies.services, requireMaintainer, errorResponse, errorGroup, adminMutation, allowPortal, sessionCookie, requireTurnstile });
+  const playerDeps = { services: dependencies.services, requireMaintainer, errorResponse, errorGroup, adminMutation, allowPortal, requirePortalPlayer };
+  registerBindingInviteRoutes(app, { ...playerDeps, sessionCookie, requireTurnstile });
 
-  registerPortalAuthenticationRoutes(app, {
-    services: dependencies.services,
-    authenticate: dependencies.authenticate,
-    requireMaintainer,
-    allowPortal,
-    errorResponse,
-    sessionCookie,
-    requirePortalPlayer,
-    portalPlayerRoute,
-    requireTurnstile,
-  });
+  registerPortalAuthenticationRoutes(app, { services: dependencies.services, authenticate: dependencies.authenticate, requireMaintainer, allowPortal, errorResponse, sessionCookie, requirePortalPlayer, portalPlayerRoute, requireTurnstile });
 
   app.post("/v1/qq/submissions", async (c) => {
     const auth = await dependencies.authenticate(c.req.raw, c.env);
@@ -547,13 +539,7 @@ export const createApp = (dependencies: AppDependencies) => {
     }
   }));
 
-  registerReviewRoutes(app, {
-    services: dependencies.services,
-    requirePortalPlayer,
-    allowPortal,
-    errorResponse,
-    logServiceOperation,
-  });
+  registerReviewRoutes(app, { services: dependencies.services, requirePortalPlayer, allowPortal, errorResponse, logServiceOperation });
 
   registerPlayerTitleRoutes(app, { servicesFor, allowPortal, errorResponse, portalSessionToken, respondToMappedError });
 
@@ -589,33 +575,10 @@ export const createApp = (dependencies: AppDependencies) => {
     return c.body(null, 204);
   });
 
-  registerPublicCatalogRoutes(app, {
-    services: dependencies.services,
-    allowPortal,
-    errorResponse,
-    requirePortalPlayer,
-    logServiceOperation,
-    cachedCatalogResponse,
-  });
-
-  registerLeaderboardRoutes(app, {
-    services: dependencies.services,
-    allowPortal,
-    errorResponse,
-    requirePortalPlayer,
-    logServiceOperation,
-  });
-
-  registerPlayerHandleRoutes(app, {
-    services: dependencies.services,
-    requireMaintainer,
-    errorResponse,
-    errorGroup,
-    adminMutation,
-    allowPortal,
-    requirePortalPlayer,
-    logServiceOperation,
-  });
+  registerPublicCatalogRoutes(app, { services: dependencies.services, allowPortal, errorResponse, requirePortalPlayer, logServiceOperation, cachedCatalogResponse });
+  registerLeaderboardRoutes(app, { services: dependencies.services, allowPortal, errorResponse, requirePortalPlayer, logServiceOperation });
+  registerPlayerHandleRoutes(app, { ...playerDeps, logServiceOperation });
+  registerPlayerInvitationRoutes(app, { ...playerDeps, requireTurnstile });
 
   app.get("/v1/public/achievement-icons/:titleKey/:version", async (c) => {
     allowPortal(c);
@@ -638,15 +601,7 @@ export const createApp = (dependencies: AppDependencies) => {
     return c.body(icon.body, 200, { "Content-Type": icon.contentType });
   });
 
-  registerAgentRoutes(app, {
-    services: dependencies.services,
-    errorResponse,
-    publicCacheKey,
-    hasNoQuery,
-    logServiceOperation,
-    cachePublicResponse,
-    bearerTokenMatches,
-  });
+  registerAgentRoutes(app, { services: dependencies.services, errorResponse, publicCacheKey, hasNoQuery, logServiceOperation, cachePublicResponse, bearerTokenMatches });
 
   app.post("/v1/player/uploads/session", portalPlayerRoute(async (c, access) => {
     const parsed = playerUploadSessionRequestSchema.safeParse(await parseBody(c.req.raw));

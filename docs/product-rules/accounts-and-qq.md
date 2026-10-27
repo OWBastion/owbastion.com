@@ -17,6 +17,9 @@ bodies, or signed URLs.
 - An admin invitation admits one BattleTag. The player confirms a QQ binding claim in an
   enabled group; the platform creates the Player Account and first binding atomically.
   QQBot never creates or merges accounts.
+- A Player code admits new registrations only. Both invitation kinds end in the same
+  QQ-verified, platform-owned account creation; an invitation proves admission, never
+  BattleTag ownership.
 - Passkey is a Portal login method registered from an authenticated account, not part of
   invitation. Players may add and remove Passkeys in settings; the last one can be removed
   only while an active QQ binding remains as fallback.
@@ -65,6 +68,41 @@ bodies, or signed URLs.
 - Member OpenIDs are stable across groups for one robot: one active binding per
   `(provider, memberOpenId)` and account; revoked bindings stay auditable. Group OpenIDs are
   policy, source, environment, and audit context, never identity.
+
+## Player invitations
+
+- An authenticated Player with an active QQ binding creates shareable multi-use codes for
+  new Player Account registration only. The inviter never sets a BattleTag; the invitee
+  types the full BattleTag on the `/bind?player-code=` page. A Player code never carries
+  historical-title migration, rebind, transfer, or recovery.
+- The platform refuses (never migrates) a registered BattleTag, an active QQ binding on the
+  member, a BattleTag with an active admin invitation, and a BattleTag whose name matches an
+  unclaimed historical title holder; the last case points the player to a maintainer. A name
+  match never infers ownership.
+- A code is 4 to 20 letters, digits, or inner hyphens, stored upper case, globally unique, and
+  not reserved-prefixed. The Player picks a use cap and validity in days within the policy;
+  neither changes after creation. Players see, copy, and revoke only their own codes.
+- One platform policy plus optional per-Player overrides (a null field inherits; the period is
+  global) set: period (day, week from Monday, month; UTC+8), codes created per period,
+  successful registrations per period across all of an inviter's codes, maximum use cap,
+  maximum validity, issuance and redemption enabled, and eligibility to issue (minimum account
+  age days and approved submissions; mode any or all; 0 means unchecked). Without a saved policy
+  the feature is off. Policy and override edits are audited.
+- Creating a code consumes the period's code quota for good: revoke and expiry do not refund it.
+  A code admits a registration only while unrevoked, unexpired, below its lifetime use cap, with
+  an eligible, enabled inviter below their current registration quota. Counts derive from the
+  code and redemption rows; there are no counters. Viewing the link, entering a BattleTag, and an
+  unfinished QQ verification consume nothing and reserve nothing.
+- A successful registration is one atomic, idempotent boundary: the account, its first QQ
+  binding, the approved claim, and the immutable referral (`inviteId`, inviter and invitee
+  Player Account IDs, completion time) commit together or not at all, and take the quota of the
+  period of completion. Concurrent completions of the last slot admit one account; the other
+  claim is rejected with a reason. Each Player has at most one inviter, and expiry, revocation,
+  renames, or policy edits never remove a referral.
+- Inviters see their invitees' BattleTag only when the invitee's public profile and BattleTag
+  are visible. Maintainers see all codes, both invitation kinds, referrals, the policy, and its
+  audit history. Neither view exposes QQ identifiers, Passkeys, review, or risk data. Rewards,
+  achievements, and rankings from referrals are out of scope.
 
 ## Group access
 

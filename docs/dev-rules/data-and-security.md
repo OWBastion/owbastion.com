@@ -25,8 +25,10 @@ KV outage falls back to D1; list endpoints must not add per-item queries or KV r
   this independently of Portal UI. Admin changes, binding removals, and catalog
   edits are idempotent and audited, and never authorize changes to Bastion artifacts.
 - A verified QQ claim creates a Player Account only with an active, unused admin
-  invitation for that BattleTag; account and first binding commit together. Later
-  rebinding follows invitation and maintainer review. A QQ login attempt
+  invitation for that BattleTag, or with a Player code that still has uses and inviter quota
+  and a BattleTag no existing account, admin invitation, or unclaimed historical holder
+  claims. Account, first binding, and (for a Player code) the referral commit together.
+  Later rebinding follows invitation and maintainer review. A QQ login attempt
   authenticates only the account of that member's active binding.
 - Never expose private evidence, QQ identifiers, object keys, source URLs, review
   notes, or unapproved drafts publicly.
@@ -81,6 +83,10 @@ They stay `private, no-store`.
   Registration needs an authenticated account and is not part of invitation.
 - QQ login attempts expire in 2 minutes and issue the same direct session as
   Passkey. Only one live pending attempt holds a code; collisions regenerate.
+- Player codes are user-chosen and shareable, stored upper case and unique, not hashed. Creation
+  and registration check their quotas inside the same D1 statement that writes the row, so
+  concurrent requests cannot exceed a limit. Public redemption keeps the Turnstile guard.
+  Player and inviter views never carry QQ identifiers.
 - Invitations: hashed for verification, encrypted for maintainer re-copy,
   single-use, one BattleTag, 7-day expiry; only unused, unexpired ones can be
   revoked (audited, immediate). Confirmation codes expire in 2 minutes. After
