@@ -23,7 +23,7 @@
     "@tanstack/vue-table": "^8.21.3",
     "@vueuse/core": "^15.0.0",
     "katex": "^0.16.47",
-    "nuxt": "^4.4.8",
+    "nuxt": "^4.6.2",
     "rehype-katex": "^7.0.1",
     "remark-math": "^6.0.0",
     "shiki": "^4.4.3",
