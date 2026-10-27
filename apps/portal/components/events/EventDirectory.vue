@@ -38,7 +38,7 @@ const ranking = computed(() => {
 const categoryOptions = computed(() => facetOptions(props.events, "categories"));
 const versionOptions = computed(() => [{ label: "全部版本", value: "all" }, ...[...new Set(props.events.map((event) => event.gameVersion))].sort((left, right) => right.localeCompare(left, undefined, { numeric: true })).map((value) => ({ label: value, value }))]);
 const facetSections = computed(() => ([["事件组", "groups", facetOptions(props.events, "groups")], ["稀有度", "rarities", facetOptions(props.events, "rarities")], ["常见效果", "tags", commonEffectTags(props.events)]] as const).filter(([, , options]) => options.length));
-const statusOptions = [{ label: "已实装", value: "implemented" }, { label: "已移除", value: "removed" }, { label: "全部", value: "all" }] as const;
+const statusOptions = [{ label: "已实装", value: "implemented" }, { label: "已移除", value: "removed" }, { label: "开发中", value: "development" }, { label: "全部", value: "all" }] as const;
 const sortOptions = [{ label: "最新", value: "latest" }, { label: "概率", value: "probability" }] as const;
 const isOn = (facet: EventFacet, value: string) => filters[facet].includes(value);
 const toggle = (facet: EventFacet, value: string) => { filters[facet] = isOn(facet, value) ? filters[facet].filter((item) => item !== value) : [...filters[facet], value]; };

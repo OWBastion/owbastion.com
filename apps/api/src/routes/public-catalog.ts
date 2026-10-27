@@ -53,10 +53,10 @@ export const registerPublicCatalogRoutes = (app: ApiApp, dependencies: PublicCat
 
   app.get("/v1/events", async (c) => {
     allowPortal(c); const status = c.req.query("status");
-    if (status && status !== "implemented" && status !== "removed") return errorResponse(c, 422, "INVALID_REQUEST", "The event status is invalid");
+    if (status && status !== "implemented" && status !== "removed" && status !== "development" && status !== "all") return errorResponse(c, 422, "INVALID_REQUEST", "The event status is invalid");
     return cachedCatalogResponse(c, {
       operation: "catalog_events",
-      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_events", () => services(c.env).listRandomEvents({ query: c.req.query("query")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, status: status as "implemented" | "removed" | undefined })) }),
+      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_events", () => services(c.env).listRandomEvents({ query: c.req.query("query")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, ...(status === "all" ? { includeArchived: false } : { status: status as "implemented" | "removed" | "development" | undefined }) })) }),
     });
   });
   app.get("/v1/events/:eventId", async (c) => {
