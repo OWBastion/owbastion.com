@@ -10,6 +10,7 @@ const bindingState = {
   invite: ref(null),
   confirmationCode: ref(""),
   errorMessage: ref(""),
+  rejectionMessage: ref(undefined),
   refreshing: ref(false),
   refreshStatus: vi.fn(),
   submit,
@@ -58,6 +59,28 @@ describe("bind page", () => {
     await wrapper.get("button").trigger("click");
 
     expect(submit).toHaveBeenCalledWith("ABCDEFGHIJKL", "turnstile-token");
+  });
+
+  it("asks a Player-code invitee for a BattleTag and submits it with the code", async () => {
+    bindingState.state.value = "ready";
+    submit.mockClear();
+    const wrapper = await mountSuspended(BindPage, {
+      route: "/bind?player-code=FRIEND-1",
+      global: {
+        stubs: {
+          UInput: { props: ["modelValue"], template: "<input :value=\"modelValue\" @input=\"$emit('update:modelValue', $event.target.value)\" />" },
+          UButton: { props: ["label"], template: "<button type=\"submit\">{{ label }}</button>" },
+          UAlert: true,
+        },
+      },
+    });
+
+    const [code, battleTag] = wrapper.findAll("input");
+    expect((code!.element as HTMLInputElement).value).toBe("FRIEND-1");
+    await battleTag!.setValue("Tracer#1234");
+    await wrapper.get("form").trigger("submit");
+
+    expect(submit).toHaveBeenCalledWith("FRIEND-1", "turnstile-token", { playerName: "Tracer", playerId: "1234" });
   });
 
   it("copies the verification command without a bot mention", async () => {
