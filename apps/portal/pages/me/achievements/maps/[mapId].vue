@@ -9,7 +9,7 @@ definePageMeta({ middleware: "auth" });
 const route = useRoute();
 const mapId = computed(() => String(route.params.mapId ?? ""));
 const { player, refresh } = useCurrentPlayer();
-const { items: titles, refresh: refreshTitles } = usePlayerTitles();
+const { items: titles, refresh: refreshTitles, refreshMapTitleWear } = usePlayerTitles();
 const { profiles, overviewLoading, overviewError, refreshOverview, history, historyMapId, historyLoading, historyError, loadHistory } = usePlayerMastery();
 
 const { data: catalog, pending: catalogLoading, error: catalogError } = await useAsyncData(() => `me-map-achievements:${mapId.value}`, async () => {
@@ -36,7 +36,7 @@ async function loadPlayerData() {
   playerError.value = "";
   try {
     if (!(await refresh())) return;
-    await Promise.all([refreshTitles(), refreshOverview(), loadHistory({ mapId: mapId.value })]);
+    await Promise.all([refreshTitles(), refreshMapTitleWear(), refreshOverview(), loadHistory({ mapId: mapId.value })]);
   } catch (cause) {
     playerError.value = portalErrorDetails(cause, "无法读取地图成就，请稍后重试。").description;
   }
@@ -59,7 +59,13 @@ watch(mapId, () => { void loadPlayerData(); });
         <span class="map-hero__initial font-display" aria-hidden="true">{{ map.mapName.slice(0, 1) }}</span>
         <div class="map-hero__copy">
           <h1 class="map-hero__title">{{ map.mapName }}</h1>
-          <NuxtLink :to="`/maps?mapId=${encodeURIComponent(map.mapId)}`" class="map-hero__link">地图介绍<UIcon name="i-lucide-arrow-up-right" aria-hidden="true" /></NuxtLink>
+          <div class="map-hero__actions">
+            <NuxtLink :to="`/maps?mapId=${encodeURIComponent(map.mapId)}`" class="map-hero__link">地图介绍<UIcon name="i-lucide-arrow-up-right" aria-hidden="true" /></NuxtLink>
+            <UPopover :content="{ align: 'start' }">
+              <UButton icon="i-lucide-settings-2" color="neutral" variant="ghost" size="xs" aria-label="地图称号设置" />
+              <template #content><PlayerMapTitleWearCard /></template>
+            </UPopover>
+          </div>
         </div>
         <div class="map-hero__stats">
           <MastheadStat label="精通 XP" :value="profile ? profile.totalXp : overviewLoading ? null : 0" />
@@ -103,6 +109,7 @@ watch(mapId, () => { void loadPlayerData(); });
 .map-hero__copy { display: grid; gap: var(--space-2); min-width: 0; }
 .map-hero__copy .eyebrow { margin: 0; }
 .map-hero__title { margin: 0; overflow-wrap: anywhere; font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3.25rem); font-weight: 700; letter-spacing: -.02em; line-height: 1.05; }
+.map-hero__actions { display: flex; align-items: center; gap: var(--space-2); }
 .map-hero__link { display: inline-flex; align-items: center; gap: var(--space-1); width: fit-content; color: var(--accent); font-size: var(--type-label-sm-size); font-weight: 600; text-decoration: none; }
 .map-hero__link:hover { text-decoration: underline; }
 .map-hero__stats { display: flex; gap: var(--space-2); }
