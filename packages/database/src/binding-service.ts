@@ -3,6 +3,8 @@ import { drizzle } from "drizzle-orm/d1";
 import { leaderboardPlayerKey } from "@owbastion/domain";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
 import { createHistoricalTitleMigrationService } from "./historical-title-migration-service";
+import { createPlayerInvitationAdminServices, type PlayerInvitationAdminServices } from "./player-invitation-admin-service";
+import { createPlayerInvitationServices, type PlayerInvitationServices } from "./player-invitation-service";
 import {
   auditEvents,
   bindingClaims,
@@ -17,6 +19,7 @@ import {
   portalSessions,
   qqGroupAccess,
 } from "./schema";
+import { playerInvitationClaims } from "./player-invitation-schema";
 
 type BindingServices = Pick<PlatformServices,
   | "createAdminBindingInvite"
@@ -79,7 +82,7 @@ type BindingServicesDependencies = {
   pruneExpiredBindingClaims: (timestamp: number) => Promise<void>;
 };
 
-export const createBindingServices = (dependencies: BindingServicesDependencies): BindingServices => {
+export const createBindingServices = (dependencies: BindingServicesDependencies): BindingServices & PlayerInvitationServices & PlayerInvitationAdminServices => {
   const {
     database,
     db,
@@ -99,6 +102,10 @@ export const createBindingServices = (dependencies: BindingServicesDependencies)
     pruneExpiredBindingClaims,
   } = dependencies;
 
+  // Player codes share the claim endpoints below, so they are built alongside the administrator flow.
+  const playerInvitations = createPlayerInvitationServices({ database, db, now, replayOrConflict, randomToken, randomCode, normalizePlayerName, claimTtlMs: bindingClaimTtlMs });
+  const playerClaimHooks = playerInvitations.claims;
+
   const migrateAuthorizedHistoricalTitles = createHistoricalTitleMigrationService({ database, db, now, recordAudit });
 
   // The public leaderboard key is stored at creation so the new account is
@@ -109,6 +116,8 @@ export const createBindingServices = (dependencies: BindingServicesDependencies)
   };
 
   return {
+    ...playerInvitations.services,
+    ...createPlayerInvitationAdminServices({ database, db, now, replayOrConflict }),
     async createAdminBindingInvite(input, auth, idempotencyKey) {
       const replay = await replayOrConflict<ReturnType<PlatformServices["createAdminBindingInvite"]> extends Promise<infer T> ? T : never>(auth.subject, "admin.binding_invite.create", idempotencyKey, input);
       if (replay) return replay;
@@ -252,6 +261,7 @@ export const createBindingServices = (dependencies: BindingServicesDependencies)
       const pending = await db.select().from(bindingClaims).where(and(eq(bindingClaims.inviteId, invite.id), eq(bindingClaims.status, "pending_confirmation"))).get();
       if (pending) throw new Error("INVITE_INVALID");
       const claimId = crypto.randomUUID(); const claimToken = randomToken(); const code = randomCode(6);
+      if (await playerClaimHooks.confirmationCodeInUse(await hashRequest(code))) throw new Error("INVITE_INVALID");
       const insertStmt = db.insert(bindingClaims).values({ id: claimId, inviteId: invite.id, tokenHash: await hashRequest(claimToken), codeHash: await hashRequest(code), playerName: invite.playerName, normalizedPlayerName: invite.normalizedPlayerName, playerId: invite.playerId, status: "pending_confirmation", expiresAt: timestamp + bindingClaimTtlMs, createdAt: timestamp });
       try {
         await db.batch([insertStmt]);
@@ -263,7 +273,11 @@ export const createBindingServices = (dependencies: BindingServicesDependencies)
 
     async getBindingClaimStatus(input) {
       const claim = await db.select().from(bindingClaims).where(eq(bindingClaims.id, input.claimId)).get();
-      if (!claim) throw new Error("BINDING_CLAIM_NOT_FOUND");
+      if (!claim) {
+        const playerStatus = await playerClaimHooks.status(input);
+        if (playerStatus) return playerStatus;
+        throw new Error("BINDING_CLAIM_NOT_FOUND");
+      }
       if (claim.tokenHash !== await hashRequest(input.claimToken)) throw new Error("BINDING_CLAIM_FORBIDDEN");
       const invite = await db.select().from(bindingInvites).where(eq(bindingInvites.id, claim.inviteId)).get();
       const migration = invite ? toPublicHistoricalMigration(summarizeHistoricalMigration(await db.select().from(bindingInviteHistoricalTitleGrants).where(eq(bindingInviteHistoricalTitleGrants.inviteId, invite.id)), invite, claim.status, now())) : { status: "not_requested" as const, requestedCount: 0, restoredCount: 0 };
@@ -275,7 +289,8 @@ export const createBindingServices = (dependencies: BindingServicesDependencies)
     },
 
     async exchangeBindingClaimSession(input) {
-      const claim = await db.select().from(bindingClaims).where(eq(bindingClaims.id, input.claimId)).get();
+      const claim = await db.select().from(bindingClaims).where(eq(bindingClaims.id, input.claimId)).get()
+        ?? await db.select().from(playerInvitationClaims).where(eq(playerInvitationClaims.id, input.claimId)).get();
       if (!claim) throw new Error("BINDING_CLAIM_NOT_FOUND");
       if (claim.tokenHash !== await hashRequest(input.claimToken)) throw new Error("BINDING_CLAIM_FORBIDDEN");
       const timestamp = now();
@@ -299,7 +314,11 @@ export const createBindingServices = (dependencies: BindingServicesDependencies)
     async verifyBindingClaim(input, auth, idempotencyKey) {
       const replay = await replayOrConflict<ReturnType<PlatformServices["verifyBindingClaim"]> extends Promise<infer T> ? T : never>(auth.subject, "qq.binding_claim.verify", idempotencyKey, input); if (replay) return replay;
       const claim = await db.select().from(bindingClaims).where(eq(bindingClaims.codeHash, await hashRequest(input.code))).get();
-      if (!claim) throw new Error("BINDING_CLAIM_CODE_INVALID");
+      if (!claim) {
+        const playerResponse = await playerClaimHooks.verifyClaim(input, auth, idempotencyKey);
+        if (playerResponse) return playerResponse;
+        throw new Error("BINDING_CLAIM_CODE_INVALID");
+      }
       const response = { contractVersion: "1" as const, status: "verified" as const, environment: "test" as const };
       if (claim.status !== "pending_confirmation") {
         if (["pending_review", "approved"].includes(claim.status) && claim.memberOpenId === input.memberOpenId && claim.groupOpenId === input.groupOpenId) return response;

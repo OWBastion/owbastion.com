@@ -82,6 +82,22 @@ import type {
   AgentEventListResponse, AgentMap, AgentMapListResponse, AgentAchievementListResponse, AgentTitle, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult, AgentPlayerTitleGrantListResponse, AgentMapTitleHolderListResponse,
   AdminReview, AdminReviewAudit, AdminReviewListResponse,
 } from "@owbastion/contracts";
+import type {
+  AdminPlayerInvitationAuditResponse,
+  AdminPlayerInvitationDetailResponse,
+  AdminPlayerInvitationOverrideListResponse,
+  AdminPlayerInvitationPolicyResponse,
+  AdminInvitationOverviewQuery,
+  AdminInvitationOverviewResponse,
+  PlayerInvitation,
+  PlayerInvitationCreateRequest,
+  PlayerInvitationOverride,
+  PlayerInvitationPolicy,
+  PlayerInvitationRedeemRequest,
+  PlayerInvitationRedemptionListResponse,
+  PlayerInvitationStateResponse,
+  PlayerInvitationClaimStatusResponse,
+} from "@owbastion/contracts/player-invitation";
 import type { VerifiedRunDifficulty, MasteryMapProfile, VerifiedRunActor, RecordVerifiedRunResult, VerifiedRun, VerifiedRunInput } from "./mastery";
 
 export * from "./mastery";
@@ -92,6 +108,7 @@ export * from "./leaderboard";
 export * from "./season";
 export * from "./title-availability";
 export * from "./player-handle";
+export * from "./player-invitation";
 
 export type LocalDevAccount = {
   accountId: string;
@@ -293,7 +310,7 @@ export type PlatformServices = {
   listAdminBindings(auth: AuthContext): Promise<AdminActiveBindingListResponse>;
   revokeAdminBindingInvite(input: { inviteId: string } & AdminBindingInviteRevokeRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
   redeemBindingInvite(input: BindingInviteRedeemRequest): Promise<BindingInviteRedeemResponse>;
-  getBindingClaimStatus(input: { claimId: string; claimToken: string }): Promise<BindingClaimStatusResponse>;
+  getBindingClaimStatus(input: { claimId: string; claimToken: string }): Promise<PlayerInvitationClaimStatusResponse>;
   exchangeBindingClaimSession(input: { claimId: string; claimToken: string }): Promise<BindingClaimSessionResponse & { sessionToken: string }>;
   verifyBindingClaim(input: QqBindingClaimVerifyRequest, auth: AuthContext, idempotencyKey: string): Promise<QqBindingClaimVerifyResponse>;
   createBinding(input: QqBindingRequest, auth: AuthContext, idempotencyKey: string): Promise<QqBindingResponse>;
@@ -342,6 +359,20 @@ export type PlatformServices = {
   updateCurrentPlayerProfileVisibility(input: { sessionToken: string; publicProfile: boolean; hideBattleTag: boolean }, idempotencyKey: string): Promise<PlayerProfileVisibilityResponse>;
   getPublicLeaderboard(input: { board: LeaderboardBoard; mapId?: string; seasonId?: string; page: number; pageSize: number }): Promise<LeaderboardResponse | null>;
   getPublicLeaderboardPlayer(input: { playerKey: string }): Promise<LeaderboardPlayerSummary | null>;
+  getCurrentPlayerInvitations(input: { sessionToken: string; page: number; pageSize: number }): Promise<PlayerInvitationStateResponse | null>;
+  listCurrentPlayerInvitationRedemptions(input: { sessionToken: string; page: number; pageSize: number }): Promise<PlayerInvitationRedemptionListResponse | null>;
+  createCurrentPlayerInvitation(input: { sessionToken: string } & Omit<PlayerInvitationCreateRequest, "contractVersion">, idempotencyKey: string): Promise<PlayerInvitation>;
+  revokeCurrentPlayerInvitation(input: { sessionToken: string; invitationId: string }, idempotencyKey: string): Promise<PlayerInvitation>;
+  redeemPlayerInvitation(input: PlayerInvitationRedeemRequest): Promise<BindingInviteRedeemResponse>;
+  getAdminPlayerInvitationPolicy(auth: AuthContext): Promise<AdminPlayerInvitationPolicyResponse>;
+  setAdminPlayerInvitationPolicy(input: { policy: PlayerInvitationPolicy }, auth: AuthContext, idempotencyKey: string): Promise<AdminPlayerInvitationPolicyResponse>;
+  listAdminPlayerInvitationOverrides(input: { page: number; pageSize: number }, auth: AuthContext): Promise<AdminPlayerInvitationOverrideListResponse>;
+  setAdminPlayerInvitationOverride(input: { playerAccountId: string; override: PlayerInvitationOverride }, auth: AuthContext, idempotencyKey: string): Promise<void>;
+  clearAdminPlayerInvitationOverride(input: { playerAccountId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
+  listAdminInvitations(input: AdminInvitationOverviewQuery, auth: AuthContext): Promise<AdminInvitationOverviewResponse>;
+  getAdminPlayerInvitation(input: { invitationId: string; page: number; pageSize: number }, auth: AuthContext): Promise<AdminPlayerInvitationDetailResponse>;
+  revokeAdminPlayerInvitation(input: { invitationId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
+  listAdminPlayerInvitationAudit(input: { page: number; pageSize: number }, auth: AuthContext): Promise<AdminPlayerInvitationAuditResponse>;
   getCurrentPlayerHandle(input: { sessionToken: string }): Promise<PlayerHandleStateResponse | null>;
   requestCurrentPlayerHandle(input: { sessionToken: string; handle: string }, idempotencyKey: string): Promise<PlayerHandleStateResponse>;
   withdrawCurrentPlayerHandleRequest(input: { sessionToken: string }, idempotencyKey: string): Promise<PlayerHandleStateResponse>;

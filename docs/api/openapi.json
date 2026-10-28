@@ -493,6 +493,177 @@
     }
    }
   },
+  "/v1/me/invitations": {
+   "get": {
+    "operationId": "getCurrentPlayerInvitations",
+    "description": "Returns the authenticated Player's invitation state: the effective period and limits, the quota used in the current UTC+8 period, the eligibility check, why creation is blocked (disabled, ineligible, quota_exhausted) or null, and one page of their codes with derived status (available, exhausted, expired, revoked, inviter_blocked) and use counts. Policy, quota, and eligibility are null until a maintainer saves a policy.",
+    "parameters": [
+     {
+      "name": "page",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "default": 1
+      }
+     },
+     {
+      "name": "pageSize",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "maximum": 20,
+       "default": 20
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   },
+   "post": {
+    "operationId": "createCurrentPlayerInvitation",
+    "description": "Creates a multi-use code for new Player Account registration only. The code is 4-20 letters, digits, or inner hyphens, normalized to upper case, and must not start with a reserved prefix. maxUses and validityDays are required and bounded by the effective policy; they never change after creation. Creation counts toward the period quota even if the code is later revoked or expires. 403 PLAYER_INVITATION_DISABLED or PLAYER_INVITATION_NOT_ELIGIBLE; 409 PLAYER_INVITATION_CODE_TAKEN or PLAYER_INVITATION_QUOTA_EXHAUSTED; 422 PLAYER_INVITATION_CODE_INVALID, PLAYER_INVITATION_CODE_RESERVED, or PLAYER_INVITATION_LIMIT_EXCEEDED.",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/idempotencyKey"
+     }
+    ],
+    "responses": {
+     "201": {
+      "$ref": "#/components/responses/Json"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "409": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/me/invitations/redemptions": {
+   "get": {
+    "operationId": "listCurrentPlayerInvitationRedemptions",
+    "description": "Pages the Players who registered with the caller's codes, newest first. An invitee's BattleTag is null when they hide it or their public profile is off. Never returns account IDs or QQ identity.",
+    "parameters": [
+     {
+      "name": "page",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "default": 1
+      }
+     },
+     {
+      "name": "pageSize",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "maximum": 20,
+       "default": 20
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/me/invitations/{invitationId}/revoke": {
+   "post": {
+    "operationId": "revokeCurrentPlayerInvitation",
+    "description": "Revokes one of the caller's codes. Completed registrations stay; the period quota is not refunded. Repeating the request is safe; 404 when the code is not the caller's.",
+    "parameters": [
+     {
+      "name": "invitationId",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid"
+      }
+     },
+     {
+      "$ref": "#/components/parameters/idempotencyKey"
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     },
+     "404": {
+      "$ref": "#/components/responses/Json"
+     },
+     "409": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/public/player-invitations/redeem": {
+   "post": {
+    "operationId": "redeemPlayerInvitation",
+    "description": "Starts a registration with a Player code: the invitee supplies the full BattleTag and receives a binding claim (claimId, claimToken, QQ confirmation code) handled by the existing claim status, QQ verification, and session endpoints. Consumes no quota or use. 422 INVITE_INVALID for an unknown, expired, revoked, exhausted, or blocked code; 409 PLAYER_INVITATION_ACCOUNT_EXISTS for a registered BattleTag; 409 PLAYER_INVITATION_LEGACY_CANDIDATE when a maintainer must handle the BattleTag. Final admission is decided when QQ verification succeeds.",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/turnstileToken"
+     }
+    ],
+    "responses": {
+     "201": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "409": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     },
+     "503": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
   "/v1/me/submissions": {
    "get": {
     "operationId": "listCurrentPlayerSubmissions",
@@ -1184,6 +1355,7 @@
   "/v1/public/binding-claims/{claimId}": {
    "get": {
     "operationId": "getBindingClaimStatus",
+    "description": "Returns the claim status for an administrator invitation or a Player code. A rejected Player-code claim carries rejectionReason: account_exists, qq_conflict, legacy_candidate, invitation_unavailable, inviter_quota_exhausted, or code_exhausted.",
     "parameters": [
      {
       "$ref": "#/components/parameters/claimId"
@@ -1700,6 +1872,370 @@
       "$ref": "#/components/responses/Json"
      },
      "404": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/admin/invitations": {
+   "get": {
+    "operationId": "listAdminInvitations",
+    "description": "Pages administrator and Player invitations together, newest first. Filters: type (all, admin, player), status (active, redeemed, exhausted, expired, revoked), issuer text, and created-at range from/to in milliseconds. Never returns code plaintext.",
+    "parameters": [
+     {
+      "name": "type",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "enum": [
+        "all",
+        "admin",
+        "player"
+       ],
+       "default": "all"
+      }
+     },
+     {
+      "name": "status",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "enum": [
+        "active",
+        "redeemed",
+        "exhausted",
+        "expired",
+        "revoked"
+       ]
+      }
+     },
+     {
+      "name": "issuer",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 64
+      }
+     },
+     {
+      "name": "from",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer"
+      }
+     },
+     {
+      "name": "to",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer"
+      }
+     },
+     {
+      "name": "page",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "default": 1
+      }
+     },
+     {
+      "name": "pageSize",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "maximum": 50,
+       "default": 20
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/admin/player-invitations/policy": {
+   "get": {
+    "operationId": "getAdminPlayerInvitationPolicy",
+    "description": "Returns the platform-wide Player invitation policy, or null before the first save (invitations stay disabled).",
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   },
+   "put": {
+    "operationId": "setAdminPlayerInvitationPolicy",
+    "description": "Replaces the platform-wide policy: enabled, period (day, week from Monday, month; UTC+8), code and registration quotas, maxUsesPerCode, maxValidityDays, and eligibility (minAccountAgeDays, minApprovedSubmissions, eligibilityMode any or all; a threshold of 0 is not checked). Audited. Existing codes keep their cap and expiry; the new policy applies to new codes and redemptions.",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/idempotencyKey"
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "409": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/admin/player-invitations/overrides": {
+   "get": {
+    "operationId": "listAdminPlayerInvitationOverrides",
+    "description": "Pages the per-Player policy overrides.",
+    "parameters": [
+     {
+      "name": "page",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "default": 1
+      }
+     },
+     {
+      "name": "pageSize",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "maximum": 50,
+       "default": 20
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/admin/player-invitations/overrides/{playerAccountId}": {
+   "put": {
+    "operationId": "setAdminPlayerInvitationOverride",
+    "description": "Sets a Player's override. A null field inherits the global value; enabled=false disables that inviter's issuance and redemption. The period is never overridden. 404 PLAYER_NOT_FOUND.",
+    "parameters": [
+     {
+      "name": "playerAccountId",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "minLength": 1
+      }
+     },
+     {
+      "$ref": "#/components/parameters/idempotencyKey"
+     }
+    ],
+    "responses": {
+     "204": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "404": {
+      "$ref": "#/components/responses/Json"
+     },
+     "409": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   },
+   "delete": {
+    "operationId": "clearAdminPlayerInvitationOverride",
+    "description": "Removes a Player's override so the global policy applies.",
+    "parameters": [
+     {
+      "name": "playerAccountId",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "minLength": 1
+      }
+     },
+     {
+      "$ref": "#/components/parameters/idempotencyKey"
+     }
+    ],
+    "responses": {
+     "204": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "409": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/admin/player-invitations/audit": {
+   "get": {
+    "operationId": "listAdminPlayerInvitationAudit",
+    "description": "Pages audit events for Player invitation creation, revocation, redemption, and policy or override changes, newest first.",
+    "parameters": [
+     {
+      "name": "page",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "default": 1
+      }
+     },
+     {
+      "name": "pageSize",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "maximum": 50,
+       "default": 20
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/admin/player-invitations/{invitationId}": {
+   "get": {
+    "operationId": "getAdminPlayerInvitation",
+    "description": "Returns one Player code with a page of the Players who registered with it (full BattleTag, completion time).",
+    "parameters": [
+     {
+      "name": "invitationId",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid"
+      }
+     },
+     {
+      "name": "page",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "default": 1
+      }
+     },
+     {
+      "name": "pageSize",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "maximum": 50,
+       "default": 20
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "404": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/admin/player-invitations/{invitationId}/revoke": {
+   "post": {
+    "operationId": "revokeAdminPlayerInvitation",
+    "description": "Revokes a Player code. Completed registrations stay. Repeating the request is safe; 404 when the code does not exist.",
+    "parameters": [
+     {
+      "name": "invitationId",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid"
+      }
+     },
+     {
+      "$ref": "#/components/parameters/idempotencyKey"
+     }
+    ],
+    "responses": {
+     "204": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "404": {
+      "$ref": "#/components/responses/Json"
+     },
+     "409": {
       "$ref": "#/components/responses/Json"
      }
     }
