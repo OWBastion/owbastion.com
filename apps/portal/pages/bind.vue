@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { qqVerificationCommand } from "~/utils/binding-invite";
+import { parseBattleTag, qqVerificationCommand } from "~/utils/binding-invite";
 
-const { state, invite, confirmationCode, errorMessage, refreshing, refreshStatus, submit } = useBindingInvite();
+const { state, invite, confirmationCode, errorMessage, rejectionMessage, refreshing, refreshStatus, submit } = useBindingInvite();
 const turnstile = useTurnstile();
-const inviteCode = shallowRef("");
+const route = useRoute();
+const playerCode = typeof route.query["player-code"] === "string" ? route.query["player-code"] : "";
+const inviteCode = shallowRef(playerCode);
+const battleTag = shallowRef("");
+const player = computed(() => parseBattleTag(battleTag.value));
 const showForm = computed(() => state.value === "ready" || (state.value === "failed" && !invite.value) || (state.value === "expired" && !inviteCode.value.trim()));
 const needsTurnstile = computed(() => showForm.value || (state.value === "expired" && Boolean(inviteCode.value.trim())));
 const copied = shallowRef(false);
@@ -13,7 +17,8 @@ const steps = ["输入邀请码", "在 QQ 群确认", "完成绑定"];
 useSeoMeta({ title: "QQ 绑定 · 躲避堡垒 3" });
 
 async function redeem() {
-  await submit(inviteCode.value, turnstile.token.value);
+  if (playerCode && player.value) await submit(inviteCode.value, turnstile.token.value, player.value);
+  else await submit(inviteCode.value, turnstile.token.value);
   turnstile.reset();
 }
 
@@ -36,10 +41,11 @@ async function copyCommand() {
         </li>
       </ol>
       <form v-if="showForm" class="binding-state" @submit.prevent="redeem">
-        <UInput v-model="inviteCode" label="邀请码" placeholder="请输入管理员发送的邀请码" aria-label="邀请码" autocomplete="off" />
+        <UInput v-model="inviteCode" label="邀请码" placeholder="请输入邀请码" aria-label="邀请码" autocomplete="off" />
+        <UInput v-if="playerCode" v-model="battleTag" label="BattleTag" placeholder="玩家名#1234" aria-label="BattleTag" autocomplete="off" />
         <p v-if="state === 'failed'" class="binding-note error-note" role="alert">{{ errorMessage }}</p>
         <p v-else-if="state === 'expired'" class="binding-note warning-note">确认码已过期，请重新输入邀请码。</p>
-        <div class="action-row"><UButton type="submit" label="下一步" :disabled="!inviteCode.trim() || !turnstile.token.value" /></div>
+        <div class="action-row"><UButton type="submit" label="下一步" :disabled="!inviteCode.trim() || (playerCode && !player) || !turnstile.token.value" /></div>
       </form>
 
       <section v-else-if="state === 'submitting'" class="binding-state"><p class="binding-note">读取绑定邀请中…</p></section>
@@ -50,7 +56,7 @@ async function copyCommand() {
         <p v-if="state === 'waiting'" class="binding-code">{{ qqVerificationCommand(confirmationCode) }}</p>
         <p v-if="state === 'waiting'" class="binding-note">请手动输入 @，从列表选择机器人，再发送上方指令。验证成功后自动完成首次绑定并登录。</p>
         <p v-else-if="state === 'review'" class="binding-note">涉及现有绑定或其他冲突，待处理。</p>
-        <p v-else-if="state === 'rejected'" class="binding-note error-note">绑定申请未通过。</p>
+        <p v-else-if="state === 'rejected'" class="binding-note error-note">{{ rejectionMessage ?? "绑定申请未通过。" }}</p>
         <p v-else-if="state === 'expired'" class="binding-note warning-note">确认码已过期，可使用原邀请码重新生成。</p>
         <p v-else-if="state === 'failed'" class="binding-note error-note">{{ errorMessage }}</p>
         <p v-else class="binding-note">绑定完成，进入玩家中心…</p>

@@ -23,6 +23,7 @@ export const adminSectionGroups: AdminSectionGroup[] = [
     { label: "玩家列表", icon: "i-lucide-user-round", to: "/admin/players" },
     { label: "玩家 ID", icon: "i-lucide-at-sign", to: "/admin/player-handles" },
     { label: "绑定与邀请", icon: "i-lucide-link", to: "/admin/bindings" },
+    { label: "邀请", icon: "i-lucide-ticket", to: "/admin/invitations" },
     { label: "QQ 群组策略", icon: "i-lucide-radio", to: "/admin/channels" },
     { label: "赛季", icon: "i-lucide-calendar-range", to: "/admin/seasons" },
   ] },
