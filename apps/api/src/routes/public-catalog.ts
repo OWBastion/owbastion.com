@@ -1,6 +1,6 @@
-import type { AdminRouteDependencies, ApiApp } from "./route-contract";
+import { errorResponse, type AdminRouteDependencies, type ApiApp } from "./route-contract";
 
-type PublicCatalogDependencies = Pick<AdminRouteDependencies, "services" | "errorResponse"> & {
+type PublicCatalogDependencies = Pick<AdminRouteDependencies, "services"> & {
   allowPortal: (context: any) => void;
   requirePortalPlayer: (context: any) => Promise<{ error?: Response }>;
   logServiceOperation: (context: any, operation: string, action: () => Promise<unknown>) => Promise<unknown>;
@@ -8,7 +8,7 @@ type PublicCatalogDependencies = Pick<AdminRouteDependencies, "services" | "erro
 };
 
 export const registerPublicCatalogRoutes = (app: ApiApp, dependencies: PublicCatalogDependencies) => {
-  const { services, allowPortal, errorResponse, requirePortalPlayer, logServiceOperation, cachedCatalogResponse } = dependencies;
+  const { services, allowPortal, requirePortalPlayer, logServiceOperation, cachedCatalogResponse } = dependencies;
 
   app.get("/v1/public/achievements", async (c) => {
     allowPortal(c);

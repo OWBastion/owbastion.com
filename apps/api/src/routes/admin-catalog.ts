@@ -19,7 +19,7 @@ import {
   adminRandomEventVersionAvailabilityRequestSchema,
   adminStandaloneModeUpsertRequestSchema,
 } from "@owbastion/contracts";
-import { maintainerRoute, parseBody, type AdminRouteDependencies, type ApiApp } from "./route-contract";
+import { maintainerRoute, parseBody, errorResponse, errorGroup, type AdminRouteDependencies, type ApiApp } from "./route-contract";
 
 const TITLE_IMAGE_PREFIX = "achievements/";
 type AssetsEnv = { ASSETS_BUCKET?: R2Bucket; ASSETS_PUBLIC_ORIGIN?: string };
@@ -27,7 +27,7 @@ type AssetsEnv = { ASSETS_BUCKET?: R2Bucket; ASSETS_PUBLIC_ORIGIN?: string };
 type ServiceOperation = (context: any, operation: string, action: () => Promise<any>) => Promise<any>;
 
 export const registerAdminCatalogRoutes = (app: ApiApp, dependencies: AdminRouteDependencies, logServiceOperation: ServiceOperation) => {
-  const { requireMaintainer, errorResponse, errorGroup, adminMutation } = dependencies;
+  const { requireMaintainer, adminMutation } = dependencies;
 
   app.get("/v1/admin/achievements", maintainerRoute(requireMaintainer, async (c, auth) => {
     const type = c.req.query("type");

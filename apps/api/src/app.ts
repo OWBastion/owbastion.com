@@ -16,7 +16,7 @@ import {
 } from "@owbastion/contracts";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
 import { withPublicCache } from "./public-cache";
-import { maintainerRoute, parseBody, routeErrorResponse, type AdminMutation, type AdminMutationOptions, type ApiContext, type RouteErrorMap } from "./routes/route-contract";
+import { errorGroup, errorResponse, idempotencyConflict, idempotencyErrors, maintainerRoute, parseBody, respondToMappedError, routeErrorResponse, unauthenticatedErrors, type AdminMutation, type AdminMutationOptions, type ApiContext, type RouteErrorMap } from "./routes/route-contract";
 import { registerAgentRoutes } from "./routes/agents";
 import { registerAdminVerifiedRunRoutes } from "./routes/admin-verified-runs";
 import { registerAdminSeasonRoutes } from "./routes/admin-seasons";
@@ -127,14 +127,6 @@ const normalizeIncomingId = (value: string | null | undefined): string | undefin
   return normalized && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(normalized) ? normalized : undefined;
 };
 
-const errorResponse = (c: any, status: 400 | 401 | 403 | 404 | 409 | 422 | 500 | 503, code: string, message: string) =>
-  c.json({ contractVersion: "1", error: { code, message, requestId: c.get("requestId") } }, status);
-
-const errorGroup = (status: 404 | 409 | 422 | 503, message: string, ...codes: string[]) =>
-  Object.fromEntries(codes.map((code) => [code, { status, message }]));
-const idempotencyConflict = { status: 409, message: "The idempotency key was used with a different request" } as const;
-const idempotencyErrors: RouteErrorMap = { IDEMPOTENCY_CONFLICT: idempotencyConflict };
-const unauthenticatedErrors: RouteErrorMap = { UNAUTHENTICATED: { status: 401, message: "Authentication is required" } };
 const submissionNotFoundErrors: RouteErrorMap = errorGroup(404, "The submission does not exist", "SUBMISSION_NOT_FOUND");
 const ocrFeedbackErrors: RouteErrorMap = {
   ...unauthenticatedErrors,
@@ -156,11 +148,6 @@ const uploadCompletionErrors: RouteErrorMap = {
 const manualReviewErrors: RouteErrorMap = {
   ...submissionNotFoundErrors,
   ...errorGroup(409, "The submission is not eligible for manual review", "MANUAL_REVIEW_NOT_ELIGIBLE"),
-};
-const respondToMappedError = (context: ApiContext, error: unknown, errors: RouteErrorMap): Response => {
-  const response = routeErrorResponse(context, error, errors, errorResponse);
-  if (response) return response;
-  throw error;
 };
 
 const portalSessionToken = (request: Request) => request.headers.get("cookie")?.split(";").map((part) => part.trim()).find((part) => part.startsWith("owb_session="))?.slice("owb_session=".length);
@@ -386,7 +373,7 @@ export const createApp = (dependencies: AppDependencies) => {
       const response = routeErrorResponse(c, error, {
         ...options.errors,
         IDEMPOTENCY_CONFLICT: options.errors?.IDEMPOTENCY_CONFLICT ?? idempotencyConflict,
-      }, errorResponse);
+      });
       if (response) return response;
       throw error;
     }
@@ -395,8 +382,6 @@ export const createApp = (dependencies: AppDependencies) => {
   const adminRouteDependencies = {
     services: servicesFor,
     requireMaintainer,
-    errorResponse,
-    errorGroup,
     adminMutation,
   };
   registerAdminVerifiedRunRoutes(app, adminRouteDependencies);
@@ -423,10 +408,10 @@ export const createApp = (dependencies: AppDependencies) => {
   };
 
   const requireTurnstile = dependencies.turnstile ?? createTurnstileGuard(errorResponse);
-  const playerDeps = { services: servicesFor, requireMaintainer, errorResponse, errorGroup, adminMutation, allowPortal, requirePortalPlayer };
+  const playerDeps = { services: servicesFor, requireMaintainer, adminMutation, allowPortal, requirePortalPlayer };
   registerBindingInviteRoutes(app, { ...playerDeps, sessionCookie, requireTurnstile });
 
-  registerPortalAuthenticationRoutes(app, { services: servicesFor, authenticate: dependencies.authenticate, requireMaintainer, allowPortal, errorResponse, sessionCookie, requirePortalPlayer, portalPlayerRoute, requireTurnstile });
+  registerPortalAuthenticationRoutes(app, { services: servicesFor, authenticate: dependencies.authenticate, requireMaintainer, allowPortal, sessionCookie, requirePortalPlayer, portalPlayerRoute, requireTurnstile });
 
   app.post("/v1/qq/submissions", async (c) => {
     const auth = await dependencies.authenticate(c.req.raw, c.env);
@@ -529,9 +514,9 @@ export const createApp = (dependencies: AppDependencies) => {
     }
   }));
 
-  registerReviewRoutes(app, { services: servicesFor, requirePortalPlayer, allowPortal, errorResponse, logServiceOperation });
+  registerReviewRoutes(app, { services: servicesFor, requirePortalPlayer, allowPortal, logServiceOperation });
 
-  registerPlayerTitleRoutes(app, { servicesFor, allowPortal, errorResponse, portalSessionToken, respondToMappedError });
+  registerPlayerTitleRoutes(app, { servicesFor, allowPortal, portalSessionToken });
 
   app.get("/v1/me/submissions/:submissionId", portalPlayerRoute(async (c, access) => {
     try {
@@ -565,8 +550,8 @@ export const createApp = (dependencies: AppDependencies) => {
     return c.body(null, 204);
   });
 
-  registerPublicCatalogRoutes(app, { services: servicesFor, allowPortal, errorResponse, requirePortalPlayer, logServiceOperation, cachedCatalogResponse });
-  registerLeaderboardRoutes(app, { services: servicesFor, allowPortal, errorResponse, requirePortalPlayer, logServiceOperation });
+  registerPublicCatalogRoutes(app, { services: servicesFor, allowPortal, requirePortalPlayer, logServiceOperation, cachedCatalogResponse });
+  registerLeaderboardRoutes(app, { services: servicesFor, allowPortal, requirePortalPlayer, logServiceOperation });
   registerPlayerHandleRoutes(app, { ...playerDeps, logServiceOperation });
   registerPlayerInvitationRoutes(app, { ...playerDeps, requireTurnstile });
 
@@ -591,7 +576,7 @@ export const createApp = (dependencies: AppDependencies) => {
     return c.body(icon.body, 200, { "Content-Type": icon.contentType });
   });
 
-  registerAgentRoutes(app, { services: servicesFor, errorResponse, publicCacheKey, hasNoQuery, logServiceOperation, cachePublicResponse, bearerTokenMatches });
+  registerAgentRoutes(app, { services: servicesFor, publicCacheKey, hasNoQuery, logServiceOperation, cachePublicResponse, bearerTokenMatches });
 
   app.post("/v1/player/uploads/session", portalPlayerRoute(async (c, access) => {
     const parsed = playerUploadSessionRequestSchema.safeParse(await parseBody(c.req.raw));
@@ -644,11 +629,11 @@ export const createApp = (dependencies: AppDependencies) => {
     return c.json({ contractVersion: "1", items: await servicesFor(c).listQqGroupAccess(auth) });
   });
 
-  registerAdminPlayerManagementRoutes(app, { services: servicesFor, requireMaintainer, errorResponse, errorGroup, adminMutation });
+  registerAdminPlayerManagementRoutes(app, { services: servicesFor, requireMaintainer, adminMutation });
 
-  registerAdminCatalogRoutes(app, { services: servicesFor, requireMaintainer, errorResponse, errorGroup, adminMutation }, logServiceOperation);
+  registerAdminCatalogRoutes(app, { services: servicesFor, requireMaintainer, adminMutation }, logServiceOperation);
 
-  registerAdminReviewWorkflowRoutes(app, { services: servicesFor, requireMaintainer, errorResponse, errorGroup, adminMutation });
+  registerAdminReviewWorkflowRoutes(app, { services: servicesFor, requireMaintainer, adminMutation });
 
   app.get("/v1/admin/screenshot-sets", async (c) => {
     const access = await requireMaintainer(c);

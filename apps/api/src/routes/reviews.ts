@@ -6,11 +6,11 @@ import {
 } from "@owbastion/contracts";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
 import { parsePagination } from "../query-params";
-import { isUuid, parseBody, routeErrorResponse, type ApiApp, type ApiContext, type AdminRouteDependencies, type RouteErrorMap, type ServiceAccessor } from "./route-contract";
+import { isUuid, parseBody, routeErrorResponse, errorResponse, type ApiApp, type ApiContext, type AdminRouteDependencies, type RouteErrorMap, type ServiceAccessor } from "./route-contract";
 
 type Player = NonNullable<Awaited<ReturnType<PlatformServices["getPortalSessionIdentity"]>>>;
 type PlayerAccess = { error?: Response; sessionToken?: string; player?: Player };
-type ReviewRouteDependencies = Pick<AdminRouteDependencies, "errorResponse"> & {
+type ReviewRouteDependencies = {
   services: ServiceAccessor;
   allowPortal: (c: ApiContext) => void;
   requirePortalPlayer: (c: ApiContext) => Promise<PlayerAccess>;
@@ -75,7 +75,7 @@ const parseReviewTarget = (c: ApiContext) => {
 const parsePublicReviewPage = (c: ApiContext) => parsePagination(new URL(c.req.url).searchParams, 50);
 
 export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDependencies) => {
-  const { services, allowPortal, requirePortalPlayer, errorResponse, logServiceOperation } = dependencies;
+  const { services, allowPortal, requirePortalPlayer, logServiceOperation } = dependencies;
 
   app.get("/v1/me/reviews/:targetType/:targetId", async (c) => {
     const access = await requirePortalPlayer(c);
@@ -87,7 +87,7 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
       const review = await services(c).getPlayerReview(target.data, playerAuth(access.player!));
       return c.json({ contractVersion: "1", review: review?.status === "active" ? playerReviewView(review) : null });
     } catch (error) {
-      const response = routeErrorResponse(c, error, playerReviewReadErrors, errorResponse);
+      const response = routeErrorResponse(c, error, playerReviewReadErrors);
       if (response) return response;
       throw error;
     }
@@ -108,7 +108,7 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
       const review = await services(c).upsertReview({ ...target.data, ...reviewInput, rating: reviewInput.rating as 1 | 2 | 3 | 4 | 5 }, playerAuth(access.player!), idempotencyKey);
       return c.json({ contractVersion: "1", review: playerReviewView(review) });
     } catch (error) {
-      const response = routeErrorResponse(c, error, playerReviewUpsertErrors, errorResponse);
+      const response = routeErrorResponse(c, error, playerReviewUpsertErrors);
       if (response) return response;
       throw error;
     }
@@ -128,7 +128,7 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
       await services(c).withdrawReview({ reviewId }, playerAuth(access.player!), idempotencyKey);
       return c.json({ contractVersion: "1", review: null });
     } catch (error) {
-      const response = routeErrorResponse(c, error, playerReviewWithdrawErrors, errorResponse);
+      const response = routeErrorResponse(c, error, playerReviewWithdrawErrors);
       if (response) return response;
       throw error;
     }
@@ -159,7 +159,7 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
       ));
       return c.json({ contractVersion: "1", targetType: targetType.data, items });
     } catch (error) {
-      const response = routeErrorResponse(c, error, publicReviewErrors, errorResponse);
+      const response = routeErrorResponse(c, error, publicReviewErrors);
       if (response) return response;
       throw error;
     }
@@ -174,7 +174,7 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
       const summary = await logServiceOperation(c, "review_public_summary", () => services(c).getReviewSummary(target.data));
       return c.json({ contractVersion: "1", summary });
     } catch (error) {
-      const response = routeErrorResponse(c, error, publicReviewErrors, errorResponse);
+      const response = routeErrorResponse(c, error, publicReviewErrors);
       if (response) return response;
       throw error;
     }
@@ -190,7 +190,7 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
       const comments = await logServiceOperation(c, "review_public_comments", () => services(c).listPublicReviewComments({ ...target.data, ...page }));
       return c.json({ contractVersion: "1", ...comments });
     } catch (error) {
-      const response = routeErrorResponse(c, error, publicReviewErrors, errorResponse);
+      const response = routeErrorResponse(c, error, publicReviewErrors);
       if (response) return response;
       throw error;
     }

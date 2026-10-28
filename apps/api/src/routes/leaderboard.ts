@@ -1,6 +1,6 @@
-import { isUuid, type AdminRouteDependencies, type ApiApp } from "./route-contract";
+import { isUuid, errorResponse, type AdminRouteDependencies, type ApiApp } from "./route-contract";
 
-type LeaderboardDependencies = Pick<AdminRouteDependencies, "services" | "errorResponse"> & {
+type LeaderboardDependencies = Pick<AdminRouteDependencies, "services"> & {
   allowPortal: (context: any) => void;
   requirePortalPlayer: (context: any) => Promise<{ error?: Response; sessionToken?: string }>;
   logServiceOperation: (context: any, operation: string, action: () => Promise<unknown>) => Promise<unknown>;
@@ -14,7 +14,7 @@ const seasonQuery = (board: string, value: string | undefined) => {
 const pageNumber = (value: string | undefined, fallback: number) => Math.max(1, Number(value ?? fallback) || fallback);
 
 export const registerLeaderboardRoutes = (app: ApiApp, dependencies: LeaderboardDependencies) => {
-  const { services, allowPortal, errorResponse, requirePortalPlayer, logServiceOperation } = dependencies;
+  const { services, allowPortal, requirePortalPlayer, logServiceOperation } = dependencies;
 
   app.get("/v1/public/leaderboard", async (c) => {
     allowPortal(c);

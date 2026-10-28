@@ -27,10 +27,18 @@ export type AdminMutation = <T = undefined>(c: any, options: AdminMutationOption
 export type AdminRouteDependencies = {
   services: ServiceAccessor;
   requireMaintainer: (c: any) => Promise<RouteAccess>;
-  errorResponse: (c: any, status: ErrorStatus, code: string, message: string) => Response;
-  errorGroup: (status: MutationStatus, message: string, ...codes: string[]) => Record<string, { status: MutationStatus; message: string }>;
   adminMutation: AdminMutation;
 };
+
+export const errorResponse = (c: any, status: ErrorStatus, code: string, message: string): Response =>
+  c.json({ contractVersion: "1", error: { code, message, requestId: c.get("requestId") } }, status);
+
+export const errorGroup = (status: MutationStatus, message: string, ...codes: string[]): Record<string, { status: MutationStatus; message: string }> =>
+  Object.fromEntries(codes.map((code) => [code, { status, message }]));
+
+export const idempotencyConflict = { status: 409, message: "The idempotency key was used with a different request" } as const;
+export const idempotencyErrors: RouteErrorMap = { IDEMPOTENCY_CONFLICT: idempotencyConflict };
+export const unauthenticatedErrors: RouteErrorMap = { UNAUTHENTICATED: { status: 401, message: "Authentication is required" } };
 
 export const parseBody = async (request: Request) => {
   try {
@@ -40,10 +48,16 @@ export const parseBody = async (request: Request) => {
   }
 };
 
-export const routeErrorResponse = (context: ApiContext, error: unknown, errors: RouteErrorMap, errorResponse: AdminRouteDependencies["errorResponse"]) => {
+export const routeErrorResponse = (context: ApiContext, error: unknown, errors: RouteErrorMap) => {
   if (!(error instanceof Error)) return null;
   const mapping = errors[error.message];
   return mapping ? errorResponse(context, mapping.status, mapping.responseCode ?? error.message, mapping.message) : null;
+};
+
+export const respondToMappedError = (context: ApiContext, error: unknown, errors: RouteErrorMap): Response => {
+  const response = routeErrorResponse(context, error, errors);
+  if (response) return response;
+  throw error;
 };
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -60,11 +74,10 @@ export const maintainerRoute = (
 
 type PlayerWriteDependencies = {
   requirePortalPlayer: (context: any) => Promise<{ error?: Response; sessionToken?: string }>;
-  errorResponse: AdminRouteDependencies["errorResponse"];
 };
 
 // A Portal-session write: authenticated, idempotent, body validated against the contract.
-export const createPlayerWrite = ({ requirePortalPlayer, errorResponse }: PlayerWriteDependencies, errors: RouteErrorMap) =>
+export const createPlayerWrite = ({ requirePortalPlayer }: PlayerWriteDependencies, errors: RouteErrorMap) =>
   <Body>(
     schema: { safeParse(value: unknown): { success: true; data: Body } | { success: false } } | null,
     action: (context: any, sessionToken: string, idempotencyKey: string, body: Body) => Promise<unknown>,
@@ -78,7 +91,7 @@ export const createPlayerWrite = ({ requirePortalPlayer, errorResponse }: Player
     if (parsed && !parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { return c.json(await action(c, access.sessionToken!, idempotencyKey, (parsed as { data: Body } | null)?.data as Body), status); }
     catch (error) {
-      const response = routeErrorResponse(c, error, errors, errorResponse);
+      const response = routeErrorResponse(c, error, errors);
       if (response) return response;
       throw error;
     }

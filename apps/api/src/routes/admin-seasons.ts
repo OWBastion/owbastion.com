@@ -1,8 +1,8 @@
 import { adminSeasonWriteRequestSchema } from "@owbastion/contracts";
-import { maintainerRoute, type AdminRouteDependencies, type ApiApp } from "./route-contract";
+import { maintainerRoute, errorGroup, type AdminRouteDependencies, type ApiApp } from "./route-contract";
 
 export const registerAdminSeasonRoutes = (app: ApiApp, dependencies: AdminRouteDependencies) => {
-  const { services, requireMaintainer, errorGroup, adminMutation } = dependencies;
+  const { services, requireMaintainer, adminMutation } = dependencies;
   const errors = {
     ...errorGroup(404, "The season does not exist", "SEASON_NOT_FOUND"),
     ...errorGroup(422, "The season must end after it starts", "SEASON_RANGE_INVALID"),

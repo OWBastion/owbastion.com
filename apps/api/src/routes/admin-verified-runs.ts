@@ -4,7 +4,7 @@ import {
   adminVerifiedRunStateRequestSchema,
 } from "@owbastion/contracts";
 import { hasOnlyUniqueQueryNames, parsePagination } from "../query-params";
-import { isUuid, maintainerRoute, type AdminRouteDependencies, type ApiApp } from "./route-contract";
+import { isUuid, maintainerRoute, errorResponse, errorGroup, type AdminRouteDependencies, type ApiApp } from "./route-contract";
 
 const adminVerifiedRunQuery = (request: Request) => {
   const params = new URL(request.url).searchParams;
@@ -51,7 +51,7 @@ const adminVerifiedRunQuery = (request: Request) => {
 };
 
 export const registerAdminVerifiedRunRoutes = (app: ApiApp, dependencies: AdminRouteDependencies) => {
-  const { services, requireMaintainer, errorResponse, errorGroup, adminMutation } = dependencies;
+  const { services, requireMaintainer, adminMutation } = dependencies;
 
   app.get("/v1/admin/verified-runs", maintainerRoute(requireMaintainer, async (c, auth) => {
     const query = adminVerifiedRunQuery(c.req.raw);

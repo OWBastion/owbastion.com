@@ -8,10 +8,10 @@ import {
   adminTitleGrantRestoreRequestSchema,
   adminTitleGrantRevokeRequestSchema,
 } from "@owbastion/contracts";
-import { maintainerRoute, type AdminRouteDependencies, type ApiApp } from "./route-contract";
+import { maintainerRoute, errorResponse, errorGroup, type AdminRouteDependencies, type ApiApp } from "./route-contract";
 
 export const registerAdminPlayerManagementRoutes = (app: ApiApp, dependencies: AdminRouteDependencies) => {
-  const { requireMaintainer, errorResponse, errorGroup, adminMutation } = dependencies;
+  const { requireMaintainer, adminMutation } = dependencies;
 
   app.get("/v1/admin/player-accounts", maintainerRoute(requireMaintainer, async (c, auth) => {
     const page = Math.max(1, Number(c.req.query("page") ?? 1) || 1);

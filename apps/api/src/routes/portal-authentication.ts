@@ -11,7 +11,7 @@ import {
 } from "@owbastion/contracts";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
 import type { AdminRouteDependencies, ApiApp, ApiContext } from "./route-contract";
-import { maintainerRoute, parseBody } from "./route-contract";
+import { maintainerRoute, parseBody, errorResponse } from "./route-contract";
 import type { TurnstileGuard } from "../turnstile";
 import type { RuntimeEnv } from "../app";
 
@@ -22,7 +22,7 @@ type AuthenticatedPortalPlayer = {
 type PortalPlayerAccess =
   | { error: Response; sessionToken?: undefined; player?: undefined }
   | { error?: undefined; sessionToken: string; player: AuthenticatedPortalPlayer["player"] };
-type PortalAuthenticationRouteDependencies = Pick<AdminRouteDependencies, "services" | "requireMaintainer" | "errorResponse"> & {
+type PortalAuthenticationRouteDependencies = Pick<AdminRouteDependencies, "services" | "requireMaintainer"> & {
   authenticate: Authenticator<RuntimeEnv>;
   allowPortal: (context: ApiContext) => void;
   sessionCookie: (request: Request, value: string, maxAge: number) => string;
@@ -34,7 +34,7 @@ type PortalAuthenticationRouteDependencies = Pick<AdminRouteDependencies, "servi
 };
 
 export const registerPortalAuthenticationRoutes = (app: ApiApp, dependencies: PortalAuthenticationRouteDependencies) => {
-  const { allowPortal, requireMaintainer, errorResponse, sessionCookie, requirePortalPlayer, portalPlayerRoute, requireTurnstile } = dependencies;
+  const { allowPortal, requireMaintainer, sessionCookie, requirePortalPlayer, portalPlayerRoute, requireTurnstile } = dependencies;
 
   const passkeyOrigin = (c: any) => {
     const requestOrigin = c.req.header("origin");

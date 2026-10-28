@@ -6,7 +6,7 @@ import {
   playerInvitationRedeemRequestSchema,
 } from "@owbastion/contracts/player-invitation";
 import { hasOnlyUniqueQueryNames, parsePagination } from "../query-params";
-import { createPlayerWrite, isUuid, maintainerRoute, parseBody, routeErrorResponse, type AdminRouteDependencies, type ApiApp, type RouteErrorMap } from "./route-contract";
+import { createPlayerWrite, isUuid, maintainerRoute, parseBody, routeErrorResponse, errorResponse, errorGroup, type AdminRouteDependencies, type ApiApp, type RouteErrorMap } from "./route-contract";
 import type { TurnstileGuard } from "../turnstile";
 
 type PlayerInvitationDependencies = AdminRouteDependencies & {
@@ -35,8 +35,8 @@ const redeemErrors: RouteErrorMap = {
 };
 
 export const registerPlayerInvitationRoutes = (app: ApiApp, dependencies: PlayerInvitationDependencies) => {
-  const { services, allowPortal, errorResponse, requirePortalPlayer, requireTurnstile, requireMaintainer, errorGroup, adminMutation } = dependencies;
-  const playerWrite = createPlayerWrite({ requirePortalPlayer, errorResponse }, writeErrors);
+  const { services, allowPortal, requirePortalPlayer, requireTurnstile, requireMaintainer, adminMutation } = dependencies;
+  const playerWrite = createPlayerWrite({ requirePortalPlayer }, writeErrors);
   const pageOf = (c: any, maxPageSize: number) => parsePagination(new URL(c.req.url).searchParams, maxPageSize);
   const invalidPage = (c: any) => errorResponse(c, 422, "INVALID_REQUEST", "The pagination is invalid");
 
@@ -66,7 +66,7 @@ export const registerPlayerInvitationRoutes = (app: ApiApp, dependencies: Player
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { return c.json(await services(c).redeemPlayerInvitation(parsed.data), 201); }
     catch (error) {
-      const response = routeErrorResponse(c, error, redeemErrors, errorResponse);
+      const response = routeErrorResponse(c, error, redeemErrors);
       if (response) return response;
       throw error;
     }
@@ -112,7 +112,7 @@ export const registerPlayerInvitationRoutes = (app: ApiApp, dependencies: Player
     if (!isUuid(invitationId)) return errorResponse(c, 404, "PLAYER_INVITATION_NOT_FOUND", "The invitation does not exist");
     try { return c.json(await services(c).getAdminPlayerInvitation({ invitationId, ...page }, auth)); }
     catch (error) {
-      const response = routeErrorResponse(c, error, { PLAYER_INVITATION_NOT_FOUND: { status: 404, message: "The invitation does not exist" } }, errorResponse);
+      const response = routeErrorResponse(c, error, { PLAYER_INVITATION_NOT_FOUND: { status: 404, message: "The invitation does not exist" } });
       if (response) return response;
       throw error;
     }

@@ -1,9 +1,8 @@
 import { hasOnlyUniqueQueryNames, parsePagination } from "../query-params";
-import type { ErrorStatus, ApiApp, ServiceAccessor } from "./route-contract";
+import { errorResponse, type ErrorStatus, type ApiApp, type ServiceAccessor } from "./route-contract";
 
 type AgentRouteDependencies = {
   services: ServiceAccessor;
-  errorResponse: (c: any, status: ErrorStatus, code: string, message: string) => Response;
   publicCacheKey: (request: Request, query?: Record<string, string>) => Request;
   hasNoQuery: (request: Request) => boolean;
   logServiceOperation: <T>(c: any, operation: string, action: () => Promise<T>) => Promise<T>;
@@ -20,7 +19,7 @@ type AgentRouteDependencies = {
 const agentPage = (request: Request) => parsePagination(new URL(request.url).searchParams, 100);
 
 export const registerAgentRoutes = (app: ApiApp, dependencies: AgentRouteDependencies) => {
-  const { services, errorResponse, publicCacheKey, hasNoQuery, logServiceOperation, cachePublicResponse, bearerTokenMatches } = dependencies;
+  const { services, publicCacheKey, hasNoQuery, logServiceOperation, cachePublicResponse, bearerTokenMatches } = dependencies;
   const allowAgents = (c: any) => {
     const token = c.env.BASTION_BUILD_TOKEN;
     return Boolean(token && bearerTokenMatches(c.req.header("authorization"), token));

@@ -1,6 +1,6 @@
 import { normalizePlayerHandle } from "@owbastion/domain";
 import { playerHandleRequestSchema } from "@owbastion/contracts";
-import { createPlayerWrite, maintainerRoute, type AdminRouteDependencies, type ApiApp, type RouteErrorMap } from "./route-contract";
+import { createPlayerWrite, maintainerRoute, errorResponse, errorGroup, type AdminRouteDependencies, type ApiApp, type RouteErrorMap } from "./route-contract";
 
 type PlayerHandleDependencies = AdminRouteDependencies & {
   allowPortal: (context: any) => void;
@@ -21,9 +21,9 @@ const writeErrors: RouteErrorMap = {
 };
 
 export const registerPlayerHandleRoutes = (app: ApiApp, dependencies: PlayerHandleDependencies) => {
-  const { services, allowPortal, errorResponse, requirePortalPlayer, logServiceOperation, requireMaintainer, errorGroup, adminMutation } = dependencies;
+  const { services, allowPortal, requirePortalPlayer, logServiceOperation, requireMaintainer, adminMutation } = dependencies;
 
-  const playerWrite = createPlayerWrite({ requirePortalPlayer, errorResponse }, writeErrors);
+  const playerWrite = createPlayerWrite({ requirePortalPlayer }, writeErrors);
 
   app.get("/v1/me/handle", async (c) => {
     const access = await requirePortalPlayer(c);

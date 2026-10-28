@@ -5,7 +5,7 @@ import {
   adminBindingInviteRevokeRequestSchema,
   bindingInviteRedeemRequestSchema,
 } from "@owbastion/contracts";
-import { maintainerRoute, parseBody, type AdminRouteDependencies, type ApiApp, type ApiContext } from "./route-contract";
+import { maintainerRoute, parseBody, errorResponse, errorGroup, type AdminRouteDependencies, type ApiApp, type ApiContext } from "./route-contract";
 import type { TurnstileGuard } from "../turnstile";
 
 type BindingInviteRouteDependencies = AdminRouteDependencies & {
@@ -15,7 +15,7 @@ type BindingInviteRouteDependencies = AdminRouteDependencies & {
 };
 
 export const registerBindingInviteRoutes = (app: ApiApp, dependencies: BindingInviteRouteDependencies) => {
-  const { services, requireMaintainer, errorResponse, errorGroup, adminMutation, allowPortal, sessionCookie, requireTurnstile } = dependencies;
+  const { services, requireMaintainer, adminMutation, allowPortal, sessionCookie, requireTurnstile } = dependencies;
 
   app.post("/v1/public/binding-invites/redeem", async (c: ApiContext) => {
     allowPortal(c);
