@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { createPlatformServices } from "./index";
-import { createD1, createTestDatabase, fakeEvidenceBucket, installSchema, seedRevisionAssignment, localVerifiedRunEvidenceCompatibility, masteryOcr, now, seedCompat, seedException, seedMap, seedMasteryPlayer, seedMasterySubmission, seedRule, seedTitle } from "../test/map-title-rule-fixtures";
+import { createD1, createTestDatabase, fakeEvidenceBucket, installSchema, seedRevisionAssignment, localVerifiedRunEvidenceCompatibility, now, seedCompat, seedException, seedMap, seedMasteryPlayer, seedMasterySubmission, seedRule, seedTitle } from "../test/map-title-rule-fixtures";
 
 describe("maintainer Challenge confirmation during submission review", () => {
   const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };

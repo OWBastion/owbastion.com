@@ -4,11 +4,12 @@ import { playerAccounts, portalSessions } from "./schema";
 
 const now = () => Date.now();
 
-export const hashRequest = async (value: unknown) => {
-  const encoded = new TextEncoder().encode(JSON.stringify(value));
-  const digest = await crypto.subtle.digest("SHA-256", encoded);
+export const sha256Hex = async (value: BufferSource) => {
+  const digest = await crypto.subtle.digest("SHA-256", value);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 };
+
+export const hashRequest = (value: unknown) => sha256Hex(new TextEncoder().encode(JSON.stringify(value)));
 
 export const resolvePortalSession = async (
   databaseOrDb: D1Database | ReturnType<typeof drizzle>,

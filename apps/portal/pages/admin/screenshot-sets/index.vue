@@ -27,7 +27,6 @@ const draftCandidates = ref<AdminScreenshotSetCandidate[]>([]);
 const excludedSourceIds = ref<string[]>([]);
 const draftCandidatesLoading = ref(false);
 
-const formatTime = (value: number) => new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(value);
 const statusLabel = (status: string) => status === 'draft' ? '草稿' : status === 'discarded' ? '已废弃' : '已定稿';
 const statusTone = (status: string) => status === 'finalized' ? 'success' : status === 'discarded' ? 'warning' : 'default';
 const accuracyLabel = (accuracy: AdminScreenshotSetCandidate['accuracy']) => accuracy === 'inaccurate' ? '不准确' : accuracy === 'accurate' ? '准确' : '未标记';

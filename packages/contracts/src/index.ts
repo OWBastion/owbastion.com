@@ -138,12 +138,10 @@ export const passkeyLoginOptionsResponseSchema = z.object({ contractVersion, cha
 export const passkeyLoginVerifyRequestSchema = z.object({ contractVersion, challengeId: z.string().uuid(), credential: passkeyCredentialResponseSchema }).strict();
 export const passkeyAuthenticatedRegistrationOptionsRequestSchema = z.object({ contractVersion, name: z.string().trim().min(1).max(64) }).strict();
 export const passkeyPublicRegistrationOptionsRequestSchema = z.object({ contractVersion, token: z.string().min(32).max(256), name: z.string().trim().min(1).max(64) }).strict();
-export const passkeyRegistrationOptionsResponseSchema = z.object({ contractVersion, challengeId: z.string().uuid(), options: passkeyOptionsSchema });
 export const passkeyRegistrationVerifyRequestSchema = z.object({ contractVersion, challengeId: z.string().uuid(), credential: passkeyCredentialResponseSchema, name: z.string().trim().min(1).max(64) }).strict();
 export const passkeyPublicRegistrationVerifyRequestSchema = z.object({ contractVersion, challengeId: z.string().uuid(), token: z.string().min(32).max(256), credential: passkeyCredentialResponseSchema, name: z.string().trim().min(1).max(64) }).strict();
 export const passkeyCredentialSchema = z.object({ passkeyId: z.string().uuid(), name: z.string().trim().min(1).max(64), createdAt: z.number().int().positive(), lastUsedAt: z.number().int().positive().nullable() });
 export const passkeyCredentialListResponseSchema = z.object({ contractVersion, items: z.array(passkeyCredentialSchema), qqBound: z.boolean() });
-export const passkeyCredentialDeleteResponseSchema = z.object({ contractVersion, removed: z.literal(true) });
 export const adminPasskeyRecoveryRequestSchema = z.object({ contractVersion, identityVerified: z.literal(true) }).strict();
 export const adminPasskeyRecoveryResponseSchema = z.object({ contractVersion, recoveryUrl: z.string().url(), expiresAt: z.number().int().positive() });
 const qqGroupStatus = z.enum(["pending", "active", "legacy", "disconnected"]);
@@ -702,7 +700,6 @@ export const adminTitleGrantHolderDetailResponseSchema = z.object({
   items: z.array(historicalTitleGrantSchema),
   grantStatus: z.enum(["all", "unclaimed", "active", "revoked"]).optional(),
 }).merge(pageInfo());
-export const historicalTitleGrantListResponseSchema = z.object({ contractVersion, items: z.array(historicalTitleGrantSchema) });
 export const adminTitleGrantRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), historicalTitleGrantId });
 export const adminTitleGrantBulkRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), holderName: z.string().trim().min(1).max(256) });
 export const adminTitleGrantBulkResponseSchema = z.object({ contractVersion, grantedCount: z.number().int().nonnegative(), skippedClaimedCount: z.number().int().nonnegative().default(0) });
@@ -927,7 +924,6 @@ export const adminTitleChallengeSchema = adminAchievementChallengeSchema.extend(
   replacedByChallengeId: externalId.nullable(),
 });
 export const adminTitleChallengeResponseSchema = adminTitleChallengeSchema.extend({ contractVersion });
-export const adminTitleChallengeListResponseSchema = z.object({ contractVersion, items: z.array(adminTitleChallengeSchema) });
 export const derivedStatusSchema = z.enum(["draft", "scheduled", "active", "sunsetting", "ended"]);
 export const adminTitleSummarySchema = z.object({
   titleKey: externalId, label: z.string(), icon: achievementIcon, iconUrl: z.string().url().nullable(), category: z.string(),
@@ -939,7 +935,6 @@ export const adminTitleSummarySchema = z.object({
     z.object({ kind: z.literal("none") }),
   ]),
 });
-export const adminTitleSummaryResponseSchema = adminTitleSummarySchema.extend({ contractVersion });
 export const adminTitleSummaryListResponseSchema = z.object({ contractVersion, items: z.array(adminTitleSummarySchema) });
 const adminChallengePreviousStateSchema = z.object({ status: challengeLifecycleStatus, retiredVersion: storedRetirementVersion.nullable(), startsAt: scheduleTimestamp.nullable(), endsAt: scheduleTimestamp.nullable() });
 export const adminChallengeLifecycleRequestSchema = z.object({
@@ -979,7 +974,6 @@ export const playerUploadSessionResponseSchema = z.object({
   maxBytes: z.number().int().positive(),
 });
 
-export const playerUploadCompleteRequestSchema = z.object({ contractVersion, uploadId: z.string().uuid() });
 
 export const adminSubmissionChallengeSchema = z.union([
   z.object({ family: z.literal("map"), name: z.string(), mapName: z.string(), difficulty: z.string().nullable(), kind: z.enum(["difficulty_completion", "pioneer", "classic_completion", "map_title_achievement"]).optional(), mapVariant: z.literal("classic").optional() }),

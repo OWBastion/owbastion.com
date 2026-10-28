@@ -6,6 +6,7 @@ import type { PlayerHandleStateResponse } from "@owbastion/contracts";
 import { playerAccounts, playerHandles } from "./schema";
 import { createBatchStatements } from "./batch-statements";
 import { resolvePortalSession } from "./portal-session";
+import { isUniqueViolation } from "./player-invitation-support";
 
 type PlayerHandleServices = Pick<PlatformServices,
   | "getCurrentPlayerHandle"
@@ -23,8 +24,6 @@ type Dependencies = {
   now: () => number;
   replayOrConflict: <T>(actorId: string, operation: string, key: string, input: unknown) => Promise<T | null>;
 };
-
-const isUniqueViolation = (error: unknown, column: string) => error instanceof Error && error.message.includes("UNIQUE constraint failed") && error.message.includes(column);
 
 // Player handles (#438). Every write commits its row change, idempotency record,
 // and audit event in one batch; the partial unique indexes on `player_handles`

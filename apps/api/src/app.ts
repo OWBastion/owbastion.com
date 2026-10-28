@@ -2,17 +2,7 @@ import { Hono } from "hono";
 import {
   ocrkitJobCallbackSchema,
   qqBindingRequestSchema,
-  qqBindingClaimVerifyRequestSchema,
-  qqLoginAttemptRequestSchema,
-  qqLoginVerifyRequestSchema,
   qqScreenshotSubmissionRequestSchema,
-  passkeyLoginOptionsRequestSchema,
-  passkeyLoginVerifyRequestSchema,
-  passkeyRegistrationVerifyRequestSchema,
-  passkeyAuthenticatedRegistrationOptionsRequestSchema,
-  passkeyPublicRegistrationOptionsRequestSchema,
-  passkeyPublicRegistrationVerifyRequestSchema,
-  adminPasskeyRecoveryRequestSchema,
   qqGroupAccessRequestSchema,
   qqGroupRegistrationRequestSchema,
   adminScreenshotSetCreateRequestSchema,
@@ -26,7 +16,7 @@ import {
 } from "@owbastion/contracts";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
 import { withPublicCache } from "./public-cache";
-import { maintainerRoute, parseBody, routeErrorResponse, type AdminMutation, type AdminMutationOptions, type ApiContext, type RouteErrorMap } from "./routes/route-contract";
+import { errorGroup, errorResponse, idempotencyConflict, idempotencyErrors, maintainerRoute, parseBody, respondToMappedError, routeErrorResponse, unauthenticatedErrors, type AdminMutation, type AdminMutationOptions, type ApiContext, type RouteErrorMap } from "./routes/route-contract";
 import { registerAgentRoutes } from "./routes/agents";
 import { registerAdminVerifiedRunRoutes } from "./routes/admin-verified-runs";
 import { registerAdminSeasonRoutes } from "./routes/admin-seasons";
@@ -137,14 +127,6 @@ const normalizeIncomingId = (value: string | null | undefined): string | undefin
   return normalized && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(normalized) ? normalized : undefined;
 };
 
-const errorResponse = (c: any, status: 400 | 401 | 403 | 404 | 409 | 422 | 500 | 503, code: string, message: string) =>
-  c.json({ contractVersion: "1", error: { code, message, requestId: c.get("requestId") } }, status);
-
-const errorGroup = (status: 404 | 409 | 422 | 503, message: string, ...codes: string[]) =>
-  Object.fromEntries(codes.map((code) => [code, { status, message }]));
-const idempotencyConflict = { status: 409, message: "The idempotency key was used with a different request" } as const;
-const idempotencyErrors: RouteErrorMap = { IDEMPOTENCY_CONFLICT: idempotencyConflict };
-const unauthenticatedErrors: RouteErrorMap = { UNAUTHENTICATED: { status: 401, message: "Authentication is required" } };
 const submissionNotFoundErrors: RouteErrorMap = errorGroup(404, "The submission does not exist", "SUBMISSION_NOT_FOUND");
 const ocrFeedbackErrors: RouteErrorMap = {
   ...unauthenticatedErrors,
@@ -166,11 +148,6 @@ const uploadCompletionErrors: RouteErrorMap = {
 const manualReviewErrors: RouteErrorMap = {
   ...submissionNotFoundErrors,
   ...errorGroup(409, "The submission is not eligible for manual review", "MANUAL_REVIEW_NOT_ELIGIBLE"),
-};
-const respondToMappedError = (context: ApiContext, error: unknown, errors: RouteErrorMap): Response => {
-  const response = routeErrorResponse(context, error, errors, errorResponse);
-  if (response) return response;
-  throw error;
 };
 
 const portalSessionToken = (request: Request) => request.headers.get("cookie")?.split(";").map((part) => part.trim()).find((part) => part.startsWith("owb_session="))?.slice("owb_session=".length);
@@ -396,17 +373,15 @@ export const createApp = (dependencies: AppDependencies) => {
       const response = routeErrorResponse(c, error, {
         ...options.errors,
         IDEMPOTENCY_CONFLICT: options.errors?.IDEMPOTENCY_CONFLICT ?? idempotencyConflict,
-      }, errorResponse);
+      });
       if (response) return response;
       throw error;
     }
   };
 
   const adminRouteDependencies = {
-    services: dependencies.services,
+    services: servicesFor,
     requireMaintainer,
-    errorResponse,
-    errorGroup,
     adminMutation,
   };
   registerAdminVerifiedRunRoutes(app, adminRouteDependencies);
@@ -433,10 +408,10 @@ export const createApp = (dependencies: AppDependencies) => {
   };
 
   const requireTurnstile = dependencies.turnstile ?? createTurnstileGuard(errorResponse);
-  const playerDeps = { services: dependencies.services, requireMaintainer, errorResponse, errorGroup, adminMutation, allowPortal, requirePortalPlayer };
+  const playerDeps = { services: servicesFor, requireMaintainer, adminMutation, allowPortal, requirePortalPlayer };
   registerBindingInviteRoutes(app, { ...playerDeps, sessionCookie, requireTurnstile });
 
-  registerPortalAuthenticationRoutes(app, { services: dependencies.services, authenticate: dependencies.authenticate, requireMaintainer, allowPortal, errorResponse, sessionCookie, requirePortalPlayer, portalPlayerRoute, requireTurnstile });
+  registerPortalAuthenticationRoutes(app, { services: servicesFor, authenticate: dependencies.authenticate, requireMaintainer, allowPortal, sessionCookie, requirePortalPlayer, portalPlayerRoute, requireTurnstile });
 
   app.post("/v1/qq/submissions", async (c) => {
     const auth = await dependencies.authenticate(c.req.raw, c.env);
@@ -486,7 +461,7 @@ export const createApp = (dependencies: AppDependencies) => {
     c.header("Cache-Control", "private, no-store");
     const query = playerMasteryQuery(c.req.raw);
     if (!query) return errorResponse(c, 422, "INVALID_REQUEST", "The mastery query is invalid");
-    const mastery = await dependencies.services(c.env).getCurrentPlayerMastery({ sessionToken: access.sessionToken, ...query });
+    const mastery = await servicesFor(c).getCurrentPlayerMastery({ sessionToken: access.sessionToken, ...query });
     if (!mastery) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
     return c.json(mastery);
   }));
@@ -530,7 +505,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminPlayerEquippedTitlesRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      return c.json(await dependencies.services(c.env).replaceAdminPlayerEquippedTitles({ playerAccountId: c.req.param("playerAccountId")!, grantIds: parsed.data.grantIds }, auth, idempotencyKey));
+      return c.json(await servicesFor(c).replaceAdminPlayerEquippedTitles({ playerAccountId: c.req.param("playerAccountId")!, grantIds: parsed.data.grantIds }, auth, idempotencyKey));
     } catch (error) {
       return respondToMappedError(c, error, {
         PLAYER_NOT_FOUND: { status: 404, message: "The player does not exist" },
@@ -539,13 +514,13 @@ export const createApp = (dependencies: AppDependencies) => {
     }
   }));
 
-  registerReviewRoutes(app, { services: dependencies.services, requirePortalPlayer, allowPortal, errorResponse, logServiceOperation });
+  registerReviewRoutes(app, { services: servicesFor, requirePortalPlayer, allowPortal, logServiceOperation });
 
-  registerPlayerTitleRoutes(app, { servicesFor, allowPortal, errorResponse, portalSessionToken, respondToMappedError });
+  registerPlayerTitleRoutes(app, { servicesFor, allowPortal, portalSessionToken });
 
   app.get("/v1/me/submissions/:submissionId", portalPlayerRoute(async (c, access) => {
     try {
-      return c.json(await dependencies.services(c.env).getPlayerSubmission({ submissionId: c.req.param("submissionId")! }, access.sessionToken));
+      return c.json(await servicesFor(c).getPlayerSubmission({ submissionId: c.req.param("submissionId")! }, access.sessionToken));
     } catch (error) {
       return respondToMappedError(c, error, submissionNotFoundErrors);
     }
@@ -560,7 +535,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = ocrAccuracyFeedbackRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      const response = await dependencies.services(c.env).submitPlayerOcrFeedback({ ...parsed.data, submissionId: c.req.param("submissionId")! }, access.sessionToken, idempotencyKey);
+      const response = await servicesFor(c).submitPlayerOcrFeedback({ ...parsed.data, submissionId: c.req.param("submissionId")! }, access.sessionToken, idempotencyKey);
       return c.json(response);
     } catch (error) {
       return respondToMappedError(c, error, ocrFeedbackErrors);
@@ -575,8 +550,8 @@ export const createApp = (dependencies: AppDependencies) => {
     return c.body(null, 204);
   });
 
-  registerPublicCatalogRoutes(app, { services: dependencies.services, allowPortal, errorResponse, requirePortalPlayer, logServiceOperation, cachedCatalogResponse });
-  registerLeaderboardRoutes(app, { services: dependencies.services, allowPortal, errorResponse, requirePortalPlayer, logServiceOperation });
+  registerPublicCatalogRoutes(app, { services: servicesFor, allowPortal, requirePortalPlayer, logServiceOperation, cachedCatalogResponse });
+  registerLeaderboardRoutes(app, { services: servicesFor, allowPortal, requirePortalPlayer, logServiceOperation });
   registerPlayerHandleRoutes(app, { ...playerDeps, logServiceOperation });
   registerPlayerInvitationRoutes(app, { ...playerDeps, requireTurnstile });
 
@@ -601,28 +576,28 @@ export const createApp = (dependencies: AppDependencies) => {
     return c.body(icon.body, 200, { "Content-Type": icon.contentType });
   });
 
-  registerAgentRoutes(app, { services: dependencies.services, errorResponse, publicCacheKey, hasNoQuery, logServiceOperation, cachePublicResponse, bearerTokenMatches });
+  registerAgentRoutes(app, { services: servicesFor, publicCacheKey, hasNoQuery, logServiceOperation, cachePublicResponse, bearerTokenMatches });
 
   app.post("/v1/player/uploads/session", portalPlayerRoute(async (c, access) => {
     const parsed = playerUploadSessionRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).createPlayerUploadSession(parsed.data, access.sessionToken), 201); }
+    try { return c.json(await servicesFor(c).createPlayerUploadSession(parsed.data, access.sessionToken), 201); }
     catch (error) { return respondToMappedError(c, error, playerUploadSessionErrors); }
   }));
 
   app.put("/v1/uploads/:uploadId", portalPlayerRoute(async (c, access) => {
-    try { await dependencies.services(c.env).uploadEvidence({ uploadId: c.req.param("uploadId")!, body: await c.req.raw.arrayBuffer(), contentType: c.req.header("content-type") ?? "" }, access.sessionToken); return c.body(null, 204); }
+    try { await servicesFor(c).uploadEvidence({ uploadId: c.req.param("uploadId")!, body: await c.req.raw.arrayBuffer(), contentType: c.req.header("content-type") ?? "" }, access.sessionToken); return c.body(null, 204); }
     catch (error) { return respondToMappedError(c, error, invalidUploadErrors); }
   }));
 
   app.post("/v1/player/uploads/:uploadId/complete", portalPlayerRoute(async (c, access) => {
-    try { return c.json(await dependencies.services(c.env).completePlayerUpload({ uploadId: c.req.param("uploadId")! }, access.sessionToken, c.get("requestId"))); }
+    try { return c.json(await servicesFor(c).completePlayerUpload({ uploadId: c.req.param("uploadId")! }, access.sessionToken, c.get("requestId"))); }
     catch (error) { return respondToMappedError(c, error, uploadCompletionErrors); }
   }));
 
   app.post("/v1/player/submissions/:submissionId/manual-review", portalPlayerRoute(async (c, access) => {
     try {
-      await dependencies.services(c.env).requestManualReview({ submissionId: c.req.param("submissionId")! }, access.sessionToken);
+      await servicesFor(c).requestManualReview({ submissionId: c.req.param("submissionId")! }, access.sessionToken);
       return c.body(null, 204);
     } catch (error) {
       return respondToMappedError(c, error, manualReviewErrors);
@@ -654,33 +629,27 @@ export const createApp = (dependencies: AppDependencies) => {
     return c.json({ contractVersion: "1", items: await servicesFor(c).listQqGroupAccess(auth) });
   });
 
-  registerAdminPlayerManagementRoutes(app, { services: dependencies.services, requireMaintainer, errorResponse, errorGroup, adminMutation });
+  registerAdminPlayerManagementRoutes(app, { services: servicesFor, requireMaintainer, adminMutation });
 
-  registerAdminCatalogRoutes(app, { services: dependencies.services, requireMaintainer, errorResponse, errorGroup, adminMutation }, logServiceOperation);
+  registerAdminCatalogRoutes(app, { services: servicesFor, requireMaintainer, adminMutation }, logServiceOperation);
 
-  registerAdminReviewWorkflowRoutes(app, { services: dependencies.services, requireMaintainer, errorResponse, errorGroup, adminMutation });
+  registerAdminReviewWorkflowRoutes(app, { services: servicesFor, requireMaintainer, adminMutation });
 
   app.get("/v1/admin/screenshot-sets", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
-    const pageValue = Number(c.req.query("page") ?? 1);
-    const pageSizeValue = Number(c.req.query("pageSize") ?? 20);
-    const page = Number.isInteger(pageValue) && pageValue > 0 ? pageValue : 0;
-    const pageSize = Number.isInteger(pageSizeValue) && pageSizeValue > 0 && pageSizeValue <= 100 ? pageSizeValue : 0;
+    const pagination = parsePagination(new URL(c.req.url).searchParams, 100);
     const status = c.req.query("status");
-    if (!page || !pageSize || (status && !screenshotSetStatusSchema.safeParse(status).success)) return errorResponse(c, 422, "INVALID_REQUEST", "The screenshot set query is invalid");
-    return c.json(await dependencies.services(c.env).listAdminScreenshotSets({ page, pageSize, ...(status ? { status: status as "draft" | "finalized" | "discarded" } : {}) }, access.auth!));
+    if (!pagination || (status && !screenshotSetStatusSchema.safeParse(status).success)) return errorResponse(c, 422, "INVALID_REQUEST", "The screenshot set query is invalid");
+    return c.json(await servicesFor(c).listAdminScreenshotSets({ ...pagination, ...(status ? { status: status as "draft" | "finalized" | "discarded" } : {}) }, access.auth!));
   });
 
   app.get("/v1/admin/screenshot-sets/candidates", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
-    const pageValue = Number(c.req.query("page") ?? 1);
-    const pageSizeValue = Number(c.req.query("pageSize") ?? 20);
-    const page = Number.isInteger(pageValue) && pageValue > 0 ? pageValue : 0;
-    const pageSize = Number.isInteger(pageSizeValue) && pageSizeValue > 0 && pageSizeValue <= 100 ? pageSizeValue : 0;
-    if (!page || !pageSize) return errorResponse(c, 422, "INVALID_REQUEST", "The screenshot set candidate query is invalid");
-    return c.json(await dependencies.services(c.env).listAdminScreenshotSetCandidates({ page, pageSize }, access.auth!));
+    const pagination = parsePagination(new URL(c.req.url).searchParams, 100);
+    if (!pagination) return errorResponse(c, 422, "INVALID_REQUEST", "The screenshot set candidate query is invalid");
+    return c.json(await servicesFor(c).listAdminScreenshotSetCandidates(pagination, access.auth!));
   });
 
   app.post("/v1/admin/screenshot-sets", async (c) => {
@@ -692,7 +661,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
       const { contractVersion: _contractVersion, ...input } = parsed.data;
-      return c.json(await dependencies.services(c.env).createAdminScreenshotSet(input, access.auth!, idempotencyKey), 201);
+      return c.json(await servicesFor(c).createAdminScreenshotSet(input, access.auth!, idempotencyKey), 201);
     } catch (error) {
       const code = error instanceof Error ? error.message : "SCREENSHOT_SET_CREATE_FAILED";
       if (code === "SCREENSHOT_SET_EXCLUSION_INVALID") return errorResponse(c, 422, code, "An excluded screenshot is not eligible for this set");
@@ -706,7 +675,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (access.error) return access.error;
     const setId = c.req.param("setId");
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(setId)) return errorResponse(c, 422, "INVALID_SCREENSHOT_SET_ID", "The screenshot set ID is invalid");
-    try { return c.json(await dependencies.services(c.env).getAdminScreenshotSet({ setId }, access.auth!)); }
+    try { return c.json(await servicesFor(c).getAdminScreenshotSet({ setId }, access.auth!)); }
     catch (error) { if (error instanceof Error && error.message === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, "SCREENSHOT_SET_NOT_FOUND", "The screenshot set does not exist"); throw error; }
   });
 
@@ -721,7 +690,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     const input = parsed.data.note === undefined ? { setId } : { setId, note: parsed.data.note };
     try {
-      return c.json(await dependencies.services(c.env).finalizeAdminScreenshotSet(input, access.auth!, idempotencyKey));
+      return c.json(await servicesFor(c).finalizeAdminScreenshotSet(input, access.auth!, idempotencyKey));
     } catch (error) {
       const code = error instanceof Error ? error.message : "SCREENSHOT_SET_FINALIZE_FAILED";
       if (code === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, code, "The screenshot set does not exist");
@@ -742,7 +711,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     const input = parsed.data.note === undefined ? { setId } : { setId, note: parsed.data.note };
     try {
-      return c.json(await dependencies.services(c.env).discardAdminScreenshotSet(input, access.auth!, idempotencyKey));
+      return c.json(await servicesFor(c).discardAdminScreenshotSet(input, access.auth!, idempotencyKey));
     } catch (error) {
       const code = error instanceof Error ? error.message : "SCREENSHOT_SET_DISCARD_FAILED";
       if (code === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, code, "The screenshot set does not exist");
@@ -758,7 +727,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const version = Number(c.req.param("version"));
     if (!Number.isInteger(version) || version < 1) return errorResponse(c, 422, "INVALID_SCREENSHOT_SET_VERSION", "The screenshot set version is invalid");
     try {
-      return c.json(await dependencies.services(c.env).getOcrkitScreenshotSet({ version }));
+      return c.json(await servicesFor(c).getOcrkitScreenshotSet({ version }));
     } catch (error) {
       const code = error instanceof Error ? error.message : "OCRKIT_SCREENSHOT_SET_READ_FAILED";
       if (code === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, code, "The screenshot set does not exist");
@@ -776,7 +745,6 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = qqBindingRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
 
-    void parsed; void auth; void idempotencyKey;
     return errorResponse(c, 422, "INVITE_REQUIRED", "Use an invitation to request a binding");
   });
 

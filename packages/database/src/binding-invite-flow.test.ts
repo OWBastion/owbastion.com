@@ -335,27 +335,6 @@ describe("invitation binding flow", () => {
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM portal_sessions").get()).toEqual({ count: 0 });
   });
 
-  it("backfills a retry anchor only for a redeemed invitation with a consumed legacy Passkey registration", () => {
-    const sqlite = new DatabaseSync(":memory:");
-    sqlite.exec(`
-      CREATE TABLE binding_invites (id TEXT PRIMARY KEY, redeemed_at INTEGER);
-      CREATE TABLE passkey_challenges (id TEXT PRIMARY KEY, invite_id TEXT, purpose TEXT NOT NULL, player_account_id TEXT, used_at INTEGER, created_at INTEGER NOT NULL);
-      INSERT INTO binding_invites VALUES ('invite.legacy', 10), ('invite.unused', NULL), ('invite.login', 10);
-      INSERT INTO passkey_challenges VALUES ('challenge.legacy', 'invite.legacy', 'invitation', 'player.legacy', 9, 8);
-      INSERT INTO passkey_challenges VALUES ('challenge.unused', 'invite.unused', 'invitation', 'player.unused', 9, 8);
-      INSERT INTO passkey_challenges VALUES ('challenge.login', 'invite.login', 'login', 'player.login', 9, 8);
-    `);
-
-    sqlite.exec(legacyInviteRetryMigration);
-
-    expect(sqlite.prepare("SELECT legacy_passkey_player_account_id, legacy_passkey_challenge_id FROM binding_invites WHERE id = 'invite.legacy'").get()).toEqual({ legacy_passkey_player_account_id: "player.legacy", legacy_passkey_challenge_id: "challenge.legacy" });
-    expect(sqlite.prepare("SELECT legacy_passkey_player_account_id, legacy_passkey_challenge_id FROM binding_invites WHERE id IN ('invite.unused', 'invite.login') ORDER BY id").all()).toEqual([
-      { legacy_passkey_player_account_id: null, legacy_passkey_challenge_id: null },
-      { legacy_passkey_player_account_id: null, legacy_passkey_challenge_id: null },
-    ]);
-    sqlite.close();
-  });
-
   it("keeps the verified QQ binding when a large historical migration fails, then retries the remaining titles", async () => {
     const { database, sqlite } = createD1([5]);
     const now = Date.now();

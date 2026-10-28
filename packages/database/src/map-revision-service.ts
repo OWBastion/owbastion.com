@@ -26,6 +26,7 @@ import {
   titleChallenges,
 } from "./schema";
 import type { PlatformCache } from "./platform-cache";
+import { compareText } from "./compare-text";
 
 type AdminMapRevisionServices = Pick<PlatformServices,
   | "listMaps"
@@ -49,7 +50,6 @@ type Dependencies = {
 
 export const pioneerExceptionHasValidWindow = (startsAt: number | null, endsAt: number | null) => startsAt !== null && endsAt !== null && endsAt > startsAt;
 
-const compareText = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0;
 const normalizeSpatialConfig = <T extends AgentSpatialConfig>(config: T): T => "stages" in config
   ? { ...config, stages: [...config.stages].sort((left, right) => compareText(left.stageId, right.stageId)) } as T
   : { ...config, alternateStages: [...config.alternateStages].sort((left, right) => compareText(left.stageId, right.stageId)) } as T;

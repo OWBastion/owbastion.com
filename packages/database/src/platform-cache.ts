@@ -318,42 +318,43 @@ const scopesTouchedBy = (sql: string): PlatformCacheScope[] => {
   return [...scopes];
 };
 
-type WrappedStatement = D1PreparedStatement & { __sql: string; __inner: D1PreparedStatement };
+type WrappedStatement = D1PreparedStatement & { __scopes: PlatformCacheScope[]; __inner: D1PreparedStatement };
 
 /**
  * Wraps a D1Database so that every successful write to a cached table bumps
  * the matching cache scope version. Read statements pass through untouched.
  */
 export const instrumentDatabase = (database: D1Database, cache: PlatformCache): D1Database => {
-  const invalidateFor = async (sql: string) => {
-    for (const scope of scopesTouchedBy(sql)) await cache.invalidate(scope);
+  const invalidate = async (scopes: Iterable<PlatformCacheScope>) => {
+    await Promise.all([...scopes].map((scope) => cache.invalidate(scope)));
   };
 
-  const wrapStatement = (statement: D1PreparedStatement, sql: string): WrappedStatement => {
+  // A statement's write targets are fixed by its SQL, so they are parsed once at prepare time.
+  const wrapStatement = (statement: D1PreparedStatement, scopes: PlatformCacheScope[]): WrappedStatement => {
     const wrapped: WrappedStatement = {
-      __sql: sql,
+      __scopes: scopes,
       __inner: statement,
       bind(...values: unknown[]) {
-        return wrapStatement(statement.bind(...values), sql) as D1PreparedStatement;
+        return wrapStatement(statement.bind(...values), scopes) as D1PreparedStatement;
       },
       async run<T = unknown>() {
         const result = await statement.run<T>();
-        await invalidateFor(sql);
+        await invalidate(scopes);
         return result;
       },
       async all<T = unknown>() {
         const result = await statement.all<T>();
-        await invalidateFor(sql);
+        await invalidate(scopes);
         return result;
       },
       async first<T = unknown>(column?: string) {
         const result = column === undefined ? await statement.first<T>() : await statement.first<T>(column);
-        await invalidateFor(sql);
+        await invalidate(scopes);
         return result;
       },
       async raw<T extends unknown[] = unknown[]>(options?: { columnNames?: boolean }) {
         const result = await (statement.raw as (opts?: { columnNames?: boolean }) => Promise<T[]>)(options);
-        await invalidateFor(sql);
+        await invalidate(scopes);
         return result;
       },
     } as WrappedStatement;
@@ -362,18 +363,17 @@ export const instrumentDatabase = (database: D1Database, cache: PlatformCache): 
 
   return {
     prepare(sql: string) {
-      return wrapStatement(database.prepare(sql), sql);
+      return wrapStatement(database.prepare(sql), scopesTouchedBy(sql));
     },
     async batch<T = unknown>(statements: D1PreparedStatement[]) {
       const inner = statements.map((statement) => (statement as WrappedStatement).__inner ?? statement);
       const results = await database.batch<T>(inner as [D1PreparedStatement, ...D1PreparedStatement[]]);
-      const scopes = new Set(statements.flatMap((statement) => scopesTouchedBy((statement as WrappedStatement).__sql ?? "")));
-      for (const scope of scopes) await cache.invalidate(scope);
+      await invalidate(new Set(statements.flatMap((statement) => (statement as WrappedStatement).__scopes ?? [])));
       return results;
     },
     async exec(sql: string) {
       const result = await database.exec(sql);
-      await invalidateFor(sql);
+      await invalidate(scopesTouchedBy(sql));
       return result;
     },
     withSession(constraintOrBookmark?: string) {

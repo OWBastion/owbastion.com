@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createPlatformServices } from "./index";
-import { createTestDatabase, fakeEvidenceBucket, now, seedMasteryPlayer, seedMasterySubmission, synchronizeConcurrentBatches } from "../test/map-title-rule-fixtures";
+import { createTestDatabase, fakeEvidenceBucket, seedMasteryPlayer, seedMasterySubmission, synchronizeConcurrentBatches } from "../test/map-title-rule-fixtures";
 
 describe("OCR queue failure recovery", () => {
   it("serializes simultaneous OCR retries for the same idempotency key without duplicate queue sends", async () => {

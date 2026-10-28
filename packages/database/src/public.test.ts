@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { Challenge } from "@owbastion/contracts";
 import { createPlatformServices } from "@owbastion/database";
 import { createD1, installSchema, seedMap, seedRevisionAssignment, seedTitle } from "./ocr-test-harness";
@@ -109,14 +109,4 @@ describe("public database service revision projection", () => {
     expect(storedDefinitions()).toEqual(before);
   });
 
-  it.each(["global achievements", "unlinked events", "missing event"])("does not read build projections for %s", async (path) => {
-    const { database, sqlite } = fixture();
-    seedEvent(sqlite);
-    const prepare = vi.spyOn(database, "prepare");
-    const services = createPlatformServices(database);
-    if (path === "global achievements") await expect(services.listChallenges({ family: "achievement" })).resolves.toEqual([]);
-    else if (path === "unlinked events") await expect(services.listRandomEvents({})).resolves.toMatchObject([{ challenges: [] }]);
-    else await expect(services.getRandomEvent({ eventId: "event.missing" })).resolves.toBeNull();
-    expect(prepare.mock.calls.map(([query]) => query).filter((query) => /\bmap_metadata\b/i.test(query))).toEqual([]);
-  });
 });

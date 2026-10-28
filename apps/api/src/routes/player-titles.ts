@@ -1,9 +1,7 @@
 import { playerEquippedTitlesRequestSchema, playerMapTitleWearRequestSchema } from "@owbastion/contracts";
 import type { PlatformServices } from "@owbastion/domain";
-import { parseBody, type ApiApp, type RouteErrorMap } from "./route-contract";
+import { parseBody, errorResponse, respondToMappedError, idempotencyConflict, unauthenticatedErrors, type ApiApp, type RouteErrorMap } from "./route-contract";
 
-const idempotencyConflict = { status: 409, message: "The idempotency key was used with a different request" } as const;
-const unauthenticatedErrors: RouteErrorMap = { UNAUTHENTICATED: { status: 401, message: "Authentication is required" } };
 export const equippedTitleErrors: RouteErrorMap = {
   EQUIPPED_TITLE_GRANT_INVALID: { status: 422, message: "The selected titles cannot be equipped" },
   EQUIPPED_TITLE_LIMIT_EXCEEDED: { status: 422, message: "The selected titles cannot be equipped" },
@@ -13,13 +11,11 @@ export const equippedTitleErrors: RouteErrorMap = {
 type PlayerTitleRouteDependencies = {
   servicesFor: (context: any) => PlatformServices;
   allowPortal: (context: any) => void;
-  errorResponse: (context: any, status: 401 | 422, code: string, message: string) => Response;
   portalSessionToken: (request: Request) => string | undefined;
-  respondToMappedError: (context: any, error: unknown, errors: RouteErrorMap) => Response;
 };
 
 export const registerPlayerTitleRoutes = (app: ApiApp, dependencies: PlayerTitleRouteDependencies) => {
-  const { servicesFor, allowPortal, errorResponse, portalSessionToken, respondToMappedError } = dependencies;
+  const { servicesFor, allowPortal, portalSessionToken } = dependencies;
 
   app.get("/v1/me/titles", async (c) => {
     allowPortal(c);

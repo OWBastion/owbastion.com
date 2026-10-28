@@ -68,7 +68,7 @@ export type VerifiedRunOcrEvidenceAssessment =
   }
   | { outcome: "ineligible"; reason: string };
 
-const normalizedOcrLabel = (value: unknown) => typeof value === "string" ? value.trim().toLocaleLowerCase() : "";
+export const normalizedOcrLabel = (value: unknown) => typeof value === "string" ? value.trim().toLocaleLowerCase() : "";
 export const normalizeOcrDifficulty = (value: unknown) => {
   const label = normalizedOcrLabel(value);
   return label.startsWith("地狱:") || label.startsWith("地狱：") ? "地狱" : label === "普通" ? "一般" : label;

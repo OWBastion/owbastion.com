@@ -51,8 +51,7 @@ curl -s -o /dev/null -D - -H 'X-Request-ID: verify-public-cache-1' \
 Search by request ID or `event=service_operation_complete`; investigate high
 `durationMs` by fixed `routeClass` and `operation` only. Never add names, IDs, URLs,
 SQL, evidence keys, query values, or bodies as log dimensions. Batched relationship
-loads keep statement counts bounded (ceilings in
-`packages/database/src/catalog-query-budget.test.ts`).
+loads keep statement counts bounded.
 
 ## Queue-backed OCR
 

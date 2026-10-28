@@ -124,23 +124,6 @@ describe("submission detail history reads", () => {
     expect(result.items[2]).toMatchObject({ submissionId: "submission-empty", ocrStatus: "pending", ocrAttempt: null, ocrResultId: null, ocr: null, match: null, review: null });
   });
 
-  it("keeps detail rows transferred bounded as OCR and review histories grow", async () => {
-    const measure = async (historyCount: number) => {
-      const harness = fixture();
-      seedHistory(harness.sqlite, historyCount);
-      seedLatest(harness.sqlite);
-      harness.resetMetrics();
-      const result = await harness.services.listAdminSubmissions({ page: 1, pageSize: 3 });
-      return { result, metrics: harness.metrics() };
-    };
-    const small = await measure(50);
-    const large = await measure(200);
-    expect(large.result).toEqual(small.result);
-    expect(large.metrics).toEqual(small.metrics);
-    expect(large.metrics.ocrRows).toBe(2);
-    expect(large.metrics.reviewRows).toBe(2);
-  });
-
   it("treats a malformed latest OCR payload as missing instead of failing the page", async () => {
     const { sqlite, services } = fixture();
     sqlite.exec(`

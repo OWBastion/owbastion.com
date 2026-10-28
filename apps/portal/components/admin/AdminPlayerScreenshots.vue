@@ -10,7 +10,6 @@ const items = shallowRef<AdminSubmission[]>([]);
 const total = shallowRef(0);
 const loading = shallowRef(true);
 const errorMessage = shallowRef("");
-const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 
 async function load(append = false) {
   loading.value = true;

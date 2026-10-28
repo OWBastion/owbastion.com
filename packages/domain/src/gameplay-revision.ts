@@ -1,13 +1,6 @@
 export const gameplayRevisionLifecycles = ["preparing", "default", "selectable", "historical"] as const;
 
 export type GameplayRevisionLifecycle = (typeof gameplayRevisionLifecycles)[number];
-export type GameplayRevisionLegacyVariant = "classic" | null;
-
-export const isGameplayRevisionBastionEnabled = (lifecycle: GameplayRevisionLifecycle) =>
-  lifecycle === "default" || lifecycle === "selectable";
-
-export const isGameplayRevisionDefault = (lifecycle: GameplayRevisionLifecycle) =>
-  lifecycle === "default";
 
 // A standalone game mode such as 2026镜中回响 is played on its own selectable Gameplay
 // Revisions. Labels compare without whitespace, which the HUD and OCR disagree about.

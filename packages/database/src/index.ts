@@ -1,21 +1,19 @@
-import { count, desc, eq, and, or, inArray, isNull, isNotNull, ne, lte, lt, gte, notExists, sql, asc } from "drizzle-orm";
+import { count, desc, eq, and, or, inArray, isNull, isNotNull, ne, lte, lt, gte, sql, asc } from "drizzle-orm";
 
 import { drizzle } from "drizzle-orm/d1";
-import { createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, passkeyUserHandleMatches, verifyPasskeyAuthentication, verifyPasskeyRegistration } from "@owbastion/auth";
-import { buildMasteryMapProfile, buildMasteryProfiles, calculateVerifiedRunXpV3, difficultyAtLeastSatisfied, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, isWellFormedGameVersion, matchGameMode, normalizeGameMode, regularGameModeLabel, eventWeightTotalCode, runCodeEventWeightTotal, parseCanonicalChallengeConditions, parseChallengeProgressRule, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode, publicTitleChallengeStatus } from "@owbastion/domain";
+import { buildMasteryProfiles, calculateVerifiedRunXpV3, difficultyAtLeastSatisfied, isWellFormedGameVersion, matchGameMode, normalizeGameMode, regularGameModeLabel, eventWeightTotalCode, runCodeEventWeightTotal, parseCanonicalChallengeConditions, parseChallengeProgressRule, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode, publicTitleChallengeStatus } from "@owbastion/domain";
 export { publicTitleChallengeStatus } from "@owbastion/domain";
-import type { AdminVerifiedRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, ChallengeCondition, ChallengeProgressRule, VerifiedRunDifficulty, VerifiedRunEventCounters, VerifiedRunEvidenceCompatibilityV1, MasteryMapProfile, VerifiedRunActor, VerifiedRunConflictField, VerifiedRunForProjection, VerifiedRunXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
-import { agentGameplayRevisionSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
-import type { AdminRandomEventBatchRequest, AdminStandaloneMode, AdminStandaloneModeListResponse, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrReevaluateResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReopenResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerChallengeProgressListResponse, PlayerProfileVisibilityResponse, PlayerSubmissionStatus, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, QqScreenshotSubmissionRequest, QqScreenshotSubmissionResponse, RandomEvent, RandomEventVersion, ScreenshotSetStatus, Title } from "@owbastion/contracts";
-import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, challengeCompletions, challengeSatisfies, challenges, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrAccuracyFeedback, ocrResults, passkeyChallenges, passkeyCredentials, passkeyRecoveryGrants, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, portalSessions, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, reviews, standaloneModes, screenshotSetMembers, screenshotSets, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions, verifiedRunConflictResolutions, verifiedRunLifecycleEvents, verifiedRuns } from "./schema";
+import type { AuthContext, ChallengeProgressRule, VerifiedRunEvidenceCompatibilityV1, VerifiedRunConflictField, PlatformServices, RecordVerifiedRunResult, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
+import type { AdminStandaloneMode, AdminStandaloneModeListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrReevaluateResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReopenResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AgentTitle, Challenge, CurrentPlayerMasteryResponse, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerChallengeProgressListResponse, PlayerProfileVisibilityResponse, QqScreenshotSubmissionRequest, QqScreenshotSubmissionResponse, ScreenshotSetStatus, Title } from "@owbastion/contracts";
+import { achievementChallenges, attachments, auditEvents, bindings, challengeCompletions, challenges, gameplayRevisions, idempotencyKeys, mapTitleRewards, mapTitleRuleCompat, mapTitleRules, maps, ocrAccuracyFeedback, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, randomEvents, randomEventVersions, standaloneModes, screenshotSetMembers, screenshotSets, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, verifiedRuns } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { fetchQqAttachmentImage } from "./qq-attachment";
-import { createPlayerUploadServices, maxUploadBytes, playerSubmissionStatus } from "./player-upload-service";
+import { createPlayerUploadServices, playerSubmissionStatus } from "./player-upload-service";
 import { autoMatchMapIds, autoMatchTitleKeys, autoMatchTitleNames, scopeAutoMatchEvidence, matchOcrAgainstChallenges, type AutoMatchCandidate, type CanonicalOcrChallenge } from "./ocr-auto-match";
-import { assessVerifiedRunOcrEvidence, hasReliableVerifiedRunField, normalizeOcrDifficulty, standaloneOcrMode, type OcrResponse } from "./ocr-response";
+import { assessVerifiedRunOcrEvidence, hasReliableVerifiedRunField, normalizedOcrLabel, standaloneOcrMode, type OcrResponse } from "./ocr-response";
 import { createCanonicalChallengeServices, type CanonicalChallengeInput, type CanonicalChallengePlan, type CanonicalChallengeResolver } from "./canonical-challenge-service";
 import { createChallengeCompletionServices, type ChallengeCompletionAward } from "./challenge-completion-service";
-import { hashRequest, resolvePortalSession } from "./portal-session";
+import { hashRequest, resolvePortalSession, sha256Hex } from "./portal-session";
 import { createPlatformCache, instrumentDatabase } from "./platform-cache";
 import { createReviewServices } from "./review-service";
 import { createLeaderboardServices } from "./leaderboard-service";
@@ -26,11 +24,12 @@ import { createQqGroupServices } from "./qq-group-service";
 import { createAgentServices } from "./agent-service";
 import { createRandomEventServices } from "./random-event-service";
 import { createMapRevisionServices, pioneerExceptionHasValidWindow } from "./map-revision-service";
+import { compareText } from "./compare-text";
 import { createPlayerTitleServices, type ManualTitleGrantResolution } from "./player-title-service";
 import { createBindingServices } from "./binding-service";
 import { createPortalAuthenticationServices } from "./portal-authentication-service";
 import { activeMasteryProfiles, asVerifiedRun, loadActiveVerifiedRuns, loadPlayerMasteryHistory, loadVerifiedRunXpContext, masteryConflictFields, playerMasteryProfileView, playerActivityDays, playerVerifiedRunView, prepareVerifiedRun } from "./mastery-query";
-import { pageResult, paginate } from "./page-result";
+import { paginate } from "./page-result";
 import { createChallengeSnapshotServices, type MapTitleRuleSnapshot } from "./challenge-snapshot-service";
 import { createChallengeCatalogServices } from "./challenge-catalog-service";
 import { createAdminVerifiedRunServices } from "./admin-verified-run-service";
@@ -51,13 +50,6 @@ const qqScreenshotEnqueueingPrefix = "qq-screenshot-enqueueing:";
 const qqScreenshotResumeAfterMs = 60_000;
 // Bastion builds are YY.MMDD.N; with no known build the day's first build number stands in.
 const formatDayBuildVersion = (timestamp = now()) => { const date = new Date(timestamp).toISOString().slice(2, 10).split("-"); return `${date[0]}.${date[1]}${date[2]}.1`; };
-
-const normalizedOcrLabel = (value: unknown) => typeof value === "string" ? value.trim().toLocaleLowerCase() : "";
-
-const digestHex = async (value: ArrayBuffer) => {
-  const digest = await crypto.subtle.digest("SHA-256", value);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-};
 
 const logOcrEvent = (event: string, fields: Record<string, unknown>) => console.log(JSON.stringify({ layer: "ocr", event, ...fields }));
 const errorDetails = (error: unknown) => ({ errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message.slice(0, 256) : String(error).slice(0, 256) });
@@ -178,7 +170,6 @@ const toAgentTitle = (row: typeof titleCatalog.$inferSelect): AgentTitle => ({
 
 const playerManualReviewReason = "玩家申请人工处理";
 
-const compareText = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0;
 
 export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, ocrManualReviewThreshold = 1, ocrAutoReviewSampleRate = 0, masteryEvidenceCompatibility: VerifiedRunEvidenceCompatibilityV1 = verifiedRunEvidenceCompatibilityV1, evidencePublicOrigin?: string, cacheKv?: KVNamespace): PlatformServices => {
   const platformCache = createPlatformCache(cacheKv);
@@ -3152,7 +3143,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       if (!account || account.status === "banned") throw new Error("PLAYER_BANNED");
 
       const image = await fetchQqAttachmentImage(input.attachment.url);
-      const sha256 = await digestHex(image.body);
+      const sha256 = await sha256Hex(image.body);
       const objectKey = userEvidenceObjectKey(submissionId, sha256, image.extension);
       await evidenceBucket.put(objectKey, image.body, { httpMetadata: { contentType: image.contentType } });
 
@@ -3180,11 +3171,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       normalizePlayerName, encryptBindingInviteCode, decryptBindingInviteCode, bindingInviteCodeEncryptionKey,
       sessionTtlMs, pruneExpiredPortalSessions, pruneExpiredBindingClaims,
     }),
-
-    async createBinding() {
-      // Older adapters receive a deterministic migration-safe response.
-      throw new Error("INVITE_REQUIRED");
-    },
 
     async getSubmission(input, _auth) {
       const submission = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();

@@ -29,7 +29,6 @@ const randomEventBatchUpdate = randomEventWriteFields.omit({ challengeLinks: tru
   .refine((update) => Object.keys(update).length > 1, "A batch update must change at least one field");
 export const adminRandomEventBatchRequestSchema = z.object({ contractVersion, updates: z.array(randomEventBatchUpdate).min(1).max(100) }).strict()
   .refine((request) => new Set(request.updates.map((update) => update.eventId)).size === request.updates.length, "Each event may appear once");
-export const adminRandomEventBatchResponseSchema = z.object({ contractVersion, items: z.array(randomEventSchema) });
 export const adminRandomEventImportRequestSchema = z.object({ contractVersion, fileName: z.string().trim().min(1).max(256), csv: z.string().min(1).max(512 * 1024) }).strict();
 // mode names the standalone mode whose build owns this pool (set from that mode); null is the regular build.
 export const randomEventVersionSchema = z.object({ gameVersion: z.string().trim().min(1).max(64), availability: randomEventVersionAvailability, mode: z.string().nullable(), eventCount: z.number().int().nonnegative() }).strict();

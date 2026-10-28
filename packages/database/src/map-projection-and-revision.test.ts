@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AgentSpatialConfig } from "@owbastion/contracts";
 import { createPlatformServices } from "./index";
 import { hashRequest as requestHash } from "./portal-session";
-import { compositeSpatialConfig, createD1, createTestDatabase, installSchema, legacyGameplayRevisionId, now, seedAgentSpatialConfig, seedClassicGameplayRevision, seedCompat, seedException, seedLegacyMapChallenge, seedMap, seedMapTitleChallenge, seedRevisionAssignment, seedRule, seedSelectableGameplayRevision, seedTitle, sharedCompositeSpatialConfig, uploadHash } from "../test/map-title-rule-fixtures";
+import { compositeSpatialConfig, createD1, createTestDatabase, installSchema, legacyGameplayRevisionId, now, seedAgentSpatialConfig, seedClassicGameplayRevision, seedCompat, seedException, seedLegacyMapChallenge, seedMap, seedMapTitleChallenge, seedRevisionAssignment, seedRule, seedSelectableGameplayRevision, seedTitle, sharedCompositeSpatialConfig } from "../test/map-title-rule-fixtures";
 
 describe("Agents map gameplay projection", () => {
   it("projects enabled revisions with deterministic spatial and challenge references", async () => {

@@ -18,7 +18,6 @@ const detail = (item: AdminMapEditorAudit) => {
   if (item.operation === "admin.map.revision.create") return payload.progressCopied === false ? "复制配置；未复制进度" : "创建版本修订";
   return "地图资料变更";
 };
-const format = new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" });
 </script>
 
 <template>
@@ -29,7 +28,7 @@ const format = new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle
         <p v-if="item.operation === 'admin.map.revision.update'" class="audit-lifecycle">状态：<StatusBadge v-bind="lifecycleBadge(item.payload.previousLifecycle)" /> → <StatusBadge v-bind="lifecycleBadge(item.payload.lifecycle)" />；未复制进度</p>
         <p v-else>{{ detail(item) }}</p>
       </div>
-      <span>{{ format.format(item.createdAt) }}</span>
+      <span>{{ formatTime(item.createdAt) }}</span>
     </li>
   </ol>
   <UEmpty v-else title="暂无地图编辑记录" />

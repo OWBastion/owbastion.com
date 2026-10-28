@@ -52,7 +52,7 @@ async function copy() {
   <AdminResponsiveDialog v-model:open="open" title="签发 Passkey 恢复链接" :description="`${player.playerName}#${player.playerId}`" size="sm" :dismissible="!loading">
     <template #body>
       <div v-if="link" class="recovery">
-        <UAlert color="success" variant="subtle" title="一次性恢复链接已签发" :description="expiresAt ? `有效至 ${new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(expiresAt)}` : undefined" />
+        <UAlert color="success" variant="subtle" title="一次性恢复链接已签发" :description="expiresAt ? `有效至 ${formatTime(expiresAt)}` : undefined" />
         <code>{{ link }}</code>
       </div>
       <div v-else class="recovery">

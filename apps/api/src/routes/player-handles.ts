@@ -1,6 +1,6 @@
 import { normalizePlayerHandle } from "@owbastion/domain";
 import { playerHandleRequestSchema } from "@owbastion/contracts";
-import { createPlayerWrite, maintainerRoute, type AdminRouteDependencies, type ApiApp, type RouteErrorMap } from "./route-contract";
+import { createPlayerWrite, maintainerRoute, errorResponse, errorGroup, type AdminRouteDependencies, type ApiApp, type RouteErrorMap } from "./route-contract";
 
 type PlayerHandleDependencies = AdminRouteDependencies & {
   allowPortal: (context: any) => void;
@@ -21,43 +21,43 @@ const writeErrors: RouteErrorMap = {
 };
 
 export const registerPlayerHandleRoutes = (app: ApiApp, dependencies: PlayerHandleDependencies) => {
-  const { services, allowPortal, errorResponse, requirePortalPlayer, logServiceOperation, requireMaintainer, errorGroup, adminMutation } = dependencies;
+  const { services, allowPortal, requirePortalPlayer, logServiceOperation, requireMaintainer, adminMutation } = dependencies;
 
-  const playerWrite = createPlayerWrite({ requirePortalPlayer, errorResponse }, writeErrors);
+  const playerWrite = createPlayerWrite({ requirePortalPlayer }, writeErrors);
 
   app.get("/v1/me/handle", async (c) => {
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
-    const state = await services(c.env).getCurrentPlayerHandle({ sessionToken: access.sessionToken! });
+    const state = await services(c).getCurrentPlayerHandle({ sessionToken: access.sessionToken! });
     return state ? c.json(state) : errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
   });
 
-  app.put("/v1/me/handle", playerWrite(playerHandleRequestSchema, (c, sessionToken, key, body) => services(c.env).requestCurrentPlayerHandle({ sessionToken, handle: body.handle }, key)));
+  app.put("/v1/me/handle", playerWrite(playerHandleRequestSchema, (c, sessionToken, key, body) => services(c).requestCurrentPlayerHandle({ sessionToken, handle: body.handle }, key)));
 
-  app.delete("/v1/me/handle/request", playerWrite(null, (c, sessionToken, key) => services(c.env).withdrawCurrentPlayerHandleRequest({ sessionToken }, key)));
+  app.delete("/v1/me/handle/request", playerWrite(null, (c, sessionToken, key) => services(c).withdrawCurrentPlayerHandleRequest({ sessionToken }, key)));
 
   app.get("/v1/admin/player-handles", maintainerRoute(requireMaintainer, async (c, auth) => {
     const status = c.req.query("status") ?? "pending";
     if (status !== "pending" && status !== "active") return errorResponse(c, 422, "INVALID_REQUEST", "The status is invalid");
     const page = Math.max(1, Number(c.req.query("page") ?? 1) || 1);
     const pageSize = Math.min(50, Math.max(1, Number(c.req.query("pageSize") ?? 25) || 25));
-    return c.json(await services(c.env).listAdminPlayerHandles({ status, page, pageSize }, auth));
+    return c.json(await services(c).listAdminPlayerHandles({ status, page, pageSize }, auth));
   }));
 
   const decisionErrors = errorGroup(404, "The ID request does not exist", "HANDLE_REQUEST_NOT_FOUND");
   app.post("/v1/admin/player-handles/:handleId/approve", (c) => adminMutation(c, {
     noContent: true,
-    action: (_input, auth, key) => services(c.env).approveAdminPlayerHandleRequest({ handleId: c.req.param("handleId") }, auth, key),
+    action: (_input, auth, key) => services(c).approveAdminPlayerHandleRequest({ handleId: c.req.param("handleId") }, auth, key),
     errors: decisionErrors,
   }));
   app.post("/v1/admin/player-handles/:handleId/reject", (c) => adminMutation(c, {
     noContent: true,
-    action: (_input, auth, key) => services(c.env).rejectAdminPlayerHandleRequest({ handleId: c.req.param("handleId") }, auth, key),
+    action: (_input, auth, key) => services(c).rejectAdminPlayerHandleRequest({ handleId: c.req.param("handleId") }, auth, key),
     errors: decisionErrors,
   }));
   app.delete("/v1/admin/player-accounts/:playerAccountId/handle", (c) => adminMutation(c, {
     noContent: true,
-    action: (_input, auth, key) => services(c.env).clearAdminPlayerHandle({ playerAccountId: c.req.param("playerAccountId") }, auth, key),
+    action: (_input, auth, key) => services(c).clearAdminPlayerHandle({ playerAccountId: c.req.param("playerAccountId") }, auth, key),
     errors: errorGroup(404, "The player has no ID", "HANDLE_NOT_FOUND"),
   }));
 
@@ -66,7 +66,7 @@ export const registerPlayerHandleRoutes = (app: ApiApp, dependencies: PlayerHand
   app.get("/v1/public/players/:handle", async (c) => {
     allowPortal(c);
     c.header("Cache-Control", "private, no-store");
-    const profile = await logServiceOperation(c, "public_player_profile", () => services(c.env).getPublicPlayerByHandle({ handle: normalizePlayerHandle(c.req.param("handle")) }));
+    const profile = await logServiceOperation(c, "public_player_profile", () => services(c).getPublicPlayerByHandle({ handle: normalizePlayerHandle(c.req.param("handle")) }));
     return profile ? c.json(profile) : errorResponse(c, 404, "PLAYER_NOT_FOUND", "The player does not exist");
   });
 };

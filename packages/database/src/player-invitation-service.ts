@@ -3,12 +3,9 @@ import { drizzle } from "drizzle-orm/d1";
 import { leaderboardPlayerKey, normalizePlayerInvitationCode, playerInvitationPeriodRange, validatePlayerInvitationCode } from "@owbastion/domain";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
 import type {
-  AdminInvitationOverviewResponse,
   PlayerInvitation,
   PlayerInvitationClaimRejectionReason,
   PlayerInvitationClaimStatusResponse,
-  PlayerInvitationOverride,
-  PlayerInvitationPolicy,
   PlayerInvitationStateResponse,
 } from "@owbastion/contracts/player-invitation";
 import { createInvitationSupport, guardSql, isUniqueViolation, dayMs, type InvitationRow } from "./player-invitation-support";
@@ -203,15 +200,17 @@ export const createPlayerInvitationServices = (dependencies: Dependencies): { se
       const timestamp = now();
       const policy = await effectivePolicy(player.id);
       const { offset } = itemPage(input.page, input.pageSize);
-      const rows = await db.select().from(playerInvitations).where(eq(playerInvitations.inviterPlayerAccountId, player.id))
-        .orderBy(desc(playerInvitations.createdAt)).limit(input.pageSize).offset(offset).all();
-      const total = await countOf("SELECT count(*) AS total FROM player_invitations WHERE inviter_player_account_id = ?", player.id);
-      const blocked = await inviterBlocked(player, timestamp);
+      const [rows, total, eligibility, counts] = await Promise.all([
+        db.select().from(playerInvitations).where(eq(playerInvitations.inviterPlayerAccountId, player.id))
+          .orderBy(desc(playerInvitations.createdAt)).limit(input.pageSize).offset(offset).all(),
+        countOf("SELECT count(*) AS total FROM player_invitations WHERE inviter_player_account_id = ?", player.id),
+        policy ? eligibilityOf(player, policy) : null,
+        policy ? periodCounts(player.id, policy, timestamp) : null,
+      ]);
+      const blocked = !policy?.enabled || !eligibility!.eligible || counts!.registrations >= policy.maxRegistrationsPerPeriod;
       const items = await Promise.all(rows.map(async (row) => toInvitation(row, await usedCount(row.id), blocked, timestamp)));
       const base = { contractVersion: "1" as const, items, page: input.page, pageSize: input.pageSize, total, hasMore: offset + items.length < total };
-      if (!policy) return { ...base, policy: null, quota: null, eligibility: null, createBlockedReason: "disabled" };
-      const eligibility = await eligibilityOf(player, policy);
-      const counts = await periodCounts(player.id, policy, timestamp);
+      if (!policy || !eligibility || !counts) return { ...base, policy: null, quota: null, eligibility: null, createBlockedReason: "disabled" };
       const createBlockedReason: PlayerInvitationStateResponse["createBlockedReason"] = !policy.enabled ? "disabled"
         : !eligibility.eligible ? "ineligible"
         : counts.codesCreated >= policy.maxCodesCreatedPerPeriod ? "quota_exhausted" : null;
