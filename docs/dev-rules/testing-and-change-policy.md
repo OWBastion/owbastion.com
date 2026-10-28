@@ -38,8 +38,8 @@ boundaries with representative inputs.
 - `pnpm test:portal-e2e:built` starts the existing `.output` production server and
   asserts home-page SSR HTML (no browser, no Playwright). Run after
   `pnpm build:portal`; `pnpm test:portal-e2e` builds first.
-- `pnpm check` is the full gate (migrations, unit/UI suites, typecheck, build,
-  SSR smoke).
+- `pnpm check` is the full gate (migrations, style lint, unit/UI suites,
+  typecheck, build, SSR smoke).
 
 ## Rendered-browser check
 
