@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { leaderboardPlayerKey } from "@owbastion/domain";
 import { createTestD1 } from "../test/d1";
+import { auditEventsRequiredIdSchema, idempotencyKeysRequiredIdSchema, playerInvitationsSchema, qqGroupAccessSchema } from "../test/schema";
 import { createPlatformServices } from "./index";
 import { resolvePortalSession } from "./portal-session";
 
@@ -28,9 +29,10 @@ const createD1 = (failBatchNumbers: number[] = []) => {
     CREATE TABLE portal_sessions (id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, token_hash TEXT NOT NULL, passkey_challenge_id TEXT, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);
     CREATE TABLE identities (id TEXT PRIMARY KEY, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE bindings (id TEXT PRIMARY KEY, identity_id TEXT NOT NULL, player_account_id TEXT NOT NULL, provider TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'active', revoked_at INTEGER, revoked_by TEXT, created_at INTEGER NOT NULL);
-    CREATE TABLE qq_group_access (group_open_id TEXT PRIMARY KEY, display_name TEXT NOT NULL DEFAULT '', environment TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', bind_enabled INTEGER NOT NULL DEFAULT 0, verify_enabled INTEGER NOT NULL DEFAULT 0, lifecycle_occurred_at INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
-    CREATE TABLE idempotency_keys (id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, operation TEXT NOT NULL, request_hash TEXT NOT NULL, response_json TEXT NOT NULL, created_at INTEGER NOT NULL);
-    CREATE TABLE audit_events (id TEXT PRIMARY KEY, correlation_id TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, operation TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, payload_json TEXT NOT NULL, created_at INTEGER NOT NULL);
+    ${qqGroupAccessSchema}
+    ${idempotencyKeysRequiredIdSchema}
+    ${auditEventsRequiredIdSchema}
+    ${playerInvitationsSchema}
     CREATE TABLE qq_sessions (id TEXT PRIMARY KEY, attempt_id TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL, environment TEXT NOT NULL, token_hash TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);
   `);
   return { database, sqlite };
