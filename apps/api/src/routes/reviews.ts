@@ -84,7 +84,7 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
     const target = parseReviewTarget(c);
     if (!target.success) return errorResponse(c, 422, "INVALID_REVIEW_TARGET", "The review target is invalid");
     try {
-      const review = await services(c.env).getPlayerReview(target.data, playerAuth(access.player!));
+      const review = await services(c).getPlayerReview(target.data, playerAuth(access.player!));
       return c.json({ contractVersion: "1", review: review?.status === "active" ? playerReviewView(review) : null });
     } catch (error) {
       const response = routeErrorResponse(c, error, playerReviewReadErrors, errorResponse);
@@ -105,7 +105,7 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The review content does not match contract v1");
     const { contractVersion: _contractVersion, ...reviewInput } = parsed.data;
     try {
-      const review = await services(c.env).upsertReview({ ...target.data, ...reviewInput, rating: reviewInput.rating as 1 | 2 | 3 | 4 | 5 }, playerAuth(access.player!), idempotencyKey);
+      const review = await services(c).upsertReview({ ...target.data, ...reviewInput, rating: reviewInput.rating as 1 | 2 | 3 | 4 | 5 }, playerAuth(access.player!), idempotencyKey);
       return c.json({ contractVersion: "1", review: playerReviewView(review) });
     } catch (error) {
       const response = routeErrorResponse(c, error, playerReviewUpsertErrors, errorResponse);
@@ -125,7 +125,7 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
     const parsed = playerReviewWithdrawRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      await services(c.env).withdrawReview({ reviewId }, playerAuth(access.player!), idempotencyKey);
+      await services(c).withdrawReview({ reviewId }, playerAuth(access.player!), idempotencyKey);
       return c.json({ contractVersion: "1", review: null });
     } catch (error) {
       const response = routeErrorResponse(c, error, playerReviewWithdrawErrors, errorResponse);
@@ -154,7 +154,7 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
       return errorResponse(c, 422, "INVALID_REQUEST", "The review summary targets are invalid");
     }
     try {
-      const items = await logServiceOperation(c, "review_public_summary_batch", () => services(c.env).getReviewSummaries(
+      const items = await logServiceOperation(c, "review_public_summary_batch", () => services(c).getReviewSummaries(
         targetType.data === "map" ? { targetType: "map", targets: targets.map(({ targetId, gameplayRevisionId }) => ({ targetId, gameplayRevisionId: gameplayRevisionId! })) } : { targetType: "event", targetIds },
       ));
       return c.json({ contractVersion: "1", targetType: targetType.data, items });
@@ -171,7 +171,7 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
     const target = parseReviewTarget(c);
     if (!target.success) return errorResponse(c, 422, "INVALID_REVIEW_TARGET", "The review target is invalid");
     try {
-      const summary = await logServiceOperation(c, "review_public_summary", () => services(c.env).getReviewSummary(target.data));
+      const summary = await logServiceOperation(c, "review_public_summary", () => services(c).getReviewSummary(target.data));
       return c.json({ contractVersion: "1", summary });
     } catch (error) {
       const response = routeErrorResponse(c, error, publicReviewErrors, errorResponse);
@@ -187,7 +187,7 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
     const page = parsePublicReviewPage(c);
     if (!target.success || !page) return errorResponse(c, 422, "INVALID_REQUEST", "The review comment request is invalid");
     try {
-      const comments = await logServiceOperation(c, "review_public_comments", () => services(c.env).listPublicReviewComments({ ...target.data, ...page }));
+      const comments = await logServiceOperation(c, "review_public_comments", () => services(c).listPublicReviewComments({ ...target.data, ...page }));
       return c.json({ contractVersion: "1", ...comments });
     } catch (error) {
       const response = routeErrorResponse(c, error, publicReviewErrors, errorResponse);

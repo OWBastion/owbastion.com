@@ -56,14 +56,14 @@ export const registerAdminVerifiedRunRoutes = (app: ApiApp, dependencies: AdminR
   app.get("/v1/admin/verified-runs", maintainerRoute(requireMaintainer, async (c, auth) => {
     const query = adminVerifiedRunQuery(c.req.raw);
     if (!query) return errorResponse(c, 422, "INVALID_REQUEST", "The verified run query is invalid");
-    return c.json(await services(c.env).listAdminVerifiedRuns(query, auth));
+    return c.json(await services(c).listAdminVerifiedRuns(query, auth));
   }));
 
   app.get("/v1/admin/verified-runs/:verifiedRunId", maintainerRoute(requireMaintainer, async (c, auth) => {
     const verifiedRunId = c.req.param("verifiedRunId")!;
     if (!isUuid(verifiedRunId)) return errorResponse(c, 422, "INVALID_VERIFIED_RUN_ID", "The verified run ID is invalid");
     try {
-      return c.json(await services(c.env).getAdminVerifiedRun({ verifiedRunId }, auth));
+      return c.json(await services(c).getAdminVerifiedRun({ verifiedRunId }, auth));
     } catch (error) {
       const code = error instanceof Error ? error.message : "VERIFIED_RUN_LOOKUP_FAILED";
       if (["VERIFIED_RUN_NOT_FOUND", "VERIFIED_RUN_SUBMISSION_NOT_FOUND"].includes(code)) return errorResponse(c, 404, code, "The verified run does not exist");
@@ -78,7 +78,7 @@ export const registerAdminVerifiedRunRoutes = (app: ApiApp, dependencies: AdminR
       before: () => isUuid(verifiedRunId)
         ? undefined
         : errorResponse(c, 422, "INVALID_VERIFIED_RUN_ID", "The verified run ID is invalid"),
-      action: (input, auth, key) => services(c.env).transitionAdminVerifiedRun({ ...input, verifiedRunId }, auth, key),
+      action: (input, auth, key) => services(c).transitionAdminVerifiedRun({ ...input, verifiedRunId }, auth, key),
       errors: {
         ...errorGroup(404, "The verified run does not exist", "VERIFIED_RUN_NOT_FOUND"),
         ...errorGroup(409, "Another active run already uses this match code", "VERIFIED_RUN_MATCH_CODE_CONFLICT"),
@@ -96,7 +96,7 @@ export const registerAdminVerifiedRunRoutes = (app: ApiApp, dependencies: AdminR
         : !isUuid(submissionId)
           ? errorResponse(c, 422, "INVALID_SUBMISSION_ID", "The submission ID is invalid")
           : undefined,
-      action: (input, auth, key) => services(c.env).resolveAdminVerifiedRunConflict({ ...input, verifiedRunId, submissionId }, auth, key),
+      action: (input, auth, key) => services(c).resolveAdminVerifiedRunConflict({ ...input, verifiedRunId, submissionId }, auth, key),
       errors: {
         ...errorGroup(404, "The verified run does not exist", "VERIFIED_RUN_NOT_FOUND"),
         ...errorGroup(404, "The Verified Run conflict does not exist", "VERIFIED_RUN_CONFLICT_NOT_FOUND"),
@@ -111,7 +111,7 @@ export const registerAdminVerifiedRunRoutes = (app: ApiApp, dependencies: AdminR
       before: () => isUuid(verifiedRunId)
         ? undefined
         : errorResponse(c, 422, "INVALID_VERIFIED_RUN_ID", "The verified run ID is invalid"),
-      action: (input, auth, key) => services(c.env).correctAdminVerifiedRun({ ...input, verifiedRunId }, auth, key),
+      action: (input, auth, key) => services(c).correctAdminVerifiedRun({ ...input, verifiedRunId }, auth, key),
       errors: {
         ...errorGroup(404, "The verified run does not exist", "VERIFIED_RUN_NOT_FOUND"),
         ...errorGroup(409, "The verified run changed or conflicts with another active match code", "VERIFIED_RUN_MATCH_CODE_CONFLICT", "VERIFIED_RUN_CORRECTION_CONFLICT"),

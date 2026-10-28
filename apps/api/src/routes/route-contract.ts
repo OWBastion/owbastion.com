@@ -5,7 +5,7 @@ import type { RuntimeEnv } from "../app";
 type ApiEnvironment = { Bindings: RuntimeEnv; Variables: { requestId: string; platformServices: PlatformServices } };
 export type ApiContext = Context<ApiEnvironment>;
 export type ApiApp = Hono<ApiEnvironment>;
-export type ServiceAccessor = (env: RuntimeEnv) => PlatformServices;
+export type ServiceAccessor = (context: ApiContext) => PlatformServices;
 export type RouteAccess = { auth?: AuthContext; error?: Response };
 export type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 422 | 500 | 503;
 export type MutationStatus = 404 | 409 | 422 | 503;

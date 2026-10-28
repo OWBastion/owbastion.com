@@ -62,7 +62,7 @@ export const registerPortalAuthenticationRoutes = (app: ApiApp, dependencies: Po
   app.get("/v1/__local/accounts", async (c) => {
     allowPortal(c);
     if (c.env.LOCAL_DEV_AUTH !== "true") return errorResponse(c, 404, "NOT_FOUND", "The local development API is disabled");
-    return c.json({ contractVersion: "1" as const, accounts: await dependencies.services(c.env).listLocalDevAccounts() });
+    return c.json({ contractVersion: "1" as const, accounts: await dependencies.services(c).listLocalDevAccounts() });
   });
 
   app.post("/v1/__local/login", async (c) => {
@@ -71,7 +71,7 @@ export const registerPortalAuthenticationRoutes = (app: ApiApp, dependencies: Po
     const body = await parseBody(c.req.raw) as { accountId?: unknown };
     if (typeof body?.accountId !== "string") return errorResponse(c, 422, "INVALID_REQUEST", "The local account is required");
     try {
-      const result = await dependencies.services(c.env).createLocalDevSession({ accountId: body.accountId });
+      const result = await dependencies.services(c).createLocalDevSession({ accountId: body.accountId });
       c.header("Set-Cookie", sessionCookie(c.req.raw, result.sessionToken, 2592000));
       return c.json({ contractVersion: "1" as const, status: "authenticated" as const });
     } catch (error) {
@@ -86,7 +86,7 @@ export const registerPortalAuthenticationRoutes = (app: ApiApp, dependencies: Po
     if (denied) return denied;
     const parsed = qqLoginAttemptRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    return c.json(await dependencies.services(c.env).createQqLoginAttempt(parsed.data), 201);
+    return c.json(await dependencies.services(c).createQqLoginAttempt(parsed.data), 201);
   });
 
   app.get("/v1/auth/qq/login-attempt/:attemptId", async (c) => {
@@ -95,7 +95,7 @@ export const registerPortalAuthenticationRoutes = (app: ApiApp, dependencies: Po
     const attemptToken = c.req.header("x-login-attempt-token");
     if (!/^[0-9a-f-]{36}$/.test(attemptId) || !attemptToken) return errorResponse(c, 422, "INVALID_LOGIN_ATTEMPT", "The login attempt is invalid");
     try {
-      const result = await dependencies.services(c.env).getQqLoginStatus({ attemptId, attemptToken });
+      const result = await dependencies.services(c).getQqLoginStatus({ attemptId, attemptToken });
       if (result.sessionToken) c.header("Set-Cookie", sessionCookie(c.req.raw, result.sessionToken, 2592000));
       return c.json(result);
     } catch (error) {
@@ -114,7 +114,7 @@ export const registerPortalAuthenticationRoutes = (app: ApiApp, dependencies: Po
     if (denied) return denied;
     const parsed = passkeyLoginOptionsRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    return c.json(await dependencies.services(c.env).createPasskeyLoginOptions({ rpId: origin.rpId }), 201);
+    return c.json(await dependencies.services(c).createPasskeyLoginOptions({ rpId: origin.rpId }), 201);
   });
 
   app.post("/v1/auth/passkeys/login/verify", async (c) => {
@@ -124,14 +124,14 @@ export const registerPortalAuthenticationRoutes = (app: ApiApp, dependencies: Po
     const parsed = passkeyLoginVerifyRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      const result = await dependencies.services(c.env).completePasskeyLogin({ ...parsed.data, ...origin });
+      const result = await dependencies.services(c).completePasskeyLogin({ ...parsed.data, ...origin });
       c.header("Set-Cookie", sessionCookie(c.req.raw, result.sessionToken, 2592000));
       return c.json({ contractVersion: "1" as const, status: "authenticated" as const });
     } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
   });
 
   app.get("/v1/me/passkeys", portalPlayerRoute(async (c, access) => {
-    const result = await dependencies.services(c.env).listCurrentPlayerPasskeys({ sessionToken: access.sessionToken });
+    const result = await dependencies.services(c).listCurrentPlayerPasskeys({ sessionToken: access.sessionToken });
     return result ? c.json(result) : errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
   }));
 
@@ -142,7 +142,7 @@ export const registerPortalAuthenticationRoutes = (app: ApiApp, dependencies: Po
     if (access.error) return access.error;
     const parsed = passkeyAuthenticatedRegistrationOptionsRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).createCurrentPlayerPasskeyRegistrationOptions({ ...parsed.data, sessionToken: access.sessionToken, rpId: origin.rpId }), 201); }
+    try { return c.json(await dependencies.services(c).createCurrentPlayerPasskeyRegistrationOptions({ ...parsed.data, sessionToken: access.sessionToken, rpId: origin.rpId }), 201); }
     catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
   });
 
@@ -154,7 +154,7 @@ export const registerPortalAuthenticationRoutes = (app: ApiApp, dependencies: Po
     const parsed = passkeyRegistrationVerifyRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      await dependencies.services(c.env).completeCurrentPlayerPasskeyRegistration({ ...parsed.data, sessionToken: access.sessionToken, ...origin });
+      await dependencies.services(c).completeCurrentPlayerPasskeyRegistration({ ...parsed.data, sessionToken: access.sessionToken, ...origin });
       return c.body(null, 204);
     } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
   });
@@ -167,7 +167,7 @@ export const registerPortalAuthenticationRoutes = (app: ApiApp, dependencies: Po
     const passkeyId = c.req.param("passkeyId");
     if (!/^[0-9a-f-]{36}$/i.test(passkeyId)) return errorResponse(c, 422, "INVALID_PASSKEY", "The passkey id is invalid");
     try {
-      await dependencies.services(c.env).removeCurrentPlayerPasskey({ sessionToken: access.sessionToken, passkeyId });
+      await dependencies.services(c).removeCurrentPlayerPasskey({ sessionToken: access.sessionToken, passkeyId });
       return c.json({ contractVersion: "1" as const, removed: true as const });
     } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
   });
@@ -180,7 +180,7 @@ export const registerPortalAuthenticationRoutes = (app: ApiApp, dependencies: Po
     const parsed = adminPasskeyRecoveryRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      const result = await dependencies.services(c.env).createAdminPasskeyRecovery({ ...parsed.data, playerAccountId: c.req.param("playerAccountId")! }, auth, idempotencyKey);
+      const result = await dependencies.services(c).createAdminPasskeyRecovery({ ...parsed.data, playerAccountId: c.req.param("playerAccountId")! }, auth, idempotencyKey);
       const recoveryUrl = new URL("/recover", origin.origin);
       recoveryUrl.hash = new URLSearchParams({ token: result.token }).toString();
       return c.json({ contractVersion: "1" as const, recoveryUrl: recoveryUrl.toString(), expiresAt: result.expiresAt }, 201);
@@ -193,7 +193,7 @@ export const registerPortalAuthenticationRoutes = (app: ApiApp, dependencies: Po
     if (!origin) return errorResponse(c, 403, "ORIGIN_NOT_ALLOWED", "The request origin is not allowed");
     const parsed = passkeyPublicRegistrationOptionsRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).createPasskeyRecoveryOptions({ ...parsed.data, rpId: origin.rpId }), 201); }
+    try { return c.json(await dependencies.services(c).createPasskeyRecoveryOptions({ ...parsed.data, rpId: origin.rpId }), 201); }
     catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
   });
 
@@ -204,7 +204,7 @@ export const registerPortalAuthenticationRoutes = (app: ApiApp, dependencies: Po
     const parsed = passkeyPublicRegistrationVerifyRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      const result = await dependencies.services(c.env).completePasskeyRecoveryRegistration({ ...parsed.data, ...origin });
+      const result = await dependencies.services(c).completePasskeyRecoveryRegistration({ ...parsed.data, ...origin });
       c.header("Set-Cookie", sessionCookie(c.req.raw, result.sessionToken, 2592000));
       return c.json({ contractVersion: "1" as const, status: "authenticated" as const });
     } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
@@ -219,11 +219,11 @@ export const registerPortalAuthenticationRoutes = (app: ApiApp, dependencies: Po
     const parsed = qqLoginVerifyRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      return c.json(await dependencies.services(c.env).verifyQqLogin(parsed.data, auth, idempotencyKey));
+      return c.json(await dependencies.services(c).verifyQqLogin(parsed.data, auth, idempotencyKey));
     } catch (error) {
       const code = error instanceof Error ? error.message : "LOGIN_FAILED";
       if (code === "LOGIN_CODE_INVALID") {
-        try { return c.json(await dependencies.services(c.env).verifyBindingClaim(parsed.data, auth, idempotencyKey)); }
+        try { return c.json(await dependencies.services(c).verifyBindingClaim(parsed.data, auth, idempotencyKey)); }
         catch (claimError) {
           const claimCode = claimError instanceof Error ? claimError.message : "LOGIN_FAILED";
           if (["BINDING_CLAIM_CODE_INVALID", "LOGIN_GROUP_NOT_ALLOWED", "INVITE_INVALID"].includes(claimCode)) return errorResponse(c, 422, claimCode, "The verification code cannot be used");

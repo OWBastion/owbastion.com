@@ -47,7 +47,7 @@ export const registerAgentRoutes = (app: ApiApp, dependencies: AgentRouteDepende
       cacheKey: publicCacheKey(c.req.raw, { page: String(page.page), pageSize: String(page.pageSize) }),
       eligible: cacheable,
       identityIndependent: true,
-      response: async () => c.json({ ...await logServiceOperation(c, "agents_list_events", () => services(c.env).listAgentEvents({ ...page, query: c.req.query("q")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, status: status as "development" | "implemented" | "removed" | undefined })) }),
+      response: async () => c.json({ ...await logServiceOperation(c, "agents_list_events", () => services(c).listAgentEvents({ ...page, query: c.req.query("q")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, status: status as "development" | "implemented" | "removed" | undefined })) }),
     });
   });
   app.get("/v1/agents/events/:eventId", async (c) => {
@@ -62,7 +62,7 @@ export const registerAgentRoutes = (app: ApiApp, dependencies: AgentRouteDepende
       eligible: cacheable,
       identityIndependent: true,
       response: async () => {
-        const event = await logServiceOperation(c, "agents_get_event", () => services(c.env).getAgentEvent({ eventId: c.req.param("eventId"), status: status as "development" | "implemented" | "removed" | undefined }));
+        const event = await logServiceOperation(c, "agents_get_event", () => services(c).getAgentEvent({ eventId: c.req.param("eventId"), status: status as "development" | "implemented" | "removed" | undefined }));
         return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist");
       },
     });
@@ -79,7 +79,7 @@ export const registerAgentRoutes = (app: ApiApp, dependencies: AgentRouteDepende
       cacheKey: publicCacheKey(c.req.raw, { page: String(page.page), pageSize: String(page.pageSize) }),
       eligible: cacheable,
       identityIndependent: true,
-      response: async () => c.json(await logServiceOperation(c, "agents_list_maps", () => services(c.env).listAgentMaps({ ...page, query: c.req.query("q")?.trim() || undefined, mechanic: c.req.query("mechanic")?.trim() || undefined }))),
+      response: async () => c.json(await logServiceOperation(c, "agents_list_maps", () => services(c).listAgentMaps({ ...page, query: c.req.query("q")?.trim() || undefined, mechanic: c.req.query("mechanic")?.trim() || undefined }))),
     });
   });
   app.get("/v1/agents/maps/:mapId", async (c) => {
@@ -92,7 +92,7 @@ export const registerAgentRoutes = (app: ApiApp, dependencies: AgentRouteDepende
       eligible: cacheable,
       identityIndependent: true,
       response: async () => {
-        const map = await logServiceOperation(c, "agents_get_map", () => services(c.env).getAgentMap({ mapId: c.req.param("mapId") }));
+        const map = await logServiceOperation(c, "agents_get_map", () => services(c).getAgentMap({ mapId: c.req.param("mapId") }));
         return map ? c.json({ contractVersion: "1", item: map }) : errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist");
       },
     });
@@ -102,11 +102,11 @@ export const registerAgentRoutes = (app: ApiApp, dependencies: AgentRouteDepende
     const page = agentPage(c.req.raw);
     const status = c.req.query("status");
     if (!page || (status && status !== "active" && status !== "sunsetting")) return errorResponse(c, 422, "INVALID_REQUEST", "The request parameters are invalid");
-    return c.json(await logServiceOperation(c, "agents_list_achievements", () => services(c.env).listAgentAchievements({ ...page, query: c.req.query("q")?.trim() || undefined, status: status as "active" | "sunsetting" | undefined, mapId: c.req.query("mapId")?.trim() || undefined })));
+    return c.json(await logServiceOperation(c, "agents_list_achievements", () => services(c).listAgentAchievements({ ...page, query: c.req.query("q")?.trim() || undefined, status: status as "active" | "sunsetting" | undefined, mapId: c.req.query("mapId")?.trim() || undefined })));
   });
   app.get("/v1/agents/achievements/:achievementId", async (c) => {
     allowAgents(c);
-    const achievement = await logServiceOperation(c, "agents_get_achievement", () => services(c.env).getAgentAchievement({ challengeId: c.req.param("achievementId"), mapId: c.req.query("mapId")?.trim() || undefined, gameplayRevisionId: c.req.query("gameplayRevisionId")?.trim() || undefined }));
+    const achievement = await logServiceOperation(c, "agents_get_achievement", () => services(c).getAgentAchievement({ challengeId: c.req.param("achievementId"), mapId: c.req.query("mapId")?.trim() || undefined, gameplayRevisionId: c.req.query("gameplayRevisionId")?.trim() || undefined }));
     return achievement ? c.json({ contractVersion: "1", item: achievement }) : errorResponse(c, 404, "ACHIEVEMENT_NOT_FOUND", "The achievement does not exist");
   });
   app.get("/v1/agents/titles", async (c) => {
@@ -114,11 +114,11 @@ export const registerAgentRoutes = (app: ApiApp, dependencies: AgentRouteDepende
     const page = agentPage(c.req.raw);
     const scope = c.req.query("scope");
     if (!page || (scope && scope !== "global" && scope !== "map")) return errorResponse(c, 422, "INVALID_REQUEST", "The request parameters are invalid");
-    return c.json(await logServiceOperation(c, "agents_list_titles", () => services(c.env).listAgentTitles({ ...page, query: c.req.query("q")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, scope: scope as "global" | "map" | undefined, mapId: c.req.query("mapId")?.trim() || undefined })));
+    return c.json(await logServiceOperation(c, "agents_list_titles", () => services(c).listAgentTitles({ ...page, query: c.req.query("q")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, scope: scope as "global" | "map" | undefined, mapId: c.req.query("mapId")?.trim() || undefined })));
   });
   app.get("/v1/agents/titles/:titleKey", async (c) => {
     allowAgents(c);
-    const title = await logServiceOperation(c, "agents_get_title", () => services(c.env).getAgentTitle({ titleKey: c.req.param("titleKey") }));
+    const title = await logServiceOperation(c, "agents_get_title", () => services(c).getAgentTitle({ titleKey: c.req.param("titleKey") }));
     return title ? c.json({ contractVersion: "1", item: title }) : errorResponse(c, 404, "TITLE_NOT_FOUND", "The title does not exist");
   });
   app.get("/v1/agents/player-title-grants", async (c) => {
@@ -126,7 +126,7 @@ export const registerAgentRoutes = (app: ApiApp, dependencies: AgentRouteDepende
     const page = agentPage(c.req.raw);
     if (!page) return errorResponse(c, 422, "INVALID_REQUEST", "The pagination parameters are invalid");
     setAgentsCache(c, includePlayerIds, true);
-    return c.json(hideAgentPlayerIds(await logServiceOperation(c, "agents_list_player_title_grants", () => services(c.env).listAgentPlayerTitleGrants(page)), includePlayerIds));
+    return c.json(hideAgentPlayerIds(await logServiceOperation(c, "agents_list_player_title_grants", () => services(c).listAgentPlayerTitleGrants(page)), includePlayerIds));
   });
   app.get("/v1/agents/map-title-holders", async (c) => {
     const includePlayerIds = allowAgents(c);
@@ -134,9 +134,9 @@ export const registerAgentRoutes = (app: ApiApp, dependencies: AgentRouteDepende
     const mapId = c.req.query("mapId")?.trim();
     if (!page || !mapId) return errorResponse(c, 422, "INVALID_REQUEST", "The mapId and pagination parameters are required");
     setAgentsCache(c, includePlayerIds, true);
-    if (!(await services(c.env).getAgentMap({ mapId }))) return errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist");
+    if (!(await services(c).getAgentMap({ mapId }))) return errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist");
     try {
-      return c.json(hideAgentPlayerIds(await logServiceOperation(c, "agents_list_map_title_holders", () => services(c.env).listAgentMapTitleHolders({ ...page, mapId })), includePlayerIds));
+      return c.json(hideAgentPlayerIds(await logServiceOperation(c, "agents_list_map_title_holders", () => services(c).listAgentMapTitleHolders({ ...page, mapId })), includePlayerIds));
     } catch (error) {
       const code = error instanceof Error ? error.message : "AGENT_MAP_TITLE_PROJECTION_FAILED";
       if (code === "AGENT_MAP_TITLE_PROJECTION_UNAVAILABLE") {
@@ -154,6 +154,6 @@ export const registerAgentRoutes = (app: ApiApp, dependencies: AgentRouteDepende
     const kind = c.req.query("kind");
     const status = c.req.query("status");
     if (!page || !query || (kind && !["event", "map", "achievement", "title"].includes(kind)) || (status && !["development", "implemented", "removed"].includes(status))) return errorResponse(c, 422, "INVALID_REQUEST", "The search parameters are invalid");
-    return c.json(await logServiceOperation(c, "agents_search", () => services(c.env).searchAgentContent({ ...page, query, kind: kind as "event" | "map" | "achievement" | "title" | undefined, status: status as "development" | "implemented" | "removed" | undefined })));
+    return c.json(await logServiceOperation(c, "agents_search", () => services(c).searchAgentContent({ ...page, query, kind: kind as "event" | "map" | "achievement" | "title" | undefined, status: status as "development" | "implemented" | "removed" | undefined })));
   });
 };

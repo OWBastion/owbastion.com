@@ -50,10 +50,10 @@ export const registerPlayerInvitationRoutes = (app: ApiApp, dependencies: Player
     return result ? c.json(result) : errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
   };
 
-  app.get("/v1/me/invitations", playerRead((c, sessionToken, page) => services(c.env).getCurrentPlayerInvitations({ sessionToken, ...page })));
-  app.get("/v1/me/invitations/redemptions", playerRead((c, sessionToken, page) => services(c.env).listCurrentPlayerInvitationRedemptions({ sessionToken, ...page })));
+  app.get("/v1/me/invitations", playerRead((c, sessionToken, page) => services(c).getCurrentPlayerInvitations({ sessionToken, ...page })));
+  app.get("/v1/me/invitations/redemptions", playerRead((c, sessionToken, page) => services(c).listCurrentPlayerInvitationRedemptions({ sessionToken, ...page })));
   app.post("/v1/me/invitations", playerWrite(playerInvitationCreateRequestSchema, (c, sessionToken, key, body) =>
-    services(c.env).createCurrentPlayerInvitation({ sessionToken, code: body.code, maxUses: body.maxUses, validityDays: body.validityDays }, key), 201));
+    services(c).createCurrentPlayerInvitation({ sessionToken, code: body.code, maxUses: body.maxUses, validityDays: body.validityDays }, key), 201));
   app.post("/v1/me/invitations/:invitationId/revoke", (c) => isUuid(c.req.param("invitationId"))
     ? playerWrite(null, (context, sessionToken, key) => services(context.env).revokeCurrentPlayerInvitation({ sessionToken, invitationId: context.req.param("invitationId") }, key))(c)
     : errorResponse(c, 404, "PLAYER_INVITATION_NOT_FOUND", "The invitation does not exist"));
@@ -64,7 +64,7 @@ export const registerPlayerInvitationRoutes = (app: ApiApp, dependencies: Player
     if (denied) return denied;
     const parsed = playerInvitationRedeemRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await services(c.env).redeemPlayerInvitation(parsed.data), 201); }
+    try { return c.json(await services(c).redeemPlayerInvitation(parsed.data), 201); }
     catch (error) {
       const response = routeErrorResponse(c, error, redeemErrors, errorResponse);
       if (response) return response;
@@ -76,41 +76,41 @@ export const registerPlayerInvitationRoutes = (app: ApiApp, dependencies: Player
   const notFound = errorGroup(404, "The invitation does not exist", "PLAYER_INVITATION_NOT_FOUND");
   const playerNotFound = errorGroup(404, "The player does not exist", "PLAYER_NOT_FOUND");
 
-  app.get("/v1/admin/player-invitations/policy", maintainerRoute(requireMaintainer, async (c, auth) => c.json(await services(c.env).getAdminPlayerInvitationPolicy(auth))));
+  app.get("/v1/admin/player-invitations/policy", maintainerRoute(requireMaintainer, async (c, auth) => c.json(await services(c).getAdminPlayerInvitationPolicy(auth))));
   app.put("/v1/admin/player-invitations/policy", (c) => adminMutation(c, {
     schema: adminPlayerInvitationPolicyRequestSchema,
-    action: (input, auth, key) => services(c.env).setAdminPlayerInvitationPolicy({ policy: input.policy }, auth, key),
+    action: (input, auth, key) => services(c).setAdminPlayerInvitationPolicy({ policy: input.policy }, auth, key),
   }));
   app.get("/v1/admin/player-invitations/overrides", maintainerRoute(requireMaintainer, async (c, auth) => {
     const page = adminPage(c);
-    return page ? c.json(await services(c.env).listAdminPlayerInvitationOverrides(page, auth)) : invalidPage(c);
+    return page ? c.json(await services(c).listAdminPlayerInvitationOverrides(page, auth)) : invalidPage(c);
   }));
   app.put("/v1/admin/player-invitations/overrides/:playerAccountId", (c) => adminMutation(c, {
     schema: adminPlayerInvitationOverrideRequestSchema,
     noContent: true,
-    action: (input, auth, key) => services(c.env).setAdminPlayerInvitationOverride({ playerAccountId: c.req.param("playerAccountId"), override: input.override }, auth, key),
+    action: (input, auth, key) => services(c).setAdminPlayerInvitationOverride({ playerAccountId: c.req.param("playerAccountId"), override: input.override }, auth, key),
     errors: playerNotFound,
   }));
   app.delete("/v1/admin/player-invitations/overrides/:playerAccountId", (c) => adminMutation(c, {
     noContent: true,
-    action: (_input, auth, key) => services(c.env).clearAdminPlayerInvitationOverride({ playerAccountId: c.req.param("playerAccountId") }, auth, key),
+    action: (_input, auth, key) => services(c).clearAdminPlayerInvitationOverride({ playerAccountId: c.req.param("playerAccountId") }, auth, key),
   }));
   app.get("/v1/admin/player-invitations/audit", maintainerRoute(requireMaintainer, async (c, auth) => {
     const page = adminPage(c);
-    return page ? c.json(await services(c.env).listAdminPlayerInvitationAudit(page, auth)) : invalidPage(c);
+    return page ? c.json(await services(c).listAdminPlayerInvitationAudit(page, auth)) : invalidPage(c);
   }));
   app.get("/v1/admin/invitations", maintainerRoute(requireMaintainer, async (c, auth) => {
     const params = new URL(c.req.url).searchParams;
     if (!hasOnlyUniqueQueryNames(params, ["type", "status", "issuer", "from", "to", "page", "pageSize"])) return invalidPage(c);
     const parsed = adminInvitationOverviewQuerySchema.safeParse(c.req.query());
-    return parsed.success ? c.json(await services(c.env).listAdminInvitations(parsed.data, auth)) : errorResponse(c, 422, "INVALID_REQUEST", "The query does not match contract v1");
+    return parsed.success ? c.json(await services(c).listAdminInvitations(parsed.data, auth)) : errorResponse(c, 422, "INVALID_REQUEST", "The query does not match contract v1");
   }));
   app.get("/v1/admin/player-invitations/:invitationId", maintainerRoute(requireMaintainer, async (c, auth) => {
     const page = adminPage(c);
     if (!page) return invalidPage(c);
     const invitationId = c.req.param("invitationId") ?? "";
     if (!isUuid(invitationId)) return errorResponse(c, 404, "PLAYER_INVITATION_NOT_FOUND", "The invitation does not exist");
-    try { return c.json(await services(c.env).getAdminPlayerInvitation({ invitationId, ...page }, auth)); }
+    try { return c.json(await services(c).getAdminPlayerInvitation({ invitationId, ...page }, auth)); }
     catch (error) {
       const response = routeErrorResponse(c, error, { PLAYER_INVITATION_NOT_FOUND: { status: 404, message: "The invitation does not exist" } }, errorResponse);
       if (response) return response;
@@ -120,7 +120,7 @@ export const registerPlayerInvitationRoutes = (app: ApiApp, dependencies: Player
   app.post("/v1/admin/player-invitations/:invitationId/revoke", (c) => adminMutation(c, {
     noContent: true,
     before: () => isUuid(c.req.param("invitationId")) ? undefined : errorResponse(c, 404, "PLAYER_INVITATION_NOT_FOUND", "The invitation does not exist"),
-    action: (_input, auth, key) => services(c.env).revokeAdminPlayerInvitation({ invitationId: c.req.param("invitationId") }, auth, key),
+    action: (_input, auth, key) => services(c).revokeAdminPlayerInvitation({ invitationId: c.req.param("invitationId") }, auth, key),
     errors: notFound,
   }));
 };

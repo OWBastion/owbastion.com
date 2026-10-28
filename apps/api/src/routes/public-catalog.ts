@@ -14,7 +14,7 @@ export const registerPublicCatalogRoutes = (app: ApiApp, dependencies: PublicCat
     allowPortal(c);
     return cachedCatalogResponse(c, {
       operation: "catalog_public_achievements",
-      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_achievements", () => services(c.env).listPublicAchievements()) }),
+      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_achievements", () => services(c).listPublicAchievements()) }),
     });
   });
 
@@ -27,27 +27,27 @@ export const registerPublicCatalogRoutes = (app: ApiApp, dependencies: PublicCat
         operation: "catalog_map_challenges",
         query: { family: "map" },
         eligible: new URL(c.req.url).searchParams.getAll("family").length === 1 && new URL(c.req.url).searchParams.size === 1,
-        response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_map_challenges", () => services(c.env).listChallenges({ family: "map" })) }),
+        response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_map_challenges", () => services(c).listChallenges({ family: "map" })) }),
       });
     }
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
     c.header("Cache-Control", "private, no-store");
-    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_challenges", () => services(c.env).listChallenges({ family: family as "map" | "achievement" | undefined })) });
+    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_challenges", () => services(c).listChallenges({ family: family as "map" | "achievement" | undefined })) });
   });
 
   app.get("/v1/titles", async (c) => {
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
     c.header("Cache-Control", "private, no-store");
-    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_titles", () => services(c.env).listTitles({ mapId: c.req.query("mapId") || undefined })) });
+    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_titles", () => services(c).listTitles({ mapId: c.req.query("mapId") || undefined })) });
   });
 
   app.get("/v1/maps", async (c) => {
     allowPortal(c);
     return cachedCatalogResponse(c, {
       operation: "catalog_maps",
-      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_maps", () => services(c.env).listMaps()) }),
+      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_maps", () => services(c).listMaps()) }),
     });
   });
 
@@ -56,7 +56,7 @@ export const registerPublicCatalogRoutes = (app: ApiApp, dependencies: PublicCat
     if (status && status !== "implemented" && status !== "removed" && status !== "development" && status !== "all") return errorResponse(c, 422, "INVALID_REQUEST", "The event status is invalid");
     return cachedCatalogResponse(c, {
       operation: "catalog_events",
-      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_events", () => services(c.env).listRandomEvents({ query: c.req.query("query")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, ...(status === "all" ? { includeArchived: false } : { status: status as "implemented" | "removed" | "development" | undefined }) })) }),
+      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_events", () => services(c).listRandomEvents({ query: c.req.query("query")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, ...(status === "all" ? { includeArchived: false } : { status: status as "implemented" | "removed" | "development" | undefined }) })) }),
     });
   });
   app.get("/v1/events/:eventId", async (c) => {
@@ -64,7 +64,7 @@ export const registerPublicCatalogRoutes = (app: ApiApp, dependencies: PublicCat
     return cachedCatalogResponse(c, {
       operation: "catalog_event",
       response: async () => {
-        const event = await logServiceOperation(c, "catalog_get_event", () => services(c.env).getRandomEvent({ eventId: c.req.param("eventId") }));
+        const event = await logServiceOperation(c, "catalog_get_event", () => services(c).getRandomEvent({ eventId: c.req.param("eventId") }));
         return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist");
       },
     });

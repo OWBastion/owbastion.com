@@ -330,7 +330,8 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>, platfo
         .where(and(eq(playerHandles.handle, input.handle), eq(playerHandles.status, "active"), eq(playerAccounts.publicProfile, 1), eq(playerAccounts.status, "active")))
         .get();
       if (!row) return null;
-      return { ...(await publicPlayerSummary(row, row.handle)), handle: row.handle, activity: await playerActivityDays(db, row.id, Date.now()) };
+      const [summary, activity] = await Promise.all([publicPlayerSummary(row, row.handle), playerActivityDays(db, row.id, Date.now())]);
+      return { ...summary, handle: row.handle, activity };
     },
 
     async getCurrentPlayerLeaderboardRank(input) {

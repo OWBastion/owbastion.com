@@ -94,8 +94,8 @@ export const createInvitationSupport = ({ database, db, now, replayOrConflict }:
   };
 
   const effectivePolicy = async (playerAccountId: string) => {
-    const global = await loadGlobalPolicy();
-    return global ? mergePolicy(global, await loadOverride(playerAccountId)) : null;
+    const [global, override] = await Promise.all([loadGlobalPolicy(), loadOverride(playerAccountId)]);
+    return global ? mergePolicy(global, override) : null;
   };
 
 
@@ -113,11 +113,11 @@ export const createInvitationSupport = ({ database, db, now, replayOrConflict }:
 
   const periodCounts = async (playerAccountId: string, policy: EffectivePolicy, timestamp: number) => {
     const range = playerInvitationPeriodRange(policy.period, timestamp);
-    return {
-      ...range,
-      codesCreated: await countOf("SELECT count(*) AS total FROM player_invitations WHERE inviter_player_account_id = ? AND created_at >= ? AND created_at < ?", playerAccountId, range.start, range.end),
-      registrations: await countOf("SELECT count(*) AS total FROM player_invitation_redemptions WHERE inviter_player_account_id = ? AND completed_at >= ? AND completed_at < ?", playerAccountId, range.start, range.end),
-    };
+    const [codesCreated, registrations] = await Promise.all([
+      countOf("SELECT count(*) AS total FROM player_invitations WHERE inviter_player_account_id = ? AND created_at >= ? AND created_at < ?", playerAccountId, range.start, range.end),
+      countOf("SELECT count(*) AS total FROM player_invitation_redemptions WHERE inviter_player_account_id = ? AND completed_at >= ? AND completed_at < ?", playerAccountId, range.start, range.end),
+    ]);
+    return { ...range, codesCreated, registrations };
   };
 
   const usedCount = (invitationId: string) => countOf("SELECT count(*) AS total FROM player_invitation_redemptions WHERE invitation_id = ?", invitationId);

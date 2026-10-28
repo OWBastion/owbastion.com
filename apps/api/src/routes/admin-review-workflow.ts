@@ -51,13 +51,13 @@ export const registerAdminReviewWorkflowRoutes = (app: ApiApp, dependencies: Adm
     if (!pagination || (targetTypeValue && !targetType?.success) || (status && !allowedStatuses.includes(status as typeof allowedStatuses[number])) || (commentStatus && !allowedCommentStatuses.includes(commentStatus as typeof allowedCommentStatuses[number])) || (rating !== undefined && (!Number.isInteger(rating) || rating < 1 || rating > 5)) || (from !== undefined && (!Number.isInteger(from) || from < 0)) || (to !== undefined && (!Number.isInteger(to) || to < 0)) || (from !== undefined && to !== undefined && from > to) || !targetIdValid) {
       return errorResponse(c, 422, "INVALID_REQUEST", "The review query is invalid");
     }
-    return c.json(await dependencies.services(c.env).listAdminReviews({ ...pagination, ...(targetType?.success ? { targetType: targetType.data } : {}), ...(targetId ? { targetId } : {}), ...(status ? { status: status as typeof allowedStatuses[number] } : {}), ...(commentStatus ? { commentStatus: commentStatus as typeof allowedCommentStatuses[number] } : {}), ...(rating !== undefined ? { rating: rating as 1 | 2 | 3 | 4 | 5 } : {}), ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}) }, auth));
+    return c.json(await dependencies.services(c).listAdminReviews({ ...pagination, ...(targetType?.success ? { targetType: targetType.data } : {}), ...(targetId ? { targetId } : {}), ...(status ? { status: status as typeof allowedStatuses[number] } : {}), ...(commentStatus ? { commentStatus: commentStatus as typeof allowedCommentStatuses[number] } : {}), ...(rating !== undefined ? { rating: rating as 1 | 2 | 3 | 4 | 5 } : {}), ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}) }, auth));
   }));
 
   app.get("/v1/admin/reviews/:reviewId", maintainerRoute(requireMaintainer, async (c, auth) => {
     const reviewId = c.req.param("reviewId")!;
     if (!isUuid(reviewId)) return errorResponse(c, 422, "INVALID_REVIEW_ID", "The review ID is invalid");
-    try { return c.json(await dependencies.services(c.env).getAdminReview({ reviewId }, auth)); }
+    try { return c.json(await dependencies.services(c).getAdminReview({ reviewId }, auth)); }
     catch (error) { if (error instanceof Error && error.message === "REVIEW_NOT_FOUND") return errorResponse(c, 404, "REVIEW_NOT_FOUND", "The review does not exist"); if (error instanceof Error && error.message === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, "REVIEW_TARGET_NOT_FOUND", "The review target does not exist"); throw error; }
   }));
 
@@ -66,7 +66,7 @@ export const registerAdminReviewWorkflowRoutes = (app: ApiApp, dependencies: Adm
     adminReviewCommentModerationRequestSchema,
     async ({ action, reason, reviewId }, auth, key) => {
       const input = reason === undefined ? { reviewId } : { reviewId, reason };
-      const services = dependencies.services(c.env);
+      const services = dependencies.services(c);
       if (action === "hide") await services.hideReviewComment(input, auth, key);
       else await services.restoreReviewComment(input, auth, key);
       return services.getAdminReview({ reviewId }, auth);
@@ -82,7 +82,7 @@ export const registerAdminReviewWorkflowRoutes = (app: ApiApp, dependencies: Adm
     adminReviewStateModerationRequestSchema,
     async ({ action, reason, reviewId }, auth, key) => {
       const input = reason === undefined ? { reviewId } : { reviewId, reason };
-      const services = dependencies.services(c.env);
+      const services = dependencies.services(c);
       if (action === "invalidate") await services.invalidateReview(input, auth, key);
       else await services.restoreReview(input, auth, key);
       return services.getAdminReview({ reviewId }, auth);
@@ -102,11 +102,11 @@ export const registerAdminReviewWorkflowRoutes = (app: ApiApp, dependencies: Adm
     if (statuses.some((status) => !allowedStatuses.includes(status as typeof allowedStatuses[number]))) return errorResponse(c, 422, "INVALID_REQUEST", "The submission status is invalid");
     if (spotCheck && !["pending", "confirmed", "revoked"].includes(spotCheck)) return errorResponse(c, 422, "INVALID_REQUEST", "The spot-check status is invalid");
     if (order && order !== "oldest" && order !== "newest") return errorResponse(c, 422, "INVALID_REQUEST", "The submission order is invalid");
-    return c.json(await dependencies.services(c.env).listAdminSubmissions({ statuses: statuses as typeof allowedStatuses[number][], ...(spotCheck ? { spotCheck: spotCheck as "pending" | "confirmed" | "revoked" } : {}), ...(mode ? { mode } : {}), ...(playerAccountId ? { playerAccountId } : {}), ...(order ? { order: order as "oldest" | "newest" } : {}), page, pageSize }, auth));
+    return c.json(await dependencies.services(c).listAdminSubmissions({ statuses: statuses as typeof allowedStatuses[number][], ...(spotCheck ? { spotCheck: spotCheck as "pending" | "confirmed" | "revoked" } : {}), ...(mode ? { mode } : {}), ...(playerAccountId ? { playerAccountId } : {}), ...(order ? { order: order as "oldest" | "newest" } : {}), page, pageSize }, auth));
   }));
 
   app.get("/v1/admin/submissions/:submissionId", maintainerRoute(requireMaintainer, async (c, auth) => {
-    try { return c.json(await dependencies.services(c.env).getAdminSubmission({ submissionId: c.req.param("submissionId")! }, auth)); }
+    try { return c.json(await dependencies.services(c).getAdminSubmission({ submissionId: c.req.param("submissionId")! }, auth)); }
     catch (error) { if (error instanceof Error && error.message === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist"); throw error; }
   }));
 
@@ -120,7 +120,7 @@ export const registerAdminReviewWorkflowRoutes = (app: ApiApp, dependencies: Adm
   app.post("/v1/admin/submissions/:submissionId/review/preview", maintainerRoute(requireMaintainer, async (c, auth) => {
     const parsed = adminSubmissionReviewPreviewRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).previewSubmissionReview({ submissionId: c.req.param("submissionId")!, fieldCorrections: parsed.data.fieldCorrections, confirmedChallengeIds: parsed.data.confirmedChallengeIds }, auth)); }
+    try { return c.json(await dependencies.services(c).previewSubmissionReview({ submissionId: c.req.param("submissionId")!, fieldCorrections: parsed.data.fieldCorrections, confirmedChallengeIds: parsed.data.confirmedChallengeIds }, auth)); }
     catch (error) {
       const code = error instanceof Error ? error.message : "REVIEW_PREVIEW_FAILED";
       if (code === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, code, "The submission does not exist");
@@ -132,7 +132,7 @@ export const registerAdminReviewWorkflowRoutes = (app: ApiApp, dependencies: Adm
   app.post("/v1/admin/submissions/:submissionId/review", async (c) => {
     return adminMutation(c, {
       schema: adminSubmissionReviewRequestSchema,
-      action: (input, auth, key) => dependencies.services(c.env).reviewSubmission({
+      action: (input, auth, key) => dependencies.services(c).reviewSubmission({
         submissionId: c.req.param("submissionId"),
         decision: input.decision,
         reason: input.reason,
@@ -150,7 +150,7 @@ export const registerAdminReviewWorkflowRoutes = (app: ApiApp, dependencies: Adm
   app.post("/v1/admin/submissions/:submissionId/ocr/retry", async (c) => {
     return adminMutation(c, {
       schema: adminSubmissionOcrRetryRequestSchema,
-      action: (_input, auth, key) => dependencies.services(c.env).requestAdminOcr({ submissionId: c.req.param("submissionId") }, auth, key, c.get("requestId")),
+      action: (_input, auth, key) => dependencies.services(c).requestAdminOcr({ submissionId: c.req.param("submissionId") }, auth, key, c.get("requestId")),
       errors: {
         ...errorGroup(404, "The submission does not exist", "SUBMISSION_NOT_FOUND"),
         ...errorGroup(404, "The submission has no evidence", "EVIDENCE_NOT_FOUND"),
@@ -163,7 +163,7 @@ export const registerAdminReviewWorkflowRoutes = (app: ApiApp, dependencies: Adm
   app.post("/v1/admin/submissions/:submissionId/ocr/reevaluate", async (c) => {
     return adminMutation(c, {
       schema: adminSubmissionOcrReevaluateRequestSchema,
-      action: (_input, auth, key) => dependencies.services(c.env).reevaluateAdminSubmissionOcr({ submissionId: c.req.param("submissionId") }, auth, key),
+      action: (_input, auth, key) => dependencies.services(c).reevaluateAdminSubmissionOcr({ submissionId: c.req.param("submissionId") }, auth, key),
       errors: {
         ...errorGroup(404, "The submission does not exist", "SUBMISSION_NOT_FOUND"),
         ...errorGroup(409, "Only submissions awaiting review with a stored recognition can be re-evaluated", "SUBMISSION_NOT_REEVALUABLE"),
@@ -174,7 +174,7 @@ export const registerAdminReviewWorkflowRoutes = (app: ApiApp, dependencies: Adm
   app.post("/v1/admin/submissions/:submissionId/reopen", async (c) => {
     return adminMutation(c, {
       schema: adminSubmissionReopenRequestSchema,
-      action: (input, auth, key) => dependencies.services(c.env).reopenAdminSubmission({ submissionId: c.req.param("submissionId"), ...(input.reason ? { reason: input.reason } : {}) }, auth, key),
+      action: (input, auth, key) => dependencies.services(c).reopenAdminSubmission({ submissionId: c.req.param("submissionId"), ...(input.reason ? { reason: input.reason } : {}) }, auth, key),
       errors: {
         ...errorGroup(404, "The submission does not exist", "SUBMISSION_NOT_FOUND"),
         ...errorGroup(409, "Only approved submissions can be reopened", "SUBMISSION_NOT_REOPENABLE"),
@@ -187,7 +187,7 @@ export const registerAdminReviewWorkflowRoutes = (app: ApiApp, dependencies: Adm
   app.post("/v1/admin/submissions/:submissionId/ocr-accuracy", async (c) => {
     return adminMutation(c, {
       schema: ocrAccuracyFeedbackRequestSchema,
-      action: (input, auth, key) => dependencies.services(c.env).submitAdminOcrAccuracy({ ...input, submissionId: c.req.param("submissionId")! }, auth, key),
+      action: (input, auth, key) => dependencies.services(c).submitAdminOcrAccuracy({ ...input, submissionId: c.req.param("submissionId")! }, auth, key),
       errors: {
         ...errorGroup(404, "The submission does not exist", "SUBMISSION_NOT_FOUND"),
         ...errorGroup(409, "Feedback is unavailable for this submission", "OCR_RESULT_NOT_FOUND"),
@@ -199,7 +199,7 @@ export const registerAdminReviewWorkflowRoutes = (app: ApiApp, dependencies: Adm
   app.post("/v1/admin/submissions/:submissionId/spot-check", async (c) => {
     return adminMutation(c, {
       schema: adminSubmissionSpotCheckRequestSchema,
-      action: (input, auth, key) => dependencies.services(c.env).resolveAdminSubmissionSpotCheck({ ...input, submissionId: c.req.param("submissionId") }, auth, key),
+      action: (input, auth, key) => dependencies.services(c).resolveAdminSubmissionSpotCheck({ ...input, submissionId: c.req.param("submissionId") }, auth, key),
       errors: {
         ...errorGroup(404, "The spot check does not exist", "SUBMISSION_NOT_FOUND", "SPOT_CHECK_NOT_FOUND"),
         ...errorGroup(409, "The spot check cannot be resolved", "SPOT_CHECK_ALREADY_RESOLVED", "TITLE_GRANT_NOT_FOUND"),

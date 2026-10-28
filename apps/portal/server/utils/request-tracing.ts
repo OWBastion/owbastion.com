@@ -33,7 +33,10 @@ export const proxyResponseBody = async (event: H3Event, response: Response, requ
   if (response.status === 204) return null;
   const body = await response.text();
   try {
-    return JSON.parse(body);
+    // Validate only; forwarding the upstream text avoids a second serialization.
+    JSON.parse(body);
+    if (!contentType) setResponseHeader(event, "content-type", "application/json");
+    return body;
   } catch {
     setResponseHeader(event, "content-type", "application/json");
     return { contractVersion: "1", error: { code: `UPSTREAM_${response.status}`, message: body.trim() || "上游 API 返回了无效响应。", requestId } };
