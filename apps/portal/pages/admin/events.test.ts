@@ -104,7 +104,7 @@ describe("admin events workbench", () => {
     expect(wrapper.text()).toContain("已选 2 项");
 
     const group = wrapper.findAllComponents({ name: "USelect" }).find((select) => select.props("placeholder") === "设事件组…")!;
-    group.vm.$emit("update:modelValue", "__clear");
+    group.vm.$emit("update:modelValue", "__none");
     await flushPromises();
     expect(wrapper.get('[role="status"]').text()).toContain("2 项未保存的修改");
     expect(rowOf(wrapper, "梭哈").get('[aria-label="事件组"]').text()).toBe("—");
