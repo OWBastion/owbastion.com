@@ -66,7 +66,5 @@ export const verifyPasskeyAuthentication = async (input: { credential: Record<st
   return { credentialId: result.authenticationInfo.credentialID, newCounter: result.authenticationInfo.newCounter };
 };
 
-export const passkeyUserHandle = (accountId: string) => isoBase64URL.fromUTF8String(accountId);
-
 export const passkeyUserHandleMatches = (userHandle: string | undefined, accountId: string) =>
   userHandle === undefined || isoBase64URL.toUTF8String(userHandle) === accountId;

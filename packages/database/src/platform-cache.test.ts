@@ -1,7 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it, vi } from "vitest";
 import { createPlatformServices } from "./index";
-import { createD1, installSchema as installFullSchema, seedMap, seedRevisionAssignment, seedTitle } from "./ocr-test-harness";
 
 const createCountingD1 = () => {
   const sqlite = new DatabaseSync(":memory:");

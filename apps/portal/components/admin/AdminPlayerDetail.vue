@@ -9,7 +9,6 @@ const emit = defineEmits<{ setStatus: [status: "active" | "banned"]; unbind: [bi
 const tabs = [{ id: "titles", label: "称号" }, { id: "timeline", label: "动态" }, { id: "screenshots", label: "截图" }, { id: "account", label: "账号" }] as const;
 const tab = shallowRef<(typeof tabs)[number]["id"]>("titles");
 const titlesRef = useTemplateRef<{ openGrant: () => void; openEquip: () => void }>("titlesRef");
-const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const banned = computed(() => props.player.status === "banned");
 const activeTitleCount = computed(() => props.player.titleGrants.filter((grant) => grant.status === "active").length);
 const equipable = computed(() => props.player.titleGrants.filter((grant) => grant.equipable === true));

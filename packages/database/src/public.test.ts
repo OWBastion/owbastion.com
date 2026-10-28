@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { Challenge } from "@owbastion/contracts";
 import { createPlatformServices } from "@owbastion/database";
 import { createD1, installSchema, seedMap, seedRevisionAssignment, seedTitle } from "./ocr-test-harness";

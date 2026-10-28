@@ -2,17 +2,7 @@ import { Hono } from "hono";
 import {
   ocrkitJobCallbackSchema,
   qqBindingRequestSchema,
-  qqBindingClaimVerifyRequestSchema,
-  qqLoginAttemptRequestSchema,
-  qqLoginVerifyRequestSchema,
   qqScreenshotSubmissionRequestSchema,
-  passkeyLoginOptionsRequestSchema,
-  passkeyLoginVerifyRequestSchema,
-  passkeyRegistrationVerifyRequestSchema,
-  passkeyAuthenticatedRegistrationOptionsRequestSchema,
-  passkeyPublicRegistrationOptionsRequestSchema,
-  passkeyPublicRegistrationVerifyRequestSchema,
-  adminPasskeyRecoveryRequestSchema,
   qqGroupAccessRequestSchema,
   qqGroupRegistrationRequestSchema,
   adminScreenshotSetCreateRequestSchema,
@@ -663,24 +653,18 @@ export const createApp = (dependencies: AppDependencies) => {
   app.get("/v1/admin/screenshot-sets", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
-    const pageValue = Number(c.req.query("page") ?? 1);
-    const pageSizeValue = Number(c.req.query("pageSize") ?? 20);
-    const page = Number.isInteger(pageValue) && pageValue > 0 ? pageValue : 0;
-    const pageSize = Number.isInteger(pageSizeValue) && pageSizeValue > 0 && pageSizeValue <= 100 ? pageSizeValue : 0;
+    const pagination = parsePagination(new URL(c.req.url).searchParams, 100);
     const status = c.req.query("status");
-    if (!page || !pageSize || (status && !screenshotSetStatusSchema.safeParse(status).success)) return errorResponse(c, 422, "INVALID_REQUEST", "The screenshot set query is invalid");
-    return c.json(await dependencies.services(c.env).listAdminScreenshotSets({ page, pageSize, ...(status ? { status: status as "draft" | "finalized" | "discarded" } : {}) }, access.auth!));
+    if (!pagination || (status && !screenshotSetStatusSchema.safeParse(status).success)) return errorResponse(c, 422, "INVALID_REQUEST", "The screenshot set query is invalid");
+    return c.json(await dependencies.services(c.env).listAdminScreenshotSets({ ...pagination, ...(status ? { status: status as "draft" | "finalized" | "discarded" } : {}) }, access.auth!));
   });
 
   app.get("/v1/admin/screenshot-sets/candidates", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
-    const pageValue = Number(c.req.query("page") ?? 1);
-    const pageSizeValue = Number(c.req.query("pageSize") ?? 20);
-    const page = Number.isInteger(pageValue) && pageValue > 0 ? pageValue : 0;
-    const pageSize = Number.isInteger(pageSizeValue) && pageSizeValue > 0 && pageSizeValue <= 100 ? pageSizeValue : 0;
-    if (!page || !pageSize) return errorResponse(c, 422, "INVALID_REQUEST", "The screenshot set candidate query is invalid");
-    return c.json(await dependencies.services(c.env).listAdminScreenshotSetCandidates({ page, pageSize }, access.auth!));
+    const pagination = parsePagination(new URL(c.req.url).searchParams, 100);
+    if (!pagination) return errorResponse(c, 422, "INVALID_REQUEST", "The screenshot set candidate query is invalid");
+    return c.json(await dependencies.services(c.env).listAdminScreenshotSetCandidates(pagination, access.auth!));
   });
 
   app.post("/v1/admin/screenshot-sets", async (c) => {
@@ -776,7 +760,6 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = qqBindingRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
 
-    void parsed; void auth; void idempotencyKey;
     return errorResponse(c, 422, "INVITE_REQUIRED", "Use an invitation to request a binding");
   });
 

@@ -1,5 +1,5 @@
 import type {
-  AdminBindingInviteRequest, AdminBindingInviteResponse, AdminBindingInviteBatchRequest, AdminBindingInviteBatchResponse, AdminBindingInviteListResponse, AdminBindingInviteRevokeRequest, AdminBindingInviteCodeResponse, AdminActiveBindingListResponse, QqBindingRequest, QqBindingResponse, BindingInviteRedeemRequest, BindingInviteRedeemResponse, BindingClaimStatusResponse, BindingClaimSessionResponse, QqBindingClaimVerifyRequest, QqBindingClaimVerifyResponse, AdminBindingClaimDecisionRequest, AdminBindingClaimListResponse,
+  AdminBindingInviteRequest, AdminBindingInviteResponse, AdminBindingInviteBatchRequest, AdminBindingInviteBatchResponse, AdminBindingInviteListResponse, AdminBindingInviteRevokeRequest, AdminBindingInviteCodeResponse, AdminActiveBindingListResponse, BindingInviteRedeemRequest, BindingInviteRedeemResponse, BindingClaimSessionResponse, QqBindingClaimVerifyRequest, QqBindingClaimVerifyResponse, AdminBindingClaimDecisionRequest, AdminBindingClaimListResponse,
   SubmissionStatusResponse,
   PlayerSubmissionStatus,
   PlayerSubmissionDetail,
@@ -57,14 +57,14 @@ import type {
   Challenge,
   Map,
   Title,
-  OwnedTitle, HistoricalTitleGrant, AdminTitleGrantListResponse, AdminTitleGrantHolderDetailResponse, AdminHistoricalTitleHolderFilter, AdminTitleGrantRequest, AdminTitleGrantBulkRequest, AdminTitleGrantBulkResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse,
+  AdminTitleGrantListResponse, AdminTitleGrantHolderDetailResponse, AdminHistoricalTitleHolderFilter, AdminTitleGrantRequest, AdminTitleGrantBulkRequest, AdminTitleGrantBulkResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse,
   AdminChallenge, AdminChallengeListResponse, AdminChallengeUpdateRequest, AdminTitleCreateRequest, AdminTitleChallengeCreateRequest, AdminTitleChallenge, AdminTitleSummary, AdminChallengeLifecycleRequest, AdminChallengeLifecycleResponse, AdminCatalogTitleUpdateResponse, AdminMapMetadataUpdateRequest, AdminMapCreateRequest,
   AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapRevisionPromotionRequest,
   AdminCatalogTitleUpdateRequest,
   AdminMapTitleRule, AdminMapTitleRuleListResponse, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleInheritanceResponse, AdminMapTitleRuleExceptionUpsertRequest,
   AdminStandaloneMode, AdminStandaloneModeListResponse, AdminStandaloneModeUpsertRequest,
   AdminSeason, AdminSeasonListResponse, AdminSeasonWriteRequest, PublicSeasonListResponse,
-  RandomEvent, RandomEventListResponse, AdminRandomEventCreateRequest, AdminRandomEventUpdateRequest, AdminRandomEventBatchRequest, AdminRandomEventImportRequest, RandomEventVersion, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse,
+  RandomEvent, AdminRandomEventCreateRequest, AdminRandomEventUpdateRequest, AdminRandomEventBatchRequest, AdminRandomEventImportRequest, RandomEventVersion, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse,
   PlayerUploadSessionRequest,
   PlayerUploadSessionResponse,
   OcrAccuracyFeedbackRequest,
@@ -300,7 +300,6 @@ export type PlatformServices = {
   reconcileStaleOcrJobs(input: { olderThan: number }): Promise<number>;
   previewSubmissionReview(input: { submissionId: string; fieldCorrections?: AdminSubmissionReviewRequest["fieldCorrections"]; confirmedChallengeIds?: string[] }, auth: AuthContext): Promise<AdminSubmissionReviewPreviewResponse>;
   reviewSubmission(input: { submissionId: string; decision: AdminSubmissionReviewRequest["decision"]; reason?: string; fieldCorrections?: AdminSubmissionReviewRequest["fieldCorrections"]; confirmedChallengeIds?: string[] }, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionReviewResponse>;
-  createBinding(input: QqBindingRequest, auth: AuthContext, idempotencyKey: string): Promise<QqBindingResponse>;
   createAdminBindingInvite(input: AdminBindingInviteRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminBindingInviteResponse>;
   createAdminBindingInviteBatch(input: AdminBindingInviteBatchRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminBindingInviteBatchResponse>;
   listAdminBindingInvites(auth: AuthContext): Promise<AdminBindingInviteListResponse>;
@@ -312,7 +311,6 @@ export type PlatformServices = {
   getBindingClaimStatus(input: { claimId: string; claimToken: string }): Promise<PlayerInvitationClaimStatusResponse>;
   exchangeBindingClaimSession(input: { claimId: string; claimToken: string }): Promise<BindingClaimSessionResponse & { sessionToken: string }>;
   verifyBindingClaim(input: QqBindingClaimVerifyRequest, auth: AuthContext, idempotencyKey: string): Promise<QqBindingClaimVerifyResponse>;
-  createBinding(input: QqBindingRequest, auth: AuthContext, idempotencyKey: string): Promise<QqBindingResponse>;
   listAdminBindingClaims(auth: AuthContext): Promise<AdminBindingClaimListResponse>;
   decideAdminBindingClaim(input: { claimId: string } & AdminBindingClaimDecisionRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
   getSubmission(input: { submissionId: string }, auth: AuthContext): Promise<SubmissionStatusResponse>;

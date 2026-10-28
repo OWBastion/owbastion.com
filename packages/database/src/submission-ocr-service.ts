@@ -11,7 +11,7 @@ import { matchOcrAgainstChallenges, type CanonicalOcrChallenge } from "./ocr-aut
 import { standaloneOcrMode, type OcrResponse } from "./ocr-response";
 import { maxUploadBytes } from "./player-upload-service";
 import type { MapTitleRuleSnapshot } from "./challenge-snapshot-service";
-import { attachments, ocrResults, playerTitleGrants, submissionReviews, submissionSpotChecks, submissions, titleCatalog } from "./schema";
+import { attachments, ocrResults, playerTitleGrants, submissions } from "./schema";
 
 const ocrkitRequestTimeoutMs = 20_000;
 

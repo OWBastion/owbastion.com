@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { mapTitleRulesSchema } from "../test/schema";
 import { describe, expect, it } from "vitest";
 import { evaluateCanonicalChallengeConditions, parseCanonicalChallengeConditions } from "@owbastion/domain";
-import type { AdminTitleChallengeCreateRequest, AdminChallengeUpdateRequest } from "@owbastion/contracts";
+import type { AdminTitleChallengeCreateRequest } from "@owbastion/contracts";
 type ProgressFixtureInput = AdminTitleChallengeCreateRequest & { titleKey: string; titleName: string; icon: string; category: string; scope: "global" | "map"; mapIds: string[]; categoryOverride: null; iconUrl: null };
 import type { AuthContext, VerifiedRunInput } from "@owbastion/domain";
 import { createPlatformServices } from "./index";

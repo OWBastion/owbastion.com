@@ -2,9 +2,9 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { PlatformServices } from "@owbastion/domain";
 import type { PlayerSubmissionStatus } from "@owbastion/contracts";
-import { attachments, idempotencyKeys, playerAccounts, submissions, uploadSessions } from "./schema";
+import { idempotencyKeys, playerAccounts, submissions, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
-import { hashRequest } from "./portal-session";
+import { hashRequest, sha256Hex } from "./portal-session";
 
 const uploadTtlMs = 10 * 60 * 1000;
 const evidenceExtensions = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" } as const;
@@ -56,7 +56,7 @@ export const createPlayerUploadServices = (dependencies: PlayerUploadDependencie
       const account = await db.select().from(playerAccounts).where(eq(playerAccounts.id, session.playerAccountId)).get();
       if (!account || account.status === "banned") throw new Error("PLAYER_BANNED");
       if (input.contentType !== session.contentType || input.body.byteLength !== session.byteSize || input.body.byteLength > maxUploadBytes) throw new Error("UPLOAD_METADATA_MISMATCH");
-      const sha256 = await digestHex(input.body);
+      const sha256 = await sha256Hex(input.body);
       if (sha256 !== session.sha256) throw new Error("UPLOAD_HASH_MISMATCH");
       await evidenceBucket.put(session.objectKey, input.body, { httpMetadata: { contentType: input.contentType } });
       const uploadedAt = now();
@@ -152,11 +152,6 @@ export const createPlayerUploadServices = (dependencies: PlayerUploadDependencie
       return response;
     },
   };
-};
-
-const digestHex = async (value: BufferSource) => {
-  const digest = await crypto.subtle.digest("SHA-256", value);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 };
 
 export const playerSubmissionStatus = (status: string): PlayerSubmissionStatus => {

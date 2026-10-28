@@ -33,10 +33,7 @@ export const registerAdminReviewWorkflowRoutes = (app: ApiApp, dependencies: Adm
   });
 
   app.get("/v1/admin/reviews", maintainerRoute(requireMaintainer, async (c, auth) => {
-    const pageValue = Number(c.req.query("page") ?? 1);
-    const pageSizeValue = Number(c.req.query("pageSize") ?? 20);
-    const page = Number.isInteger(pageValue) && pageValue > 0 ? pageValue : 0;
-    const pageSize = Number.isInteger(pageSizeValue) && pageSizeValue > 0 && pageSizeValue <= 50 ? pageSizeValue : 0;
+    const pagination = parsePagination(new URL(c.req.url).searchParams, 50);
     const targetTypeValue = c.req.query("targetType");
     const targetType = targetTypeValue ? reviewTargetTypeSchema.safeParse(targetTypeValue) : null;
     const status = c.req.query("status");
@@ -51,10 +48,10 @@ export const registerAdminReviewWorkflowRoutes = (app: ApiApp, dependencies: Adm
     const allowedCommentStatuses = ["visible", "hidden"] as const;
     const targetId = c.req.query("targetId")?.trim() || undefined;
     const targetIdValid = targetId ? reviewTargetSchema.safeParse({ targetType: "event", targetId }).success : true;
-    if (!page || !pageSize || (targetTypeValue && !targetType?.success) || (status && !allowedStatuses.includes(status as typeof allowedStatuses[number])) || (commentStatus && !allowedCommentStatuses.includes(commentStatus as typeof allowedCommentStatuses[number])) || (rating !== undefined && (!Number.isInteger(rating) || rating < 1 || rating > 5)) || (from !== undefined && (!Number.isInteger(from) || from < 0)) || (to !== undefined && (!Number.isInteger(to) || to < 0)) || (from !== undefined && to !== undefined && from > to) || !targetIdValid) {
+    if (!pagination || (targetTypeValue && !targetType?.success) || (status && !allowedStatuses.includes(status as typeof allowedStatuses[number])) || (commentStatus && !allowedCommentStatuses.includes(commentStatus as typeof allowedCommentStatuses[number])) || (rating !== undefined && (!Number.isInteger(rating) || rating < 1 || rating > 5)) || (from !== undefined && (!Number.isInteger(from) || from < 0)) || (to !== undefined && (!Number.isInteger(to) || to < 0)) || (from !== undefined && to !== undefined && from > to) || !targetIdValid) {
       return errorResponse(c, 422, "INVALID_REQUEST", "The review query is invalid");
     }
-    return c.json(await dependencies.services(c.env).listAdminReviews({ page, pageSize, ...(targetType?.success ? { targetType: targetType.data } : {}), ...(targetId ? { targetId } : {}), ...(status ? { status: status as typeof allowedStatuses[number] } : {}), ...(commentStatus ? { commentStatus: commentStatus as typeof allowedCommentStatuses[number] } : {}), ...(rating !== undefined ? { rating: rating as 1 | 2 | 3 | 4 | 5 } : {}), ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}) }, auth));
+    return c.json(await dependencies.services(c.env).listAdminReviews({ ...pagination, ...(targetType?.success ? { targetType: targetType.data } : {}), ...(targetId ? { targetId } : {}), ...(status ? { status: status as typeof allowedStatuses[number] } : {}), ...(commentStatus ? { commentStatus: commentStatus as typeof allowedCommentStatuses[number] } : {}), ...(rating !== undefined ? { rating: rating as 1 | 2 | 3 | 4 | 5 } : {}), ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}) }, auth));
   }));
 
   app.get("/v1/admin/reviews/:reviewId", maintainerRoute(requireMaintainer, async (c, auth) => {

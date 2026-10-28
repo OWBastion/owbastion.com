@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { leaderboardPlayerKey } from "@owbastion/domain";
 import { leaderboardResponseSchema, leaderboardPlayerSummarySchema, currentPlayerLeaderboardRankSchema, publicPlayerProfileSchema } from "@owbastion/contracts";
 import { createD1 } from "./ocr-test-harness";
