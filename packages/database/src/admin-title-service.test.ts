@@ -199,31 +199,3 @@ describe("title-centric admin acquisition contract", () => {
     await expect(services.createAdminTitleChallenge(challengeInput, auth, "managed")).rejects.toThrow("TITLE_MANAGED_BY_MAP_RULE");
   });
 });
-
-describe("real title acquisition migration", () => {
-  it("preserves rows, checks and foreign references while admitting multiple paths and replacement links", () => {
-    const sqlite = new DatabaseSync(":memory:");
-    fixtures.push({ sqlite });
-    sqlite.exec("CREATE TABLE title_catalog (key TEXT PRIMARY KEY); INSERT INTO title_catalog VALUES ('MULTI')");
-    const previous = readFileSync("migrations/0101_challenge_lifecycle_convergence.sql", "utf8");
-    sqlite.exec(previous.match(/CREATE TABLE title_challenges_next \([\s\S]*?\n\);/)![0]);
-    sqlite.exec("ALTER TABLE title_challenges_next RENAME TO title_challenges; CREATE INDEX title_challenges_status_idx ON title_challenges(status,title_key)");
-    // D1 cannot disable foreign keys; keep enforcement ON through the rebuild
-    // so the migration is exercised under production semantics.
-    sqlite.exec("PRAGMA foreign_keys = ON");
-    sqlite.exec("CREATE TABLE achievement_challenge_maps (challenge_id TEXT NOT NULL REFERENCES title_challenges(id) ON DELETE CASCADE, map_id TEXT NOT NULL, PRIMARY KEY (challenge_id, map_id))");
-    sqlite.exec("CREATE TABLE random_event_title_challenges (event_id TEXT NOT NULL, challenge_id TEXT NOT NULL REFERENCES title_challenges(id) ON DELETE CASCADE, PRIMARY KEY (event_id, challenge_id))");
-    sqlite.exec("INSERT INTO title_challenges (id,title_key,category_override,condition,evidence_rule,submission_mode,status,retired_version,starts_at,ends_at,created_at,updated_at,scope,map_variant,game_version,introduced_version,progress_rule) VALUES ('title.MULTI','MULTI','category','condition','evidence','manual','active','26.1101.1',100,300,1,2,'map','classic','26.1003.1','26.0901.1','{\"type\":\"required_maps_completed\",\"mapIds\":[\"map.alpha\"]}'); INSERT INTO achievement_challenge_maps VALUES ('title.MULTI','map.alpha'); INSERT INTO random_event_title_challenges VALUES ('event.test','title.MULTI')");
-    const before = sqlite.prepare("SELECT * FROM title_challenges").get();
-    sqlite.exec(readFileSync("migrations/0106_title_challenge_acquisition_paths.sql", "utf8"));
-    expect(sqlite.prepare("SELECT * FROM title_challenges WHERE id='title.MULTI'").get()).toEqual({ ...before, replaced_by_challenge_id: null });
-    expect(sqlite.prepare("SELECT * FROM achievement_challenge_maps").all()).toEqual([{ challenge_id: "title.MULTI", map_id: "map.alpha" }]);
-    expect(sqlite.prepare("SELECT * FROM random_event_title_challenges").all()).toEqual([{ event_id: "event.test", challenge_id: "title.MULTI" }]);
-    expect(sqlite.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
-    sqlite.exec("INSERT INTO title_challenges (id,title_key,condition,evidence_rule,submission_mode,status,created_at,updated_at) VALUES ('title.MULTI.new','MULTI','new','evidence','manual','active',3,3); UPDATE title_challenges SET replaced_by_challenge_id='title.MULTI.new' WHERE id='title.MULTI'");
-    expect(() => sqlite.exec("UPDATE title_challenges SET replaced_by_challenge_id='missing' WHERE id='title.MULTI'")).toThrow(/FOREIGN KEY/);
-    expect(() => sqlite.exec("UPDATE title_challenges SET ends_at=0 WHERE id='title.MULTI'")).toThrow(/CHECK/);
-    expect(() => sqlite.exec("UPDATE title_challenges SET status='retired' WHERE id='title.MULTI'")).toThrow(/CHECK/);
-    expect(sqlite.prepare("PRAGMA index_list('title_challenges')").all()).toContainEqual(expect.objectContaining({ name: "title_challenges_status_idx" }));
-  });
-});

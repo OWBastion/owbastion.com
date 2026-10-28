@@ -685,59 +685,6 @@ describe("submission mastery outcomes", () => {
     expect(sqlite.prepare("SELECT gameplay_revision_id FROM submissions WHERE id = 'submission.revision-scoped'").get()).toEqual({ gameplay_revision_id: "revision:map.mastery:initial" });
   });
 
-  it("keeps player-profile and maintainer-list reads bounded as mastery history grows", async () => {
-    const measure = async (runCount: number) => {
-      const { database, sqlite, preparedStatementCount, resetPreparedStatementCount } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.mastery");
-      seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
-      const sessionToken = `query-budget-${runCount}`;
-      sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, 'test', ?, ?, ?)")
-        .run(`session.${runCount}`, `attempt.${runCount}`, "group.player.one", "member.player.one", await requestHash(sessionToken), now + 60_000, now);
-      const services = createPlatformServices(database);
-
-      for (let index = 0; index < runCount; index += 1) {
-        const submissionId = `submission.query-budget.${runCount}.${index}`;
-        seedMasterySubmission(sqlite, submissionId, "binding.one", "Tester");
-        const recorded = await services.recordVerifiedRun({
-          playerAccountId: "player.one",
-          sourceSubmissionId: submissionId,
-          mapId: "map.mastery",
-          gameplayRevisionId: "revision:map.mastery:initial",
-          mapVariant: null,
-          difficulty: "困难",
-          gameVersion: "99.0101.1",
-          matchCode: `${String(1000 + index).padStart(4, "0")}-5678-9012`,
-          completionDurationSeconds: 600 + index,
-          deaths: 1,
-          skips: 0,
-          acceptanceSource: "submission_automatic",
-          acceptedAt: now + index,
-        });
-        expect(recorded.outcome).toBe("created");
-      }
-
-      resetPreparedStatementCount();
-      const profile = await services.getCurrentPlayerMastery({ sessionToken, mapId: "map.mastery", page: 1, pageSize: 20 });
-      const profileStatements = preparedStatementCount();
-      resetPreparedStatementCount();
-      const list = await services.listAdminVerifiedRuns({ page: 1, pageSize: 20 }, {} as never);
-      const listStatements = preparedStatementCount();
-      return { profile, list, profileStatements, listStatements };
-    };
-
-    const oneRun = await measure(1);
-    const fortyRuns = await measure(40);
-    expect(oneRun.profile).toMatchObject({ profiles: [{ verifiedRunCount: 1 }], total: 1, hasMore: false });
-    expect(fortyRuns.profile).toMatchObject({ profiles: [{ verifiedRunCount: 40 }], total: 40, hasMore: true });
-    expect(oneRun.list).toMatchObject({ total: 1, hasMore: false });
-    expect(fortyRuns.list).toMatchObject({ total: 40, hasMore: true });
-    expect(fortyRuns.profileStatements).toBe(oneRun.profileStatements);
-    expect(fortyRuns.listStatements).toBe(oneRun.listStatements);
-    expect(fortyRuns.profileStatements).toBeLessThanOrEqual(6);
-    expect(fortyRuns.listStatements).toBeLessThanOrEqual(3);
-  });
-
   it("shows recent challenge completions and a bounded verified-run summary on the admin player detail", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);

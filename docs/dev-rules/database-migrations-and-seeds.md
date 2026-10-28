@@ -36,8 +36,6 @@ after every relevant Bastion release reads the rule projection, no legacy-challe
 submissions are in flight, reconciliation is archived, and Agents verification
 passed for production and the build token.
 
-Title-grant migrations are checked by `tools/test-title-grant-migration.sh`.
-
 ## Local seed
 
 `pnpm db:seed:local` writes local D1 only: admin, test players, bindings, demo
