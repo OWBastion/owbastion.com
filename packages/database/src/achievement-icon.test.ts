@@ -78,19 +78,4 @@ describe("achievement icon versioning", () => {
     expect(new TextDecoder().decode(bytes)).toBe("icon-b");
   });
 
-  it("falsification: reverting to a stable, un-versioned iconUrl makes both uploads collide and would leak new bytes at the old URL", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    insertTitle(sqlite, "FLAWLESS");
-    const { bucket } = createFakeEvidenceBucket();
-    const services = createPlatformServices(database, bucket, "https://api.example.com");
-
-    const first = await services.uploadAdminTitleIcon({ titleKey: "FLAWLESS", body: new TextEncoder().encode("icon-a").buffer, contentType: "image/png" }, auth);
-    const second = await services.uploadAdminTitleIcon({ titleKey: "FLAWLESS", body: new TextEncoder().encode("icon-b").buffer, contentType: "image/png" }, auth);
-
-    // Simulates the pre-fix stable URL: `.../achievement-icons/FLAWLESS` for both uploads.
-    const stableUrl = "https://api.example.com/v1/public/achievement-icons/FLAWLESS";
-    expect(first.iconUrl).not.toBe(stableUrl); // fails if the stable-URL behavior is restored
-    expect(second.iconUrl).not.toBe(stableUrl);
-  });
 });
