@@ -59,7 +59,7 @@ const insertAttempt = (sqlite: DatabaseSync, row: { id: string; tokenHash: strin
     .run(row.id, row.tokenHash, row.codeHash, row.status, row.expiresAt, row.createdAt);
 };
 
-describe("QQ login attempt code hardening (#245)", () => {
+describe("QQ login attempt codes", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });

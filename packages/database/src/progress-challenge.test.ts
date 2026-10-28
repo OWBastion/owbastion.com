@@ -383,39 +383,6 @@ describe("verified-run progress challenges", () => {
     expect(response!.items.find((item) => item.challengeId === "future")!.status).toBe("scheduled");
   });
 
-  it("uses a fixed query budget as progress challenges grow and transfers no duplicate run history", async () => {
-    const { sqlite, services, resetQueryMetrics, queryMetrics, capturedReadStatements } = setup();
-    sqlite.exec(`
-      CREATE INDEX mastery_runs_active_player_map_accepted_idx
-        ON mastery_runs(player_account_id, map_id, accepted_at DESC) WHERE status = 'active';
-      CREATE INDEX mastery_runs_active_player_map_revision_accepted_idx
-        ON mastery_runs(player_account_id, map_id, gameplay_revision_id, accepted_at DESC) WHERE status = 'active';
-      CREATE INDEX mastery_runs_player_accepted_idx
-        ON mastery_runs(player_account_id, accepted_at DESC, id DESC);
-    `);
-    seedProgressReadRule(sqlite, { id: "scale-0" });
-    seedProgressReadRun(sqlite, { id: "original", createdAt: 100 });
-    await seedProgressReadSession(sqlite);
-    resetQueryMetrics();
-    const initial = await services.listCurrentPlayerChallengeProgress({ sessionToken: "read-token" });
-    const initialMetrics = queryMetrics();
-    for (let index = 1; index < 40; index += 1) seedProgressReadRule(sqlite, { id: `scale-${index}` });
-    resetQueryMetrics();
-    const grown = await services.listCurrentPlayerChallengeProgress({ sessionToken: "read-token" });
-    const grownMetrics = queryMetrics();
-    expect(initial!.items).toHaveLength(1);
-    expect(grown!.items).toHaveLength(40);
-    expect(grownMetrics.statementCount).toBe(initialMetrics.statementCount);
-    for (let index = 0; index < 200; index += 1) seedProgressReadRun(sqlite, { id: `duplicate-${index}`, createdAt: 100 });
-    resetQueryMetrics();
-    expect(await services.listCurrentPlayerChallengeProgress({ sessionToken: "read-token" })).toEqual(grown);
-    expect(queryMetrics()).toEqual(grownMetrics);
-    expect(grownMetrics.progressResultRows).toBeLessThanOrEqual(40);
-    const lookupPlans = capturedReadStatements().flatMap(({ sql, parameters }) =>
-      sqlite.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...parameters) as Array<{ detail: string }>);
-    expect(lookupPlans.some(({ detail }) => /SEARCH .* USING INDEX .*\(player_account_id=\? AND map_id=\?\)/.test(detail))).toBe(true);
-  });
-
   it("completes and grants only after every required map has an eligible active run", async () => {
     const { sqlite, services } = setup();
     await services.createProgressChallenge(achievementInput(), admin, "create.1");

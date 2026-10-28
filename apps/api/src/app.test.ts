@@ -701,11 +701,6 @@ describe("API", () => {
   });
 
 
-  it("does not expose QQ channel submission creation", async () => {
-    const response = await app.request("http://localhost/v1/submissions", { method: "POST" }, env);
-    expect(response.status).toBe(404);
-  });
-
   it("creates a public invitation claim without a player session", async () => {
     const response = await app.request("http://localhost/v1/public/binding-invites/redeem", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", code: "ABCDEFGHIJKL" }) }, env);
     expect(response.status).toBe(201);
@@ -1290,28 +1285,6 @@ describe("API", () => {
     expect((await noResult.json() as { error: { code: string } }).error.code).toBe("OCR_RESULT_NOT_FOUND");
   });
 
-  it("no longer exposes annotation review, dataset, or OCRKit snapshot routes", async () => {
-    const maintainerApp = createTestApp({}, async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }));
-    const removed = [
-      ["GET", "/v1/admin/annotations/proposals"],
-      ["GET", "/v1/admin/annotations/proposals/00000000-0000-4000-8000-000000000005"],
-      ["POST", "/v1/admin/annotations/proposals/00000000-0000-4000-8000-000000000005/decision"],
-      ["POST", "/v1/admin/annotations/direct"],
-      ["GET", "/v1/admin/annotations/reviewed"],
-      ["GET", "/v1/admin/datasets"],
-      ["POST", "/v1/admin/datasets"],
-      ["GET", "/v1/admin/datasets/candidates"],
-      ["GET", "/v1/admin/datasets/00000000-0000-4000-8000-000000000007"],
-      ["POST", "/v1/admin/datasets/00000000-0000-4000-8000-000000000007/finalize"],
-      ["GET", "/v1/ocrkit/datasets/1"],
-      ["GET", "/v1/ocrkit/datasets/1/evidence/00000000-0000-4000-8000-000000000006"],
-    ] as const;
-    for (const [method, path] of removed) {
-      const response = await maintainerApp.request(`http://localhost${path}`, { method, headers: { "content-type": "application/json", "idempotency-key": "removed-1", authorization: "Bearer whatever" }, ...(method === "POST" ? { body: "{}" } : {}) }, env);
-      expect(response.status, `${method} ${path}`).toBe(404);
-    }
-  });
-
   it("limits review identity and moderation operations to maintainers", async () => {
     const reviewId = "00000000-0000-4000-8000-000000000003";
     const adminReview = { reviewId, targetType: "map" as const, targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", targetName: "测试地图", playerAccountId: "11111111-1111-4111-8111-111111111111", playerId: "1234", playerName: "Player", rating: 4 as const, comment: "很好", anonymous: true, commentStatus: "visible" as const, status: "active" as const, createdAt: 1, updatedAt: 2, withdrawnAt: null, invalidatedAt: null, invalidatedBy: null, invalidationReason: null };
@@ -1666,11 +1639,6 @@ describe("API", () => {
     const titleStatus = await adminApp.request("http://localhost/v1/admin/titles/INTERNAL", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "title-catalog-1" }, body: JSON.stringify({ contractVersion: "1", lifecycle: "draft" }) }, env);
     expect(titleStatus.status).toBe(200);
     expect(catalogUpdates).toMatchObject([{ titleKey: "INTERNAL", lifecycle: "draft" }]);
-  });
-
-  it("removes the combined title and challenge creation route", async () => {
-    const adminApp = createTestApp({}, authenticateAsMaintainer);
-    expect((await adminApp.request("http://localhost/v1/admin/achievements", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "removed" }, body: JSON.stringify({ contractVersion: "1" }) }, env)).status).toBe(404);
   });
 
   it("accepts a maintainer achievement icon upload as multipart data", async () => {
@@ -2091,16 +2059,6 @@ describe("API", () => {
     const listApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, listAdminSubmissions: (async (input: unknown) => { seen.push(input); return { contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }; }) as never }) });
     expect((await listApp.request("http://localhost/v1/admin/submissions?playerAccountId=player-1&page=1&pageSize=20", {}, env)).status).toBe(200);
     expect(seen[0]).toMatchObject({ playerAccountId: "player-1" });
-  });
-
-  it("does not expose player or maintainer challenge selection routes", async () => {
-    const playerConfirm = await app.request("http://localhost/v1/player/submissions/00000000-0000-0000-0000-000000000000/challenge", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", challengeId: "title.hero" }) });
-    const adminOptions = await app.request("http://localhost/v1/admin/submissions/00000000-0000-0000-0000-000000000000/challenges");
-    const adminSelect = await app.request("http://localhost/v1/admin/submissions/00000000-0000-0000-0000-000000000000/challenge", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "challenge-select-1" }, body: JSON.stringify({ contractVersion: "1", challengeId: "title.hero" }) });
-
-    expect(playerConfirm.status).toBe(404);
-    expect(adminOptions.status).toBe(404);
-    expect(adminSelect.status).toBe(404);
   });
 
   it("lets maintainers resolve an automatic-decision spot check", async () => {

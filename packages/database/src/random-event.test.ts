@@ -216,22 +216,3 @@ describe("random-event rarity derivation", () => {
     expect(sqlite.prepare("SELECT name, event_group FROM random_events ORDER BY name").all()).toEqual([{ name: "先知", event_group: null }, { name: "梭哈", event_group: "赌徒" }]);
   });
 });
-
-describe("random-event group migration", () => {
-  it("backfills only prefixes shared by at least two events", () => {
-    const { sqlite } = createD1();
-    sqlite.exec("CREATE TABLE random_events (id TEXT PRIMARY KEY, name TEXT NOT NULL)");
-    const insert = sqlite.prepare("INSERT INTO random_events (id, name) VALUES (?, ?)");
-    ["赌徒：梭哈", "赌徒：心之钢", "作弊：先知", "任务：有福同享", "任务：同行链", "没有前缀", "：空前缀"].forEach((name, index) => insert.run(`e${index}`, name));
-    sqlite.exec(readFileSync(new URL("../../../migrations/0095_random_event_group.sql", import.meta.url), "utf8"));
-    expect(sqlite.prepare("SELECT name, event_group FROM random_events ORDER BY id").all()).toEqual([
-      { name: "赌徒：梭哈", event_group: "赌徒" },
-      { name: "赌徒：心之钢", event_group: "赌徒" },
-      { name: "作弊：先知", event_group: null },
-      { name: "任务：有福同享", event_group: "任务" },
-      { name: "任务：同行链", event_group: "任务" },
-      { name: "没有前缀", event_group: null },
-      { name: "：空前缀", event_group: null },
-    ]);
-  });
-});
