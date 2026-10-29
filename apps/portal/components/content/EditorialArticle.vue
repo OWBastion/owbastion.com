@@ -82,9 +82,9 @@ const showToc = computed(() => props.toc.length >= 3);
 .editorial-article-body :deep(:where(h2, h3, h4)) { margin: 2.4em 0 .7em; color: var(--text); line-height: 1.3; scroll-margin-top: calc(var(--sticky-chrome-top) + 1rem); }
 .editorial-article-body :deep(h2) { padding-top: 1.4em; border-top: 1px solid var(--line); font-family: var(--font-display); font-size: 1.375rem; font-weight: 700; letter-spacing: -0.01em; }
 .editorial-article-body :deep(h2:first-child) { margin-top: 0; padding-top: 0; border-top: 0; }
-/* h2 section → h3 group (accent bar) → h4 item (small, muted): each level reads as a step down. */
+/* h2 section → h3 group (accent bar) → h4 item (body size, full color): each level reads as a step down without dropping below the text it labels. */
 .editorial-article-body :deep(h3) { padding-left: .7rem; border-left: 3px solid var(--line-strong); font-size: 1.1875rem; font-weight: 600; }
-.editorial-article-body :deep(h4) { color: var(--muted); font-size: .9375rem; font-weight: 600; letter-spacing: .01em; }
+.editorial-article-body :deep(h4) { font-size: 1rem; font-weight: 600; }
 .editorial-article-body :deep(:where(h2:first-child, h3:first-child, h4:first-child)) { margin-top: 0; }
 .editorial-article-body :deep(p) { margin: 0 0 1.25em; }
 .editorial-article-body :deep(ul), .editorial-article-body :deep(ol) { margin: 0 0 1.25em; padding-inline-start: 1.4rem; }
