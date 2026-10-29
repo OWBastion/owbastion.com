@@ -140,7 +140,7 @@ export const assessVerifiedRunOcrEvidence = (
 
 export const submissionOcrQualityPolicy = {
   schemaVersion: "1",
-  supportedLayoutVersions: ["1280x720-v7", "1280x800-v2", "1280x720-v8", "1280x800-v3", "1280x720-v9", "1280x800-v4"],
+  supportedLayoutVersions: ["1280x720-v7", "1280x800-v2", "1280x720-v8", "1280x800-v3", "1280x720-v9", "1280x800-v4", "1280x720-v10"],
   minimumFieldConfidence: 0.85,
 } as const;
 
