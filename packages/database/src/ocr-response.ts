@@ -25,6 +25,7 @@ export type OcrResponse = {
     viewer_player?: string | null;
     achievement_titles?: string[];
     achievement_panel_text?: string | null;
+    achievement_challenge_disabled?: boolean | null;
     version?: string | null;
     run_code?: string | null;
     duration_seconds?: number | null;
