@@ -73,6 +73,7 @@ export const matchOcrAgainstChallenges = (
     mapVariant: data.map_variant,
     achievementTitles: data.achievement_titles,
     achievementPanelText: data.achievement_panel_text,
+    achievementChallengeDisabled: data.achievement_challenge_disabled,
   };
   const candidates = challenges.map((candidate) => {
     const evaluation = evaluateCanonicalChallengeConditions(candidate.conditions, evaluationInput, titleNamesByKey);

@@ -26,7 +26,9 @@ Handling rules: [data-and-security.md](../dev-rules/data-and-security.md).
   use generic achievement titles or the left panel. Title challenges need
   `challenge_completed`, `player`, and title evidence (a matching `achievement_titles`
   entry or a title followed by a checked mark; an aggregate-statistics panel is not
-  evidence).
+  evidence). `achievement_challenge_disabled: true`
+  (the game's achievements-disabled notice) fails every title condition; `null` is unknown
+  and changes nothing.
 - Difficulty order: `简单` < `一般` < `困难` < `专家` < `传奇` < `地狱`. A harder
   recognized difficulty satisfies easier targets; `普通` normalizes to `一般`; a
   `地狱：` prefix is `地狱`. With several exact matches the decision is the highest
