@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { bindingClaimStatusResponseSchema } from "./index";
-import { contractVersion, pageInfo } from "./common";
+import { contractVersion, pageInfo } from "./shared";
 
 const playerId = z.string().regex(/^\d{1,10}$/), playerName = z.string().trim().min(1).max(64);
 const count = z.number().int().nonnegative();
