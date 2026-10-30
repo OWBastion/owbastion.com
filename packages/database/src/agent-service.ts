@@ -186,7 +186,7 @@ export const createAgentServices = (db: ReturnType<typeof drizzle>, dependencies
         .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.playerAccountId, playerAccounts.id), eq(playerTitleGrants.status, "active"), isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId)))
         .leftJoin(playerEquippedTitles, eq(playerEquippedTitles.grantId, playerTitleGrants.id))
         .leftJoin(titleCatalog, and(eq(playerTitleGrants.titleKey, titleCatalog.key), eq(titleCatalog.scope, "global"), isNotNull(titleCatalog.gameVersion)))
-        .where(or(eq(playerTitleEntitlements.allTitles, 1), and(isNotNull(playerEquippedTitles.grantId), isNotNull(titleCatalog.key))))
+        .where(and(eq(playerAccounts.status, "active"), or(eq(playerTitleEntitlements.allTitles, 1), and(isNotNull(playerEquippedTitles.grantId), isNotNull(titleCatalog.key)))))
         .orderBy(playerAccounts.playerId, playerTitleGrants.titleKey));
       const grouped = new Map<string, { playerId: string; playerName: string; titleKeys: string[]; allTitles: boolean }>();
       for (const row of rows) {
@@ -207,7 +207,7 @@ export const createAgentServices = (db: ReturnType<typeof drizzle>, dependencies
         .leftJoin(playerTitleWear, eq(playerTitleWear.playerAccountId, playerAccounts.id))
         .innerJoin(gameplayRevisions, and(eq(playerTitleGrants.gameplayRevisionId, gameplayRevisions.id), eq(gameplayRevisions.mapId, input.mapId), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])))
         .innerJoin(titleCatalog, and(eq(playerTitleGrants.titleKey, titleCatalog.key), ne(titleCatalog.lifecycle, "draft"), eq(titleCatalog.publicVisibility, 1), eq(titleCatalog.scope, "map"), isNotNull(titleCatalog.gameVersion)))
-        .where(and(eq(playerTitleGrants.status, "active"), or(isNull(playerTitleWear.playerAccountId), ne(playerTitleWear.wearMapTitles, 0)), eq(playerTitleGrants.mapId, input.mapId), inArray(playerTitleGrants.gameplayRevisionId, projectableRevisionIds)))
+        .where(and(eq(playerTitleGrants.status, "active"), eq(playerAccounts.status, "active"), or(isNull(playerTitleWear.playerAccountId), ne(playerTitleWear.wearMapTitles, 0)), eq(playerTitleGrants.mapId, input.mapId), inArray(playerTitleGrants.gameplayRevisionId, projectableRevisionIds)))
         .orderBy(playerTitleGrants.gameplayRevisionId, playerTitleGrants.slot, playerAccounts.playerId, playerTitleGrants.titleKey));
       return paginate(rows.map((row) => ({ mapId: row.mapId!, gameplayRevisionId: row.gameplayRevisionId!, titleKey: row.titleKey, slot: row.slot as "pioneer" | "conqueror" | "dominator" | null, slotSemantics: row.slot ? "named" as const : "none" as const, playerId: row.playerId, playerName: row.playerName })), input.page, input.pageSize);
     },
