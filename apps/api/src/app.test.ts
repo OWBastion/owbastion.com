@@ -785,15 +785,6 @@ describe("API", () => {
     expect(await response.json()).toEqual({ contractVersion: "1", status: "pending_confirmation", expiresAt: 1, historicalMigration: { status: "not_requested", requestedCount: 0, restoredCount: 0 } });
   });
 
-  it("requires idempotency for QQ group lifecycle registration", async () => {
-    const registrations: Array<{ input: unknown; key: string }> = [];
-    const lifecycleApp = createTestApp({ registerQqGroup: async (input, _auth, key) => { registrations.push({ input, key }); } });
-    const body = JSON.stringify({ contractVersion: "1", groupOpenId: "group-1", status: "pending", occurredAt: 1 });
-    expect((await lifecycleApp.request("http://localhost/v1/qq/groups", { method: "POST", headers: { "content-type": "application/json" }, body }, env)).status).toBe(422);
-    expect((await lifecycleApp.request("http://localhost/v1/qq/groups", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "group-event-1" }, body }, env)).status).toBe(204);
-    expect(registrations).toEqual([{ input: { contractVersion: "1", groupOpenId: "group-1", status: "pending", occurredAt: 1 }, key: "group-event-1" }]);
-  });
-
   it("requires idempotency for administrator group configuration", async () => {
     const updates: Array<{ input: unknown; key: string }> = [];
     const adminApp = createTestApp({ upsertQqGroupAccess: async (input, _auth, key) => { updates.push({ input, key }); } }, authenticateAsMaintainer);

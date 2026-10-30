@@ -1762,6 +1762,16 @@
     }
    }
   },
+  "/v1/qq/group-members/left": {
+   "post": {
+    "operationId": "reportQqGroupMemberLeft",
+    "responses": {
+     "204": {
+      "description": "Recorded"
+     }
+    }
+   }
+  },
   "/v1/admin/qq/groups/{groupOpenId}": {
    "put": {
     "operationId": "updateQqGroupAccess",

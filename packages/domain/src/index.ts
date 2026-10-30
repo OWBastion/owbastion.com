@@ -18,6 +18,7 @@ import type {
   AdminPasskeyRecoveryRequest,
   QqGroupAccessRequest,
   QqGroupAccessResponse,
+  QqGroupMemberLeftRequest,
   QqGroupRegistrationRequest,
   AdminPlayerDetail,
   AdminPlayerListResponse,
@@ -327,6 +328,7 @@ export type PlatformServices = {
   requestManualReview(input: { submissionId: string }, sessionToken: string): Promise<void>;
   upsertQqGroupAccess(input: QqGroupAccessRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
   registerQqGroup(input: QqGroupRegistrationRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
+  reportQqGroupMemberLeft(input: QqGroupMemberLeftRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
   listQqGroupAccess(auth: AuthContext): Promise<QqGroupAccessResponse[]>;
   dispatchPendingQqGroupPolicyEvents(): Promise<void>;
   markQqGroupPolicyEventDelivered(input: { eventId: string }): Promise<void>;
