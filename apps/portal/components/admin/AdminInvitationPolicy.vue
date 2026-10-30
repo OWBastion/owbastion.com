@@ -24,19 +24,29 @@ const battleTag = shallowRef("");
 const targetId = shallowRef("");
 
 type NumberKey = "maxCodesCreatedPerPeriod" | "maxRegistrationsPerPeriod" | "maxUsesPerCode" | "maxValidityDays" | "minAccountAgeDays" | "minApprovedSubmissions";
-type Row = { key: NumberKey; label: string; unit: string; min: number; on?: number };
+type Row = { key: NumberKey; label: string; unit: string; options: number[]; unlimited?: boolean };
 const requireRows: Row[] = [
-  { key: "minAccountAgeDays", label: "帐号注册满", unit: "天", min: 1, on: 7 },
-  { key: "minApprovedSubmissions", label: "通过提交满", unit: "次", min: 1, on: 1 },
+  { key: "minAccountAgeDays", label: "帐号注册满", unit: "天", options: [7, 14, 30, 90], unlimited: true },
+  { key: "minApprovedSubmissions", label: "通过提交满", unit: "次", options: [1, 3, 5, 10], unlimited: true },
 ];
 const quotaRows: Row[] = [
-  { key: "maxCodesCreatedPerPeriod", label: "最多创建邀请码", unit: "个", min: 1 },
-  { key: "maxRegistrationsPerPeriod", label: "最多邀请注册", unit: "人", min: 1 },
+  { key: "maxCodesCreatedPerPeriod", label: "最多创建邀请码", unit: "个", options: [1, 3, 5, 10, 20, 50] },
+  { key: "maxRegistrationsPerPeriod", label: "最多邀请注册", unit: "人", options: [1, 3, 5, 10, 20, 50, 100] },
 ];
 const codeRows: Row[] = [
-  { key: "maxUsesPerCode", label: "最多使用", unit: "次", min: 1 },
-  { key: "maxValidityDays", label: "有效期最长", unit: "天", min: 1 },
+  { key: "maxUsesPerCode", label: "最多使用", unit: "次", options: [1, 3, 5, 10, 20, 50] },
+  { key: "maxValidityDays", label: "有效期最长", unit: "天", options: [1, 3, 7, 14, 30, 90] },
 ];
+const choices = (row: Row, current: number | null, inherit = false) => {
+  const values = [...new Set([...row.options, ...(current ? [current] : [])])].sort((x, y) => x - y);
+  return [
+    ...(inherit ? [{ label: `继承 ${policy[row.key] ? `${policy[row.key]} ${row.unit}` : "不限"}`, value: "inherit" }] : []),
+    ...(row.unlimited ? [{ label: "不限", value: 0 }] : []),
+    ...values.map((value) => ({ label: `${value} ${row.unit}`, value })),
+  ];
+};
+const overrideValue = (row: Row) => override[row.key] ?? "inherit";
+const setOverride = (row: Row, value: number | string) => { override[row.key] = value === "inherit" ? null : Number(value); };
 const periods = [{ label: "每日", value: "day" }, { label: "每周", value: "week" }, { label: "每月", value: "month" }];
 const modes = [{ label: "满足任一项", value: "any" }, { label: "两项都满足", value: "all" }];
 const inheritModes = [{ label: "继承", value: "inherit" }, ...modes];
@@ -52,9 +62,8 @@ const modeChoice = computed({
 
 const bothPolicy = computed(() => policy.minAccountAgeDays > 0 && policy.minApprovedSubmissions > 0);
 const bothOverride = computed(() => (override.minAccountAgeDays ?? policy.minAccountAgeDays) > 0 && (override.minApprovedSubmissions ?? policy.minApprovedSubmissions) > 0);
-const inheritText = (key: NumberKey) => `继承 ${policy[key] || "不限"}`;
 const overrideSummary = (item: PlayerInvitationOverride) => {
-  const parts = [...requireRows, ...quotaRows, ...codeRows].filter((row) => item[row.key] !== null).map((row) => `${row.label} ${item[row.key]} ${row.unit}`);
+  const parts = [...requireRows, ...quotaRows, ...codeRows].filter((row) => item[row.key] !== null).map((row) => `${row.label} ${item[row.key] || "不限"}${item[row.key] ? ` ${row.unit}` : ""}`);
   if (item.enabled !== null) parts.unshift(item.enabled ? "开启邀请" : "关闭邀请");
   return parts.join("，") || "全部继承";
 };
@@ -139,30 +148,27 @@ onMounted(load);
       <fieldset class="group" :disabled="!policy.enabled">
         <legend class="group-title">谁可以邀请</legend>
         <div v-for="row in requireRows" :key="row.key" class="row">
-          <USwitch :model-value="policy[row.key] > 0" :aria-label="row.label" @update:model-value="policy[row.key] = $event ? row.on ?? 1 : 0" />
           <span class="label">{{ row.label }}</span>
-          <template v-if="policy[row.key] > 0">
-            <UInputNumber v-model="policy[row.key]" :aria-label="row.label" :min="row.min" class="num" />
-            <span class="unit">{{ row.unit }}</span>
-          </template>
+          <USelect v-model="policy[row.key]" :aria-label="row.label" :items="choices(row, policy[row.key])" class="choice" />
         </div>
         <URadioGroup v-if="bothPolicy" v-model="policy.eligibilityMode" :items="modes" orientation="horizontal" legend="资格关系" />
       </fieldset>
       <fieldset class="group" :disabled="!policy.enabled">
         <legend class="group-title">名额</legend>
-        <USelect v-model="policy.period" aria-label="额度周期" :items="periods" class="w-full" />
+        <div class="row">
+          <span class="label">周期</span>
+          <USelect v-model="policy.period" aria-label="额度周期" :items="periods" class="choice" />
+        </div>
         <div v-for="row in quotaRows" :key="row.key" class="row">
           <span class="label">{{ row.label }}</span>
-          <UInputNumber v-model="policy[row.key]" :aria-label="row.label" :min="row.min" class="num" />
-          <span class="unit">{{ row.unit }}</span>
+          <USelect v-model="policy[row.key]" :aria-label="row.label" :items="choices(row, policy[row.key])" class="choice" />
         </div>
       </fieldset>
       <fieldset class="group" :disabled="!policy.enabled">
         <legend class="group-title">每个邀请码</legend>
         <div v-for="row in codeRows" :key="row.key" class="row">
           <span class="label">{{ row.label }}</span>
-          <UInputNumber v-model="policy[row.key]" :aria-label="row.label" :min="row.min" class="num" />
-          <span class="unit">{{ row.unit }}</span>
+          <USelect v-model="policy[row.key]" :aria-label="row.label" :items="choices(row, policy[row.key])" class="choice" />
         </div>
       </fieldset>
       <UButton type="submit" label="保存" :loading="busy" :disabled="busy" />
@@ -200,8 +206,7 @@ onMounted(load);
             <legend class="group-title">谁可以邀请</legend>
             <div v-for="row in requireRows" :key="row.key" class="row">
               <span class="label">{{ row.label }}</span>
-              <UInputNumber v-model="override[row.key]" :aria-label="row.label" :min="0" :placeholder="inheritText(row.key)" class="num" />
-              <span class="unit">{{ row.unit }}</span>
+              <USelect :model-value="overrideValue(row)" :aria-label="row.label" :items="choices(row, override[row.key], true)" class="choice" @update:model-value="setOverride(row, $event)" />
             </div>
             <USelect v-if="bothOverride" v-model="modeChoice" aria-label="资格关系" :items="inheritModes" class="w-full" />
           </fieldset>
@@ -209,16 +214,14 @@ onMounted(load);
             <legend class="group-title">名额</legend>
             <div v-for="row in quotaRows" :key="row.key" class="row">
               <span class="label">{{ row.label }}</span>
-              <UInputNumber v-model="override[row.key]" :aria-label="row.label" :min="row.min" :placeholder="inheritText(row.key)" class="num" />
-              <span class="unit">{{ row.unit }}</span>
+              <USelect :model-value="overrideValue(row)" :aria-label="row.label" :items="choices(row, override[row.key], true)" class="choice" @update:model-value="setOverride(row, $event)" />
             </div>
           </fieldset>
           <fieldset class="group">
             <legend class="group-title">每个邀请码</legend>
             <div v-for="row in codeRows" :key="row.key" class="row">
               <span class="label">{{ row.label }}</span>
-              <UInputNumber v-model="override[row.key]" :aria-label="row.label" :min="row.min" :placeholder="inheritText(row.key)" class="num" />
-              <span class="unit">{{ row.unit }}</span>
+              <USelect :model-value="overrideValue(row)" :aria-label="row.label" :items="choices(row, override[row.key], true)" class="choice" @update:model-value="setOverride(row, $event)" />
             </div>
           </fieldset>
         </form>
@@ -242,8 +245,7 @@ onMounted(load);
 .group-title { padding: 0 0 var(--space-1); font-size: var(--type-caption-size); font-weight: 600; color: var(--quiet); }
 .row { display: flex; align-items: center; gap: var(--space-2); min-height: 2.5rem; }
 .label { flex: 1; min-width: 0; }
-.num { width: 8.5rem; }
-.unit { width: 1.25rem; color: var(--quiet); }
+.choice { width: 9rem; }
 .dialog-form { display: grid; gap: var(--space-4); }
 .list { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
 .entry { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); padding-top: var(--space-3); border-top: 1px solid var(--line); }
