@@ -534,7 +534,7 @@
    },
    "post": {
     "operationId": "createCurrentPlayerInvitation",
-    "description": "Creates a multi-use code for new Player Account registration only. The code is 4-20 letters, digits, or inner hyphens, normalized to upper case, and must not start with a reserved prefix. maxUses and validityDays are required and bounded by the effective policy; they never change after creation. Creation counts toward the period quota even if the code is later revoked or expires. 403 PLAYER_INVITATION_DISABLED or PLAYER_INVITATION_NOT_ELIGIBLE; 409 PLAYER_INVITATION_CODE_TAKEN or PLAYER_INVITATION_QUOTA_EXHAUSTED; 422 PLAYER_INVITATION_CODE_INVALID, PLAYER_INVITATION_CODE_RESERVED, or PLAYER_INVITATION_LIMIT_EXCEEDED.",
+    "description": "Creates a multi-use code for new Player Account registration only. The code is 4-20 letters, digits, or inner hyphens, normalized to upper case, and must not start with a reserved prefix. maxUses and validityDays are required and bounded by the effective policy; they never change after creation. Creation is refused once the period's registrations reach the limit. 403 PLAYER_INVITATION_DISABLED or PLAYER_INVITATION_NOT_ELIGIBLE; 409 PLAYER_INVITATION_CODE_TAKEN or PLAYER_INVITATION_QUOTA_EXHAUSTED; 422 PLAYER_INVITATION_CODE_INVALID, PLAYER_INVITATION_CODE_RESERVED, or PLAYER_INVITATION_LIMIT_EXCEEDED.",
     "parameters": [
      {
       "$ref": "#/components/parameters/idempotencyKey"
@@ -1997,7 +1997,7 @@
    },
    "put": {
     "operationId": "setAdminPlayerInvitationPolicy",
-    "description": "Replaces the platform-wide policy: enabled, period (day, week from Monday, month; UTC+8), code and registration quotas, maxUsesPerCode, maxValidityDays, and eligibility (minAccountAgeDays, minApprovedSubmissions, eligibilityMode any or all; a threshold of 0 is not checked). Audited. Existing codes keep their cap and expiry; the new policy applies to new codes and redemptions.",
+    "description": "Replaces the platform-wide policy: enabled, period (day, week from Monday, month; UTC+8), registration quota (maxRegistrationsPerPeriod; 1000000 or more means unlimited), maxUsesPerCode, maxValidityDays, and eligibility (minAccountAgeDays, minApprovedSubmissions, eligibilityMode any or all; a threshold of 0 is not checked). Audited. Existing codes keep their cap and expiry; the new policy applies to new codes and redemptions.",
     "parameters": [
      {
       "$ref": "#/components/parameters/idempotencyKey"

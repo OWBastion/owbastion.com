@@ -7,7 +7,7 @@ import { createPlatformServices } from "./index";
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const admin = { actorType: "user", subject: "admin.one", scopes: [] } as never;
 const qqbot = { actorType: "service", subject: "qqbot", roles: ["channel:write"], provider: "test" } as never;
-const policy = { enabled: true, period: "week", maxCodesCreatedPerPeriod: 3, maxRegistrationsPerPeriod: 5, maxUsesPerCode: 5, maxValidityDays: 30, minAccountAgeDays: 0, minApprovedSubmissions: 0, eligibilityMode: "any" } as const;
+const policy = { enabled: true, period: "week", maxRegistrationsPerPeriod: 5, maxUsesPerCode: 5, maxValidityDays: 30, minAccountAgeDays: 0, minApprovedSubmissions: 0, eligibilityMode: "any" } as const;
 const day = 24 * 60 * 60 * 1000;
 
 const fixture = async (overridePolicy: Partial<typeof policy> | null = {}) => {
@@ -76,24 +76,14 @@ describe("player invitation codes", () => {
     expect(count("player_invitations")).toBe(1);
   });
 
-  it("counts every created code in the period, never refunds on revoke, and ignores earlier periods", async () => {
-    const { sqlite, services, create } = await fixture({ maxCodesCreatedPerPeriod: 2 });
-    sqlite.prepare("INSERT INTO player_invitations (id, code, inviter_player_account_id, max_uses, expires_at, created_at) VALUES ('old', 'OLD-CODE', 'alice', 1, 1, 1)").run();
-    const a = await create("code-a");
-    await create("code-b");
-    await expect(create("code-c")).rejects.toThrow("PLAYER_INVITATION_QUOTA_EXHAUSTED");
-    await services.revokeCurrentPlayerInvitation({ sessionToken: "token.alice", invitationId: a.invitationId }, "revoke-a");
-    await expect(create("code-d")).rejects.toThrow("PLAYER_INVITATION_QUOTA_EXHAUSTED");
-    await expect(services.getCurrentPlayerInvitations({ sessionToken: "token.alice", page: 1, pageSize: 20 })).resolves.toMatchObject({ createBlockedReason: "quota_exhausted", quota: { codesCreated: 2, maxCodesCreated: 2 } });
-  });
-
-  it("admits only one of two concurrent creations for the last code slot", async () => {
-    const { create, count } = await fixture({ maxCodesCreatedPerPeriod: 1 });
-    const results = await Promise.allSettled([create("race-a"), create("race-b")]);
-    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
-    expect(results.find((result) => result.status === "rejected")).toMatchObject({ reason: { message: "PLAYER_INVITATION_QUOTA_EXHAUSTED" } });
-    expect(count("player_invitations")).toBe(1);
-    expect(count("idempotency_keys")).toBe(2);
+  it("stops creating codes once the period's registrations reach the limit", async () => {
+    const { sqlite, services, create, register } = await fixture({ maxRegistrationsPerPeriod: 1 });
+    await create("code-a", { maxUses: 2 });
+    await register("code-a", "P1", "8001", "member.1");
+    await expect(create("code-b")).rejects.toThrow("PLAYER_INVITATION_QUOTA_EXHAUSTED");
+    await expect(services.getCurrentPlayerInvitations({ sessionToken: "token.alice", page: 1, pageSize: 20 })).resolves.toMatchObject({ createBlockedReason: "quota_exhausted", quota: { registrations: 1, maxRegistrations: 1 } });
+    sqlite.prepare("UPDATE player_invitation_redemptions SET completed_at = 1").run();
+    await expect(create("code-b")).resolves.toMatchObject({ code: "CODE-B" });
   });
 
   it("applies the eligibility mode of the inviter's effective policy", async () => {
@@ -109,15 +99,19 @@ describe("player invitation codes", () => {
   });
 
   it("lets a per-player override disable one inviter or raise their limits without touching others", async () => {
-    const { services, create, addPlayer } = await fixture({ maxCodesCreatedPerPeriod: 1 });
+    const { services, create, register, addPlayer } = await fixture({ maxRegistrationsPerPeriod: 1 });
     addPlayer("carol", "Carol", "3333");
-    await services.setAdminPlayerInvitationOverride({ playerAccountId: "alice", override: { enabled: null, maxCodesCreatedPerPeriod: 2, maxRegistrationsPerPeriod: null, maxUsesPerCode: null, maxValidityDays: null, minAccountAgeDays: null, minApprovedSubmissions: null, eligibilityMode: null } }, admin, "ov-1");
-    await create("one-a");
+    await services.setAdminPlayerInvitationOverride({ playerAccountId: "alice", override: { enabled: null, maxRegistrationsPerPeriod: 2, maxUsesPerCode: null, maxValidityDays: null, minAccountAgeDays: null, minApprovedSubmissions: null, eligibilityMode: null } }, admin, "ov-1");
+    await create("one-a", { maxUses: 3 });
+    await register("one-a", "P1", "8001", "member.1");
     await expect(create("one-b")).resolves.toMatchObject({ code: "ONE-B" });
+    await register("one-a", "P2", "8002", "member.2");
+    await expect(create("one-c")).rejects.toThrow("PLAYER_INVITATION_QUOTA_EXHAUSTED");
     await create("carol-a", {}, "k1", "carol");
+    await register("carol-a", "P3", "8003", "member.3");
     await expect(create("carol-b", {}, "k2", "carol")).rejects.toThrow("PLAYER_INVITATION_QUOTA_EXHAUSTED");
-    await services.setAdminPlayerInvitationOverride({ playerAccountId: "alice", override: { enabled: false, maxCodesCreatedPerPeriod: null, maxRegistrationsPerPeriod: null, maxUsesPerCode: null, maxValidityDays: null, minAccountAgeDays: null, minApprovedSubmissions: null, eligibilityMode: null } }, admin, "ov-2");
-    await expect(create("one-c")).rejects.toThrow("PLAYER_INVITATION_DISABLED");
+    await services.setAdminPlayerInvitationOverride({ playerAccountId: "alice", override: { enabled: false, maxRegistrationsPerPeriod: null, maxUsesPerCode: null, maxValidityDays: null, minAccountAgeDays: null, minApprovedSubmissions: null, eligibilityMode: null } }, admin, "ov-2");
+    await expect(create("one-d")).rejects.toThrow("PLAYER_INVITATION_DISABLED");
     await services.clearAdminPlayerInvitationOverride({ playerAccountId: "alice" }, admin, "ov-3");
     await expect(services.listAdminPlayerInvitationOverrides({ page: 1, pageSize: 10 }, admin)).resolves.toMatchObject({ total: 0 });
   });

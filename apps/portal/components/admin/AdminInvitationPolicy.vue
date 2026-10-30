@@ -2,6 +2,8 @@
 import type { AdminPlayerInvitationOverrideListResponse, AdminPlayerInvitationPolicyResponse, PlayerInvitationOverride, PlayerInvitationPolicy } from "@owbastion/contracts/player-invitation";
 import { parseBattleTag } from "~/utils/binding-invite";
 import { portalErrorDetails } from "~/utils/portal-error";
+import { playerInvitationUnlimited } from "@owbastion/contracts/player-invitation";
+import { playerInvitationLimitLabel } from "~/utils/player-invitation";
 import { createRequestId } from "~/utils/request-id";
 
 const props = defineProps<{ playerAccountId?: string }>();
@@ -15,23 +17,22 @@ const overrides = shallowRef<AdminPlayerInvitationOverrideListResponse | null>(n
 const overridePage = shallowRef(1);
 const dialogOpen = shallowRef(false);
 
-const emptyPolicy = (): PlayerInvitationPolicy => ({ enabled: false, period: "week", maxCodesCreatedPerPeriod: 1, maxRegistrationsPerPeriod: 1, maxUsesPerCode: 1, maxValidityDays: 7, minAccountAgeDays: 0, minApprovedSubmissions: 0, eligibilityMode: "any" });
+const emptyPolicy = (): PlayerInvitationPolicy => ({ enabled: false, period: "week", maxRegistrationsPerPeriod: 5, maxUsesPerCode: 1, maxValidityDays: 7, minAccountAgeDays: 0, minApprovedSubmissions: 0, eligibilityMode: "any" });
 const policy = reactive<PlayerInvitationPolicy>(emptyPolicy());
 
-const emptyOverride = (): PlayerInvitationOverride => ({ enabled: null, maxCodesCreatedPerPeriod: null, maxRegistrationsPerPeriod: null, maxUsesPerCode: null, maxValidityDays: null, minAccountAgeDays: null, minApprovedSubmissions: null, eligibilityMode: null });
+const emptyOverride = (): PlayerInvitationOverride => ({ enabled: null, maxRegistrationsPerPeriod: null, maxUsesPerCode: null, maxValidityDays: null, minAccountAgeDays: null, minApprovedSubmissions: null, eligibilityMode: null });
 const override = reactive<PlayerInvitationOverride>(emptyOverride());
 const battleTag = shallowRef("");
 const targetId = shallowRef("");
 
-type NumberKey = "maxCodesCreatedPerPeriod" | "maxRegistrationsPerPeriod" | "maxUsesPerCode" | "maxValidityDays" | "minAccountAgeDays" | "minApprovedSubmissions";
+type NumberKey = "maxRegistrationsPerPeriod" | "maxUsesPerCode" | "maxValidityDays" | "minAccountAgeDays" | "minApprovedSubmissions";
 type Row = { key: NumberKey; label: string; unit: string; options: number[]; unlimited?: boolean };
 const requireRows: Row[] = [
   { key: "minAccountAgeDays", label: "帐号注册满", unit: "天", options: [7, 14, 30, 90], unlimited: true },
   { key: "minApprovedSubmissions", label: "通过提交满", unit: "次", options: [1, 3, 5, 10], unlimited: true },
 ];
 const quotaRows: Row[] = [
-  { key: "maxCodesCreatedPerPeriod", label: "最多创建邀请码", unit: "个", options: [1, 3, 5, 10, 20, 50] },
-  { key: "maxRegistrationsPerPeriod", label: "最多邀请注册", unit: "人", options: [1, 3, 5, 10, 20, 50, 100] },
+  { key: "maxRegistrationsPerPeriod", label: "最多邀请注册", unit: "人", options: [1, 3, 5, 10, 20, 50, 100, playerInvitationUnlimited] },
 ];
 const codeRows: Row[] = [
   { key: "maxUsesPerCode", label: "最多使用", unit: "次", options: [1, 3, 5, 10, 20, 50] },
@@ -40,9 +41,9 @@ const codeRows: Row[] = [
 const choices = (row: Row, current: number | null, inherit = false) => {
   const values = [...new Set([...row.options, ...(current ? [current] : [])])].sort((x, y) => x - y);
   return [
-    ...(inherit ? [{ label: `继承 ${policy[row.key] ? `${policy[row.key]} ${row.unit}` : "不限"}`, value: "inherit" }] : []),
+    ...(inherit ? [{ label: `继承 ${policy[row.key] ? playerInvitationLimitLabel(policy[row.key], row.unit) : "不限"}`, value: "inherit" }] : []),
     ...(row.unlimited ? [{ label: "不限", value: 0 }] : []),
-    ...values.map((value) => ({ label: `${value} ${row.unit}`, value })),
+    ...values.map((value) => ({ label: playerInvitationLimitLabel(value, row.unit), value })),
   ];
 };
 const overrideValue = (row: Row) => override[row.key] ?? "inherit";
@@ -63,7 +64,7 @@ const modeChoice = computed({
 const bothPolicy = computed(() => policy.minAccountAgeDays > 0 && policy.minApprovedSubmissions > 0);
 const bothOverride = computed(() => (override.minAccountAgeDays ?? policy.minAccountAgeDays) > 0 && (override.minApprovedSubmissions ?? policy.minApprovedSubmissions) > 0);
 const overrideSummary = (item: PlayerInvitationOverride) => {
-  const parts = [...requireRows, ...quotaRows, ...codeRows].filter((row) => item[row.key] !== null).map((row) => `${row.label} ${item[row.key] || "不限"}${item[row.key] ? ` ${row.unit}` : ""}`);
+  const parts = [...requireRows, ...quotaRows, ...codeRows].filter((row) => item[row.key] !== null).map((row) => `${row.label} ${item[row.key] ? playerInvitationLimitLabel(item[row.key]!, row.unit) : "不限"}`);
   if (item.enabled !== null) parts.unshift(item.enabled ? "开启邀请" : "关闭邀请");
   return parts.join("，") || "全部继承";
 };
