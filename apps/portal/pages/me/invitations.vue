@@ -2,7 +2,7 @@
 import type { PlayerInvitation, PlayerInvitationRedemptionListResponse, PlayerInvitationStateResponse } from "@owbastion/contracts/player-invitation";
 import { formatTime } from "~/utils/date-time";
 import { portalErrorDetails } from "~/utils/portal-error";
-import { playerInvitationBlockedMessage, playerInvitationErrorMessage, playerInvitationPeriodLabel, playerInvitationShareUrl, playerInvitationStatusLabel } from "~/utils/player-invitation";
+import { playerInvitationBlockedMessage, playerInvitationErrorMessage, playerInvitationLimitLabel, playerInvitationPeriodLabel, playerInvitationShareUrl, playerInvitationStatusLabel } from "~/utils/player-invitation";
 import { createRequestId } from "~/utils/request-id";
 
 definePageMeta({ middleware: "auth" });
@@ -81,7 +81,7 @@ onMounted(load);
       <section class="card" aria-labelledby="create-title">
         <h2 id="create-title" class="section-title">创建邀请码</h2>
         <p v-if="state.policy && state.quota" class="note num">
-          {{ playerInvitationPeriodLabel(state.policy.period) }}：邀请码 {{ state.quota.codesCreated }}/{{ state.quota.maxCodesCreated }} · 注册 {{ state.quota.registrations }}/{{ state.quota.maxRegistrations }}
+          {{ playerInvitationPeriodLabel(state.policy.period) }}：注册 {{ state.quota.registrations }}/{{ playerInvitationLimitLabel(state.quota.maxRegistrations) }}
         </p>
         <form class="form" @submit.prevent="create">
           <UInput v-model="form.code" aria-label="邀请码" placeholder="4–20 位字母、数字或连字符" maxlength="20" autocomplete="off" :disabled="busy || !!blocked" />

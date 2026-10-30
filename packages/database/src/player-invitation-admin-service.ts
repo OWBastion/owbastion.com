@@ -50,13 +50,13 @@ export const createPlayerInvitationAdminServices = (dependencies: Dependencies):
       try {
         await database.batch([
           database.prepare(
-            `INSERT INTO player_invitation_policy (id, enabled, period, max_codes_created_per_period, max_registrations_per_period, max_uses_per_code, max_validity_days, min_account_age_days, min_approved_submissions, eligibility_mode, updated_by, updated_at)
-             VALUES ('global', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT(id) DO UPDATE SET enabled = excluded.enabled, period = excluded.period, max_codes_created_per_period = excluded.max_codes_created_per_period,
+            `INSERT INTO player_invitation_policy (id, enabled, period, max_registrations_per_period, max_uses_per_code, max_validity_days, min_account_age_days, min_approved_submissions, eligibility_mode, updated_by, updated_at)
+             VALUES ('global', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET enabled = excluded.enabled, period = excluded.period,
                max_registrations_per_period = excluded.max_registrations_per_period, max_uses_per_code = excluded.max_uses_per_code, max_validity_days = excluded.max_validity_days,
                min_account_age_days = excluded.min_account_age_days, min_approved_submissions = excluded.min_approved_submissions, eligibility_mode = excluded.eligibility_mode,
                updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
-          ).bind(p.enabled ? 1 : 0, p.period, p.maxCodesCreatedPerPeriod, p.maxRegistrationsPerPeriod, p.maxUsesPerCode, p.maxValidityDays, p.minAccountAgeDays, p.minApprovedSubmissions, p.eligibilityMode, auth.subject, timestamp),
+          ).bind(p.enabled ? 1 : 0, p.period, p.maxRegistrationsPerPeriod, p.maxUsesPerCode, p.maxValidityDays, p.minAccountAgeDays, p.minApprovedSubmissions, p.eligibilityMode, auth.subject, timestamp),
           ...await setPolicyStatements(auth, operation, "global", idempotencyKey, input, response, p, timestamp),
         ]);
       } catch (error) {
@@ -86,13 +86,13 @@ export const createPlayerInvitationAdminServices = (dependencies: Dependencies):
       try {
         await database.batch([
           database.prepare(
-            `INSERT INTO player_invitation_overrides (player_account_id, enabled, max_codes_created_per_period, max_registrations_per_period, max_uses_per_code, max_validity_days, min_account_age_days, min_approved_submissions, eligibility_mode, updated_by, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT(player_account_id) DO UPDATE SET enabled = excluded.enabled, max_codes_created_per_period = excluded.max_codes_created_per_period,
+            `INSERT INTO player_invitation_overrides (player_account_id, enabled, max_registrations_per_period, max_uses_per_code, max_validity_days, min_account_age_days, min_approved_submissions, eligibility_mode, updated_by, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(player_account_id) DO UPDATE SET enabled = excluded.enabled,
                max_registrations_per_period = excluded.max_registrations_per_period, max_uses_per_code = excluded.max_uses_per_code, max_validity_days = excluded.max_validity_days,
                min_account_age_days = excluded.min_account_age_days, min_approved_submissions = excluded.min_approved_submissions, eligibility_mode = excluded.eligibility_mode,
                updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
-          ).bind(input.playerAccountId, bool(o.enabled), o.maxCodesCreatedPerPeriod, o.maxRegistrationsPerPeriod, o.maxUsesPerCode, o.maxValidityDays, o.minAccountAgeDays, o.minApprovedSubmissions, o.eligibilityMode, auth.subject, timestamp),
+          ).bind(input.playerAccountId, bool(o.enabled), o.maxRegistrationsPerPeriod, o.maxUsesPerCode, o.maxValidityDays, o.minAccountAgeDays, o.minApprovedSubmissions, o.eligibilityMode, auth.subject, timestamp),
           ...await setPolicyStatements(auth, operation, input.playerAccountId, idempotencyKey, input, {}, { playerAccountId: input.playerAccountId, override: o }, timestamp),
         ]);
       } catch (error) {

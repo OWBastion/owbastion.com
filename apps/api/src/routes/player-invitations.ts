@@ -24,7 +24,7 @@ const writeErrors: RouteErrorMap = {
   PLAYER_INVITATION_DISABLED: { status: 403, message: "Player invitations are not available" },
   PLAYER_INVITATION_NOT_ELIGIBLE: { status: 403, message: "The account does not meet the invitation requirements" },
   PLAYER_INVITATION_LIMIT_EXCEEDED: { status: 422, message: "The use limit or validity exceeds the current policy" },
-  PLAYER_INVITATION_QUOTA_EXHAUSTED: { status: 409, message: "The code quota for this period is used up" },
+  PLAYER_INVITATION_QUOTA_EXHAUSTED: { status: 409, message: "The registration quota for this period is used up" },
   PLAYER_INVITATION_NOT_FOUND: { status: 404, message: "The invitation does not exist" },
 };
 

@@ -410,4 +410,4 @@ export const qqSessionsSchema = `CREATE TABLE qq_sessions (
 export const playerHandlesSchema = readFileSync(new URL("../../../migrations/0104_player_handles.sql", import.meta.url), "utf8");
 
 // Player invitation tables and indexes, taken straight from the migration.
-export const playerInvitationsSchema = readFileSync(new URL("../../../migrations/0111_player_invitations.sql", import.meta.url), "utf8");
+export const playerInvitationsSchema = ["0111_player_invitations.sql", "0112_drop_invitation_code_quota.sql"].map((name) => readFileSync(new URL(`../../../migrations/${name}`, import.meta.url), "utf8")).join("\n");

@@ -73,7 +73,7 @@ describe("player invitation routes", () => {
   });
 
   it("restricts policy, overrides, overview, detail, and revocation to maintainers", async () => {
-    const policy = { enabled: true, period: "week", maxCodesCreatedPerPeriod: 3, maxRegistrationsPerPeriod: 5, maxUsesPerCode: 5, maxValidityDays: 30, minAccountAgeDays: 0, minApprovedSubmissions: 0, eligibilityMode: "any" } as const;
+    const policy = { enabled: true, period: "week", maxRegistrationsPerPeriod: 5, maxUsesPerCode: 5, maxValidityDays: 30, minAccountAgeDays: 0, minApprovedSubmissions: 0, eligibilityMode: "any" } as const;
     const setPolicy = vi.fn(async (_input: unknown, _auth: unknown, _key: string) => ({ contractVersion: "1" as const, policy, updatedAt: 1 }));
     const setOverride = vi.fn(async (_input: unknown, _auth: unknown, _key: string) => undefined);
     const overview = vi.fn(async (_input: unknown, _auth: unknown) => ({ ...page, pageSize: 50 }));
@@ -96,7 +96,7 @@ describe("player invitation routes", () => {
     expect((await send("PUT", "/v1/admin/player-invitations/policy", { ...json, "idempotency-key": "p" }, { contractVersion: "1", policy })).status).toBe(200);
     expect(setPolicy).toHaveBeenCalledWith({ policy }, maintainerContext, "p");
 
-    const override = { enabled: false, maxCodesCreatedPerPeriod: null, maxRegistrationsPerPeriod: null, maxUsesPerCode: null, maxValidityDays: null, minAccountAgeDays: null, minApprovedSubmissions: null, eligibilityMode: null };
+    const override = { enabled: false, maxRegistrationsPerPeriod: null, maxUsesPerCode: null, maxValidityDays: null, minAccountAgeDays: null, minApprovedSubmissions: null, eligibilityMode: null };
     expect((await send("PUT", "/v1/admin/player-invitations/overrides/player-1", { ...json, "idempotency-key": "o" }, { contractVersion: "1", override })).status).toBe(204);
     expect(setOverride).toHaveBeenCalledWith({ playerAccountId: "player-1", override }, maintainerContext, "o");
     expect((await send("DELETE", "/v1/admin/player-invitations/overrides/player-1", { "idempotency-key": "d" })).status).toBe(204);
