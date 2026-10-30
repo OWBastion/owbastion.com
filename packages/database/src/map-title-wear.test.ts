@@ -31,6 +31,10 @@ describe("map-title wear preference", () => {
     await expect(services.updateCurrentPlayerMapTitleWear({ ...session, wearMapTitles: true }, "off")).rejects.toThrow("IDEMPOTENCY_CONFLICT");
     await expect(services.updateCurrentPlayerMapTitleWear({ ...session, wearMapTitles: true }, "on")).resolves.toEqual({ contractVersion: "1", wearMapTitles: true });
     await expect(holders()).resolves.toEqual(["1002"]);
+    sqlite.prepare("UPDATE player_accounts SET status = 'banned' WHERE id = 'player.wear'").run();
+    await expect(holders()).resolves.toEqual([]);
+    sqlite.prepare("UPDATE player_accounts SET status = 'active' WHERE id = 'player.wear'").run();
+    await expect(holders()).resolves.toEqual(["1002"]);
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'player.title.map-wear.update'").get()).toEqual({ count: 2 });
     await expect(services.updateCurrentPlayerMapTitleWear({ sessionToken: "token.missing", wearMapTitles: false }, "nobody")).rejects.toThrow("UNAUTHENTICATED");
     await expect(services.getCurrentPlayerMapTitleWear({ sessionToken: "token.missing" })).resolves.toBeNull();

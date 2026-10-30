@@ -78,6 +78,17 @@ describe("equipped title selection", () => {
     expect(response.items).toEqual([{ playerId: "9999", playerName: "Developer", titleKeys: [], allTitles: true }]);
   });
 
+  it("omits banned players from the agent player projection", async () => {
+    const { sqlite, database } = createD1();
+    const now = Date.now();
+    for (const [id, status] of [["player.active", "active"], ["player.banned", "banned"]]) {
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?, ?)").run(id, id, id, id, status, now, now);
+      sqlite.prepare("INSERT INTO player_title_entitlements VALUES (?, 1)").run(id);
+    }
+    const response = await createPlatformServices(database).listAgentPlayerTitleGrants({ page: 1, pageSize: 20 });
+    expect(response.items.map((item) => item.playerId)).toEqual(["player.active"]);
+  });
+
   it("rejects map grants from equipment while preserving their player projection", async () => {
     const { sqlite, database } = createD1();
     const now = Date.now();
