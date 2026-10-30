@@ -65,7 +65,6 @@ export default defineNuxtConfig({
       htmlAttrs: { lang: "zh-CN" },
       meta: [
         { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-        { name: "theme-color", content: "#0c1310" },
         { property: "og:image", content: `${siteUrl}/og-image.png` },
         { name: "twitter:card", content: "summary_large_image" },
       ],
@@ -83,6 +82,8 @@ export default defineNuxtConfig({
     public: {
       apiBaseUrl: "http://localhost:8787",
       localDevAuth: false,
+      // Set NUXT_PUBLIC_PREVIEW_CHANNEL=true on the next.owbastion.com deployment: noindex plus a link back to the main site.
+      previewChannel: false,
       // Cloudflare 公开的恒通过测试 sitekey，本地默认可用；生产由 NUXT_PUBLIC_TURNSTILE_SITE_KEY 覆盖。
       turnstileSiteKey: "1x00000000000000000000AA",
       // Canonical origin for prerendered SEO metadata; prerendering has no

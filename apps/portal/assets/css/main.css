@@ -824,7 +824,6 @@ a[data-slot="base"]:active:not([aria-disabled="true"]) {
   .glass-heavy,
   .glass-chip,
   .app-header,
-  .mobile-nav,
   .overlay-sheet,
   .event-detail-surface,
   .map-detail-surface,
@@ -850,8 +849,7 @@ a[data-slot="base"]:active:not([aria-disabled="true"]) {
     background: var(--glass-bg-solid) !important;
   }
 
-  .glass-chip,
-  .mobile-nav {
+  .glass-chip {
     background: var(--glass-bg-solid-raised) !important;
   }
 

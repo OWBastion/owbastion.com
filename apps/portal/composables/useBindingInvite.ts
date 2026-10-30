@@ -1,4 +1,6 @@
+import type { PlayerInvitationClaimRejectionReason } from "@owbastion/contracts/player-invitation";
 import { portalErrorDetails } from "~/utils/portal-error";
+import { playerInvitationErrorMessage, playerInvitationRejectionMessage } from "~/utils/player-invitation";
 
 type InviteState = "ready" | "submitting" | "waiting" | "review" | "completed" | "rejected" | "expired" | "failed";
 type ClaimStatus = "pending_confirmation" | "pending_review" | "approved" | "rejected" | "expired";
@@ -16,6 +18,7 @@ export function useBindingInvite() {
   const claim = ref<StoredClaim | null>(null);
   const errorMessage = ref("");
   const refreshing = ref(false);
+  const rejectionReason = ref<PlayerInvitationClaimRejectionReason>();
   let pollTimer: ReturnType<typeof setTimeout> | undefined;
 
   const stopPolling = () => {
@@ -46,7 +49,7 @@ export function useBindingInvite() {
   const pollStatus = async () => {
     if (!claim.value || ["completed", "rejected", "expired"].includes(state.value)) return;
     try {
-      const result = await api<{ status: ClaimStatus; expiresAt: number }>(`/v1/public/binding-claims/${claim.value.claimId}`, { headers: { "x-claim-token": claim.value.claimToken } });
+      const result = await api<{ status: ClaimStatus; expiresAt: number; rejectionReason?: PlayerInvitationClaimRejectionReason }>(`/v1/public/binding-claims/${claim.value.claimId}`, { headers: { "x-claim-token": claim.value.claimToken } });
       claimStatus.value = result.status;
       claim.value.expiresAt = result.expiresAt;
       persistClaim();
@@ -56,7 +59,7 @@ export function useBindingInvite() {
       }
       if (result.status === "pending_review") state.value = "review";
       else if (result.status === "pending_confirmation") state.value = "waiting";
-      else if (result.status === "rejected") { state.value = "rejected"; stopPolling(); return; }
+      else if (result.status === "rejected") { rejectionReason.value = result.rejectionReason; state.value = "rejected"; stopPolling(); return; }
       else if (result.status === "expired") { state.value = "expired"; stopPolling(); return; }
       pollTimer = setTimeout(() => void pollStatus(), 2000);
     } catch (error) {
@@ -74,7 +77,7 @@ export function useBindingInvite() {
     finally { refreshing.value = false; }
   };
 
-  const submit = async (inviteCode: string, turnstileToken: string) => {
+  const submit = async (inviteCode: string, turnstileToken: string, player?: { playerName: string; playerId: string }) => {
     const code = inviteCode.trim().toUpperCase();
     if (!code) {
       errorMessage.value = "请输入管理员发送的邀请码。";
@@ -84,7 +87,7 @@ export function useBindingInvite() {
     state.value = "submitting";
     errorMessage.value = "";
     try {
-      const response = await api<{ code: string; claimId: string; claimToken: string; playerName: string; playerId: string; expiresAt: number }>("/v1/public/binding-invites/redeem", { method: "POST", headers: { "cf-turnstile-response": turnstileToken }, body: { contractVersion: "1", code } });
+      const response = await api<{ code: string; claimId: string; claimToken: string; playerName: string; playerId: string; expiresAt: number }>(player ? "/v1/public/player-invitations/redeem" : "/v1/public/binding-invites/redeem", { method: "POST", headers: { "cf-turnstile-response": turnstileToken }, body: { contractVersion: "1", code, ...player } });
       invite.value = { playerName: response.playerName, playerId: response.playerId };
       confirmationCode.value = response.code;
       claimStatus.value = "pending_confirmation";
@@ -94,7 +97,7 @@ export function useBindingInvite() {
       void pollStatus();
     } catch (error) {
       const details = portalErrorDetails(error, "无法打开绑定邀请，请稍后重试。");
-      errorMessage.value = details.code === "INVITE_INVALID" ? "邀请码不可用，可能已过期、撤销或使用过。" : turnstileErrorMessage(details.code, details.description);
+      errorMessage.value = playerInvitationErrorMessage(details.code) ?? (details.code === "INVITE_INVALID" ? "邀请码不可用，可能已过期、撤销或使用过。" : turnstileErrorMessage(details.code, details.description));
       state.value = "failed";
     }
   };
@@ -116,5 +119,7 @@ export function useBindingInvite() {
 
   onBeforeUnmount(stopPolling);
 
-  return { state, invite, confirmationCode, claimStatus, errorMessage, refreshing, refreshStatus, submit };
+  const rejectionMessage = computed(() => playerInvitationRejectionMessage(rejectionReason.value));
+
+  return { state, invite, confirmationCode, claimStatus, errorMessage, rejectionMessage, refreshing, refreshStatus, submit };
 }

@@ -8,12 +8,15 @@ import type {
   PlayerChallengeProgressListResponse as ContractPlayerChallengeProgressListResponse,
   PlayerMasteryMapProfile as ContractPlayerMasteryMapProfile,
   PlayerSubmissionDetail,
+  PlayerSubmissionListResponse as ContractPlayerSubmissionListResponse,
   PlayerVerifiedRun as ContractPlayerVerifiedRun,
 } from "@owbastion/contracts";
 import { createApiClient, type ApiFetcher } from "~/utils/api-client";
 import type { PortalErrorData } from "~/utils/portal-error";
 
 export type VerifiedRunSubmissionOutcome = NonNullable<PlayerSubmissionDetail["verifiedRunOutcome"]>;
+
+export type PlayerSubmissionListResponse = ContractPlayerSubmissionListResponse;
 
 export type PlayerVerifiedRun = ContractPlayerVerifiedRun;
 

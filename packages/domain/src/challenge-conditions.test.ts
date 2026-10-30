@@ -28,6 +28,15 @@ describe("canonical Challenge Conditions", () => {
     });
   });
 
+  it("never matches a title when achievements were disabled for the run", () => {
+    const names = new Map([["TITLE.ONE", "荣耀"]]);
+    const conditions = { operator: "and" as const, conditions: [{ type: "achievement_title" as const, titleKey: "TITLE.ONE" }] };
+    const evidence = { achievementTitles: ["荣耀"] };
+    expect(evaluateCanonicalChallengeConditions(conditions, evidence, names).matched).toBe(true);
+    expect(evaluateCanonicalChallengeConditions(conditions, { ...evidence, achievementChallengeDisabled: true }, names).matched).toBe(false);
+    expect(evaluateCanonicalChallengeConditions(conditions, { ...evidence, achievementChallengeDisabled: null }, names).matched).toBe(true);
+  });
+
   it("uses the declared operator and requires checked evidence for achievement panel text", () => {
     const conditions = parseCanonicalChallengeConditions({ operator: "or", conditions: [
       { type: "map", mapId: "map.other" },

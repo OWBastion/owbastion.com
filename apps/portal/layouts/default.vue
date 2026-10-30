@@ -2,6 +2,8 @@
 import { introductionPages } from "~/utils/introduction-pages";
 
 const route = useRoute();
+const { previewChannel, siteUrl } = useRuntimeConfig().public;
+if (previewChannel) useHead({ meta: [{ name: "robots", content: "noindex" }] });
 const showFooter = computed(() => !route.path.startsWith("/admin"));
 </script>
 
@@ -19,6 +21,7 @@ const showFooter = computed(() => !route.path.startsWith("/admin"));
           </div>
           <nav class="site-footer__nav" aria-label="页脚导航">
             <NuxtLink v-for="page in introductionPages" :key="page.to" :to="page.to">{{ page.label }}</NuxtLink>
+            <a v-if="previewChannel" :href="`${siteUrl}${route.fullPath}`">回到旧版</a>
           </nav>
           <span class="site-footer__copy num">© {{ new Date().getFullYear() }} 躲避堡垒 3</span>
         </div>

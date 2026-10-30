@@ -26,12 +26,12 @@ const ratings: ReviewRating[] = [1, 2, 3, 4, 5];
     <div class="review-editor-heading"><div><h4>{{ currentReview ? "编辑评价" : "写下评价" }}</h4></div><span>{{ comment.length }}/500</span></div>
     <fieldset class="review-rating-fieldset" :disabled="saving">
       <legend>评分</legend>
-      <div class="review-rating-options" role="group">
+      <div class="flex items-center gap-1" role="group">
         <UButton v-for="value in ratings" :key="value" :icon="'i-lucide-star'" color="neutral" variant="ghost" :class="value <= rating ? 'text-primary' : 'text-muted'" :aria-label="value + ' 星'" :aria-pressed="rating === value" @click="emit('update:rating', value)" />
         <span class="review-rating-value">{{ rating }} / 5</span>
       </div>
     </fieldset>
-    <UFormField class="review-comment-field" label="评价内容"><UTextarea :model-value="comment" class="w-full" :maxlength="500" :rows="4" :disabled="saving" aria-describedby="review-anonymous-note" placeholder="分享你的实际体验" @update:model-value="emit('update:comment', $event ?? '')" /></UFormField>
+    <UFormField label="评价内容"><UTextarea :model-value="comment" class="w-full" :maxlength="500" :rows="4" :disabled="saving" aria-describedby="review-anonymous-note" placeholder="分享你的实际体验" @update:model-value="emit('update:comment', $event ?? '')" /></UFormField>
     <UCheckbox class="review-anonymous-field" label="匿名展示" :model-value="anonymous" :disabled="saving" aria-describedby="review-anonymous-note" @update:model-value="emit('update:anonymous', $event === true)" />
     <p id="review-anonymous-note" class="review-anonymous-note">匿名展示只对其他玩家隐藏身份，维护人员仍可追溯。</p>
     <UAlert v-if="error" color="error" variant="subtle" :description="error" role="alert" />

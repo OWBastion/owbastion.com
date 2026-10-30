@@ -3,6 +3,7 @@ import type { PublicAchievement } from "./AchievementCatalog.vue";
 import type { OwnedTitle } from "~/types/title";
 import type { PlayerChallengeProgress, PortalMap } from "~/composables/usePortalApi";
 import { findOwnedTitle } from "~/utils/achievement-status";
+import { type AchievementAvailability, availabilityNote, availabilityOf } from "~/utils/achievement-availability";
 import { formatDate } from "~/utils/date-time";
 import { buildMapProgressRows, type MapProgressChallenge } from "~/utils/map-progress";
 
@@ -54,7 +55,8 @@ type Tile = {
   condition: string;
   owned?: OwnedTitle;
   earned: boolean;
-  note?: string;
+  availability?: AchievementAvailability;
+  retiredVersion?: string | null;
   series: string;
   progress?: PlayerChallengeProgress;
 };
@@ -68,10 +70,11 @@ const cardTile = (card: AchievementCard): Omit<Tile, "series"> => card.kind === 
       condition: card.challenge.condition,
       owned: ownedGlobalTitleForCard(card),
       earned: isAchievementCardEarned(card),
-      note: card.challenge.status === "scheduled" ? "未开放" : card.challenge.status === "sunsetting" ? "即将结束" : card.challenge.status === "ended" ? "不再发放" : undefined,
+      availability: availabilityOf(card.challenge.status),
+      retiredVersion: card.challenge.retiredVersion,
       progress: card.challenge.progressRule ? progressByChallenge.value.get(card.challenge.challengeId) : undefined,
     }
-  : { key: card.title.grantId, name: card.title.label, icon: { url: card.title.iconUrl, icon: card.title.icon }, condition: card.title.condition, owned: card.title, earned: true, note: "不再发放" };
+  : { key: card.title.grantId, name: card.title.label, icon: { url: card.title.iconUrl, icon: card.title.icon }, condition: card.title.condition, owned: card.title, earned: true, availability: "ended" };
 const tileGroups = computed(() => groups.value.map((group) => ({ name: group.category, tiles: group.cards.map((card) => ({ ...cardTile(card), series: group.category })) })));
 
 const selectedKey = shallowRef<string | null>(null);
@@ -89,13 +92,19 @@ const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, 
     <AchievementWall v-if="tileGroups.length">
       <AchievementShelf v-for="(group, groupIndex) in tileGroups" :key="group.name" :title="group.name" :heading-id="`my-series-${groupIndex}`" :count="`${group.tiles.filter((tile) => tile.earned).length}/${group.tiles.length}`">
         <li v-for="(tile, index) in group.tiles" :key="tile.key">
-          <AchievementTile :name="tile.name" :icon-url="tile.icon.url" :icon="tile.icon.icon" :earned="tile.earned" :note="tile.note" :checked="tile.owned?.equipped" :highlighted="tile.owned?.equipped" check-label="已佩戴" :shine-delay="groupIndex * .8 + index * .22" @click="selectedKey = tile.key" />
+          <AchievementTile :name="tile.name" :icon-url="tile.icon.url" :icon="tile.icon.icon" :earned="tile.earned" :availability="tile.availability" :retired-version="tile.retiredVersion" :checked="tile.owned?.equipped" :highlighted="tile.owned?.equipped" check-label="已佩戴" :shine-delay="groupIndex * .8 + index * .22" @click="selectedKey = tile.key" />
         </li>
       </AchievementShelf>
     </AchievementWall>
 
     <section v-if="mapProgressRows.length" class="series" aria-labelledby="map-achievements-title">
-      <h2 id="map-achievements-title" class="series__title">地图<span class="num">{{ mapProgressRows.reduce((sum, row) => sum + row.earnedChallenges.length, 0) }}/{{ mapProgressRows.reduce((sum, row) => sum + row.challenges.length, 0) }}</span></h2>
+      <div class="series__bar">
+        <h2 id="map-achievements-title" class="series__title">地图<span class="num">{{ mapProgressRows.reduce((sum, row) => sum + row.earnedChallenges.length, 0) }}/{{ mapProgressRows.reduce((sum, row) => sum + row.challenges.length, 0) }}</span></h2>
+        <UPopover :content="{ align: 'end' }">
+          <UButton icon="i-lucide-settings-2" color="neutral" variant="ghost" size="xs" aria-label="地图称号设置" />
+          <template #content><PlayerMapTitleWearCard /></template>
+        </UPopover>
+      </div>
       <ul class="maps">
         <li v-for="row in mapProgressRows" :key="row.map.mapId">
           <NuxtLink :to="`/me/achievements/maps/${encodeURIComponent(row.map.mapId)}`" class="map" :class="{ 'is-complete': row.earnedChallenges.length === row.challenges.length }">
@@ -112,7 +121,7 @@ const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, 
       <template #body>
         <div v-if="selected" class="sheet">
           <AchievementIcon class="sheet__icon" entrance :url="selected.icon.url" :icon="selected.icon.icon" :earned="selected.earned" />
-          <p v-if="selected.note" class="sheet__note">{{ selected.note }}</p>
+          <p v-if="selected.availability" class="sheet__note">{{ availabilityNote(selected.availability, selected.retiredVersion) }}</p>
           <p class="sheet__condition">{{ selected.condition }}</p>
           <p v-if="selected.owned" class="sheet__granted num">获得于 {{ formatDate(selected.owned.grantedAt) }}</p>
           <p v-if="selected.progress" class="sheet__progress">
@@ -141,6 +150,8 @@ const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, 
 .equip-count { justify-self: end; margin: calc(-1 * var(--space-8)) 0 0; padding: var(--space-1) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-pill); color: var(--muted); font-size: var(--type-label-sm-size); }
 .equip-count.is-warn { border-color: var(--warning); color: var(--warning); }
 .series { display: grid; gap: var(--space-3); }
+.series__bar { display: flex; align-items: center; gap: var(--space-2); }
+.series__bar .series__title { flex: 1; }
 .series__title { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); margin: 0; color: var(--muted); font-size: var(--type-label-size); font-weight: 600; letter-spacing: .1em; }
 .series__title .num { color: var(--quiet); font-size: var(--type-label-sm-size); font-weight: 500; letter-spacing: 0; }
 .maps { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr)); gap: var(--space-2); margin: 0; padding: 0; list-style: none; }

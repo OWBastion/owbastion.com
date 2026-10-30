@@ -30,17 +30,10 @@ const siteNavigationItems = computed(() => {
 });
 
 // Phone tab bar: the four destinations a visitor or player reaches most; everything else stays in the menu.
-const tabItems = computed(() => {
-  const items = player.value
-    ? [
-      { label: "总览", icon: "i-lucide-layout-dashboard", to: "/me", active: route.path === "/me" },
-      { label: "我的成就", icon: "i-lucide-award", to: "/me/achievements", active: pathActive("/me/achievements") },
-      { label: "提交截图", icon: "i-lucide-upload", to: "/me/submissions/new", active: pathActive("/me/submissions") },
-      { label: "排行榜", icon: "i-lucide-trophy", to: "/leaderboard", active: pathActive("/leaderboard") },
-    ]
-    : introductionPages.slice(0, 4).map((page) => ({ label: page.label, icon: page.icon, to: page.to, active: pathActive(page.to) }));
-  return items;
-});
+const tabTos = ["/me", "/me/achievements", "/me/submissions/new", "/leaderboard"];
+const tabItems = computed(() => player.value
+  ? siteNavigationItems.value.filter((item) => tabTos.includes(item.to))
+  : siteNavigationItems.value.slice(0, 4));
 
 onMounted(() => { if (!loaded.value) void refresh(); });
 
@@ -83,7 +76,7 @@ async function signOut() {
         </NuxtLink>
         <span v-if="player" class="account-name">{{ player.player.playerName }}</span>
       </div>
-      <USlideover v-model:open="menuOpen" side="right" title="导航菜单" description="站点导航" :ui="{ header: 'sr-only', content: 'max-w-sm' }">
+      <USlideover v-model:open="menuOpen" side="right" title="导航菜单" description="站点导航" :ui="{ title: 'sr-only', description: 'sr-only', content: 'max-w-sm' }">
         <UButton class="mobile-menu-toggle" icon="i-lucide-menu" color="neutral" variant="ghost" aria-label="打开菜单" />
         <template #body>
           <nav id="mobile-nav" :aria-label="isAdminPage ? '移动端管理导航' : '移动端主导航'" @click="handleMobileNavClick">

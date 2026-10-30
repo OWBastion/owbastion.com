@@ -31,6 +31,7 @@ export type ChallengeEvidence = {
   mapVariant?: string | null;
   achievementTitles?: readonly string[];
   achievementPanelText?: string | null;
+  achievementChallengeDisabled?: boolean | null;
 };
 
 export type ChallengeConditionEvaluation = {
@@ -121,6 +122,7 @@ export const evaluateCanonicalChallengeConditions = (
     switch (condition.type) {
       case "achievement_title": {
         const titleName = titleNamesByKey.get(condition.titleKey);
+        if (evidence.achievementChallengeDisabled === true) return false;
         return Boolean(titleName && (
           evidence.achievementTitles?.some((title) => normalized(title) === normalized(titleName))
           || matchesCheckedAchievementTitle(evidence.achievementPanelText, titleName)

@@ -1,6 +1,7 @@
 import { count, desc, eq, and, or, inArray, isNull, isNotNull, ne, lte, lt, gte, sql, asc } from "drizzle-orm";
 
 import { drizzle } from "drizzle-orm/d1";
+import { evidenceKeys } from "./submission-evidence";
 import { buildMasteryProfiles, calculateVerifiedRunXpV3, difficultyAtLeastSatisfied, isWellFormedGameVersion, matchGameMode, normalizeGameMode, regularGameModeLabel, eventWeightTotalCode, runCodeEventWeightTotal, parseCanonicalChallengeConditions, parseChallengeProgressRule, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode, publicTitleChallengeStatus } from "@owbastion/domain";
 export { publicTitleChallengeStatus } from "@owbastion/domain";
 import type { AuthContext, ChallengeProgressRule, VerifiedRunEvidenceCompatibilityV1, VerifiedRunConflictField, PlatformServices, RecordVerifiedRunResult, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
@@ -9,6 +10,7 @@ import { achievementChallenges, attachments, auditEvents, bindings, challengeCom
 import { userEvidenceObjectKey } from "./object-key";
 import { fetchQqAttachmentImage } from "./qq-attachment";
 import { createPlayerUploadServices, playerSubmissionStatus } from "./player-upload-service";
+import { createPlayerSubmissionServices, playerSubmissionSummary, playerSubmissionSummaryColumns, playerVerifiedRunSubmissionOutcome, playerVerifiedRunSubmissionOutcomeFields } from "./player-submission-service";
 import { autoMatchMapIds, autoMatchTitleKeys, autoMatchTitleNames, scopeAutoMatchEvidence, matchOcrAgainstChallenges, type AutoMatchCandidate, type CanonicalOcrChallenge } from "./ocr-auto-match";
 import { assessVerifiedRunOcrEvidence, hasReliableVerifiedRunField, normalizedOcrLabel, standaloneOcrMode, type OcrResponse } from "./ocr-response";
 import { createCanonicalChallengeServices, type CanonicalChallengeInput, type CanonicalChallengePlan, type CanonicalChallengeResolver } from "./canonical-challenge-service";
@@ -585,15 +587,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     return new globalThis.Map(rows.map((row) => [row.submissionId, asVerifiedRunSubmissionOutcome(row)]));
   };
 
-  const playerVerifiedRunSubmissionOutcome = (outcome: VerifiedRunSubmissionOutcome) => outcome.status === "conflict"
-    ? null
-    : { status: outcome.status, awardedXp: outcome.status === "created" ? outcome.awardedXp : 0 };
-
-  const playerVerifiedRunSubmissionOutcomeFields = (outcome: VerifiedRunSubmissionOutcome | null | undefined) => {
-    const safeOutcome = outcome ? playerVerifiedRunSubmissionOutcome(outcome) : null;
-    return safeOutcome ? { verifiedRunOutcome: safeOutcome } : {};
-  };
-
   const masterySubmissionOutcomeStatement = (submissionId: string, outcome: VerifiedRunSubmissionOutcome) => {
     const timestamp = now();
     return database.prepare("INSERT INTO submission_outcomes (id, submission_id, outcome_key, outcome_type, status, entity_id, awarded_xp, details_json, created_at, updated_at) VALUES (?, ?, 'verified_run', 'verified_run', ?, ?, ?, ?, ?, ?) ON CONFLICT(submission_id, outcome_key) DO UPDATE SET status = excluded.status, entity_id = excluded.entity_id, awarded_xp = excluded.awarded_xp, details_json = excluded.details_json, updated_at = excluded.updated_at")
@@ -1123,11 +1116,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   };
 
   const loadAdminSubmission = async (row: typeof submissions.$inferSelect) => {
-    const [details, attachment] = await Promise.all([
-      resolveAdminSubmissionDetails([row]),
-      db.select({ objectKey: attachments.objectKey }).from(attachments).where(eq(attachments.submissionId, row.id)).orderBy(desc(attachments.createdAt)).limit(1).get(),
-    ]);
-    return { ...asAdminSubmission(row, details), evidenceUrl: publicEvidenceUrl(attachment?.objectKey) };
+    const [details, keys] = await Promise.all([resolveAdminSubmissionDetails([row]), evidenceKeys(db, [row.id])]);
+    return { ...asAdminSubmission(row, details), evidenceUrl: publicEvidenceUrl(keys.get(row.id)) };
   };
 
   const {
@@ -2143,7 +2133,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       ]);
       const visibleRows = rows.slice(0, input.pageSize);
       const details = await resolveAdminSubmissionDetails(visibleRows);
-      return { contractVersion: "1" as const, items: visibleRows.map((row) => asAdminSubmission(row, details)), page: input.page, pageSize: input.pageSize, total, hasMore: rows.length > input.pageSize };
+      const keys = await evidenceKeys(db, visibleRows.map((row) => row.id));
+      return { contractVersion: "1" as const, items: visibleRows.map((row) => ({ ...asAdminSubmission(row, details), evidenceUrl: publicEvidenceUrl(keys.get(row.id)) })), page: input.page, pageSize: input.pageSize, total, hasMore: rows.length > input.pageSize };
     },
 
     async getAdminSubmission(input) {
@@ -2164,8 +2155,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       if (!ocrQueue) throw new Error("OCR_NOT_CONFIGURED");
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
-      const attachment = await db.select({ objectKey: attachments.objectKey }).from(attachments).where(eq(attachments.submissionId, row.id)).orderBy(desc(attachments.createdAt)).limit(1).get();
-      if (!attachment?.objectKey) throw new Error("EVIDENCE_NOT_FOUND");
+      const objectKey = (await evidenceKeys(db, [row.id])).get(row.id); if (!objectKey) throw new Error("EVIDENCE_NOT_FOUND");
 
       const latestResult = await db.select({ id: ocrResults.id, errorCode: ocrResults.errorCode, createdAt: ocrResults.createdAt })
         .from(ocrResults)
@@ -2203,7 +2193,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         throw new Error("OCR_RETRY_IN_PROGRESS");
       }
       try {
-        await ocrQueue.send({ version: 2, jobId: pendingResultId, submissionId: row.id, objectKey: attachment.objectKey, manual: true, ...(requestId ? { requestId } : {}) });
+        await ocrQueue.send({ version: 2, jobId: pendingResultId, submissionId: row.id, objectKey, manual: true, ...(requestId ? { requestId } : {}) });
         logOcrEvent("job_enqueued", { submissionId: row.id, attempt: 0, manual: true, requestId: requestId ?? null });
       } catch (error) {
         logOcrEvent("job_enqueue_failed", { submissionId: row.id, attempt: 0, manual: true, requestId: requestId ?? null, ...errorDetails(error) });
@@ -3005,21 +2995,20 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const access = await getCurrentPortalPlayer(input.sessionToken);
       if (!access) return null;
       const { player } = access;
-      const recentSubmissions = await db.select({ submissionId: submissions.id, status: submissions.status, mapName: submissions.mapName, challengeId: submissions.challengeId, difficulty: submissions.difficulty, reason: submissions.reviewReason, createdAt: submissions.createdAt, updatedAt: submissions.updatedAt })
+      const recentSubmissions = await db.select(playerSubmissionSummaryColumns)
         .from(submissions)
         .where(eq(submissions.playerAccountId, player.id))
         .orderBy(desc(submissions.createdAt))
         .limit(5);
-      const verifiedRunOutcomes = await loadVerifiedRunSubmissionOutcomes(recentSubmissions.map((submission) => submission.submissionId));
+      const verifiedRunOutcomes = await loadVerifiedRunSubmissionOutcomes(recentSubmissions.map((submission) => submission.id));
       return {
         contractVersion: "1" as const,
         player: { playerId: player.playerId, playerName: player.playerName, isAdmin: player.isAdmin === 1, publicProfile: player.publicProfile === 1, hideBattleTag: player.hideBattleTag === 1 },
-        recentSubmissions: recentSubmissions.map((submission) => {
-          const verifiedRunOutcome = verifiedRunOutcomes.get(submission.submissionId);
-          return { submissionId: submission.submissionId, status: playerSubmissionStatus(submission.status), resubmissionRequired: submission.status === "resubmission_required", mapName: submission.mapName, challengeId: submission.challengeId ?? undefined, difficulty: submission.difficulty ?? undefined, reason: verifiedRunOutcome?.status === "conflict" ? undefined : submission.reason ?? undefined, ...playerVerifiedRunSubmissionOutcomeFields(verifiedRunOutcome), createdAt: submission.createdAt, updatedAt: submission.updatedAt };
-        }),
+        recentSubmissions: recentSubmissions.map((submission) => playerSubmissionSummary(submission, verifiedRunOutcomes.get(submission.id))),
       };
     },
+
+    ...createPlayerSubmissionServices({ db, getCurrentPortalPlayer, loadVerifiedRunSubmissionOutcomes }),
 
     async updateCurrentPlayerProfileVisibility(input, idempotencyKey) {
       const operation = "player.profile.visibility.update";
@@ -3176,7 +3165,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const submission = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!submission) throw new Error("SUBMISSION_NOT_FOUND");
       const verifiedRunOutcome = await loadVerifiedRunSubmissionOutcome(submission.id);
-      return { contractVersion: "1" as const, submissionId: submission.id, status: playerSubmissionStatus(submission.status), resubmissionRequired: submission.status === "resubmission_required", mapName: submission.mapName, challengeId: submission.challengeId ?? undefined, difficulty: submission.difficulty ?? undefined, reason: verifiedRunOutcome?.status === "conflict" ? undefined : submission.reviewReason ?? undefined, ...playerVerifiedRunSubmissionOutcomeFields(verifiedRunOutcome), createdAt: submission.createdAt, updatedAt: submission.updatedAt };
+      return { contractVersion: "1" as const, ...playerSubmissionSummary(submission, verifiedRunOutcome) };
     },
     ...createReviewServices(database, db, {
       ...databaseServiceDependencies,
