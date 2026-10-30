@@ -1,12 +1,13 @@
 import { and, desc, eq, isNull, lt, ne, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
-import type { QqGroupAccessRequest, QqGroupAccessResponse, QqGroupRegistrationRequest } from "@owbastion/contracts";
-import { auditEvents, idempotencyKeys, qqGroupAccess, qqGroupPolicyOutbox } from "./schema";
+import type { QqGroupAccessRequest, QqGroupAccessResponse, QqGroupMemberLeftRequest, QqGroupRegistrationRequest } from "@owbastion/contracts";
+import { auditEvents, bindings, idempotencyKeys, playerAccounts, portalSessions, qqGroupAccess, qqGroupPolicyOutbox } from "./schema";
 
 type QqGroupServices = Pick<PlatformServices,
   | "upsertQqGroupAccess"
   | "registerQqGroup"
+  | "reportQqGroupMemberLeft"
   | "listQqGroupAccess"
   | "dispatchPendingQqGroupPolicyEvents"
   | "markQqGroupPolicyEventDelivered"
@@ -19,6 +20,8 @@ type QqGroupServicesDependencies = {
   hashRequest: (input: unknown) => Promise<string>;
   replayOrConflict: <T>(actorId: string, operation: string, key: string, input: unknown) => Promise<T | null>;
 };
+
+const AUTO_BAN_REASON = "退群自动封禁";
 
 export const createQqGroupServices = ({ db, queue, now, hashRequest, replayOrConflict }: QqGroupServicesDependencies): QqGroupServices => {
   const dispatchPendingQqGroupPolicyEvents = async () => {
@@ -84,6 +87,27 @@ export const createQqGroupServices = ({ db, queue, now, hashRequest, replayOrCon
       if (shouldNotify) statements.push(db.insert(qqGroupPolicyOutbox).values({ id: crypto.randomUUID(), createdAt: timestamp }));
       await db.batch(statements);
       if (shouldNotify) await dispatchPendingQqGroupPolicyEvents();
+    },
+
+    async reportQqGroupMemberLeft(input: QqGroupMemberLeftRequest, auth: AuthContext, idempotencyKey: string) {
+      const replay = await replayOrConflict<void>(auth.subject, "qq.group.member_left", idempotencyKey, input);
+      if (replay !== null) return;
+      const timestamp = now();
+      const group = await db.select({ status: qqGroupAccess.status }).from(qqGroupAccess).where(eq(qqGroupAccess.groupOpenId, input.groupOpenId)).get();
+      const binding = group?.status === "active"
+        ? await db.select({ playerAccountId: bindings.playerAccountId }).from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.memberOpenId, input.memberOpenId), eq(bindings.status, "active"))).get()
+        : undefined;
+      const player = binding ? await db.select({ status: playerAccounts.status }).from(playerAccounts).where(eq(playerAccounts.id, binding.playerAccountId)).get() : undefined;
+      const idempotency = db.insert(idempotencyKeys).values({ id: `${auth.subject}:qq.group.member_left:${idempotencyKey}`, actorId: auth.subject, operation: "qq.group.member_left", requestHash: await hashRequest(input), responseJson: JSON.stringify({}), createdAt: timestamp });
+      const statements: [any, ...any[]] = [idempotency];
+      if (binding && player?.status === "active") {
+        statements.unshift(
+          db.update(playerAccounts).set({ status: "banned", bannedAt: timestamp, bannedBy: auth.subject, banReason: AUTO_BAN_REASON, updatedAt: timestamp }).where(eq(playerAccounts.id, binding.playerAccountId)),
+          db.delete(portalSessions).where(eq(portalSessions.playerAccountId, binding.playerAccountId)),
+          db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: auth.actorType, actorId: auth.subject, operation: "admin.player.banned", entityType: "player_account", entityId: binding.playerAccountId, payloadJson: JSON.stringify({ status: "banned", reason: AUTO_BAN_REASON, groupOpenId: input.groupOpenId }), createdAt: timestamp }),
+        );
+      }
+      await db.batch(statements);
     },
 
     async markQqGroupPolicyEventDelivered(input: { eventId: string }) {

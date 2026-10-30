@@ -6,6 +6,7 @@ import { playerVerifiedRunSubmissionOutcomeSchema, submissionStatusResponseSchem
 export { contractVersion } from "./shared";
 export * from "./random-event";
 export * from "./player-title-wear";
+export * from "./qq-group-lifecycle";
 export { submissionStatusResponseSchema, playerSubmissionListResponseSchema } from "./player-submissions";
 
 const playerId = z.string().regex(/^\d{1,10}$/), playerName = z.string().trim().min(1).max(64);
@@ -149,7 +150,6 @@ export const adminPasskeyRecoveryResponseSchema = z.object({ contractVersion, re
 const qqGroupStatus = z.enum(["pending", "active", "legacy", "disconnected"]);
 export const qqGroupAccessRequestSchema = z.object({ contractVersion, groupOpenId: externalId, displayName: z.string().trim().max(128).default(""), environment: z.enum(["production", "test"]), status: qqGroupStatus, bindEnabled: z.boolean(), verifyEnabled: z.boolean() });
 export const qqGroupAccessResponseSchema = qqGroupAccessRequestSchema.extend({ updatedAt: z.number().int() });
-export const qqGroupRegistrationRequestSchema = z.object({ contractVersion, groupOpenId: externalId, status: z.enum(["pending", "disconnected"]), occurredAt: z.number().int().nonnegative() });
 
 const adminPlayerStatus = z.enum(["active", "banned"]);
 const adminBindingSchema = z.object({
@@ -1840,7 +1840,6 @@ export type AdminPasskeyRecoveryRequest = z.infer<typeof adminPasskeyRecoveryReq
 export type AdminPasskeyRecoveryResponse = z.infer<typeof adminPasskeyRecoveryResponseSchema>;
 export type QqGroupAccessRequest = z.infer<typeof qqGroupAccessRequestSchema>;
 export type QqGroupAccessResponse = z.infer<typeof qqGroupAccessResponseSchema>;
-export type QqGroupRegistrationRequest = z.infer<typeof qqGroupRegistrationRequestSchema>;
 export type AdminPlayerDetail = z.infer<typeof adminPlayerDetailSchema>;
 export type AdminPlayerListResponse = z.infer<typeof adminPlayerListResponseSchema>;
 export type AdminPlayerStatusRequest = z.infer<typeof adminPlayerStatusRequestSchema>;

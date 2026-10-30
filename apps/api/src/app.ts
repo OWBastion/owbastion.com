@@ -4,7 +4,6 @@ import {
   qqBindingRequestSchema,
   qqScreenshotSubmissionRequestSchema,
   qqGroupAccessRequestSchema,
-  qqGroupRegistrationRequestSchema,
   adminScreenshotSetCreateRequestSchema,
   adminScreenshotSetFinalizeRequestSchema,
   adminScreenshotSetDiscardRequestSchema,
@@ -28,6 +27,7 @@ import { registerPublicCatalogRoutes } from "./routes/public-catalog";
 import { registerLeaderboardRoutes } from "./routes/leaderboard";
 import { registerPlayerHandleRoutes } from "./routes/player-handles";
 import { registerPlayerInvitationRoutes } from "./routes/player-invitations";
+import { registerQqGroupLifecycleRoutes } from "./routes/qq-group-lifecycle";
 import { equippedTitleErrors, registerPlayerTitleRoutes } from "./routes/player-titles";
 import { registerReviewRoutes } from "./routes/reviews";
 import { registerPlayerSubmissionRoutes } from "./routes/player-submissions";
@@ -402,22 +402,6 @@ export const createApp = (dependencies: AppDependencies) => {
     }
   });
 
-  app.post("/v1/qq/groups", async (c) => {
-    const auth = await dependencies.authenticate(c.req.raw, c.env);
-    if (!auth) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
-    if (!auth.roles.includes("channel:write")) return errorResponse(c, 403, "FORBIDDEN", "The actor cannot write channel data");
-    const idempotencyKey = c.req.header("idempotency-key");
-    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = qqGroupRegistrationRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try {
-      await servicesFor(c).registerQqGroup(parsed.data, auth, idempotencyKey);
-      return c.body(null, 204);
-    } catch (error) {
-      return respondToMappedError(c, error, idempotencyErrors);
-    }
-  });
-
   app.get("/v1/me", async (c) => {
     allowPortal(c);
     c.header("Cache-Control", "private, no-store");
@@ -500,6 +484,7 @@ export const createApp = (dependencies: AppDependencies) => {
   registerLeaderboardRoutes(app, { services: servicesFor, allowPortal, requirePortalPlayer, logServiceOperation });
   registerPlayerHandleRoutes(app, { ...playerDeps, logServiceOperation });
   registerPlayerInvitationRoutes(app, { ...playerDeps, requireTurnstile });
+  registerQqGroupLifecycleRoutes(app, { services: servicesFor, authenticate: dependencies.authenticate });
 
   app.get("/v1/public/achievement-icons/:titleKey/:version", async (c) => {
     allowPortal(c);
