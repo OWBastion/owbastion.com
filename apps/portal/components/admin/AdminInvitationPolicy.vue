@@ -24,18 +24,33 @@ const battleTag = shallowRef("");
 const targetId = shallowRef(props.playerAccountId ?? "");
 watch(() => props.playerAccountId, (id) => { if (id) targetId.value = id; });
 
-const periods = (["day", "week", "month"] as const).map((value) => ({ label: playerInvitationPeriodLabel(value), value }));
-const modes = [{ label: "满足任一", value: "any" }, { label: "全部满足", value: "all" }];
+const periods = (["day", "week", "month"] as const).map((value) => ({ label: { day: "每日", week: "每周", month: "每月" }[value], value }));
+const modes = [{ label: "满足任一项", value: "any" }, { label: "两项都满足", value: "all" }];
 const inheritModes = [{ label: "继承", value: "inherit" }, ...modes];
 const enabledChoices = [{ label: "继承", value: "inherit" }, { label: "开启", value: "on" }, { label: "关闭", value: "off" }];
-const numberFields = [
-  { key: "maxCodesCreatedPerPeriod", label: "每周期创建邀请码上限" },
-  { key: "maxRegistrationsPerPeriod", label: "每周期注册上限" },
-  { key: "maxUsesPerCode", label: "单码可用次数上限" },
-  { key: "maxValidityDays", label: "有效天数上限" },
-  { key: "minAccountAgeDays", label: "最短帐号天数" },
-  { key: "minApprovedSubmissions", label: "最少通过提交" },
-] as const;
+type NumberKey = "maxCodesCreatedPerPeriod" | "maxRegistrationsPerPeriod" | "maxUsesPerCode" | "maxValidityDays" | "minAccountAgeDays" | "minApprovedSubmissions";
+const periodWord = computed(() => periods.find((item) => item.value === policy.period)?.label ?? "每周期");
+const groups = computed<{ title: string; fields: { key: NumberKey; label: string; unit: string; hint?: string; min: number }[] }[]>(() => [
+  { title: "名额", fields: [
+    { key: "maxCodesCreatedPerPeriod", label: `${periodWord.value}可创建邀请码`, unit: "个", hint: "0 为不可创建", min: 0 },
+    { key: "maxRegistrationsPerPeriod", label: `${periodWord.value}可邀请注册`, unit: "人", hint: "0 为不可邀请", min: 0 },
+  ] },
+  { title: "邀请码", fields: [
+    { key: "maxUsesPerCode", label: "单码最多使用", unit: "次", min: 1 },
+    { key: "maxValidityDays", label: "有效期最长", unit: "天", min: 1 },
+  ] },
+  { title: "邀请资格", fields: [
+    { key: "minAccountAgeDays", label: "帐号注册至少", unit: "天", hint: "0 为不限", min: 0 },
+    { key: "minApprovedSubmissions", label: "通过提交至少", unit: "次", hint: "0 为不限", min: 0 },
+  ] },
+]);
+const bothRequirements = (source: { minAccountAgeDays: number | null; minApprovedSubmissions: number | null }) => (source.minAccountAgeDays ?? policy.minAccountAgeDays) > 0 && (source.minApprovedSubmissions ?? policy.minApprovedSubmissions) > 0;
+const overrideSummary = (item: PlayerInvitationOverride) => {
+  const parts = groups.value.flatMap((group) => group.fields).filter((field) => item[field.key] !== null).map((field) => `${field.label} ${item[field.key]} ${field.unit}`);
+  if (item.enabled !== null) parts.unshift(item.enabled ? "开启邀请" : "关闭邀请");
+  if (item.eligibilityMode !== null) parts.push(modes.find((mode) => mode.value === item.eligibilityMode)!.label);
+  return parts.join("，") || "全部继承";
+};
 const enabledChoice = computed({
   get: () => override.enabled === null ? "inherit" : override.enabled ? "on" : "off",
   set: (value) => { override.enabled = value === "inherit" ? null : value === "on"; },
@@ -114,26 +129,53 @@ onMounted(load);
     <form class="block" aria-labelledby="policy-title" @submit.prevent="savePolicy">
       <h2 id="policy-title" class="block-title">全局策略</h2>
       <USwitch v-model="policy.enabled" label="开放玩家邀请" />
-      <div class="fields">
-        <USelect v-model="policy.period" aria-label="额度周期" :items="periods" />
-        <USelect v-model="policy.eligibilityMode" aria-label="资格关系" :items="modes" />
-        <UInputNumber v-for="field in numberFields" :key="field.key" v-model="policy[field.key]" :aria-label="field.label" :placeholder="field.label" :min="0" />
-      </div>
+      <fieldset class="group" :disabled="!policy.enabled">
+        <legend class="group-title">名额</legend>
+        <div class="fields">
+          <UFormField label="额度周期"><USelect v-model="policy.period" :items="periods" class="w-full" /></UFormField>
+          <UFormField v-for="field in groups[0]!.fields" :key="field.key" :label="field.label" :help="field.hint">
+            <UInputNumber v-model="policy[field.key]" :min="field.min" class="w-full" />
+          </UFormField>
+        </div>
+      </fieldset>
+      <fieldset v-for="group in groups.slice(1)" :key="group.title" class="group" :disabled="!policy.enabled">
+        <legend class="group-title">{{ group.title }}</legend>
+        <div class="fields">
+          <UFormField v-for="field in group.fields" :key="field.key" :label="field.label" :help="field.hint">
+            <UInputNumber v-model="policy[field.key]" :min="field.min" class="w-full" />
+          </UFormField>
+          <UFormField v-if="group.title === '邀请资格' && bothRequirements(policy)" label="资格关系">
+            <USelect v-model="policy.eligibilityMode" :items="modes" class="w-full" />
+          </UFormField>
+        </div>
+      </fieldset>
       <UButton type="submit" label="保存策略" :loading="busy" :disabled="busy" />
     </form>
 
     <form class="block" aria-labelledby="override-title" @submit.prevent="saveOverride">
       <h2 id="override-title" class="block-title">个人额度</h2>
       <div class="fields">
-        <UInput v-model="battleTag" aria-label="BattleTag" placeholder="玩家名#1234" :disabled="!!targetId && !!props.playerAccountId" @update:model-value="targetId = props.playerAccountId ?? ''" />
-        <USelect v-model="enabledChoice" aria-label="开放状态" :items="enabledChoices" />
-        <USelect v-model="modeChoice" aria-label="资格关系" :items="inheritModes" />
-        <UInputNumber v-for="field in numberFields" :key="field.key" v-model="override[field.key]" :aria-label="field.label" :placeholder="`${field.label}（继承）`" :min="0" />
+        <UFormField label="玩家">
+          <UInput v-model="battleTag" placeholder="玩家名#1234" class="w-full" :disabled="!!targetId && !!props.playerAccountId" @update:model-value="targetId = props.playerAccountId ?? ''" />
+        </UFormField>
+        <UFormField label="邀请功能"><USelect v-model="enabledChoice" :items="enabledChoices" class="w-full" /></UFormField>
       </div>
+      <fieldset v-for="group in groups" :key="group.title" class="group">
+        <legend class="group-title">{{ group.title }}</legend>
+        <div class="fields">
+          <UFormField v-for="field in group.fields" :key="field.key" :label="field.label">
+            <UInputNumber v-model="override[field.key]" :min="field.min" :placeholder="`继承 ${policy[field.key]}`" class="w-full" />
+          </UFormField>
+          <UFormField v-if="group.title === '邀请资格' && bothRequirements(override)" label="资格关系">
+            <USelect v-model="modeChoice" :items="inheritModes" class="w-full" />
+          </UFormField>
+        </div>
+      </fieldset>
       <UButton type="submit" label="保存个人额度" :loading="busy" :disabled="busy || (!battleTag && !targetId)" />
       <ul v-if="overrides?.items.length" class="list">
         <li v-for="item in overrides.items" :key="item.playerAccountId" class="row">
           <PlayerBattleTag :player-name="item.playerName" :player-id="item.playerId" mode="identity" />
+          <span class="summary">{{ overrideSummary(item.override) }}</span>
           <span class="actions">
             <UButton label="编辑" color="neutral" variant="ghost" size="sm" @click="edit(item)" />
             <UButton label="恢复默认" color="neutral" variant="ghost" size="sm" :disabled="busy" @click="clearOverride(item.playerAccountId)" />
@@ -149,7 +191,11 @@ onMounted(load);
 .policy { display: grid; gap: var(--space-6); }
 .block { display: grid; gap: var(--space-3); padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
 .block-title { margin: 0; font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; }
-.fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: var(--space-2); }
+.group { display: grid; gap: var(--space-2); margin: 0; padding: 0; border: 0; }
+.group:disabled { opacity: 0.55; }
+.group-title { padding: 0; font-size: var(--type-caption-size); font-weight: 600; color: var(--quiet); }
+.summary { color: var(--quiet); font-size: var(--type-caption-size); }
+.fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: var(--space-2); }
 .block > button { justify-self: start; }
 .list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
