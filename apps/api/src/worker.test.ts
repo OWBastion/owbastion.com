@@ -220,25 +220,14 @@ describe("OCR Queue consumer", () => {
     const dispatchPendingQqGroupPolicyEvents = vi.fn<PlatformServices["dispatchPendingQqGroupPolicyEvents"]>().mockResolvedValue(undefined);
     const reconcileStaleOcrJobs = vi.fn<PlatformServices["reconcileStaleOcrJobs"]>().mockResolvedValue(0);
     const before = Date.now();
-    createPlatformServices.mockReturnValue({ dispatchPendingQqGroupPolicyEvents, reconcileStaleOcrJobs, reconcileProgressChallenges: vi.fn() });
+    createPlatformServices.mockReturnValue({ dispatchPendingQqGroupPolicyEvents, reconcileStaleOcrJobs });
 
-    await worker.scheduled({ scheduledTime: Date.UTC(2026, 10, 1, 10, 35) } as never, {} as never);
+    await worker.scheduled({} as never, {} as never);
 
     expect(dispatchPendingQqGroupPolicyEvents).not.toHaveBeenCalled();
     expect(reconcileStaleOcrJobs).toHaveBeenCalledOnce();
     const olderThan = reconcileStaleOcrJobs.mock.calls[0]![0].olderThan;
     expect(olderThan).toBeGreaterThanOrEqual(before - 45 * 60_000);
     expect(olderThan).toBeLessThanOrEqual(Date.now() - 45 * 60_000);
-  });
-
-  it("sweeps progress challenges only on the first cron tick of each hour", async () => {
-    const reconcileProgressChallenges = vi.fn<PlatformServices["reconcileProgressChallenges"]>().mockResolvedValue(undefined);
-    createPlatformServices.mockReturnValue({ reconcileStaleOcrJobs: vi.fn().mockResolvedValue(0), reconcileProgressChallenges });
-
-    await worker.scheduled({ scheduledTime: Date.UTC(2026, 10, 1, 10, 5) } as never, {} as never);
-    expect(reconcileProgressChallenges).not.toHaveBeenCalled();
-
-    await worker.scheduled({ scheduledTime: Date.UTC(2026, 10, 1, 11, 0) } as never, {} as never);
-    expect(reconcileProgressChallenges).toHaveBeenCalledOnce();
   });
 });

@@ -285,34 +285,27 @@ describe("verified-run progress challenges", () => {
     sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, status, source_type, source_id, granted_by, granted_at) VALUES (?, 'account-1', ?, ?, ?, 'active', ?, ?, 'admin.1', 1)")
       .run(`grant:${titleKey}:${mapId}`, titleKey, mapId, `revision:${mapId}`, sourceType, `${sourceType}:${titleKey}:${mapId}`);
 
-  it("counts held map titles without a Verified Run and grants through the sweep", async () => {
+  it("counts held map titles without a Verified Run when the player's progress is read", async () => {
     const { sqlite, services } = setup();
-    await services.createProgressChallenge(achievementInput({ progressRule: { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"], difficultyAtLeast: "传奇" } }), admin, "create.1");
+    await seedProgressReadSession(sqlite);
+    seedProgressReadRule(sqlite, { id: "held", rule: { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"], difficultyAtLeast: "传奇" } });
     insertMapGrant(sqlite, "CONQUEROR", "map.alpha");
     insertMapGrant(sqlite, "DOMINATOR", "map.beta");
-    expect(progressGrants(sqlite)).toEqual([]);
-
-    await services.reconcileProgressChallenges();
-    expect(progressCompletion(sqlite)).toMatchObject([{ status: "active" }]);
-    expect(progressGrants(sqlite)).toMatchObject([{ status: "active", player_account_id: "account-1" }]);
-
-    await services.reconcileProgressChallenges();
-    expect(progressCompletion(sqlite)).toHaveLength(1);
-    expect(progressGrants(sqlite)).toHaveLength(1);
+    const { items } = (await services.listCurrentPlayerChallengeProgress({ sessionToken: "read-token" }))!;
+    expect(items).toMatchObject([{ completedMaps: 2, satisfied: true }]);
   });
 
   it("does not let a Conqueror title satisfy a Hell-level rule or a revoked title count", async () => {
     const { sqlite, services } = setup();
-    await services.createProgressChallenge(achievementInput({ progressRule: { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"], difficultyAtLeast: "地狱" } }), admin, "create.1");
+    await seedProgressReadSession(sqlite);
+    seedProgressReadRule(sqlite, { id: "hell", rule: { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"], difficultyAtLeast: "地狱" } });
     insertMapGrant(sqlite, "CONQUEROR", "map.alpha");
     insertMapGrant(sqlite, "DOMINATOR", "map.beta");
-    await services.reconcileProgressChallenges();
-    expect(progressGrants(sqlite)).toEqual([]);
+    expect((await services.listCurrentPlayerChallengeProgress({ sessionToken: "read-token" }))!.items).toMatchObject([{ completedMaps: 1, satisfied: false }]);
 
     insertMapGrant(sqlite, "DOMINATOR", "map.alpha");
     sqlite.prepare("UPDATE player_title_grants SET status = 'revoked', revoked_at = 2, revocation_type = 'administrator' WHERE id = 'grant:DOMINATOR:map.beta'").run();
-    await services.reconcileProgressChallenges();
-    expect(progressGrants(sqlite)).toEqual([]);
+    expect((await services.listCurrentPlayerChallengeProgress({ sessionToken: "read-token" }))!.items).toMatchObject([{ completedMaps: 1, satisfied: false }]);
   });
 
   it.each([

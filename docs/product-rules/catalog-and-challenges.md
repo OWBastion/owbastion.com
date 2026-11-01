@@ -127,7 +127,8 @@ Resolution for `(ruleId, mapId, gameplayRevisionId)`:
 - A progress rule counts a map when the player has an active Verified Run there, or an
   active map-scoped Grant that proves the rule's difficulty (Conqueror: Legend and below,
   Dominator: Hell and below), so historical or manual Grants without a Run still count.
-  An hourly sweep reconciles every progress Challenge, covering all Grant sources.
+  Each screenshot submission and approval re-derives the submitting player's progress
+  Challenges; existing holders are not backfilled.
 
 ## Random events
 

@@ -3,11 +3,10 @@ import type { drizzle } from "drizzle-orm/d1";
 import { progressProofTitleKeys, type ChallengeProgressRule } from "@owbastion/domain";
 import { gameplayRevisions, playerTitleGrants } from "./schema";
 
-// Active map-scoped Grants that prove a clear without a Verified Run. Without
-// `playerAccountIds` it lists every holder.
+// Active map-scoped Grants that prove a clear without a Verified Run.
 export const loadProofGrantMaps = async (
   db: ReturnType<typeof drizzle>,
-  input: { playerAccountIds?: string[]; rule: ChallengeProgressRule; requiredMapIds: string[]; startsAt: number | null; endsAt: number | null },
+  input: { playerAccountIds: string[]; rule: ChallengeProgressRule; requiredMapIds: string[]; startsAt: number | null; endsAt: number | null },
   chunked: <T>(items: T[]) => T[][],
 ) => {
   const titleKeys = progressProofTitleKeys(input.rule.difficultyAtLeast);
@@ -20,9 +19,9 @@ export const loadProofGrantMaps = async (
     input.startsAt !== null ? gte(playerTitleGrants.grantedAt, input.startsAt) : undefined,
     input.endsAt !== null ? lt(playerTitleGrants.grantedAt, input.endsAt) : undefined,
   ];
-  const select = (playerAccountIds?: string[]) => db.selectDistinct({ playerAccountId: playerTitleGrants.playerAccountId, mapId: sql<string>`${playerTitleGrants.mapId}` })
+  const select = (playerAccountIds: string[]) => db.selectDistinct({ playerAccountId: playerTitleGrants.playerAccountId, mapId: sql<string>`${playerTitleGrants.mapId}` })
     .from(playerTitleGrants)
     .leftJoin(gameplayRevisions, eq(playerTitleGrants.gameplayRevisionId, gameplayRevisions.id))
-    .where(and(...conditions, playerAccountIds ? inArray(playerTitleGrants.playerAccountId, playerAccountIds) : undefined));
-  return input.playerAccountIds ? (await Promise.all(chunked(input.playerAccountIds).map(select))).flat() : select();
+    .where(and(...conditions, inArray(playerTitleGrants.playerAccountId, playerAccountIds)));
+  return (await Promise.all(chunked(input.playerAccountIds).map(select))).flat();
 };

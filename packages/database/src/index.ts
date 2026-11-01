@@ -1389,25 +1389,24 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   // authoritative facts just changed. Runs after the mutating write commits.
   // Corrections can move a run across required-map boundaries, so evaluation
   // is not pre-filtered by the run's current map.
-  const reconcileVerifiedRunProgressChallenges = async (input: { verifiedRunIds: string[]; actorId: string; reason?: string | null }) => {
-    const runIds = [...new Set(input.verifiedRunIds)];
-    if (!runIds.length) return;
-    const runs = await db.select({ playerAccountId: verifiedRuns.playerAccountId })
-      .from(verifiedRuns)
-      .where(inArray(verifiedRuns.id, runIds));
-    const playerIds = [...new Set(runs.map((run) => run.playerAccountId))];
+  const reconcilePlayerProgressChallenges = async (input: { playerAccountIds: string[]; actorId: string; reason?: string | null }) => {
+    const playerIds = [...new Set(input.playerAccountIds)];
     if (!playerIds.length) return;
     const timestamp = now();
     const reason = input.reason?.trim() || null;
     const { plans, revokingOwners } = await loadReconciliation(playerIds, timestamp);
-    if (!plans.length) return;
     const statements: D1PreparedStatement[] = [];
     for (const { challenge, rule, canonicalChallengeId, facts } of plans) {
-      for (const playerAccountId of playerIds) {
-        planPlayerProgressChallenge({ playerAccountId, challenge, rule, canonicalChallengeId, actorId: input.actorId, reason, timestamp, facts, revokingOwners, statements });
-      }
+      for (const playerAccountId of playerIds) planPlayerProgressChallenge({ playerAccountId, challenge, rule, canonicalChallengeId, actorId: input.actorId, reason, timestamp, facts, revokingOwners, statements });
     }
     if (statements.length) await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+  };
+
+  const reconcileVerifiedRunProgressChallenges = async (input: { verifiedRunIds: string[]; actorId: string; reason?: string | null }) => {
+    const runIds = [...new Set(input.verifiedRunIds)];
+    if (!runIds.length) return;
+    const runs = await db.select({ playerAccountId: verifiedRuns.playerAccountId }).from(verifiedRuns).where(inArray(verifiedRuns.id, runIds));
+    await reconcilePlayerProgressChallenges({ playerAccountIds: runs.map((run) => run.playerAccountId), actorId: input.actorId, reason: input.reason });
   };
 
   // Retroactively reconciles one progress Challenge for every player the rule
@@ -1425,11 +1424,10 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       timestamp,
     }]);
     const requiredMapIds = await progressRuleMapIds(input.rule);
-    const [runPlayers, grantPlayers, completionPlayers] = await Promise.all([
+    const [runPlayers, completionPlayers] = await Promise.all([
       requiredMapIds.length ? db.selectDistinct({ playerAccountId: verifiedRuns.playerAccountId })
         .from(verifiedRuns)
         .where(and(eq(verifiedRuns.status, "active"), inArray(verifiedRuns.mapId, requiredMapIds))) : Promise.resolve([] as Array<{ playerAccountId: string }>),
-      loadProofGrantMaps(db, { rule: input.rule, requiredMapIds, startsAt: input.challenge.startsAt, endsAt: input.challenge.endsAt }, chunked),
       db.selectDistinct({ playerAccountId: challengeCompletions.playerAccountId })
         .from(challengeCompletions)
         .innerJoin(challenges, eq(challengeCompletions.challengeId, challenges.id))
@@ -1439,7 +1437,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           eq(challenges.sourceId, input.challenge.id),
         )),
     ]);
-    const players = [...new Set([...runPlayers, ...grantPlayers, ...completionPlayers].map(({ playerAccountId }) => playerAccountId))];
+    const players = [...new Set([...runPlayers, ...completionPlayers].map(({ playerAccountId }) => playerAccountId))];
     if (!players.length) return;
     // Plan the target challenge with the incoming rule (an edit may not have
     // committed the stored rule yet), plus every sibling path sharing its
@@ -1471,14 +1469,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   };
 
 
-
-  // Grants arrive from many paths (review, historical migration, manual), so
-  // a sweep re-derives every progress Challenge instead of hooking each one.
-  const reconcileProgressChallenges = async () => {
-    for (const { challenge, rule } of await loadProgressChallenges()) {
-      await reconcileProgressChallengePlayers({ challenge, rule, actorId: "system:progress_sweep" });
-    }
-  };
 
   const prepareCanonicalAutoMatchChallenges = async (items: Challenge[], eligibilityAt: number, activeMaps: typeof maps.$inferSelect[]) => {
     const resolved: CanonicalOcrChallenge[] = [];
@@ -1823,6 +1813,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   const { persistSubmissionReview, reconcileReviewedSubmissionProgress } = createSubmissionReviewPersistence(database, db, {
     loadVerifiedRunSubmissionOutcome,
     reconcileVerifiedRunProgressChallenges,
+    reconcilePlayerProgressChallenges,
   });
 
   const { prepareVerifiedRunTransitionStatements, transitionVerifiedRun, ...adminVerifiedRunServices } = createAdminVerifiedRunServices({
@@ -1849,6 +1840,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     ocrAutoReviewSampleRate,
     preparePlayerAutoMatchChallenges,
     resolveVerifiedRunSubmissionOutcome,
+    reconcilePlayerProgressChallenges,
     masterySubmissionOutcomeStatement,
     approvedSubmissionOutcomeStatement,
     withCanonicalMode,
@@ -1861,7 +1853,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
 
   return {
     reconcileStaleOcrJobs,
-    reconcileProgressChallenges,
     recordVerifiedRun,
 
     async invalidateVerifiedRun(input, actor) {

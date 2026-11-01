@@ -55,6 +55,18 @@ describe("submission review aggregate progress", () => {
     }
   });
 
+  it("counts a map title held in place of a Verified Run when the final map is approved", async () => {
+    const { sqlite, services, grants } = await setup(true);
+    try {
+      sqlite.prepare("UPDATE mastery_runs SET status = 'invalidated', invalidated_at = ?, invalidated_by = 'admin' WHERE map_id = 'map.alpha'").run(now);
+      sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.held', 'player.tour', 'CONQUEROR', 'map.alpha', 'revision:map.alpha:initial', 'active', 'historical', 'historical.held', 'admin', ?)").run(now);
+      await services.reviewSubmission(review, auth, "approve.beta");
+      expect(grants()).toEqual([{ title_key: "TOUR", status: "active" }]);
+    } finally {
+      sqlite.close();
+    }
+  });
+
   it.each([false, true])("repairs aggregate grants when approval is retried after a post-commit failure (map title: %s)", async (withMapTitle) => {
     const { database, sqlite, services, grants } = await setup(withMapTitle);
     const batch = database.batch.bind(database);
