@@ -124,6 +124,11 @@ Resolution for `(ruleId, mapId, gameplayRevisionId)`:
   revision; an unconfigured label goes to maintainer review. A mode revision is never the
   default or classic. A progress rule may follow every map of a mode and reconciles on
   change.
+- A progress rule counts a map when the player has an active Verified Run there, or an
+  active map-scoped Grant that proves the rule's difficulty (Conqueror: Legend and below,
+  Dominator: Hell and below), so historical or manual Grants without a Run still count.
+  Each screenshot submission and approval re-derives the submitting player's progress
+  Challenges; existing holders are not backfilled.
 
 ## Random events
 

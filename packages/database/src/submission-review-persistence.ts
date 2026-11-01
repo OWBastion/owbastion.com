@@ -8,12 +8,13 @@ import type { VerifiedRunSubmissionOutcome } from "./submission-ocr-service";
 type Dependencies = {
   loadVerifiedRunSubmissionOutcome: (submissionId: string) => Promise<VerifiedRunSubmissionOutcome | null>;
   reconcileVerifiedRunProgressChallenges: (input: { verifiedRunIds: string[]; actorId: string }) => Promise<void>;
+  reconcilePlayerProgressChallenges: (input: { playerAccountIds: string[]; actorId: string }) => Promise<void>;
 };
 
 export const createSubmissionReviewPersistence = (
   database: D1Database,
   db: ReturnType<typeof drizzle>,
-  { loadVerifiedRunSubmissionOutcome, reconcileVerifiedRunProgressChallenges }: Dependencies,
+  { loadVerifiedRunSubmissionOutcome, reconcileVerifiedRunProgressChallenges, reconcilePlayerProgressChallenges }: Dependencies,
 ) => {
   type SubmissionReviewWrite = {
     row: typeof submissions.$inferSelect;
@@ -29,7 +30,10 @@ export const createSubmissionReviewPersistence = (
     const outcome = await loadVerifiedRunSubmissionOutcome(submissionId);
     if (outcome?.verifiedRunId && (outcome.status === "created" || outcome.status === "reused")) {
       await reconcileVerifiedRunProgressChallenges({ verifiedRunIds: [outcome.verifiedRunId], actorId });
+      return;
     }
+    const submission = await db.select({ playerAccountId: submissions.playerAccountId }).from(submissions).where(eq(submissions.id, submissionId)).get();
+    if (submission) await reconcilePlayerProgressChallenges({ playerAccountIds: [submission.playerAccountId], actorId });
   };
 
   const persistSubmissionReview = async (review: SubmissionReviewWrite) => {

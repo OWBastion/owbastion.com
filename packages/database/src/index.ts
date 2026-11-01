@@ -2,7 +2,7 @@ import { count, desc, eq, and, or, inArray, isNull, isNotNull, ne, lte, lt, gte,
 
 import { drizzle } from "drizzle-orm/d1";
 import { evidenceKeys } from "./submission-evidence";
-import { buildMasteryProfiles, calculateVerifiedRunXpV3, difficultyAtLeastSatisfied, isWellFormedGameVersion, matchGameMode, normalizeGameMode, regularGameModeLabel, eventWeightTotalCode, runCodeEventWeightTotal, parseCanonicalChallengeConditions, parseChallengeProgressRule, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode, publicTitleChallengeStatus } from "@owbastion/domain";
+import { buildMasteryProfiles, calculateVerifiedRunXpV3, difficultyAtLeastSatisfied, progressProofTitleKeys, isWellFormedGameVersion, matchGameMode, normalizeGameMode, regularGameModeLabel, eventWeightTotalCode, runCodeEventWeightTotal, parseCanonicalChallengeConditions, parseChallengeProgressRule, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode, publicTitleChallengeStatus } from "@owbastion/domain";
 export { publicTitleChallengeStatus } from "@owbastion/domain";
 import type { AuthContext, ChallengeProgressRule, VerifiedRunEvidenceCompatibilityV1, VerifiedRunConflictField, PlatformServices, RecordVerifiedRunResult, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
 import type { AdminStandaloneMode, AdminStandaloneModeListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrReevaluateResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReopenResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AgentTitle, Challenge, CurrentPlayerMasteryResponse, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerChallengeProgressListResponse, PlayerProfileVisibilityResponse, QqScreenshotSubmissionRequest, QqScreenshotSubmissionResponse, ScreenshotSetStatus, Title } from "@owbastion/contracts";
@@ -32,6 +32,7 @@ import { createBindingServices } from "./binding-service";
 import { createPortalAuthenticationServices } from "./portal-authentication-service";
 import { activeMasteryProfiles, asVerifiedRun, loadActiveVerifiedRuns, loadPlayerMasteryHistory, loadVerifiedRunXpContext, masteryConflictFields, playerMasteryProfileView, playerActivityDays, playerVerifiedRunView, prepareVerifiedRun } from "./mastery-query";
 import { paginate } from "./page-result";
+import { loadProofGrantMaps } from "./progress-proof-grants";
 import { createChallengeSnapshotServices, type MapTitleRuleSnapshot } from "./challenge-snapshot-service";
 import { createChallengeCatalogServices } from "./challenge-catalog-service";
 import { createAdminVerifiedRunServices } from "./admin-verified-run-service";
@@ -1178,6 +1179,9 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       if (input.rule.difficultyAtLeast && !difficultyAtLeastSatisfied(run.difficulty, input.rule.difficultyAtLeast)) continue;
       byPlayer.set(run.playerAccountId, (byPlayer.get(run.playerAccountId) ?? new Set()).add(run.mapId));
     }
+    for (const grant of await loadProofGrantMaps(db, { ...input, requiredMapIds }, chunked)) {
+      byPlayer.set(grant.playerAccountId, (byPlayer.get(grant.playerAccountId) ?? new Set()).add(grant.mapId));
+    }
     const result = new globalThis.Map<string, { completed: Set<string>; satisfied: boolean }>();
     for (const playerAccountId of input.playerAccountIds) {
       const completed = byPlayer.get(playerAccountId) ?? new Set<string>();
@@ -1385,25 +1389,24 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   // authoritative facts just changed. Runs after the mutating write commits.
   // Corrections can move a run across required-map boundaries, so evaluation
   // is not pre-filtered by the run's current map.
-  const reconcileVerifiedRunProgressChallenges = async (input: { verifiedRunIds: string[]; actorId: string; reason?: string | null }) => {
-    const runIds = [...new Set(input.verifiedRunIds)];
-    if (!runIds.length) return;
-    const runs = await db.select({ playerAccountId: verifiedRuns.playerAccountId })
-      .from(verifiedRuns)
-      .where(inArray(verifiedRuns.id, runIds));
-    const playerIds = [...new Set(runs.map((run) => run.playerAccountId))];
+  const reconcilePlayerProgressChallenges = async (input: { playerAccountIds: string[]; actorId: string; reason?: string | null }) => {
+    const playerIds = [...new Set(input.playerAccountIds)];
     if (!playerIds.length) return;
     const timestamp = now();
     const reason = input.reason?.trim() || null;
     const { plans, revokingOwners } = await loadReconciliation(playerIds, timestamp);
-    if (!plans.length) return;
     const statements: D1PreparedStatement[] = [];
     for (const { challenge, rule, canonicalChallengeId, facts } of plans) {
-      for (const playerAccountId of playerIds) {
-        planPlayerProgressChallenge({ playerAccountId, challenge, rule, canonicalChallengeId, actorId: input.actorId, reason, timestamp, facts, revokingOwners, statements });
-      }
+      for (const playerAccountId of playerIds) planPlayerProgressChallenge({ playerAccountId, challenge, rule, canonicalChallengeId, actorId: input.actorId, reason, timestamp, facts, revokingOwners, statements });
     }
     if (statements.length) await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+  };
+
+  const reconcileVerifiedRunProgressChallenges = async (input: { verifiedRunIds: string[]; actorId: string; reason?: string | null }) => {
+    const runIds = [...new Set(input.verifiedRunIds)];
+    if (!runIds.length) return;
+    const runs = await db.select({ playerAccountId: verifiedRuns.playerAccountId }).from(verifiedRuns).where(inArray(verifiedRuns.id, runIds));
+    await reconcilePlayerProgressChallenges({ playerAccountIds: runs.map((run) => run.playerAccountId), actorId: input.actorId, reason: input.reason });
   };
 
   // Retroactively reconciles one progress Challenge for every player the rule
@@ -1810,6 +1813,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   const { persistSubmissionReview, reconcileReviewedSubmissionProgress } = createSubmissionReviewPersistence(database, db, {
     loadVerifiedRunSubmissionOutcome,
     reconcileVerifiedRunProgressChallenges,
+    reconcilePlayerProgressChallenges,
   });
 
   const { prepareVerifiedRunTransitionStatements, transitionVerifiedRun, ...adminVerifiedRunServices } = createAdminVerifiedRunServices({
@@ -1836,6 +1840,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     ocrAutoReviewSampleRate,
     preparePlayerAutoMatchChallenges,
     resolveVerifiedRunSubmissionOutcome,
+    reconcilePlayerProgressChallenges,
     masterySubmissionOutcomeStatement,
     approvedSubmissionOutcomeStatement,
     withCanonicalMode,
@@ -2941,33 +2946,9 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, timestamp, challenge.gameVersion, challenge.retiredVersion);
         return rule && status ? [{ challenge, title, rule, status }] : [];
       });
-      const modeMapIds = await standaloneModeMapIds([...new Set(visibleChallenges.flatMap(({ rule }) => !rule.mapIds && rule.mode ? [rule.mode] : []))]);
-      const ruleMapIds = new Map(visibleChallenges.map(({ challenge, rule }) => [challenge.id, rule.mapIds ?? (rule.mode ? modeMapIds.get(rule.mode) ?? [] : [])]));
-      // CROSS JOIN keeps the small rule/map inputs ahead of the indexed run
-      // lookup, instead of scanning all of a player's runs for each rule.
-      const eligibleRunMaps = visibleChallenges.length ? (await database.prepare(`
-        SELECT DISTINCT json_extract(rule.value, '$.challengeId') AS challengeId, run.map_id AS mapId, run.difficulty
-        FROM json_each(?) AS rule
-        CROSS JOIN json_each(rule.value, '$.mapIds') AS required_map
-        CROSS JOIN mastery_runs AS run ON run.player_account_id = ? AND run.status = 'active' AND run.map_id = required_map.value
-        JOIN submissions AS submission ON submission.id = run.source_submission_id
-        JOIN gameplay_revisions AS revision ON revision.id = run.gameplay_revision_id
-        WHERE revision.mode IS json_extract(rule.value, '$.mode')
-          AND (json_extract(rule.value, '$.startsAt') IS NULL OR submission.created_at >= json_extract(rule.value, '$.startsAt'))
-          AND (json_extract(rule.value, '$.endsAt') IS NULL OR submission.created_at < json_extract(rule.value, '$.endsAt'))
-      `).bind(JSON.stringify(visibleChallenges.map(({ challenge, rule }) => ({
-        challengeId: challenge.id, mapIds: ruleMapIds.get(challenge.id), mode: rule.mode ?? null, startsAt: challenge.startsAt, endsAt: challenge.endsAt,
-      }))), access.player.id).all<{ challengeId: string; mapId: string; difficulty: string }>()).results : [];
-      const runsByChallenge = new Map<string, Array<{ mapId: string; difficulty: string }>>();
-      for (const run of eligibleRunMaps) {
-        const runs = runsByChallenge.get(run.challengeId) ?? [];
-        runs.push(run);
-        runsByChallenge.set(run.challengeId, runs);
-      }
-      const items: PlayerChallengeProgressListResponse["items"] = visibleChallenges.map(({ challenge, title, rule, status }) => {
-        const completed = new Set((runsByChallenge.get(challenge.id) ?? [])
-          .filter((run) => !rule.difficultyAtLeast || difficultyAtLeastSatisfied(run.difficulty, rule.difficultyAtLeast))
-          .map((run) => run.mapId));
+      const items: PlayerChallengeProgressListResponse["items"] = await Promise.all(visibleChallenges.map(async ({ challenge, title, rule, status }) => {
+        const mapIds = await progressRuleMapIds(rule);
+        const { completed } = (await loadEligibleProgressRunMaps({ playerAccountIds: [access.player.id], rule, startsAt: challenge.startsAt, endsAt: challenge.endsAt })).get(access.player.id)!;
         return {
           challengeId: challenge.id,
           titleKey: title.key,
@@ -2978,11 +2959,11 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           ...(challenge.startsAt !== null ? { startsAt: challenge.startsAt } : {}),
           ...(challenge.endsAt !== null ? { endsAt: challenge.endsAt } : {}),
           progressRule: rule,
-          maps: ruleMapIds.get(challenge.id)!.map((mapId) => ({ mapId, completed: completed.has(mapId) })),
+          maps: mapIds.map((mapId) => ({ mapId, completed: completed.has(mapId) })),
           completedMaps: completed.size,
-          satisfied: ruleMapIds.get(challenge.id)!.length > 0 && ruleMapIds.get(challenge.id)!.every((mapId) => completed.has(mapId)),
+          satisfied: mapIds.length > 0 && mapIds.every((mapId) => completed.has(mapId)),
         };
-      });
+      }));
       return { contractVersion: "1" as const, items };
     },
 

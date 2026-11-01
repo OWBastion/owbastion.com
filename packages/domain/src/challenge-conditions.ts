@@ -112,6 +112,14 @@ export const conditionFields: Record<ChallengeCondition["type"], string> = {
 
 export const difficultyAtLeastSatisfied = matchesDifficulty;
 
+// Map titles whose existence proves a clear at the rule's difficulty. They
+// count like a Verified Run, so held Grants without a Run (historical or
+// manual) still progress the rule.
+export const progressProofTitleKeys = (difficultyAtLeast?: string): string[] =>
+  [["CONQUEROR", "传奇"], ["DOMINATOR", "地狱"]]
+    .filter(([, difficulty]) => !difficultyAtLeast || matchesDifficulty(difficulty, difficultyAtLeast))
+    .map(([titleKey]) => titleKey!);
+
 export const evaluateCanonicalChallengeConditions = (
   conditions: CanonicalChallengeConditions | null,
   evidence: ChallengeEvidence,

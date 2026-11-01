@@ -48,6 +48,7 @@ type SubmissionOcrServicesDependencies = {
   ocrAutoReviewSampleRate: number;
   preparePlayerAutoMatchChallenges: (row: SubmissionRow, response: OcrResponse) => Promise<PreparedAutoMatchChallenges>;
   resolveVerifiedRunSubmissionOutcome: (row: SubmissionRow, response: OcrResponse, acceptanceSource: "submission_automatic" | "submission_review", humanConfirmed?: boolean, achievementCount?: number) => Promise<VerifiedRunSubmissionOutcome>;
+  reconcilePlayerProgressChallenges: (input: { playerAccountIds: string[]; actorId: string }) => Promise<void>;
   masterySubmissionOutcomeStatement: (submissionId: string, outcome: VerifiedRunSubmissionOutcome) => D1PreparedStatement;
   approvedSubmissionOutcomeStatement: (input: { submissionId: string; outcomeKey: string; outcomeType: "title_grant" | "challenge"; status: "created" | "reused"; entityId: string | null; details: Record<string, unknown> }) => D1PreparedStatement;
   withCanonicalMode: (response: OcrResponse) => Promise<OcrResponse>;
@@ -71,6 +72,7 @@ export const createSubmissionOcrServices = ({
   ocrAutoReviewSampleRate,
   preparePlayerAutoMatchChallenges,
   resolveVerifiedRunSubmissionOutcome,
+  reconcilePlayerProgressChallenges,
   masterySubmissionOutcomeStatement,
   approvedSubmissionOutcomeStatement,
   withCanonicalMode,
@@ -262,6 +264,8 @@ export const createSubmissionOcrServices = ({
       const canonicalDecision = matchOcrAgainstChallenges(preparedCanonicalCandidates.candidates, result, preparedCanonicalCandidates.mapIdsByName, preparedCanonicalCandidates.titleNamesByKey);
       const verifiedRunOutcome = await resolveVerifiedRunSubmissionOutcome(row, result, input.manual ? "submission_review" : "submission_automatic", false, canonicalDecision.exact.length);
       const masteryAccepted = verifiedRunOutcome.status === "created" || verifiedRunOutcome.status === "reused";
+      // Accepted Runs already reconciled; map titles held without a Run still count.
+      if (!masteryAccepted) await reconcilePlayerProgressChallenges({ playerAccountIds: [row.playerAccountId], actorId: input.manual ? "submission_review" : "submission_automatic" });
       if (verifiedRunOutcome.status === "conflict") {
         stage = "persist_mastery_conflict";
         await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ verifiedRunOutcome: { status: verifiedRunOutcome.status, conflictFields: verifiedRunOutcome.conflictFields } }), nextStatus: "ocr_review_required", reviewReason: "通关码与已验证记录存在冲突，请人工核对", incrementFailCount: false, verifiedRunOutcome });
