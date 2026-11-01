@@ -79,8 +79,10 @@ export default {
       }
     }
   },
-  async scheduled(_controller: ScheduledController, env: RuntimeEnv) {
+  async scheduled(controller: ScheduledController, env: RuntimeEnv) {
     const platform = createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), env.EVIDENCE_PUBLIC_ORIGIN, env.PLATFORM_CACHE);
     await platform.reconcileStaleOcrJobs({ olderThan: Date.now() - OCR_PENDING_RECOVERY_AGE_MS });
+    // The cron runs every 5 minutes; progress Challenges are swept hourly.
+    if (new Date(controller.scheduledTime ?? Date.now()).getUTCMinutes() < 5) await platform.reconcileProgressChallenges();
   },
 };

@@ -300,6 +300,7 @@ export type PlatformServices = {
   processOcrJob(input: { jobId: string; submissionId: string; objectKey: string; attempt: number; manual?: boolean; requestId?: string }): Promise<void>;
   markOcrJobFailed(input: { jobId?: string; submissionId: string; attempt: number; errorCode: string; manual?: boolean; requestId?: string }): Promise<void>;
   reconcileStaleOcrJobs(input: { olderThan: number }): Promise<number>;
+  reconcileProgressChallenges(): Promise<void>;
   previewSubmissionReview(input: { submissionId: string; fieldCorrections?: AdminSubmissionReviewRequest["fieldCorrections"]; confirmedChallengeIds?: string[] }, auth: AuthContext): Promise<AdminSubmissionReviewPreviewResponse>;
   reviewSubmission(input: { submissionId: string; decision: AdminSubmissionReviewRequest["decision"]; reason?: string; fieldCorrections?: AdminSubmissionReviewRequest["fieldCorrections"]; confirmedChallengeIds?: string[] }, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionReviewResponse>;
   createAdminBindingInvite(input: AdminBindingInviteRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminBindingInviteResponse>;
