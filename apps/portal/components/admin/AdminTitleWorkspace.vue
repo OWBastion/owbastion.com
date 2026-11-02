@@ -532,7 +532,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
                           </div>
                           <StatusBadge :label="achievementStatusLabel(challengeDisplayStatus(challenge))" :tone="achievementStatusTone(challengeDisplayStatus(challenge))" />
                           <div class="table-actions">
-                            <UButton v-if="challengeDisplayStatus(challenge) !== 'ended'" size="sm" color="neutral" variant="outline" label="编辑" :aria-label="`编辑${title.label}的挑战`" :disabled="savingKey === challenge.challengeId" @click="openEditChallenge(title, challenge)" />
+                            <UButton size="sm" color="neutral" variant="outline" label="编辑" :aria-label="`编辑${title.label}的挑战`" :disabled="savingKey === challenge.challengeId" @click="openEditChallenge(title, challenge)" />
                             <UButton v-if="challenge.status === 'draft'" size="sm" color="neutral" variant="outline" label="开放" :aria-label="`开放${title.label}的挑战`" :loading="savingKey === challenge.challengeId" @click="mutateChallengeLifecycle(title, challenge, { status: 'active' }, `已开放「${title.label}」的挑战`)" />
                             <UPopover v-else-if="challengeDisplayStatus(challenge) === 'active' || challengeDisplayStatus(challenge) === 'sunsetting'" :open="planningChallengeId === challenge.challengeId" @update:open="(open) => { planningChallengeId = open ? challenge.challengeId : null; }">
                               <UButton size="sm" color="neutral" variant="outline" label="计划下线" :aria-label="`计划下线${title.label}的挑战`" :disabled="savingKey === challenge.challengeId" />
@@ -591,7 +591,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
                   <small class="table-meta">{{ submissionModeLabel(challenge.submissionMode) }} · {{ challengeWindowLabel(challenge) }}{{ challenge.introducedVersion ? ` · 引入 ${challenge.introducedVersion}` : '' }}</small>
                   <small v-if="challenge.replacedByChallengeId" class="table-meta">完成条件变更后由上一条取代</small>
                   <div class="table-actions">
-                    <UButton v-if="challengeDisplayStatus(challenge) !== 'ended'" size="sm" color="neutral" variant="outline" label="编辑" @click="openEditChallenge(title, challenge)" />
+                    <UButton size="sm" color="neutral" variant="outline" label="编辑" @click="openEditChallenge(title, challenge)" />
                     <UButton v-if="challenge.status === 'draft'" size="sm" color="neutral" variant="outline" label="开放" :loading="savingKey === challenge.challengeId" @click="mutateChallengeLifecycle(title, challenge, { status: 'active' }, `已开放「${title.label}」的挑战`)" />
                     <UButton v-else-if="challengeDisplayStatus(challenge) === 'active' || challengeDisplayStatus(challenge) === 'sunsetting'" size="sm" color="neutral" variant="outline" label="计划下线" @click="planningChallengeId = planningChallengeId === challenge.challengeId ? null : challenge.challengeId" />
                     <UButton v-if="challengeDisplayStatus(challenge) === 'active' || challengeDisplayStatus(challenge) === 'sunsetting'" size="sm" color="error" variant="soft" label="结束" :loading="savingKey === challenge.challengeId" @click="mutateChallengeLifecycle(title, challenge, { status: 'archived' }, `已结束「${title.label}」的挑战`)" />
