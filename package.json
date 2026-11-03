@@ -35,7 +35,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260926.1",
-    "drizzle-kit": "^0.31.4",
+    "drizzle-kit": "^0.31.11",
     "postcss-html": "^2.0.0",
     "stylelint": "^17.16.0",
     "typescript": "^5.8.3",
