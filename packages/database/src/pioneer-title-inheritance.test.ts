@@ -92,6 +92,45 @@ describe("PIONEER title inheritance", () => {
     expect(titles(sqlite, "a")).toEqual(all);
   });
 
+  it("keeps an administratively revoked CONQUEROR revoked on every path", () => {
+    const sqlite = createDb();
+    // Same source and different source, repaired by the migration.
+    addGrant(sqlite, "p.same", "same", "PIONEER", { source: "source.same" });
+    addGrant(sqlite, "c.same", "same", "CONQUEROR", { status: "revoked", source: "source.same" });
+    addGrant(sqlite, "p.other", "other", "PIONEER", { source: "source.other" });
+    addGrant(sqlite, "c.other", "other", "CONQUEROR", { status: "revoked", source: "source.old" });
+    applyRepair(sqlite);
+    // New PIONEER rows and a plain DOMINATOR insert (the 0075 path).
+    addGrant(sqlite, "p.new", "new", "PIONEER", { source: "source.new" });
+    sqlite.prepare("UPDATE player_title_grants SET status = 'revoked', revocation_type = 'administrator' WHERE player_account_id = 'new' AND title_key = 'CONQUEROR'").run();
+    sqlite.prepare("UPDATE player_title_grants SET status = 'revoked' WHERE id = 'p.new'").run();
+    sqlite.prepare("UPDATE player_title_grants SET status = 'revoked' WHERE player_account_id = 'new' AND title_key = 'DOMINATOR'").run();
+    sqlite.prepare("UPDATE player_title_grants SET status = 'active' WHERE id = 'p.new'").run();
+    addGrant(sqlite, "c.dom", "dom", "CONQUEROR", { status: "revoked", source: "source.dom" });
+    addGrant(sqlite, "d.dom", "dom", "DOMINATOR", { source: "source.dom" });
+    for (const player of ["same", "other", "new", "dom"]) {
+      expect(titles(sqlite, player)).not.toContain("CONQUEROR");
+      expect(titles(sqlite, player, "revoked")).toContain("CONQUEROR");
+    }
+    expect(titles(sqlite, "same")).toEqual(["DOMINATOR", "PIONEER"]);
+  });
+
+  it("clears the revocation type when it reactivates a same-source CONQUEROR", () => {
+    const sqlite = createDb();
+    applyRepair(sqlite);
+    addGrant(sqlite, "c.a", "a", "CONQUEROR", { status: "revoked", revocationType: "evidence", source: "source.a" });
+    addGrant(sqlite, "d.a", "a", "DOMINATOR", { source: "source.a" });
+    expect(sqlite.prepare("SELECT status, revocation_type FROM player_title_grants WHERE id = 'c.a'").get()).toEqual({ status: "active", revocation_type: null });
+  });
+
+  it("does not move an active grant that shares the source", () => {
+    const sqlite = createDb();
+    applyRepair(sqlite);
+    addGrant(sqlite, "d.a", "a", "DOMINATOR", { source: "source.a", revision: "revision.other" });
+    addGrant(sqlite, "p.a", "a", "PIONEER", { source: "source.a" });
+    expect(sqlite.prepare("SELECT gameplay_revision_id AS revision FROM player_title_grants WHERE id = 'd.a'").get()).toEqual({ revision: "revision.other" });
+  });
+
   it("stays within one map and gameplay revision and never duplicates an owned title", () => {
     const sqlite = createDb();
     applyRepair(sqlite);
