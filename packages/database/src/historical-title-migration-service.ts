@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AuthContext } from "@owbastion/domain";
 import { isInheritedConquerorGrant } from "./player-title-service";
+import { inheritanceGrantRank } from "./title-inheritance";
 import {
   auditEvents,
   bindingClaims,
@@ -95,7 +96,7 @@ export const createHistoricalTitleMigrationService = ({ database, db, now, recor
     }
 
     const timestamp = now();
-    const operations: Array<{ statements: any[]; audit?: { entityId: string; payload: Record<string, unknown> }; createsConqueror?: boolean }> = [];
+    const operations: Array<{ statements: any[]; audit?: { entityId: string; payload: Record<string, unknown> }; grantRank: number }> = [];
     for (const item of items) {
       if (["created", "reused", "conflict"].includes(item.status)) continue;
       const statements: any[] = [];
@@ -103,7 +104,7 @@ export const createHistoricalTitleMigrationService = ({ database, db, now, recor
       const lookup = itemRows[0];
       if (!lookup?.historicalId || !lookup.historicalTitleKey) {
         statements.push(db.update(bindingInviteHistoricalTitleGrants).set({ status: "retry_required", lastError: "HISTORICAL_TITLE_GRANT_NOT_FOUND", processedAt: timestamp }).where(eq(bindingInviteHistoricalTitleGrants.id, item.id)));
-        operations.push({ statements });
+        operations.push({ statements, grantRank: inheritanceGrantRank(null) });
         continue;
       }
       const historical = {
@@ -142,7 +143,7 @@ export const createHistoricalTitleMigrationService = ({ database, db, now, recor
       const inherited = activeIdentity && isInheritedConquerorGrant(inheritedSource, historical);
       let outcome: "created" | "reused" | "conflict";
       let grantId: string;
-      let createsConqueror = false;
+      let grantRank = inheritanceGrantRank(null);
       if (existing && existing.playerAccountId !== input.playerAccountId) {
         outcome = "conflict";
         grantId = existing.id;
@@ -174,23 +175,22 @@ export const createHistoricalTitleMigrationService = ({ database, db, now, recor
         statements.push(db.insert(challengeCompletions).values({ id: completionId, playerAccountId: input.playerAccountId, challengeId: manualChallengeId, gameplayRevisionId: historical.gameplayRevisionId, status: "active", sourceType: "manual", sourceId: grantSource, completedAt: timestamp, createdAt: timestamp }));
         statements.push(db.insert(playerTitleGrants).values({ id: grantId, playerAccountId: input.playerAccountId, titleKey: historical.titleKey, mapId: historical.mapId, gameplayRevisionId: historical.gameplayRevisionId, slot: historical.slot, status: "active", sourceType: "historical", sourceId: historical.id, grantedBy: grantSource, grantedAt: timestamp, completionId }));
         statements.push(db.update(bindingInviteHistoricalTitleGrants).set({ status: outcome, playerTitleGrantId: grantId, lastError: null, processedAt: timestamp }).where(eq(bindingInviteHistoricalTitleGrants.id, item.id)));
-        createsConqueror = historical.titleKey === "CONQUEROR";
+        grantRank = inheritanceGrantRank(historical.titleKey);
       }
       operations.push({
         statements,
         audit: { entityId: grantId, payload: { inviteId: input.inviteId, ...(input.claimId ? { claimId: input.claimId } : { grantSource }), historicalTitleGrantId: historical.id, playerAccountId: input.playerAccountId, authorizedBy: item.authorizedBy, outcome, mode: input.mode, ...(inherited ? { previousSourceId: activeIdentity.sourceId, reconciled: true } : {}) } },
-        createsConqueror,
+        grantRank,
       });
     }
     if (!operations.length) return;
-    // The player_title_grants_inherit_conqueror_after_dominator_insert trigger
-    // auto-creates an active CONQUEROR grant for a DOMINATOR insert when none
-    // exists yet for the same (player, map, revision). Inserting the invited
-    // CONQUEROR grants first lets the trigger's NOT EXISTS guard skip its
-    // auto-insert, so the authorized CONQUEROR keeps its own historical source
-    // and the later DOMINATOR insert cannot collide on
-    // player_title_grants_active_identity_idx.
-    operations.sort((a, b) => Number(b.createsConqueror) - Number(a.createsConqueror));
+    // The DOMINATOR and PIONEER grant inheritance triggers auto-create the lower
+    // titles (CONQUEROR for DOMINATOR; DOMINATOR and CONQUEROR for PIONEER) when
+    // none is active for the same (player, map, revision). Inserting the invited
+    // lower grants first lets each trigger's NOT EXISTS guard skip its
+    // auto-insert, so every authorized grant keeps its own historical source and
+    // no later insert collides on player_title_grants_active_identity_idx.
+    operations.sort((a, b) => a.grantRank - b.grantRank);
     const maxStatementsPerBatch = 80;
     let batchOperations: typeof operations = [];
     let batchStatementCount = 0;
