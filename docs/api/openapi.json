@@ -933,6 +933,17 @@
     }
    }
   },
+  "/v1/public/reviews/featured": {
+   "get": {
+    "operationId": "getFeaturedReviewComments",
+    "description": "Up to three random public comments for the home page: active, visible event reviews rated 4 or 5 with a comment of at least 8 characters, for non-archived implemented or removed events. Anonymous: no author. Never cached.",
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
   "/v1/public/reviews/{targetType}/{targetId}/summary": {
    "get": {
     "operationId": "getPublicReviewSummary",

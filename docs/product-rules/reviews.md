@@ -31,7 +31,10 @@ out of the pool. Moderation treats them like any other review. There is no impor
 Summary, bounded batch, and paginated comments for an event or map. Summaries give the
 average, valid count, 1-5 distribution, and the shared three-review `sampleInsufficient`
 rule. Comments exclude hidden, withdrawn, and invalidated rows; anonymous comments have no
-author, others show the public display name. Reads are private and uncached; the batch
+author, others show the public display name. The home page shows up to three random featured comments: active, visible event reviews rated
+4 or 5 with at least 8 characters, for non-archived implemented or removed events. They show
+rating, comment, and event name, never an author. Each load draws again, and a failed read hides
+the section. Reads are private and uncached; the batch
 resolves directory targets in one bounded operation, never one query per card.
 
 ## Moderation

@@ -33,6 +33,10 @@ export const publicReviewCommentPageSchema = z.object({
   gameplayRevisionId: externalId.nullable(),
   items: z.array(publicReviewCommentSchema).max(50),
 }).merge(pageInfo(50)).strict();
+export const featuredReviewCommentsResponseSchema = z.object({
+  contractVersion,
+  items: z.array(z.object({ rating: z.union([z.literal(4), z.literal(5)]), comment: reviewComment, targetName: z.string().trim().min(1).max(128) }).strict()).max(3),
+}).strict();
 export const playerReviewSchema = z.object({
   reviewId: z.string().uuid(),
   targetType: reviewTargetTypeSchema,
@@ -98,6 +102,7 @@ export type PublicReviewSummary = z.infer<typeof publicReviewSummarySchema>;
 export type PublicReviewSummaryResponse = z.infer<typeof publicReviewSummaryResponseSchema>;
 export type PublicReviewComment = z.infer<typeof publicReviewCommentSchema>;
 export type PublicReviewCommentPage = z.infer<typeof publicReviewCommentPageSchema>;
+export type FeaturedReviewCommentsResponse = z.infer<typeof featuredReviewCommentsResponseSchema>;
 export type PlayerReview = z.infer<typeof playerReviewSchema>;
 export type PlayerReviewResponse = z.infer<typeof playerReviewResponseSchema>;
 export type AdminReview = z.infer<typeof adminReviewSchema>;
