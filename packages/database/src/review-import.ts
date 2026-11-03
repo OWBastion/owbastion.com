@@ -19,7 +19,9 @@ const parseSubmittedDate = (value: string) => {
 // identity, because the migration merged many visitors under one label.
 export const parseReviewImport = async (input: AdminReviewImportRequest, hashRequest: (value: unknown) => Promise<string>) => {
   const sourceHash = await hashRequest(input.csv);
-  const table = parseCsv(input.csv.replace(/^﻿/, ""));
+  let table: string[][];
+  try { table = parseCsv(input.csv.replace(/^﻿/, "")); }
+  catch { return { sourceHash, rowCount: 0, rows: [] as ReviewImportRow[], errors: [{ row: 1, message: "CSV 引号未闭合" }] }; }
   const errors: Array<{ row: number; message: string }> = [];
   const columns = requiredHeaders.map((header) => table[0]?.indexOf(header) ?? -1);
   if (columns.some((index) => index < 0)) return { sourceHash, rowCount: 0, rows: [] as ReviewImportRow[], errors: [{ row: 1, message: `表头必须包含：${requiredHeaders.join("、")}` }] };
