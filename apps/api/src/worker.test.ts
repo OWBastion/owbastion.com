@@ -49,6 +49,9 @@ describe("OCR Queue consumer", () => {
     expect(productionDeadLetter.maxRetries).toBeGreaterThan(0);
     expect(localDeadLetter.maxRetries).toBeGreaterThan(0);
     expect(deployWorkflow).toMatch(/for queue in [^\n]*owbastion-ocr-dlq/);
+    expect(deployWorkflow).toMatch(/for queue in [^\n]*owbastion-progress-reconcile/);
+    expect(readConsumer("../../../wrangler.toml", "owbastion-progress-reconcile").maxRetries).toBeGreaterThan(0);
+    expect(readConsumer("../../../wrangler.local.toml", "owbastion-progress-reconcile-local").maxRetries).toBeGreaterThan(0);
     // Both environments must schedule the reconciliation; the cadence value is deployment tuning, not a contract.
     const cronOf = (source: string) => source.match(/^\s*crons\s*=\s*(\[[^\]]*\])/m)?.[1];
     expect(cronOf(productionCron)).toBeTruthy();
@@ -182,6 +185,25 @@ describe("OCR Queue consumer", () => {
     expect(message.ack).not.toHaveBeenCalled();
     expect(message.retry).toHaveBeenCalledWith({ delaySeconds: 60 });
     expect(errorLogs.some((line) => line.includes('"event":"dead_letter_recovery_failed"') && line.includes('"submissionId":"submission-1"'))).toBe(true);
+  });
+
+  it("acknowledges a progress reconciliation message only after reconciliation succeeds and retries on failure", async () => {
+    const reconcileReviewedSubmissionProgress = vi.fn<PlatformServices["reconcileReviewedSubmissionProgress"]>()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("D1 unavailable"));
+    createPlatformServices.mockReturnValue({ reconcileReviewedSubmissionProgress });
+    const progressMessage = () => ({ body: { version: 1, submissionId: "submission-1", actorId: "admin" }, attempts: 2, ack: vi.fn(), retry: vi.fn() });
+    const succeeded = progressMessage();
+    const failed = progressMessage();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await worker.queue({ queue: "owbastion-progress-reconcile", messages: [succeeded, failed] } as never, {} as never);
+    errorSpy.mockRestore();
+
+    expect(reconcileReviewedSubmissionProgress).toHaveBeenCalledWith({ submissionId: "submission-1", actorId: "admin" });
+    expect(succeeded.ack).toHaveBeenCalledOnce();
+    expect(failed.ack).not.toHaveBeenCalled();
+    expect(failed.retry).toHaveBeenCalledWith({ delaySeconds: 10 });
   });
 
   it("delivers a policy event and acknowledges it only after the platform records delivery", async () => {

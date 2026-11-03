@@ -9,12 +9,13 @@ type Dependencies = {
   loadVerifiedRunSubmissionOutcome: (submissionId: string) => Promise<VerifiedRunSubmissionOutcome | null>;
   reconcileVerifiedRunProgressChallenges: (input: { verifiedRunIds: string[]; actorId: string }) => Promise<void>;
   reconcilePlayerProgressChallenges: (input: { playerAccountIds: string[]; actorId: string }) => Promise<void>;
+  progressReconcileQueue?: Queue;
 };
 
 export const createSubmissionReviewPersistence = (
   database: D1Database,
   db: ReturnType<typeof drizzle>,
-  { loadVerifiedRunSubmissionOutcome, reconcileVerifiedRunProgressChallenges, reconcilePlayerProgressChallenges }: Dependencies,
+  { loadVerifiedRunSubmissionOutcome, reconcileVerifiedRunProgressChallenges, reconcilePlayerProgressChallenges, progressReconcileQueue }: Dependencies,
 ) => {
   type SubmissionReviewWrite = {
     row: typeof submissions.$inferSelect;
@@ -36,6 +37,18 @@ export const createSubmissionReviewPersistence = (
     if (submission) await reconcilePlayerProgressChallenges({ playerAccountIds: [submission.playerAccountId], actorId });
   };
 
+  // The queue consumer runs the same idempotent reconciliation; without a queue binding (unit tests) it runs inline.
+  const scheduleProgress = async (submissionId: string, actorId: string) => {
+    if (!progressReconcileQueue) return reconcileReviewedSubmissionProgress(submissionId, actorId);
+    await progressReconcileQueue.send({ version: 1, submissionId, actorId });
+  };
+
+  // Approval may have committed before progress reconciliation was enqueued or ran; replaying the request repeats it.
+  const replayReviewProgress = async <T extends { decision: string }>(replay: T, submissionId: string, actorId: string) => {
+    if (replay.decision === "approved") await scheduleProgress(submissionId, actorId);
+    return replay;
+  };
+
   const persistSubmissionReview = async (review: SubmissionReviewWrite) => {
     await database.batch([
       database.prepare("INSERT INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, id, ?, ?, ?, ? FROM submissions WHERE id = ?").bind(review.reviewId, review.input.decision, review.input.reason ?? null, review.auth.subject, review.timestamp, review.row.id),
@@ -45,8 +58,12 @@ export const createSubmissionReviewPersistence = (
       ...review.trailingStatements,
     ] as [D1PreparedStatement, ...D1PreparedStatement[]]);
     if (!(await db.select({ id: idempotencyKeys.id }).from(idempotencyKeys).where(eq(idempotencyKeys.id, review.idempotencyKeyId)).get())) throw new Error("SUBMISSION_NOT_REVIEWABLE");
-    if (review.input.decision === "approved") await reconcileReviewedSubmissionProgress(review.row.id, review.auth.subject);
+    if (review.input.decision === "approved") await scheduleProgress(review.row.id, review.auth.subject);
   };
 
-  return { persistSubmissionReview, reconcileReviewedSubmissionProgress };
+  const reviewProgressServices: Pick<PlatformServices, "reconcileReviewedSubmissionProgress"> = {
+    reconcileReviewedSubmissionProgress: ({ submissionId, actorId }) => reconcileReviewedSubmissionProgress(submissionId, actorId),
+  };
+
+  return { persistSubmissionReview, replayReviewProgress, reviewProgressServices };
 };

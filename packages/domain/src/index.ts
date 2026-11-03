@@ -299,6 +299,7 @@ export type PlatformServices = {
   completeOcrJob(input: { jobId: string; payload: import("@owbastion/contracts").OcrkitJobCallback }): Promise<void>;
   processOcrJob(input: { jobId: string; submissionId: string; objectKey: string; attempt: number; manual?: boolean; requestId?: string }): Promise<void>;
   markOcrJobFailed(input: { jobId?: string; submissionId: string; attempt: number; errorCode: string; manual?: boolean; requestId?: string }): Promise<void>;
+  reconcileReviewedSubmissionProgress(input: { submissionId: string; actorId: string }): Promise<void>;
   reconcileStaleOcrJobs(input: { olderThan: number }): Promise<number>;
   previewSubmissionReview(input: { submissionId: string; fieldCorrections?: AdminSubmissionReviewRequest["fieldCorrections"]; confirmedChallengeIds?: string[] }, auth: AuthContext): Promise<AdminSubmissionReviewPreviewResponse>;
   reviewSubmission(input: { submissionId: string; decision: AdminSubmissionReviewRequest["decision"]; reason?: string; fieldCorrections?: AdminSubmissionReviewRequest["fieldCorrections"]; confirmedChallengeIds?: string[] }, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionReviewResponse>;

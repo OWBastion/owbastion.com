@@ -45,6 +45,10 @@ queue = "owbastion-ocr-local"
 binding = "QQ_POLICY_QUEUE"
 queue = "owbastion-qq-policy-local"
 
+[[queues.producers]]
+binding = "PROGRESS_RECONCILE_QUEUE"
+queue = "owbastion-progress-reconcile-local"
+
 [[queues.consumers]]
 queue = "owbastion-ocr-local"
 max_batch_size = 1
@@ -61,3 +65,8 @@ queue = "owbastion-qq-policy-local"
 max_batch_size = 1
 max_retries = 3
 dead_letter_queue = "owbastion-qq-policy-local-dlq"
+
+[[queues.consumers]]
+queue = "owbastion-progress-reconcile-local"
+max_batch_size = 1
+max_retries = 5
