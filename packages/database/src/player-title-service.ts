@@ -5,7 +5,7 @@ import type { AdminManualTitleGrantRequest, AdminManualTitleGrantTarget, AdminMa
 import { auditEvents, challengeCompletions, challenges, gameplayRevisions, historicalTitleGrants, idempotencyKeys, maps, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, titleCatalog } from "./schema";
 import type { resolvePortalSession } from "./portal-session";
 import { createEquippedTitleServices, type EquippedTitleServices } from "./equipped-title-service";
-import { inheritanceOrder } from "./title-inheritance";
+import { inheritanceOrder, isInheritedTitleGrant } from "./title-inheritance";
 
 export type ManualTitleGrantResolution = {
   title: { key: string; label: string; scope: string; lifecycle: string };
@@ -14,14 +14,6 @@ export type ManualTitleGrantResolution = {
   slot: string | null;
   manualChallengeId: string;
 };
-
-export const isInheritedConquerorGrant = (
-  source: { titleKey: string; mapId: string | null; gameplayRevisionId: string | null } | null | undefined,
-  historical: { titleKey: string; mapId: string | null; gameplayRevisionId: string | null },
-) => historical.titleKey === "CONQUEROR"
-  && source?.titleKey === "DOMINATOR"
-  && source.mapId === historical.mapId
-  && source.gameplayRevisionId === historical.gameplayRevisionId;
 
 type Dependencies = {
   now: () => number;
@@ -289,7 +281,7 @@ export const createPlayerTitleServices = (
       const inheritedSource = activeIdentity?.sourceType === "historical"
         ? await db.select({ titleKey: historicalTitleGrants.titleKey, mapId: historicalTitleGrants.mapId, gameplayRevisionId: historicalTitleGrants.gameplayRevisionId }).from(historicalTitleGrants).where(eq(historicalTitleGrants.id, activeIdentity.sourceId)).get()
         : null;
-      const inherited = activeIdentity && isInheritedConquerorGrant(inheritedSource, historical);
+      const inherited = activeIdentity && isInheritedTitleGrant(inheritedSource, historical);
       if (activeIdentity && !inherited) throw new Error("HISTORICAL_TITLE_GRANT_CLAIMED");
       const timestamp = now();
       const grantId = inherited ? activeIdentity.id : existing?.id ?? crypto.randomUUID();
@@ -445,7 +437,7 @@ export const createPlayerTitleServices = (
           continue;
         }
         const existing = activeByIdentity.get(`${row.titleKey}:${row.mapId ?? ""}:${row.gameplayRevisionId ?? ""}`);
-        const inheritedFromDominator = existing && isInheritedConquerorGrant(historicalById.get(existing.sourceId), row);
+        const inheritedFromDominator = existing && isInheritedTitleGrant(historicalById.get(existing.sourceId), row);
         if (inheritedFromDominator) reconciled.push({ historical: row, existing });
         else if (existing) skippedClaimedCount += 1;
         else unclaimed.push(row);

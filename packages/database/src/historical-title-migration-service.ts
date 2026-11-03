@@ -1,8 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AuthContext } from "@owbastion/domain";
-import { isInheritedConquerorGrant } from "./player-title-service";
-import { inheritanceGrantRank } from "./title-inheritance";
+import { inheritanceGrantRank, isInheritedTitleGrant } from "./title-inheritance";
 import {
   auditEvents,
   bindingClaims,
@@ -140,7 +139,7 @@ export const createHistoricalTitleMigrationService = ({ database, db, now, recor
         mapId: activeIdentityRow.scopedGrantSourceMapId,
         gameplayRevisionId: activeIdentityRow.scopedGrantSourceGameplayRevisionId,
       } : null;
-      const inherited = activeIdentity && isInheritedConquerorGrant(inheritedSource, historical);
+      const inherited = activeIdentity && isInheritedTitleGrant(inheritedSource, historical);
       let outcome: "created" | "reused" | "conflict";
       let grantId: string;
       let grantRank = inheritanceGrantRank(null);
