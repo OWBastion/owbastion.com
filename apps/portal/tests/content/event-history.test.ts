@@ -58,6 +58,12 @@ describe("generated event history", () => {
     expect(history.map((item) => item.version)).toEqual(["26.1101.1", "26.0912.1", "26.0729.1", "26.0131.1", "26.0123.1"]);
   });
 
+  it("keeps the history of a removed event and splits a reused name by version", async () => {
+    const [early, returned] = eventLineage.filter((entry) => entry.names.some((name) => typeof name !== "string" && name.name === "我独自闯关" || name === "我独自闯关"));
+    expect((await findEventHistory(early!.eventId!)).map((item) => item.version)).toEqual(["26.0317.1", "25.1223.1"]);
+    expect((await findEventHistory(returned!.eventId!)).map((item) => item.version)).toEqual(["26.1017.1"]);
+  });
+
   it("is empty for an unknown event", async () => {
     expect(await findEventHistory("event.unknown")).toEqual([]);
   });
