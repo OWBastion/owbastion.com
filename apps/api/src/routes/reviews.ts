@@ -165,6 +165,13 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
     }
   });
 
+  app.get("/v1/public/reviews/featured", async (c) => {
+    allowPortal(c);
+    c.header("Cache-Control", "private, no-store");
+    const featured = await logServiceOperation(c, "review_public_featured", () => services(c).listFeaturedReviewComments());
+    return c.json({ contractVersion: "1", ...featured });
+  });
+
   app.get("/v1/public/reviews/:targetType/:targetId/summary", async (c) => {
     allowPortal(c);
     c.header("Cache-Control", "private, no-store");

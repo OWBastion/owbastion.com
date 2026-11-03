@@ -166,6 +166,7 @@ export type PublicReviewComment = {
   author: { displayName: string } | null;
   createdAt: number;
 };
+export type FeaturedReviewComments = { items: Array<{ rating: 4 | 5; comment: string; targetName: string }> };
 export type PublicReviewCommentQuery = ReviewTarget & { page: number; pageSize: number };
 export type PublicReviewCommentPage = {
   targetType: ReviewTargetType;
@@ -343,6 +344,7 @@ export type PlatformServices = {
   getReviewSummary(input: ReviewTarget): Promise<ReviewSummary>;
   getReviewSummaries(input: ReviewSummaryBatchInput): Promise<ReviewSummary[]>;
   listPublicReviewComments(input: PublicReviewCommentQuery): Promise<PublicReviewCommentPage>;
+  listFeaturedReviewComments(): Promise<FeaturedReviewComments>;
   getPlayerReview(input: ReviewTarget, auth: AuthContext): Promise<ReviewRecord | null>;
   upsertReview(input: ReviewUpsertInput, auth: AuthContext, idempotencyKey: string): Promise<ReviewRecord>;
   withdrawReview(input: { reviewId: string }, auth: AuthContext, idempotencyKey: string): Promise<ReviewRecord>;

@@ -16,6 +16,7 @@ import type {
   ReviewUpsertInput,
 } from "@owbastion/domain";
 import type { AdminReview } from "@owbastion/contracts";
+import { listFeaturedReviewComments } from "./review-featured";
 import { hashRequest } from "./portal-session";
 import { reviewImports, reviews } from "./review-schema";
 import { gameplayRevisions, maps, playerAccounts, randomEvents } from "./schema";
@@ -29,6 +30,7 @@ type ReviewServices = Pick<PlatformServices,
   | "getReviewSummary"
   | "getReviewSummaries"
   | "listPublicReviewComments"
+  | "listFeaturedReviewComments"
   | "getPlayerReview"
   | "upsertReview"
   | "withdrawReview"
@@ -359,6 +361,8 @@ export const createReviewServices = (database: D1Database, db: ReturnType<typeof
         hasMore: page * pageSize < total,
       };
     },
+
+    listFeaturedReviewComments: () => listFeaturedReviewComments(database),
 
     async getPlayerReview(input: ReviewTarget, auth: AuthContext): Promise<ReviewRecord | null> {
       const account = await findReviewAccount(auth.subject);

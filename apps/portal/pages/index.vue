@@ -22,6 +22,7 @@ useSeoMeta({
     <NuxtLink v-if="latest" :to="latest.path" class="home__release">
       <span class="num">{{ latest.version }}</span>{{ latest.title }}
     </NuxtLink>
+    <HomeReviews />
   </main>
 </template>
 
