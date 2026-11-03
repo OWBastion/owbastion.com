@@ -8,7 +8,7 @@ import {
 const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
 const review = { submissionId: "submission.beta", decision: "approved" as const };
 
-const setup = async (withMapTitle: boolean) => {
+const setup = async (withMapTitle: boolean, progressReconcileQueue?: Queue) => {
   const { database, sqlite } = createTestDatabase("map.alpha");
   seedMap(sqlite, "map.beta");
   seedMasteryPlayer(sqlite, "player.tour", "binding.tour", "Tester");
@@ -22,7 +22,7 @@ const setup = async (withMapTitle: boolean) => {
   }
   const insertSubmission = sqlite.prepare("INSERT INTO submissions (id, player_account_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES (?, 'player.tour', 'ocr_review_required', 'unknown', ?, 'Tester', 'portal', 'portal', ?, ?, ?)");
   for (const map of ["alpha", "beta"]) insertSubmission.run(`submission.${map}`, `地图 map.${map}`, map, now, now);
-  const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
+  const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility, undefined, undefined, progressReconcileQueue);
   await services.recordVerifiedRun({
     playerAccountId: "player.tour", sourceSubmissionId: "submission.alpha", mapId: "map.alpha",
     gameplayRevisionId: "revision:map.alpha:initial", mapVariant: null, difficulty: "地狱", gameVersion: "99.0101.1",
@@ -50,6 +50,27 @@ describe("submission review aggregate progress", () => {
       expect(grants()).toEqual([{ title_key: "TOUR", status: "active" }]);
       expect(await services.reviewSubmission(review, auth, "approve.beta")).toEqual(result);
       expect(grants()).toEqual([{ title_key: "TOUR", status: "active" }]);
+    } finally {
+      sqlite.close();
+    }
+  });
+
+  it("returns after enqueueing progress reconciliation and grants once the queue message is processed", async () => {
+    const queue = { send: vi.fn(async () => undefined) };
+    const { sqlite, services, grants } = await setup(false, queue as unknown as Queue);
+    try {
+      const result = await services.reviewSubmission(review, auth, "approve.beta");
+      expect(sqlite.prepare("SELECT status FROM submissions WHERE id = 'submission.beta'").get()).toEqual({ status: "approved" });
+      expect(grants()).toEqual([]);
+      expect(queue.send).toHaveBeenCalledTimes(1);
+      const [message] = (queue.send.mock.calls as unknown as [{ version: 1; submissionId: string; actorId: string }][])[0]!;
+      expect(message).toEqual({ version: 1, submissionId: "submission.beta", actorId: "admin" });
+      await services.reconcileReviewedSubmissionProgress(message);
+      await services.reconcileReviewedSubmissionProgress(message);
+      expect(grants()).toEqual([{ title_key: "TOUR", status: "active" }]);
+      await services.reviewSubmission(review, auth, "approve.beta");
+      expect(queue.send).toHaveBeenCalledTimes(2);
+      expect(await services.reviewSubmission(review, auth, "approve.beta")).toEqual(result);
     } finally {
       sqlite.close();
     }

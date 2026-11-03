@@ -174,7 +174,7 @@ const toAgentTitle = (row: typeof titleCatalog.$inferSelect): AgentTitle => ({
 const playerManualReviewReason = "玩家申请人工处理";
 
 
-export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, ocrManualReviewThreshold = 1, ocrAutoReviewSampleRate = 0, masteryEvidenceCompatibility: VerifiedRunEvidenceCompatibilityV1 = verifiedRunEvidenceCompatibilityV1, evidencePublicOrigin?: string, cacheKv?: KVNamespace): PlatformServices => {
+export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, ocrManualReviewThreshold = 1, ocrAutoReviewSampleRate = 0, masteryEvidenceCompatibility: VerifiedRunEvidenceCompatibilityV1 = verifiedRunEvidenceCompatibilityV1, evidencePublicOrigin?: string, cacheKv?: KVNamespace, progressReconcileQueue?: Queue): PlatformServices => {
   const platformCache = createPlatformCache(cacheKv);
   const database = instrumentDatabase(rawDatabase, platformCache);
   const db = drizzle(database);
@@ -1810,10 +1810,10 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     return conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run };
   };
 
-  const { persistSubmissionReview, reconcileReviewedSubmissionProgress } = createSubmissionReviewPersistence(database, db, {
+  const { persistSubmissionReview, replayReviewProgress, reviewProgressServices } = createSubmissionReviewPersistence(database, db, {
     loadVerifiedRunSubmissionOutcome,
     reconcileVerifiedRunProgressChallenges,
-    reconcilePlayerProgressChallenges,
+    reconcilePlayerProgressChallenges, progressReconcileQueue,
   });
 
   const { prepareVerifiedRunTransitionStatements, transitionVerifiedRun, ...adminVerifiedRunServices } = createAdminVerifiedRunServices({
@@ -2733,11 +2733,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
 
     async reviewSubmission(input, auth, idempotencyKey): Promise<AdminSubmissionReviewResponse> {
       const replay = await replayOrConflict<AdminSubmissionReviewResponse>(db, auth.subject, "submission.review", idempotencyKey, input);
-      if (replay) {
-        // Approval may have committed before progress reconciliation failed.
-        if (replay.decision === "approved") await reconcileReviewedSubmissionProgress(input.submissionId, auth.subject);
-        return replay;
-      }
+      if (replay) return replayReviewProgress(replay, input.submissionId, auth.subject);
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
       let reviewClaim: string | null = null;
@@ -2863,7 +2859,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       }
     },
 
-    ...submissionOcrServices,
+    ...submissionOcrServices, ...reviewProgressServices,
 
     ...createQqGroupServices({
       db,

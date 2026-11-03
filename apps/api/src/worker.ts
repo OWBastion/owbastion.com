@@ -6,6 +6,8 @@ import { OCR_PENDING_RECOVERY_AGE_MS, OCR_QUEUE_MAX_DELIVERIES } from "./ocr-que
 
 type OcrQueueMessage = { version: number; jobId: string; submissionId: string; objectKey: string; manual?: boolean; requestId?: string };
 type QqPolicyQueueMessage = { version: 1; eventId: string };
+type ProgressReconcileQueueMessage = { version: 1; submissionId: string; actorId: string };
+const PROGRESS_RECONCILE_QUEUES = new Set(["owbastion-progress-reconcile", "owbastion-progress-reconcile-local"]);
 const OCR_DEAD_LETTER_QUEUES = new Set(["owbastion-ocr-dlq", "owbastion-ocr-local-dlq"]);
 const ocrThreshold = (env: RuntimeEnv) => { const parsed = Number(env.OCR_MANUAL_REVIEW_THRESHOLD); return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1; };
 const ocrSampleRate = (env: RuntimeEnv) => { const parsed = Number(env.OCR_AUTO_REVIEW_SAMPLE_RATE); return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : 0; };
@@ -16,7 +18,7 @@ const masteryCompatibility = (env: RuntimeEnv) => createVerifiedRunEvidenceCompa
 
 const app = createApp({
   authenticate: authenticateQqBot,
-  services: (env) => createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), env.EVIDENCE_PUBLIC_ORIGIN, env.PLATFORM_CACHE),
+  services: (env) => createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), env.EVIDENCE_PUBLIC_ORIGIN, env.PLATFORM_CACHE, env.PROGRESS_RECONCILE_QUEUE),
 });
 
 const policySignature = async (secret: string, timestamp: string, body: string) => {
@@ -25,12 +27,23 @@ const policySignature = async (secret: string, timestamp: string, body: string) 
   return Array.from(new Uint8Array(signature), (byte) => byte.toString(16).padStart(2, "0")).join("");
 };
 
-const isQqPolicyMessage = (body: OcrQueueMessage | QqPolicyQueueMessage): body is QqPolicyQueueMessage => "eventId" in body;
+const isQqPolicyMessage = (body: OcrQueueMessage | QqPolicyQueueMessage | ProgressReconcileQueueMessage): body is QqPolicyQueueMessage => "eventId" in body;
 
 export default {
   fetch: app.fetch,
-  async queue(batch: MessageBatch<OcrQueueMessage | QqPolicyQueueMessage>, env: RuntimeEnv) {
-    const platform = createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), env.EVIDENCE_PUBLIC_ORIGIN, env.PLATFORM_CACHE);
+  async queue(batch: MessageBatch<OcrQueueMessage | QqPolicyQueueMessage | ProgressReconcileQueueMessage>, env: RuntimeEnv) {
+    const platform = createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), env.EVIDENCE_PUBLIC_ORIGIN, env.PLATFORM_CACHE, env.PROGRESS_RECONCILE_QUEUE);
+    if (PROGRESS_RECONCILE_QUEUES.has(batch.queue)) {
+      for (const message of batch.messages) {
+        const body = message.body as ProgressReconcileQueueMessage;
+        try { await platform.reconcileReviewedSubmissionProgress({ submissionId: body.submissionId, actorId: body.actorId }); message.ack(); }
+        catch (error) {
+          console.error(JSON.stringify({ layer: "review", event: "progress_reconcile_failed", submissionId: body.submissionId, attempt: message.attempts, errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message.slice(0, 256) : String(error).slice(0, 256) }));
+          message.retry({ delaySeconds: Math.min(60, 5 * message.attempts) });
+        }
+      }
+      return;
+    }
     if (OCR_DEAD_LETTER_QUEUES.has(batch.queue)) {
       for (const message of batch.messages) {
         const body = message.body as OcrQueueMessage;
@@ -80,7 +93,7 @@ export default {
     }
   },
   async scheduled(_controller: ScheduledController, env: RuntimeEnv) {
-    const platform = createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), env.EVIDENCE_PUBLIC_ORIGIN, env.PLATFORM_CACHE);
+    const platform = createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), env.EVIDENCE_PUBLIC_ORIGIN, env.PLATFORM_CACHE, env.PROGRESS_RECONCILE_QUEUE);
     await platform.reconcileStaleOcrJobs({ olderThan: Date.now() - OCR_PENDING_RECOVERY_AGE_MS });
   },
 };

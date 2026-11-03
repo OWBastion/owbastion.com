@@ -16,6 +16,10 @@ Create before enabling the deploy job:
 - Queues `owbastion-qq-policy` (+`-dlq`) and `owbastion-ocr` (+`-dlq`). Exhausted
   OCR jobs are recorded failed; a 5-minute scheduled repair moves jobs pending
   45 minutes to `resubmission_required`.
+- Queue `owbastion-progress-reconcile` (no dead-letter queue): after an approval commits,
+  the consumer reconciles the player's progress challenges, so the review response
+  does not wait for it. It is idempotent and retries 5 times; replaying the same review
+  request enqueues it again.
 - Do not reuse QQBot's channel D1 or OCRKit's model bucket. OCRKit's read-only R2
   key and `OCRKIT_R2_ALLOWED_BUCKETS` cover only the model bucket.
 
