@@ -777,30 +777,6 @@ export const ocrAccuracyFeedback = sqliteTable("ocr_accuracy_feedback", {
   resultIdx: uniqueIndex("ocr_accuracy_feedback_result_idx").on(table.submissionId, table.ocrResultId),
 }));
 
-export const reviews = sqliteTable("reviews", {
-  id: text("id").primaryKey(),
-  playerAccountId: text("player_account_id").notNull().references(() => playerAccounts.id),
-  targetType: text("target_type").notNull(),
-  targetId: text("target_id").notNull(),
-  gameplayRevisionId: text("gameplay_revision_id").references(() => gameplayRevisions.id),
-  rating: integer("rating").notNull(),
-  comment: text("comment"),
-  commentStatus: text("comment_status").notNull().default("visible"),
-  anonymous: integer("anonymous").notNull().default(0),
-  status: text("status").notNull().default("active"),
-  createdAt: integer("created_at").notNull(),
-  updatedAt: integer("updated_at").notNull(),
-  withdrawnAt: integer("withdrawn_at"),
-  invalidatedAt: integer("invalidated_at"),
-  invalidatedBy: text("invalidated_by"),
-  invalidationReason: text("invalidation_reason"),
-}, (table) => ({
-  playerEventIdx: uniqueIndex("reviews_player_event_idx").on(table.playerAccountId, table.targetId).where(sql`${table.targetType} = 'event'`),
-  playerLegacyMapIdx: uniqueIndex("reviews_player_legacy_map_idx").on(table.playerAccountId, table.targetId).where(sql`${table.targetType} = 'map' AND ${table.gameplayRevisionId} IS NULL`),
-  playerMapRevisionIdx: uniqueIndex("reviews_player_map_revision_idx").on(table.playerAccountId, table.targetId, table.gameplayRevisionId).where(sql`${table.targetType} = 'map' AND ${table.gameplayRevisionId} IS NOT NULL`),
-  targetStatusIdx: index("reviews_target_status_idx").on(table.targetType, table.targetId, table.gameplayRevisionId, table.status),
-}));
-
 export const attachments = sqliteTable("attachments", {
   id: text("id").primaryKey(),
   submissionId: text("submission_id").notNull(),

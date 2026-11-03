@@ -62,8 +62,9 @@ KV outage falls back to D1; list endpoints must not add per-item queries or KV r
 
 ## Reviews
 
-Ratings are D1 records keyed by account and event/map target; account link, audit,
-hidden and withdrawn state stay private. Anonymous display is presentation only.
+Ratings are D1 records keyed by account and event/map target; imported survey ratings
+have no account and are always anonymous. Account link, source row ID and submitter
+label, import record, audit, hidden and withdrawn state stay private. Anonymous display is presentation only.
 Aggregates exclude withdrawn and invalidated rows; hiding a comment keeps its
 rating. Public reads (summary, bounded batch, paginated comments) return only
 rating, comment text, creation time, and a public display name or no author; never

@@ -1278,7 +1278,7 @@ describe("API", () => {
 
   it("limits review identity and moderation operations to maintainers", async () => {
     const reviewId = "00000000-0000-4000-8000-000000000003";
-    const adminReview = { reviewId, targetType: "map" as const, targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", targetName: "测试地图", playerAccountId: "11111111-1111-4111-8111-111111111111", playerId: "1234", playerName: "Player", rating: 4 as const, comment: "很好", anonymous: true, commentStatus: "visible" as const, status: "active" as const, createdAt: 1, updatedAt: 2, withdrawnAt: null, invalidatedAt: null, invalidatedBy: null, invalidationReason: null };
+    const adminReview = { reviewId, targetType: "map" as const, targetId: "map.test", gameplayRevisionId: "revision.test", targetName: "地图", playerAccountId: "11111111-1111-4111-8111-111111111111", playerId: "1234", playerName: "Player", sourceLabel: null, rating: 4 as const, comment: null, anonymous: true, commentStatus: "visible" as const, status: "active" as const, createdAt: 1, updatedAt: 2, withdrawnAt: null, invalidatedAt: null, invalidatedBy: null, invalidationReason: null };
     const detail = { contractVersion: "1" as const, review: adminReview, audit: [{ operation: "review.create", actorType: "user", actorId: "1234", reason: null, createdAt: 1 }] };
     const calls: Array<{ operation: string; input: unknown; key: string }> = [];
     const reviewApp = createTestApp({

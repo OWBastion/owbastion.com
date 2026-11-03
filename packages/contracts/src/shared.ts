@@ -9,3 +9,5 @@ export const pageInfo = (maxPageSize?: number) => z.object({
   total: z.number().int().nonnegative(),
   hasMore: z.boolean(),
 });
+export const playerId = z.string().regex(/^\d{1,10}$/);
+export const playerName = z.string().trim().min(1).max(64);

@@ -27,7 +27,7 @@ const commentStatusLabel = (value: AdminReviewDetail["review"]["commentStatus"])
     <section class="review-detail__section" aria-labelledby="review-player-heading">
       <h2 id="review-player-heading">提交玩家</h2>
       <dl class="review-detail__facts review-detail__facts--player">
-        <div><dt>玩家</dt><dd class="content-stack"><strong><PlayerBattleTag :player-name="detail.review.playerName" :player-id="detail.review.playerId" /></strong></dd></div>
+        <div><dt>玩家</dt><dd class="content-stack"><strong v-if="detail.review.playerName && detail.review.playerId"><PlayerBattleTag :player-name="detail.review.playerName" :player-id="detail.review.playerId" /></strong><template v-else><strong>历史调查导入</strong><span class="review-detail__muted">{{ detail.review.sourceLabel }}</span></template></dd></div>
       </dl>
     </section>
 
