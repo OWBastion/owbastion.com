@@ -7,6 +7,7 @@ import { useReviewSummaries } from "~/composables/useReviewSummaries";
 import { calculateEventProbabilities, formatProbability } from "~/utils/event-probabilities";
 import { commonEffectTags, emptyEventFilters, facetCount, facetOptions, groupEvents, matchesEvent, sortEvents, type EventFacet, type EventFilters, type EventSort } from "~/utils/event-filters";
 import EventProbabilityMeter from "~/components/events/EventProbabilityMeter.vue";
+import EventBalanceHistory from "~/components/events/EventBalanceHistory.vue";
 
 const props = defineProps<{ events: RandomEvent[]; authenticated: boolean }>();
 const filters = reactive<EventFilters>(emptyEventFilters());
@@ -72,7 +73,15 @@ const reviewError = computed(() => reviewSummaries.error.value);
 const eventRatingChip = (eventId: string) => reviewRatingChip(reviewSummaries.summaryFor(eventId), reviewLoading.value, reviewError.value);
 const refreshReviewSummaries = () => reviewSummaries.refresh();
 
-onMounted(() => { hydrated.value = true; });
+// A changelog hover card links here with ?eventId=; open that event once, whatever its status.
+const route = useRoute();
+onMounted(() => {
+  hydrated.value = true;
+  const linked = props.events.find((event) => event.eventId === route.query.eventId);
+  if (!linked) return;
+  if (linked.releaseStatus !== "implemented") filters.status = "all";
+  openEvent(linked);
+});
 </script>
 
 <template>
@@ -154,6 +163,7 @@ onMounted(() => { hydrated.value = true; });
             </div>
           </article>
         </section>
+        <EventBalanceHistory :event-id="selected.eventId" />
         <section v-if="selected.challenges.length" class="challenges">
           <h3 class="type-card-title">挑战</h3>
           <NuxtLink

@@ -19,6 +19,9 @@ const { data: all } = await useAsyncData(
   { default: () => [] },
 );
 
+// Hover cards on event headings read this catalog; fetch it in the browser only.
+useAsyncData("public-event-directory", () => usePublicCatalog("events"), { lazy: true, server: false });
+
 if (import.meta.server && status.value !== "pending" && !entry.value && requestEvent) {
   setResponseStatus(requestEvent, 404);
 }
