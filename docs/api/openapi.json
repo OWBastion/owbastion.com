@@ -1037,7 +1037,7 @@
   "/v1/admin/reviews/imports/preview": {
    "post": {
     "operationId": "previewReviewImport",
-    "description": "Maintainer-only dry run of a legacy survey CSV import. Reports unmatched events and duplicate submissions without writing.",
+    "description": "Maintainer-only dry run of a legacy survey CSV import. Reports unmatched events and invalid rows without writing.",
     "responses": {
      "200": {
       "$ref": "#/components/responses/Json"

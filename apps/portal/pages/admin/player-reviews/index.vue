@@ -151,7 +151,7 @@ watch([targetType, targetId, reviewStatus, commentStatus, rating], () => { page.
               <UButton v-if='importPreview && !importPreview.errors.length' label='确认导入' :loading='importing' @click='importReviews' />
             </div>
             <UAlert v-if='importPreview?.errors.length' color='error' variant='subtle' :title='`发现 ${importPreview.errors.length} 个问题`' :description='importPreview.errors.map((item) => item.row ? `第 ${item.row} 行：${item.message}` : item.message).join("；")' />
-            <UAlert v-else-if='importPreview' color='success' variant='subtle' :description='`共 ${importPreview.rowCount} 行，合并重复评分 ${importPreview.duplicateCount} 行，可导入 ${importPreview.importCount} 条。`' />
+            <UAlert v-else-if='importPreview' color='success' variant='subtle' :description='`共 ${importPreview.rowCount} 行，可导入 ${importPreview.importCount} 条。`' />
           </div>
         </UCard>
       </template>

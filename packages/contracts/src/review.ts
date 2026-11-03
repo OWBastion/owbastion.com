@@ -85,7 +85,6 @@ export const adminReviewImportPreviewSchema = z.object({
   sourceHash: z.string(),
   rowCount: z.number().int(),
   importCount: z.number().int(),
-  duplicateCount: z.number().int(),
   errors: z.array(z.object({ row: z.number().int(), message: z.string() }).strict()),
 }).strict();
 export const adminReviewImportResponseSchema = z.object({ contractVersion, importedCount: z.number().int() }).strict();

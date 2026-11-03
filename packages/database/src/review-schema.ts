@@ -15,6 +15,7 @@ export const reviews = sqliteTable("reviews", {
   id: text("id").primaryKey(),
   playerAccountId: text("player_account_id").references(() => playerAccounts.id),
   importId: text("import_id").references(() => reviewImports.id),
+  sourceId: integer("source_id"),
   sourceLabel: text("source_label"),
   targetType: text("target_type").notNull(),
   targetId: text("target_id").notNull(),
@@ -34,6 +35,6 @@ export const reviews = sqliteTable("reviews", {
   playerEventIdx: uniqueIndex("reviews_player_event_idx").on(table.playerAccountId, table.targetId).where(sql`${table.targetType} = 'event'`),
   playerLegacyMapIdx: uniqueIndex("reviews_player_legacy_map_idx").on(table.playerAccountId, table.targetId).where(sql`${table.targetType} = 'map' AND ${table.gameplayRevisionId} IS NULL`),
   playerMapRevisionIdx: uniqueIndex("reviews_player_map_revision_idx").on(table.playerAccountId, table.targetId, table.gameplayRevisionId).where(sql`${table.targetType} = 'map' AND ${table.gameplayRevisionId} IS NOT NULL`),
-  importEventIdx: uniqueIndex("reviews_import_event_idx").on(table.importId, table.sourceLabel, table.targetId).where(sql`${table.importId} IS NOT NULL`),
+  importSourceIdx: uniqueIndex("reviews_import_source_idx").on(table.importId, table.sourceId).where(sql`${table.importId} IS NOT NULL`),
   targetStatusIdx: index("reviews_target_status_idx").on(table.targetType, table.targetId, table.gameplayRevisionId, table.status),
 }));

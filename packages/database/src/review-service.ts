@@ -333,7 +333,7 @@ export const createReviewServices = (database: D1Database, db: ReturnType<typeof
 
     async previewAdminReviewImport(input: AdminReviewImportRequest, _auth: AuthContext): Promise<AdminReviewImportPreview> {
       const resolved = await resolveReviewImport(input);
-      return { contractVersion: "1", sourceHash: resolved.sourceHash, rowCount: resolved.rowCount, importCount: resolved.errors.length ? 0 : resolved.rows.length, duplicateCount: resolved.duplicateCount, errors: resolved.errors };
+      return { contractVersion: "1", sourceHash: resolved.sourceHash, rowCount: resolved.rowCount, importCount: resolved.errors.length ? 0 : resolved.rows.length, errors: resolved.errors };
     },
 
     async importAdminReviews(input: AdminReviewImportRequest, auth: AuthContext, key: string): Promise<AdminReviewImportResponse> {
@@ -350,10 +350,10 @@ export const createReviewServices = (database: D1Database, db: ReturnType<typeof
           .bind(importId, resolved.sourceHash, input.fileName, resolved.rows.length, auth.subject, timestamp),
         ...resolved.rows.map((row) => database.prepare(`
           INSERT INTO reviews (
-            id, import_id, source_label, target_type, target_id, rating, comment,
+            id, import_id, source_id, source_label, target_type, target_id, rating, comment,
             comment_status, anonymous, status, created_at, updated_at
-          ) VALUES (?, ?, ?, 'event', ?, ?, ?, 'visible', 1, 'active', ?, ?)
-        `).bind(crypto.randomUUID(), importId, row.submitter, resolved.targetIds.get(row.eventName), row.rating, row.comment, row.createdAt, row.createdAt)),
+          ) VALUES (?, ?, ?, ?, 'event', ?, ?, ?, 'visible', 1, 'active', ?, ?)
+        `).bind(crypto.randomUUID(), importId, row.sourceId, row.submitter, resolved.targetIds.get(row.eventName), row.rating, row.comment, row.createdAt, row.createdAt)),
       ]);
       const response = { contractVersion: "1" as const, importedCount: resolved.rows.length };
       await recordIdempotency(auth.subject, operation, key, input, response);

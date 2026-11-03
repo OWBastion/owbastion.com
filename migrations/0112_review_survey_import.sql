@@ -8,11 +8,13 @@ CREATE TABLE review_imports (
 );
 
 -- Imported historical ratings have no player account, so player_account_id becomes nullable.
--- source_label keeps the original submitter label for maintainers only.
+-- source_id is the row ID in the exported CSV and source_label its submitter label, both for maintainers only.
+-- Several former visitors share one label, so the row ID, not the label, identifies an imported review.
 CREATE TABLE reviews_next (
   id TEXT PRIMARY KEY NOT NULL,
   player_account_id TEXT REFERENCES player_accounts(id),
   import_id TEXT REFERENCES review_imports(id),
+  source_id INTEGER,
   source_label TEXT,
   target_type TEXT NOT NULL CHECK (target_type IN ('event', 'map')),
   target_id TEXT NOT NULL CHECK (length(trim(target_id)) > 0),
@@ -55,8 +57,8 @@ CREATE UNIQUE INDEX reviews_player_map_revision_idx
   ON reviews(player_account_id, target_id, gameplay_revision_id)
   WHERE target_type = 'map' AND gameplay_revision_id IS NOT NULL;
 
-CREATE UNIQUE INDEX reviews_import_event_idx
-  ON reviews(import_id, source_label, target_id)
+CREATE UNIQUE INDEX reviews_import_source_idx
+  ON reviews(import_id, source_id)
   WHERE import_id IS NOT NULL;
 
 CREATE INDEX reviews_target_status_idx

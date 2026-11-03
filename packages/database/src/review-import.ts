@@ -15,16 +15,17 @@ const parseSubmittedDate = (value: string) => {
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? date.getTime() - shanghaiOffsetMs : null;
 };
 
-// Parses the legacy survey export. A submitter's several ratings of one event collapse to the
-// one with the highest source ID, because the platform keeps one current rating per rater and target.
+// Parses the legacy survey export. Every row is one review: the submitter label is not an
+// identity, because the migration merged many visitors under one label.
 export const parseReviewImport = async (input: AdminReviewImportRequest, hashRequest: (value: unknown) => Promise<string>) => {
   const sourceHash = await hashRequest(input.csv);
   const table = parseCsv(input.csv.replace(/^﻿/, ""));
   const errors: Array<{ row: number; message: string }> = [];
   const columns = requiredHeaders.map((header) => table[0]?.indexOf(header) ?? -1);
-  if (columns.some((index) => index < 0)) return { sourceHash, rowCount: 0, duplicateCount: 0, rows: [] as ReviewImportRow[], errors: [{ row: 1, message: `表头必须包含：${requiredHeaders.join("、")}` }] };
+  if (columns.some((index) => index < 0)) return { sourceHash, rowCount: 0, rows: [] as ReviewImportRow[], errors: [{ row: 1, message: `表头必须包含：${requiredHeaders.join("、")}` }] };
   const [idColumn, dateColumn, submitterColumn, eventColumn, ratingColumn, commentColumn] = columns as [number, number, number, number, number, number];
-  const latest = new Map<string, ReviewImportRow>();
+  const rows: ReviewImportRow[] = [];
+  const seenIds = new Set<number>();
   let rowCount = 0;
   table.slice(1).forEach((values, index) => {
     if (!values.some(Boolean)) return;
@@ -41,10 +42,9 @@ export const parseReviewImport = async (input: AdminReviewImportRequest, hashReq
     if (!Number.isInteger(rating) || rating < 1 || rating > 5) return void errors.push({ row, message: "评分必须是 1 到 5 的整数" });
     if (!submitter || !eventName) return void errors.push({ row, message: "提交人和评分事件不能为空" });
     if (Array.from(comment).length > maxReviewImportCommentLength) return void errors.push({ row, message: `评论不能超过 ${maxReviewImportCommentLength} 字` });
-    const key = JSON.stringify([submitter, eventName]);
-    const current = latest.get(key);
-    if (!current || sourceId > current.sourceId) latest.set(key, { sourceId, submitter, eventName, rating, comment: comment || null, createdAt });
+    if (seenIds.has(sourceId)) return void errors.push({ row, message: "ID 重复" });
+    seenIds.add(sourceId);
+    rows.push({ sourceId, submitter, eventName, rating, comment: comment || null, createdAt });
   });
-  const rows = [...latest.values()].sort((a, b) => a.sourceId - b.sourceId);
-  return { sourceHash, rowCount, duplicateCount: rowCount - errors.length - rows.length, rows, errors };
+  return { sourceHash, rowCount, rows: rows.sort((a, b) => a.sourceId - b.sourceId), errors };
 };
