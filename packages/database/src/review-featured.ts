@@ -12,7 +12,7 @@ export const listFeaturedReviewComments = async (database: D1Database): Promise<
     FROM reviews r
     JOIN random_events e ON e.id = r.target_id
     WHERE r.target_type = 'event' AND r.status = 'active' AND r.comment_status = 'visible'
-      AND r.rating >= ? AND LENGTH(r.comment) >= ?
+      AND r.rating >= ? AND LENGTH(TRIM(r.comment)) >= ?
       AND e.archived_at IS NULL AND e.release_status IN ('implemented', 'removed')
     ORDER BY RANDOM() LIMIT ?
   `).bind(featuredMinRating, featuredMinCommentLength, featuredReviewCount).all<{ rating: number; comment: string; target_name: string }>();

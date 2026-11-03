@@ -19,6 +19,9 @@ describe("featured review comments", () => {
       review(3, "e1", 3, long), review(4, "e1", 5, "太短"), review(5, "e1", 5, null), review(6, "e1", 5, long, "invalidated"), review(7, "e1", 5, long, "active", "hidden"),
       review(8, "e3", 5, long), review(9, "e4", 5, long),
       review(10, "e1", 5, long), review(11, "e1", 4, long),
+      review(12, "e1", 5, long, "withdrawn"), review(13, "e1", 5, "   好   "),
+      `INSERT INTO review_imports (id, source_hash, file_name, row_count, imported_by, imported_at) VALUES ('imp', 'h', 'f.csv', 1, 'admin', 1);
+       INSERT INTO reviews (id, import_id, source_id, source_label, target_type, target_id, rating, comment, anonymous, created_at, updated_at) VALUES ('rimp', 'imp', 1, 'Teakowa', 'event', 'e2', 5, '${long}', 1, 1, 1);`,
     ].join("\n"));
     const services = createPlatformServices(database);
 
@@ -34,6 +37,11 @@ describe("featured review comments", () => {
       }
     }
     expect(seen).toEqual(new Set(["已实装", "已移除"]));
+    // The accountless imported review is eligible: with the other removed-event review gone, it still surfaces.
+    sqlite.exec("DELETE FROM reviews WHERE id = 'r2'");
+    const comments = new Set<string>();
+    for (let i = 0; i < 20; i += 1) for (const item of (await services.listFeaturedReviewComments()).items) if (item.targetName === "已移除") comments.add(item.comment);
+    expect(comments).toEqual(new Set([long]));
   });
 
   it("returns an empty list when nothing qualifies", async () => {
