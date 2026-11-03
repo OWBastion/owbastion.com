@@ -34,6 +34,16 @@ Order is free; omit sections with no content.
 | General | `## 🕹 综合更新` | Global mechanics, settings, lobby rules not tied to one hero or event |
 | Fixes | `## 🐛 错误修复` | `### 英雄` / `### 随机事件` / `### 地图`; `- **[对象]：** 修复了……的问题` |
 
+## Event history
+
+Each `#### [名]` under `## 🔃 随机事件调整` becomes one entry in that event's balance history on
+the Events page, and its heading gets a hover card. Fixes are not part of it. The build resolves
+every heading through `apps/portal/content/event-lineage.ts` and fails on an unknown name.
+
+- New event, rename, or merge: add or extend its entry there before publishing. List a name once per
+  event, oldest first; give a reused name `until`.
+- A heading that names no event goes in `ignoredEventHeadings`.
+
 ## Style
 
 - State facts directly; no mechanical bold-prefix formulas (`**触发条件放宽：**`) and no filler or
