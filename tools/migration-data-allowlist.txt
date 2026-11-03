@@ -43,3 +43,4 @@
 0106_title_challenge_acquisition_paths.sql
 0107_title_lifecycle_draft_active.sql
 0112_review_survey_import.sql
+0113_enforce_pioneer_dominator_inheritance.sql

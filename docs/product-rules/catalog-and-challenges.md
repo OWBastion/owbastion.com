@@ -92,6 +92,12 @@ Resolution for `(ruleId, mapId, gameplayRevisionId)`:
    `slot`, taking precedence over assignment overrides and rule defaults. `title_key` and
    `display_kind` stay rule-level. A disabled exception contributes nothing.
 
+- Map title entitlements inherit downward within one map and Gameplay Revision: an
+  active PIONEER Grant (Hell) always has the DOMINATOR Grant, and DOMINATOR always has
+  CONQUEROR. Database triggers add the missing lower Grants when a higher Grant is
+  inserted or reactivated; revoking a higher Grant does not revoke the lower ones, and
+  an administratively revoked lower Grant is never reissued. These lower Grants carry no
+  `completion_id`, so completion-based evidence revocation does not reach them.
 - `map_title_rule_compat` keeps legacy `map.<mapId>.<kind>` IDs stable, linking each to
   its rule and map (`is_standard_instance` marks template projections).
 - At upload-session creation the projection is stored as immutable

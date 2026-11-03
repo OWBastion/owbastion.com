@@ -5,6 +5,7 @@ import type { AdminManualTitleGrantRequest, AdminManualTitleGrantTarget, AdminMa
 import { auditEvents, challengeCompletions, challenges, gameplayRevisions, historicalTitleGrants, idempotencyKeys, maps, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, titleCatalog } from "./schema";
 import type { resolvePortalSession } from "./portal-session";
 import { createEquippedTitleServices, type EquippedTitleServices } from "./equipped-title-service";
+import { inheritanceOrder, isInheritedTitleGrant } from "./title-inheritance";
 
 export type ManualTitleGrantResolution = {
   title: { key: string; label: string; scope: string; lifecycle: string };
@@ -13,14 +14,6 @@ export type ManualTitleGrantResolution = {
   slot: string | null;
   manualChallengeId: string;
 };
-
-export const isInheritedConquerorGrant = (
-  source: { titleKey: string; mapId: string | null; gameplayRevisionId: string | null } | null | undefined,
-  historical: { titleKey: string; mapId: string | null; gameplayRevisionId: string | null },
-) => historical.titleKey === "CONQUEROR"
-  && source?.titleKey === "DOMINATOR"
-  && source.mapId === historical.mapId
-  && source.gameplayRevisionId === historical.gameplayRevisionId;
 
 type Dependencies = {
   now: () => number;
@@ -288,7 +281,7 @@ export const createPlayerTitleServices = (
       const inheritedSource = activeIdentity?.sourceType === "historical"
         ? await db.select({ titleKey: historicalTitleGrants.titleKey, mapId: historicalTitleGrants.mapId, gameplayRevisionId: historicalTitleGrants.gameplayRevisionId }).from(historicalTitleGrants).where(eq(historicalTitleGrants.id, activeIdentity.sourceId)).get()
         : null;
-      const inherited = activeIdentity && isInheritedConquerorGrant(inheritedSource, historical);
+      const inherited = activeIdentity && isInheritedTitleGrant(inheritedSource, historical);
       if (activeIdentity && !inherited) throw new Error("HISTORICAL_TITLE_GRANT_CLAIMED");
       const timestamp = now();
       const grantId = inherited ? activeIdentity.id : existing?.id ?? crypto.randomUUID();
@@ -409,7 +402,7 @@ export const createPlayerTitleServices = (
       const statements = [
         ...resolvedTargets.map((target) => database.prepare("INSERT OR IGNORE INTO challenges (id, source_family, source_id, title_key, status, manual, public_condition, condition_operator, conditions_json, condition, created_at, updated_at) VALUES (?, 'manual', ?, ?, 'active', 1, 0, 'and', '[]', 'Maintainer-issued title', ?, ?)").bind(target.manualChallengeId, target.title.key, target.title.key, timestamp, timestamp)),
         ...created.map(({ item, sourceId, challengeId, completionId }) => database.prepare("INSERT INTO challenge_completions (id, player_account_id, challenge_id, gameplay_revision_id, status, source_type, source_id, completed_at, created_at) VALUES (?, ?, ?, ?, 'active', 'manual', ?, ?, ?)").bind(completionId, item.playerAccountId, challengeId, item.gameplayRevisionId, sourceId, timestamp, timestamp)),
-        ...created.map(({ item, sourceId, slot, challengeId }) => database.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at, completion_id) VALUES (?, ?, ?, ?, ?, ?, 'active', 'manual', ?, ?, ?, (SELECT id FROM challenge_completions WHERE player_account_id = ? AND challenge_id = ? AND status = 'active' AND (gameplay_revision_id = ? OR (gameplay_revision_id IS NULL AND ? IS NULL))))").bind(item.grantId, item.playerAccountId, item.titleKey, item.mapId, item.gameplayRevisionId, slot, sourceId, auth.subject, timestamp, item.playerAccountId, challengeId, item.gameplayRevisionId, item.gameplayRevisionId)),
+        ...inheritanceOrder(created, ({ item }) => item.titleKey).map(({ item, sourceId, slot, challengeId }) => database.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at, completion_id) VALUES (?, ?, ?, ?, ?, ?, 'active', 'manual', ?, ?, ?, (SELECT id FROM challenge_completions WHERE player_account_id = ? AND challenge_id = ? AND status = 'active' AND (gameplay_revision_id = ? OR (gameplay_revision_id IS NULL AND ? IS NULL))))").bind(item.grantId, item.playerAccountId, item.titleKey, item.mapId, item.gameplayRevisionId, slot, sourceId, auth.subject, timestamp, item.playerAccountId, challengeId, item.gameplayRevisionId, item.gameplayRevisionId)),
         ...created.map(({ item, challengeId, completionId }) => database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'challenge.completion.manual.batch', 'challenge_completion', ?, ?, ?)").bind(crypto.randomUUID(), batchId, auth.actorType, auth.subject, completionId, JSON.stringify({ batchId, challengeId, playerAccountId: item.playerAccountId, titleKey: item.titleKey, mapId: item.mapId, gameplayRevisionId: item.gameplayRevisionId, grantId: item.grantId }), timestamp)),
         ...created.map(({ item }) => database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'admin.title.grant.manual.batch.item', 'player_title_grant', ?, ?, ?)").bind(crypto.randomUUID(), batchId, auth.actorType, auth.subject, item.grantId, JSON.stringify({ batchId, playerAccountId: item.playerAccountId, titleKey: item.titleKey, mapId: item.mapId, gameplayRevisionId: item.gameplayRevisionId, status: item.status, reason: input.reason ?? null }), timestamp)),
         database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'admin.title.grant.manual.batch', 'title_grant_batch', ?, ?, ?)").bind(crypto.randomUUID(), batchId, auth.actorType, auth.subject, batchId, JSON.stringify({ batchId, playerCount: response.playerCount, targetCount: response.targetCount, requestedCount: response.requestedCount, createdCount, alreadyOwnedCount, items: items.map(({ playerAccountId, titleKey, mapId, gameplayRevisionId, grantId, status }) => ({ playerAccountId, titleKey, mapId, gameplayRevisionId, grantId, status })), reason: input.reason ?? null }), timestamp),
@@ -444,14 +437,13 @@ export const createPlayerTitleServices = (
           continue;
         }
         const existing = activeByIdentity.get(`${row.titleKey}:${row.mapId ?? ""}:${row.gameplayRevisionId ?? ""}`);
-        const inheritedFromDominator = existing && isInheritedConquerorGrant(historicalById.get(existing.sourceId), row);
+        const inheritedFromDominator = existing && isInheritedTitleGrant(historicalById.get(existing.sourceId), row);
         if (inheritedFromDominator) reconciled.push({ historical: row, existing });
         else if (existing) skippedClaimedCount += 1;
         else unclaimed.push(row);
       }
       const timestamp = now();
-      const grantPriority = (titleKey: string) => titleKey === "CONQUEROR" ? 0 : titleKey === "DOMINATOR" ? 1 : 2;
-      const grants = [...unclaimed].sort((left, right) => grantPriority(left.titleKey) - grantPriority(right.titleKey)).map((historical) => {
+      const grants = inheritanceOrder(unclaimed, ({ titleKey }) => titleKey).map((historical) => {
         const id = crypto.randomUUID();
         return { id, completionId: `completion:${id}`, challengeId: `manual:${historical.titleKey}`, historical };
       });
