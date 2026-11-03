@@ -23,8 +23,8 @@ describe("survey review import", () => {
     ].join("\n");
     const input = { contractVersion: "1" as const, fileName: "survey.csv", csv };
 
-    await expect(services.previewAdminReviewImport(input, auth("admin"))).resolves.toEqual({ contractVersion: "1", sourceHash: expect.any(String), rowCount: 4, importCount: 4, errors: [] });
-    await expect(services.previewAdminReviewImport({ ...input, csv: csv.replace("有点松弛,5", "不存在,5") }, auth("admin"))).resolves.toMatchObject({ importCount: 0, errors: [{ row: 0, message: "未找到事件：不存在" }] });
+    await expect(services.previewAdminReviewImport(input, auth("admin"))).resolves.toEqual({ contractVersion: "1", sourceHash: expect.any(String), rowCount: 4, importCount: 4, errors: [], unresolved: [] });
+    await expect(services.previewAdminReviewImport({ ...input, csv: csv.replace("有点松弛,5", "不存在,5") }, auth("admin"))).resolves.toMatchObject({ importCount: 0, errors: [], unresolved: [{ name: "不存在", rowCount: 1, candidates: [] }] });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM reviews").get()).toEqual({ count: 0 });
 
     await expect(services.importAdminReviews(input, auth("admin"), "import-1")).resolves.toEqual({ contractVersion: "1", importedCount: 4 });
@@ -59,11 +59,10 @@ describe("survey review import", () => {
 
     await expect(preview(`${header}\n1,2026/04/03,访客,"未闭合,5,`)).resolves.toMatchObject({ importCount: 0, errors: [{ row: 1, message: "CSV 引号未闭合" }] });
     const ambiguous = await preview(`${header}\n1,2026/04/03,访客,重名,5,`);
-    expect(ambiguous).toMatchObject({ importCount: 0, errors: [{ message: expect.stringContaining("事件名称不唯一：重名") }] });
-    expect(ambiguous.errors[0]!.message).toEqual(expect.stringContaining("event.twin-a（implemented，版本 1）"));
-    expect(ambiguous.errors[0]!.message).toEqual(expect.stringContaining("event.twin-b"));
-    await expect(preview(`${header},事件ID\n1,2026/04/03,访客,重名,5,,event.twin-b`)).resolves.toMatchObject({ importCount: 1, errors: [] });
-    await expect(preview(`${header},事件ID\n1,2026/04/03,访客,重名,5,,event.missing`)).resolves.toMatchObject({ importCount: 0, errors: [{ message: "未找到事件ID：event.missing" }] });
+    expect(ambiguous).toMatchObject({ importCount: 0, errors: [], unresolved: [{ name: "重名", rowCount: 1, candidates: [{ eventId: "event.twin-a", releaseStatus: "implemented", gameVersion: "1" }, { eventId: "event.twin-b" }] }] });
+    const resolve = (eventId: string) => services.previewAdminReviewImport({ contractVersion: "1", fileName: "survey.csv", csv: `${header}\n1,2026/04/03,访客,重名,5,`, resolutions: { 重名: eventId } }, auth("admin"));
+    await expect(resolve("event.twin-b")).resolves.toMatchObject({ importCount: 1, errors: [], unresolved: [] });
+    await expect(resolve("event.missing")).resolves.toMatchObject({ importCount: 0, errors: [{ message: "未找到事件ID：event.missing" }] });
     await expect(preview("ID,评分\n1,5")).resolves.toMatchObject({ importCount: 0, errors: [{ row: 1 }] });
 
     const many = `${header}\n${Array.from({ length: 150 }, (_, index) => `${index + 1},2026/04/03,访客,事件${index},4,`).join("\n")}`;
@@ -87,7 +86,7 @@ describe("survey review import", () => {
     await expect(services.importAdminReviews(input, auth("admin"), "atomic")).resolves.toEqual({ contractVersion: "1", importedCount: 1 });
   });
 
-  it("imports a row with an event ID into that event even when the name is shared", async () => {
+  it("imports rows into the event chosen for their name, including a renamed or shared one", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
     sqlite.exec(`
@@ -97,8 +96,10 @@ describe("survey review import", () => {
         ('event.renamed', '任务：钢铁防线', 'test', 'common', 'Test', '1', 'implemented', 1, 1);
     `);
     const services = createPlatformServices(database);
-    const csv = ["ID,提交时间,提交人,评分事件,评分,评论,事件ID", "1,2026/04/03,Teakowa,我独自闯关,5,牢大,event.early", "2,2026/04/03,Teakowa,任务：钢铁防线,5,夯,"].join("\n");
-    await services.importAdminReviews({ contractVersion: "1", fileName: "survey.csv", csv }, auth("admin"), "pinned");
+    const csv = ["ID,提交时间,提交人,评分事件,评分,评论", "1,2026/04/03,Teakowa,我独自闯关,5,牢大", "2,2026/04/03,Teakowa,钢铁防线,5,夯"].join("\n");
+    const input = { contractVersion: "1" as const, fileName: "survey.csv", csv, resolutions: { 我独自闯关: "event.early", 钢铁防线: "event.renamed" } };
+    await expect(services.importAdminReviews({ ...input, resolutions: {} }, auth("admin"), "unresolved")).rejects.toThrow("REVIEW_IMPORT_INVALID");
+    await services.importAdminReviews(input, auth("admin"), "pinned");
     expect(sqlite.prepare("SELECT target_id, source_id FROM reviews ORDER BY source_id").all()).toEqual([{ target_id: "event.early", source_id: 1 }, { target_id: "event.renamed", source_id: 2 }]);
   });
 });

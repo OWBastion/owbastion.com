@@ -1,6 +1,6 @@
 <script setup lang='ts'>
 import type { TableColumn } from '@nuxt/ui';
-import type { AdminReview, AdminReviewDetail, AdminReviewImportPreview, AdminReviewImportResponse } from '~/composables/useAdminApi';
+import type { AdminReview, AdminReviewDetail } from '~/composables/useAdminApi';
 import { createRequestId } from '~/utils/request-id';
 import { portalErrorDetails } from '~/utils/portal-error';
 
@@ -79,32 +79,10 @@ async function openDetail(reviewId: string) {
 }
 
 const importOpen = ref(false);
-const importFile = ref<File | null>(null);
-const importPreview = ref<AdminReviewImportPreview | null>(null);
-const importing = ref(false);
-watch(importFile, () => { importPreview.value = null; });
-
-async function previewImport() {
-  if (!importFile.value) return;
-  importing.value = true;
-  errorMessage.value = '';
-  try { importPreview.value = await api<AdminReviewImportPreview>('/v1/reviews/imports/preview', { method: 'POST', body: { contractVersion: '1', fileName: importFile.value.name, csv: await importFile.value.text() } }); }
-  catch (error) { errorMessage.value = portalErrorDetails(error, '无法预检 CSV。').description; }
-  finally { importing.value = false; }
-}
-
-async function importReviews() {
-  if (!importFile.value || !importPreview.value || importPreview.value.errors.length || importing.value) return;
-  importing.value = true;
-  errorMessage.value = '';
-  try {
-    const result = await api<AdminReviewImportResponse>('/v1/reviews/imports', { method: 'POST', headers: { 'Idempotency-Key': createRequestId() }, body: { contractVersion: '1', fileName: importFile.value.name, csv: await importFile.value.text() } });
-    importOpen.value = false;
-    importFile.value = null;
-    feedback.value = `已导入 ${result.importedCount} 条评分。`;
-    await load();
-  } catch (error) { errorMessage.value = portalErrorDetails(error, '无法导入 CSV。').description; }
-  finally { importing.value = false; }
+async function onImported(count: number) {
+  importOpen.value = false;
+  feedback.value = `已导入 ${count} 条评分。`;
+  await load();
 }
 
 function beginModeration(action: NonNullable<typeof pendingAction.value>) { pendingAction.value = action; reason.value = ''; }
@@ -141,20 +119,7 @@ watch([targetType, targetId, reviewStatus, commentStatus, rating], () => { page.
       <UAlert v-if='feedback' color='success' variant='subtle' :description='feedback' />
     </template>
     <UCollapsible v-if='importOpen' v-model:open='importOpen'>
-      <template #content>
-        <UCard>
-          <template #header><div><p class='text-sm font-medium'>导入历史评分</p><p class='text-sm text-muted'>低频维护操作：先预检，再确认写入。导入的评分匿名展示，不关联玩家账号。</p></div></template>
-          <div class='grid gap-3'>
-            <UFileUpload v-model='importFile' accept='.csv,text/csv' label='选择评分收集表 CSV' />
-            <div class='flex gap-2'>
-              <UButton label='预检' color='neutral' variant='outline' :loading='importing' :disabled='!importFile' @click='previewImport' />
-              <UButton v-if='importPreview && !importPreview.errors.length' label='确认导入' :loading='importing' @click='importReviews' />
-            </div>
-            <UAlert v-if='importPreview?.errors.length' color='error' variant='subtle' :title='`发现 ${importPreview.errors.length} 个问题`' :description='importPreview.errors.map((item) => item.row ? `第 ${item.row} 行：${item.message}` : item.message).join("；")' />
-            <UAlert v-else-if='importPreview' color='success' variant='subtle' :description='`共 ${importPreview.rowCount} 行，可导入 ${importPreview.importCount} 条。`' />
-          </div>
-        </UCard>
-      </template>
+      <template #content><AdminReviewImportPanel @imported='onImported' /></template>
     </UCollapsible>
     <section aria-label='玩家评价记录'>
       <AdminDataTable :data='reviews' :columns='columns' :mobile-columns='[{ id: "target", priority: "primary", order: 0 }, { id: "rating", priority: "primary", order: 1 }, { id: "playerName", priority: "detail", order: 2 }, { id: "status", priority: "detail", order: 3 }, { id: "commentStatus", priority: "detail", order: 4 }, { id: "createdAt", priority: "detail", order: 5 }]' row-key='reviewId' :loading='loading' empty='暂无匹配评价。' table-key='player-reviews' manual-filtering :reset-scroll-key='`${page}-${targetType}-${reviewStatus}-${commentStatus}-${rating}`'>
