@@ -15,15 +15,22 @@ import type {
   ReviewTargetType,
   ReviewUpsertInput,
 } from "@owbastion/domain";
-import type { AdminReview } from "@owbastion/contracts";
-import { gameplayRevisions, maps, playerAccounts, randomEvents, reviews } from "./schema";
+import type { AdminReview, AdminReviewImportPreview, AdminReviewImportRequest, AdminReviewImportResponse } from "@owbastion/contracts";
+import { hashRequest } from "./portal-session";
+import { parseReviewImport } from "./review-import";
+import { reviewImports, reviews } from "./review-schema";
+import { gameplayRevisions, maps, playerAccounts, randomEvents } from "./schema";
 
+// D1 allows 100 bound parameters per statement.
+const nameLookupChunkSize = 90;
 export const maxReviewCommentLength = 500;
 export const reviewSampleThreshold = 3;
 
 type ReviewServices = Pick<PlatformServices,
   | "listAdminReviews"
   | "getAdminReview"
+  | "previewAdminReviewImport"
+  | "importAdminReviews"
   | "getReviewSummary"
   | "getReviewSummaries"
   | "listPublicReviewComments"
@@ -42,9 +49,10 @@ type AdminReviewRow = {
   target_id: string;
   gameplay_revision_id: string | null;
   target_name: string | null;
-  player_account_id: string;
-  player_id: string;
-  player_name: string;
+  player_account_id: string | null;
+  player_id: string | null;
+  player_name: string | null;
+  source_label: string | null;
   rating: number;
   comment: string | null;
   anonymous: number;
@@ -194,6 +202,7 @@ export const createReviewServices = (database: D1Database, db: ReturnType<typeof
       playerAccountId: row.player_account_id,
       playerId: row.player_id,
       playerName: row.player_name,
+      sourceLabel: row.source_label,
       rating: asRating(row.rating),
       comment: row.comment,
       anonymous: row.anonymous === 1,
@@ -209,16 +218,33 @@ export const createReviewServices = (database: D1Database, db: ReturnType<typeof
   };
   const adminReviewQuery = `
     FROM reviews r
-    INNER JOIN player_accounts p ON p.id = r.player_account_id
+    LEFT JOIN player_accounts p ON p.id = r.player_account_id
     WHERE 1 = 1`;
   const adminReviewSelect = `
     SELECT r.id AS review_id, r.target_type, r.target_id, r.gameplay_revision_id,
       CASE WHEN r.target_type = 'event' THEN (SELECT name FROM random_events WHERE id = r.target_id)
            ELSE (SELECT name FROM maps WHERE id = r.target_id) END AS target_name,
-      r.player_account_id, p.player_id, p.player_name, r.rating, r.comment,
+      r.player_account_id, p.player_id, p.player_name, r.source_label, r.rating, r.comment,
       r.anonymous, r.comment_status, r.status, r.created_at, r.updated_at,
       r.withdrawn_at, r.invalidated_at, r.invalidated_by, r.invalidation_reason
     ${adminReviewQuery}`;
+
+  const resolveReviewImport = async (input: AdminReviewImportRequest) => {
+    const parsed = await parseReviewImport(input, hashRequest);
+    const names = [...new Set(parsed.rows.map((row) => row.eventName))];
+    const chunks = Array.from({ length: Math.ceil(names.length / nameLookupChunkSize) }, (_, index) => names.slice(index * nameLookupChunkSize, (index + 1) * nameLookupChunkSize));
+    const events = (await Promise.all(chunks.map((chunk) => db.select({ id: randomEvents.id, name: randomEvents.name }).from(randomEvents).where(inArray(randomEvents.name, chunk))))).flat();
+    const idsByName = new Map<string, string[]>();
+    for (const event of events) idsByName.set(event.name, [...(idsByName.get(event.name) ?? []), event.id]);
+    const errors = [...parsed.errors];
+    for (const name of names) {
+      const count = idsByName.get(name)?.length ?? 0;
+      if (count !== 1) errors.push({ row: 0, message: count ? `事件名称不唯一：${name}` : `未找到事件：${name}` });
+    }
+    const alreadyImported = Boolean(await db.select({ id: reviewImports.id }).from(reviewImports).where(eq(reviewImports.sourceHash, parsed.sourceHash)).get());
+    if (alreadyImported) errors.push({ row: 0, message: "该文件已导入" });
+    return { ...parsed, errors, alreadyImported, targetIds: new Map(names.map((name) => [name, idsByName.get(name)?.[0]])) };
+  };
 
   const mutateComment = async (input: { reviewId: string; reason?: string }, auth: AuthContext, key: string, nextStatus: "visible" | "hidden"): Promise<ReviewRecord> => {
     const operation = nextStatus === "hidden" ? "review.comment.hide" : "review.comment.restore";
@@ -309,6 +335,44 @@ export const createReviewServices = (database: D1Database, db: ReturnType<typeof
       };
     },
 
+    async previewAdminReviewImport(input: AdminReviewImportRequest, _auth: AuthContext): Promise<AdminReviewImportPreview> {
+      const resolved = await resolveReviewImport(input);
+      return { contractVersion: "1", sourceHash: resolved.sourceHash, rowCount: resolved.rowCount, importCount: resolved.errors.length ? 0 : resolved.rows.length, errors: resolved.errors };
+    },
+
+    async importAdminReviews(input: AdminReviewImportRequest, auth: AuthContext, key: string): Promise<AdminReviewImportResponse> {
+      const operation = "admin.review.import";
+      const replay = await replayOrConflict<AdminReviewImportResponse>(auth.subject, operation, key, input);
+      if (replay) return replay;
+      const resolved = await resolveReviewImport(input);
+      if (resolved.alreadyImported) throw new Error("REVIEW_IMPORT_DUPLICATE");
+      if (resolved.errors.length || !resolved.rows.length) throw new Error("REVIEW_IMPORT_INVALID");
+      const timestamp = now();
+      const importId = crypto.randomUUID();
+      const response = { contractVersion: "1" as const, importedCount: resolved.rows.length };
+      try {
+        await database.batch([
+        database.prepare("INSERT INTO review_imports (id, source_hash, file_name, row_count, imported_by, imported_at) VALUES (?, ?, ?, ?, ?, ?)")
+          .bind(importId, resolved.sourceHash, input.fileName, resolved.rows.length, auth.subject, timestamp),
+        ...resolved.rows.map((row) => database.prepare(`
+          INSERT INTO reviews (
+            id, import_id, source_id, source_label, target_type, target_id, rating, comment,
+            comment_status, anonymous, status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, 'event', ?, ?, ?, 'visible', 1, 'active', ?, ?)
+        `).bind(crypto.randomUUID(), importId, row.sourceId, row.submitter, resolved.targetIds.get(row.eventName), row.rating, row.comment, row.createdAt, row.createdAt)),
+        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+          .bind(`${auth.subject}:${operation}:${key}`, auth.subject, operation, await hashRequest(input), JSON.stringify(response), timestamp),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+          .bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, "review_import", importId, JSON.stringify({ fileName: input.fileName, importedCount: response.importedCount, sourceHash: resolved.sourceHash }), timestamp),
+        ]);
+      } catch (error) {
+        // A concurrent import of the same file loses the race on the unique source hash.
+        if (error instanceof Error && /UNIQUE.*review_imports\.source_hash/i.test(error.message)) throw new Error("REVIEW_IMPORT_DUPLICATE");
+        throw error;
+      }
+      return response;
+    },
+
     async getReviewSummary(input: ReviewTarget): Promise<ReviewSummary> {
       const summaries = input.targetType === "event"
         ? await getReviewSummaries({ targetType: "event", targetIds: [input.targetId] })
@@ -326,7 +390,7 @@ export const createReviewServices = (database: D1Database, db: ReturnType<typeof
         SELECT r.rating, r.comment, r.anonymous, r.created_at, p.player_name,
           COUNT(*) OVER () AS total_count
         FROM reviews r
-        INNER JOIN player_accounts p ON p.id = r.player_account_id
+        LEFT JOIN player_accounts p ON p.id = r.player_account_id
         WHERE r.target_type = ? AND r.target_id = ? AND r.gameplay_revision_id IS ?
           AND r.status = 'active' AND r.comment_status = 'visible' AND r.comment IS NOT NULL
         ORDER BY r.created_at DESC, r.id DESC LIMIT ? OFFSET ?
@@ -335,7 +399,7 @@ export const createReviewServices = (database: D1Database, db: ReturnType<typeof
         comment: string;
         anonymous: number;
         created_at: number;
-        player_name: string;
+        player_name: string | null;
         total_count: number;
       }>();
       const total = Number(result.results[0]?.total_count ?? 0);
@@ -346,7 +410,7 @@ export const createReviewServices = (database: D1Database, db: ReturnType<typeof
         items: result.results.map((row) => ({
           rating: asRating(row.rating),
           comment: row.comment,
-          author: row.anonymous === 1 ? null : { displayName: row.player_name },
+          author: row.anonymous === 1 || row.player_name === null ? null : { displayName: row.player_name },
           createdAt: row.created_at,
         })),
         page,

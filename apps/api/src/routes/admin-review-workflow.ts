@@ -1,5 +1,6 @@
 import {
   adminReviewCommentModerationRequestSchema,
+  adminReviewImportRequestSchema,
   adminReviewStateModerationRequestSchema,
   adminSubmissionOcrReevaluateRequestSchema,
   adminSubmissionOcrRetryRequestSchema,
@@ -52,6 +53,22 @@ export const registerAdminReviewWorkflowRoutes = (app: ApiApp, dependencies: Adm
       return errorResponse(c, 422, "INVALID_REQUEST", "The review query is invalid");
     }
     return c.json(await dependencies.services(c).listAdminReviews({ ...pagination, ...(targetType?.success ? { targetType: targetType.data } : {}), ...(targetId ? { targetId } : {}), ...(status ? { status: status as typeof allowedStatuses[number] } : {}), ...(commentStatus ? { commentStatus: commentStatus as typeof allowedCommentStatuses[number] } : {}), ...(rating !== undefined ? { rating: rating as 1 | 2 | 3 | 4 | 5 } : {}), ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}) }, auth));
+  }));
+
+  app.post("/v1/admin/reviews/imports/preview", maintainerRoute(requireMaintainer, async (c, auth) => {
+    const parsed = adminReviewImportRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    return c.json(await dependencies.services(c).previewAdminReviewImport(parsed.data, auth));
+  }));
+
+  app.post("/v1/admin/reviews/imports", (c) => adminMutation(c, {
+    schema: adminReviewImportRequestSchema,
+    status: 201,
+    action: (input, auth, key) => dependencies.services(c).importAdminReviews(input, auth, key),
+    errors: {
+      ...errorGroup(422, "The import data is invalid", "REVIEW_IMPORT_INVALID"),
+      ...errorGroup(409, "The import was already processed", "REVIEW_IMPORT_DUPLICATE", "IDEMPOTENCY_CONFLICT"),
+    },
   }));
 
   app.get("/v1/admin/reviews/:reviewId", maintainerRoute(requireMaintainer, async (c, auth) => {

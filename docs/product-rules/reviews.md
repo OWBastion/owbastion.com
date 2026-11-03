@@ -7,7 +7,7 @@ Ratings for events and maps. Privacy: [data-and-security.md](../dev-rules/data-a
 - A review stores target type and ID, the account, a 1-5 rating, optional comment,
   anonymous-display preference, lifecycle state, and timestamps; no copied catalog facts.
   One current row per player and target; retries and later submissions update it.
-- Accepted only for implemented, non-archived events and active maps. Map reviews bind to the
+- New reviews are accepted only for implemented, non-archived events and active maps. Map reviews bind to the
   exact Gameplay Revision ID (single reads, writes, comments, summaries require it; batched
   summaries pair map ID with revision ID). Reviews recorded before revision attribution keep
   a NULL revision, are never backfilled, are excluded from revision-specific aggregates,
@@ -16,6 +16,18 @@ Ratings for events and maps. Privacy: [data-and-security.md](../dev-rules/data-a
   invalidating the review: a hidden comment keeps its rating; an invalidated review leaves
   all aggregates. Ratings are feedback only and never change difficulty, weights, release
   state, Agents projections, or Bastion data.
+
+## Historical survey import
+
+Maintainers import the legacy rating survey CSV through a preview-and-confirm flow (one atomic
+write, source hash, audit, actor-scoped idempotency; a repeated file is rejected). Imported
+reviews are event reviews with no player account: always anonymous, active, with the submission
+date as creation time. The source row ID and original submitter label are stored for maintainers only (the
+admin contract shows the label); the label is not an identity, because the migration merged many visitors under one label,
+so every row imports as its own review. Events match by exact name; any
+unmatched or ambiguous name fails the whole import. Imported reviews of removed events stay
+in aggregates and comments, because removal only takes an event out of the pool; only new
+reviews follow the rateable rule. Moderation treats imported rows like any other review.
 
 ## Public reads
 

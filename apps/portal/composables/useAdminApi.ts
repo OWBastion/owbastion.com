@@ -17,6 +17,8 @@ export type {
   AdminPlayerDetail,
   AdminReview,
   AdminReviewAudit,
+  AdminReviewImportPreview,
+  AdminReviewImportResponse,
   AdminScreenshotSet,
   AdminScreenshotSetCandidate,
   AdminScreenshotSetCreateResponse,

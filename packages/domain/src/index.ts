@@ -81,7 +81,7 @@ import type {
   ScreenshotSetStatus,
   OcrkitScreenshotSetResponse,
   AgentEventListResponse, AgentMap, AgentMapListResponse, AgentAchievementListResponse, AgentTitle, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult, AgentPlayerTitleGrantListResponse, AgentMapTitleHolderListResponse,
-  AdminReview, AdminReviewAudit, AdminReviewListResponse,
+  AdminReview, AdminReviewAudit, AdminReviewImportPreview, AdminReviewImportRequest, AdminReviewImportResponse, AdminReviewListResponse,
 } from "@owbastion/contracts";
 import type {
   AdminPlayerInvitationAuditResponse,
@@ -134,7 +134,7 @@ export type ReviewTarget = { targetType: "event"; targetId: string } | { targetT
 export type ReviewUpsertInput = ReviewTarget & { rating: ReviewRating; comment?: string | null; anonymous?: boolean };
 export type ReviewRecord = {
   reviewId: string;
-  playerAccountId: string;
+  playerAccountId: string | null;
   targetType: ReviewTargetType;
   targetId: string;
   gameplayRevisionId: string | null;
@@ -341,6 +341,8 @@ export type PlatformServices = {
   removeAdminBinding(input: { bindingId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   listAdminReviews(input: AdminReviewQuery, auth: AuthContext): Promise<AdminReviewListResponse>;
   getAdminReview(input: { reviewId: string }, auth: AuthContext): Promise<AdminReviewDetail>;
+  previewAdminReviewImport(input: AdminReviewImportRequest, auth: AuthContext): Promise<AdminReviewImportPreview>;
+  importAdminReviews(input: AdminReviewImportRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminReviewImportResponse>;
   getReviewSummary(input: ReviewTarget): Promise<ReviewSummary>;
   getReviewSummaries(input: ReviewSummaryBatchInput): Promise<ReviewSummary[]>;
   listPublicReviewComments(input: PublicReviewCommentQuery): Promise<PublicReviewCommentPage>;
