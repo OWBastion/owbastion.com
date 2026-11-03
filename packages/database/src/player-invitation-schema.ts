@@ -3,7 +3,7 @@ import { playerAccounts } from "./schema";
 
 export const playerInvitationPolicy = sqliteTable("player_invitation_policy", {
   id: text("id").primaryKey(), enabled: integer("enabled").notNull(), period: text("period").notNull(),
-  maxCodesCreatedPerPeriod: integer("max_codes_created_per_period").notNull(), maxRegistrationsPerPeriod: integer("max_registrations_per_period").notNull(),
+  maxRegistrationsPerPeriod: integer("max_registrations_per_period").notNull(),
   maxUsesPerCode: integer("max_uses_per_code").notNull(), maxValidityDays: integer("max_validity_days").notNull(),
   minAccountAgeDays: integer("min_account_age_days").notNull(), minApprovedSubmissions: integer("min_approved_submissions").notNull(), eligibilityMode: text("eligibility_mode").notNull(),
   updatedBy: text("updated_by").notNull(), updatedAt: integer("updated_at").notNull(),
@@ -11,7 +11,7 @@ export const playerInvitationPolicy = sqliteTable("player_invitation_policy", {
 
 export const playerInvitationOverrides = sqliteTable("player_invitation_overrides", {
   playerAccountId: text("player_account_id").primaryKey().references(() => playerAccounts.id), enabled: integer("enabled"),
-  maxCodesCreatedPerPeriod: integer("max_codes_created_per_period"), maxRegistrationsPerPeriod: integer("max_registrations_per_period"),
+  maxRegistrationsPerPeriod: integer("max_registrations_per_period"),
   maxUsesPerCode: integer("max_uses_per_code"), maxValidityDays: integer("max_validity_days"),
   minAccountAgeDays: integer("min_account_age_days"), minApprovedSubmissions: integer("min_approved_submissions"), eligibilityMode: text("eligibility_mode"),
   updatedBy: text("updated_by").notNull(), updatedAt: integer("updated_at").notNull(),

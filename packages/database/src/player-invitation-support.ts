@@ -14,7 +14,6 @@ export const isUniqueViolation = (error: unknown, column: string) => error insta
 export const policyFromRow = (row: typeof playerInvitationPolicy.$inferSelect): PlayerInvitationPolicy => ({
   enabled: row.enabled === 1,
   period: row.period as PlayerInvitationPolicy["period"],
-  maxCodesCreatedPerPeriod: row.maxCodesCreatedPerPeriod,
   maxRegistrationsPerPeriod: row.maxRegistrationsPerPeriod,
   maxUsesPerCode: row.maxUsesPerCode,
   maxValidityDays: row.maxValidityDays,
@@ -25,7 +24,6 @@ export const policyFromRow = (row: typeof playerInvitationPolicy.$inferSelect): 
 
 export const overrideFromRow = (row: typeof playerInvitationOverrides.$inferSelect): PlayerInvitationOverride => ({
   enabled: row.enabled === null ? null : row.enabled === 1,
-  maxCodesCreatedPerPeriod: row.maxCodesCreatedPerPeriod,
   maxRegistrationsPerPeriod: row.maxRegistrationsPerPeriod,
   maxUsesPerCode: row.maxUsesPerCode,
   maxValidityDays: row.maxValidityDays,
@@ -37,7 +35,6 @@ export const overrideFromRow = (row: typeof playerInvitationOverrides.$inferSele
 export const mergePolicy = (global: PlayerInvitationPolicy, override: PlayerInvitationOverride | null): EffectivePolicy => ({
   period: global.period,
   enabled: override?.enabled ?? global.enabled,
-  maxCodesCreatedPerPeriod: override?.maxCodesCreatedPerPeriod ?? global.maxCodesCreatedPerPeriod,
   maxRegistrationsPerPeriod: override?.maxRegistrationsPerPeriod ?? global.maxRegistrationsPerPeriod,
   maxUsesPerCode: override?.maxUsesPerCode ?? global.maxUsesPerCode,
   maxValidityDays: override?.maxValidityDays ?? global.maxValidityDays,
@@ -113,11 +110,8 @@ export const createInvitationSupport = ({ database, db, now, replayOrConflict }:
 
   const periodCounts = async (playerAccountId: string, policy: EffectivePolicy, timestamp: number) => {
     const range = playerInvitationPeriodRange(policy.period, timestamp);
-    const [codesCreated, registrations] = await Promise.all([
-      countOf("SELECT count(*) AS total FROM player_invitations WHERE inviter_player_account_id = ? AND created_at >= ? AND created_at < ?", playerAccountId, range.start, range.end),
-      countOf("SELECT count(*) AS total FROM player_invitation_redemptions WHERE inviter_player_account_id = ? AND completed_at >= ? AND completed_at < ?", playerAccountId, range.start, range.end),
-    ]);
-    return { ...range, codesCreated, registrations };
+    const registrations = await countOf("SELECT count(*) AS total FROM player_invitation_redemptions WHERE inviter_player_account_id = ? AND completed_at >= ? AND completed_at < ?", playerAccountId, range.start, range.end);
+    return { ...range, registrations };
   };
 
   const usedCount = (invitationId: string) => countOf("SELECT count(*) AS total FROM player_invitation_redemptions WHERE invitation_id = ?", invitationId);

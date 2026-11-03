@@ -213,11 +213,11 @@ export const createPlayerInvitationServices = (dependencies: Dependencies): { se
       if (!policy || !eligibility || !counts) return { ...base, policy: null, quota: null, eligibility: null, createBlockedReason: "disabled" };
       const createBlockedReason: PlayerInvitationStateResponse["createBlockedReason"] = !policy.enabled ? "disabled"
         : !eligibility.eligible ? "ineligible"
-        : counts.codesCreated >= policy.maxCodesCreatedPerPeriod ? "quota_exhausted" : null;
+        : counts.registrations >= policy.maxRegistrationsPerPeriod ? "quota_exhausted" : null;
       return {
         ...base,
         policy: { period: policy.period, periodStart: counts.start, periodEnd: counts.end, maxUsesPerCode: policy.maxUsesPerCode, maxValidityDays: policy.maxValidityDays },
-        quota: { codesCreated: counts.codesCreated, maxCodesCreated: policy.maxCodesCreatedPerPeriod, registrations: counts.registrations, maxRegistrations: policy.maxRegistrationsPerPeriod },
+        quota: { registrations: counts.registrations, maxRegistrations: policy.maxRegistrationsPerPeriod },
         eligibility: {
           eligible: eligibility.eligible, mode: policy.eligibilityMode, accountAgeDays: eligibility.accountAgeDays, minAccountAgeDays: policy.minAccountAgeDays,
           approvedSubmissions: eligibility.approvedSubmissions, minApprovedSubmissions: policy.minApprovedSubmissions,
@@ -259,7 +259,7 @@ export const createPlayerInvitationServices = (dependencies: Dependencies): { se
       if (input.maxUses > policy.maxUsesPerCode || input.validityDays > policy.maxValidityDays) throw new Error("PLAYER_INVITATION_LIMIT_EXCEEDED");
       if (await one("SELECT 1 AS found FROM player_invitations WHERE code = ?", validated.code)) throw new Error("PLAYER_INVITATION_CODE_TAKEN");
       const timestamp = now();
-      const range = playerInvitationPeriodRange(policy.period, timestamp);
+      if ((await periodCounts(player.id, policy, timestamp)).registrations >= policy.maxRegistrationsPerPeriod) throw new Error("PLAYER_INVITATION_QUOTA_EXHAUSTED");
       const invitationId = crypto.randomUUID();
       const response: PlayerInvitation = {
         invitationId, code: validated.code, status: "available", maxUses: input.maxUses, usedCount: 0, expiresAt: timestamp + input.validityDays * dayMs, createdAt: timestamp, revokedAt: null,
@@ -267,11 +267,8 @@ export const createPlayerInvitationServices = (dependencies: Dependencies): { se
       const created = guardSql("EXISTS (SELECT 1 FROM player_invitations WHERE id = ?)", invitationId);
       try {
         await database.batch([
-          // The quota check and the insert are one statement, so concurrent creations cannot both take the last slot.
-          database.prepare(
-            `INSERT INTO player_invitations (id, code, inviter_player_account_id, max_uses, expires_at, created_at)
-             SELECT ?, ?, ?, ?, ?, ? WHERE (SELECT count(*) FROM player_invitations WHERE inviter_player_account_id = ? AND created_at >= ? AND created_at < ?) < ?`,
-          ).bind(invitationId, validated.code, player.id, input.maxUses, response.expiresAt, timestamp, player.id, range.start, range.end, policy.maxCodesCreatedPerPeriod),
+          database.prepare("INSERT INTO player_invitations (id, code, inviter_player_account_id, max_uses, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+            .bind(invitationId, validated.code, player.id, input.maxUses, response.expiresAt, timestamp),
           await batchStatements.idempotency(player.id, operation, idempotencyKey, request, response, timestamp, created),
           audit("user", player.id, operation, invitationId, request, timestamp, created),
         ]);
@@ -279,7 +276,6 @@ export const createPlayerInvitationServices = (dependencies: Dependencies): { se
         if (isUniqueViolation(error, "player_invitations.code")) throw new Error("PLAYER_INVITATION_CODE_TAKEN");
         return replayAfterRace(error, player.id, operation, idempotencyKey, request);
       }
-      if (!(await one("SELECT 1 AS found FROM player_invitations WHERE id = ?", invitationId))) throw new Error("PLAYER_INVITATION_QUOTA_EXHAUSTED");
       return response;
     },
 

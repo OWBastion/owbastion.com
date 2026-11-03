@@ -11,9 +11,11 @@ export const playerInvitationEligibilityModeSchema = z.enum(["any", "all"]);
 // Player-chosen code. Normalization (case) and reserved prefixes are checked by the domain.
 export const playerInvitationCodeSchema = z.string().trim().min(1).max(64);
 
+// A registration limit at or above this value means unlimited.
+export const playerInvitationUnlimited = 1_000_000;
+
 const policyFields = {
   enabled: z.boolean(),
-  maxCodesCreatedPerPeriod: count,
   maxRegistrationsPerPeriod: count,
   maxUsesPerCode: z.number().int().min(1).max(1000),
   maxValidityDays: z.number().int().min(1).max(365),
@@ -34,7 +36,6 @@ export const adminPlayerInvitationPolicyResponseSchema = z.object({
 // Every field may be null to inherit the global value. The period is never overridden.
 export const playerInvitationOverrideSchema = z.object({
   enabled: policyFields.enabled.nullable(),
-  maxCodesCreatedPerPeriod: policyFields.maxCodesCreatedPerPeriod.nullable(),
   maxRegistrationsPerPeriod: policyFields.maxRegistrationsPerPeriod.nullable(),
   maxUsesPerCode: policyFields.maxUsesPerCode.nullable(),
   maxValidityDays: policyFields.maxValidityDays.nullable(),
@@ -81,7 +82,7 @@ export const playerInvitationStateResponseSchema = z.object({
     maxUsesPerCode: z.number().int().positive(),
     maxValidityDays: z.number().int().positive(),
   }).strict().nullable(),
-  quota: z.object({ codesCreated: count, maxCodesCreated: count, registrations: count, maxRegistrations: count }).strict().nullable(),
+  quota: z.object({ registrations: count, maxRegistrations: count }).strict().nullable(),
   eligibility: z.object({
     eligible: z.boolean(),
     mode: playerInvitationEligibilityModeSchema,

@@ -297,14 +297,14 @@ onMounted(() => { hydrated.value = true; });
 .detail-probability p { margin: 0; color: var(--muted); }
 .detail-probability__rank { color: var(--quiet); font-size: var(--type-caption-size); }
 .detail-probability b { color: var(--text); font-weight: 600; }
-.description { margin: 0; color: var(--text); line-height: 1.65; }
+.description { margin: 0; color: var(--text); line-height: 1.65; white-space: pre-line; }
 .challenges { display: grid; gap: var(--space-2); }
 .challenges h3 { margin: 0; }
 .outcomes { display: grid; gap: var(--space-2); }
 .outcomes h3 { margin: 0; }
 .outcome { display: grid; gap: var(--space-2); padding: var(--space-3); }
 .outcome__head { display: flex; align-items: center; gap: var(--space-2); }
-.outcome__desc { margin: 0; color: var(--muted); font-size: var(--type-body-sm-size); line-height: 1.6; }
+.outcome__desc { margin: 0; color: var(--muted); font-size: var(--type-body-sm-size); line-height: 1.6; white-space: pre-line; }
 .challenge-link {
   display: flex;
   justify-content: space-between;
