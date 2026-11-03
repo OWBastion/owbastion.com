@@ -26,7 +26,7 @@ describe("admin review import HTTP contract", () => {
   });
 
   it("forwards the preview and import and maps service failures", async () => {
-    const preview = { contractVersion: "1" as const, sourceHash: "hash", rowCount: 1, importCount: 1, errors: [] };
+    const preview = { contractVersion: "1" as const, sourceHash: "hash", rowCount: 1, importCount: 1, errors: [], unresolved: [] };
     const imports: Array<{ key: string; fileName: string }> = [];
     const app = makeApp({
       previewAdminReviewImport: async () => preview,

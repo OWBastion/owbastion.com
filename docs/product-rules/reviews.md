@@ -24,9 +24,10 @@ write, source hash, audit, actor-scoped idempotency; a repeated file is rejected
 reviews are event reviews with no player account: always anonymous, active, with the submission
 date as creation time. The source row ID and original submitter label are stored for maintainers only (the
 admin contract shows the label); the label is not an identity, because the migration merged many visitors under one label,
-so every row imports as its own review. Events match by exact current name, or
-by the optional event ID column when a name is shared or the event was renamed; any unmatched or
-ambiguous row fails the whole import, and the preview lists the candidate event IDs. Imported reviews of removed events stay
+so every row imports as its own review. Events match by exact current name. A name
+that matches no event (renamed) or several (shared) is resolved in the preview: the maintainer
+picks the event for that name, and the choice is sent with the confirm request. The import runs
+only when every name is resolved. Imported reviews of removed events stay
 in aggregates and comments, because removal only takes an event out of the pool; only new
 reviews follow the rateable rule. Moderation treats imported rows like any other review.
 

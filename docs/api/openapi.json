@@ -1037,7 +1037,7 @@
   "/v1/admin/reviews/imports/preview": {
    "post": {
     "operationId": "previewReviewImport",
-    "description": "Maintainer-only dry run of a legacy survey CSV import. Reports unmatched events and invalid rows without writing.",
+    "description": "Maintainer-only dry run of a legacy survey CSV import. Reports invalid rows and the event names that need a maintainer-chosen event (optional `resolutions` maps a name to an event ID) without writing.",
     "responses": {
      "200": {
       "$ref": "#/components/responses/Json"
