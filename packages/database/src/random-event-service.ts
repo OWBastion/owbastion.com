@@ -3,9 +3,8 @@ import { drizzle } from "drizzle-orm/d1";
 import { randomEventRarityForWeight } from "@owbastion/domain";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
 import type { AdminRandomEventBatchRequest, AdminRandomEventVersionListResponse, Challenge, RandomEvent, RandomEventOutcome, RandomEventVersion } from "@owbastion/contracts";
-import { effectGlossaryTerms, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions } from "./schema";
-import { parseEventImport } from "./random-event-import";
-import { chunked, insertLinkStatement, loadEventLinkIndex, replaceLinkStatements, validateEventLinks } from "./random-event-links";
+import { effectGlossaryTerms, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions } from "./schema";
+import { insertLinkStatement, replaceLinkStatements, validateEventLinks } from "./random-event-links";
 import { assertBatchOutcomeUpdate, assertEventOutcomes, groupOutcomesByEvent, loadAllOutcomeRows, loadEventOutcomeInputs, loadEventOutcomes, outcomeInsertStatements, replaceOutcomeStatements, writeEffectTags } from "./random-event-outcomes";
 import type { PlatformCache } from "./platform-cache";
 type RandomEventPlatformServices = Pick<PlatformServices,
@@ -17,8 +16,6 @@ type RandomEventPlatformServices = Pick<PlatformServices,
   | "updateAdminRandomEvent"
   | "batchUpdateAdminRandomEvents"
   | "archiveAdminRandomEvent"
-  | "previewAdminRandomEventImport"
-  | "importAdminRandomEvents"
 >;
 
 type RandomEventDependencies = {
@@ -201,26 +198,6 @@ export const createRandomEventServices = (database: D1Database, db: ReturnType<t
       async archiveAdminRandomEvent(input, auth, idempotencyKey) {
         const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "admin.random-event.archive", idempotencyKey, input); if (replay) return;
         const event = await db.select().from(randomEvents).where(eq(randomEvents.id, input.eventId)).get(); if (!event) throw new Error("EVENT_NOT_FOUND"); await db.update(randomEvents).set({ archivedAt: now(), archivedBy: auth.subject, updatedAt: now() }).where(eq(randomEvents.id, input.eventId)); await recordIdempotency(db, auth.subject, "admin.random-event.archive", idempotencyKey, input, {}); await recordAudit(db, auth, "admin.random-event.archive", "random_event", input.eventId, {});
-      },
-      async previewAdminRandomEventImport(input) {
-        const parsed = await parseEventImport(input, hashRequest); for (const item of parsed.rows) { try { await validateEventLinks(db, item.challengeLinks); } catch { parsed.errors.push({ row: 0, message: `未知挑战关联：${item.name}` }); } }
-        return { sourceHash: parsed.sourceHash, validRowCount: parsed.errors.length ? 0 : parsed.rows.length, errors: parsed.errors, rows: parsed.rows.slice(0, 20).map((row) => ({ name: row.name, category: row.category, releaseStatus: row.releaseStatus })) };
-      },
-      async importAdminRandomEvents(input, auth, idempotencyKey) {
-        const replay = await replayOrConflict<{ importedCount: number }>(db, auth.subject, "admin.random-event.import", idempotencyKey, input); if (replay) return replay;
-        const parsed = await parseEventImport(input, hashRequest); if (parsed.errors.length) throw new Error("EVENT_IMPORT_INVALID"); const duplicate = await db.select().from(randomEventImports).where(eq(randomEventImports.sourceHash, parsed.sourceHash)).get(); if (duplicate) throw new Error("EVENT_IMPORT_DUPLICATE");
-        // Validate every row's links and name conflicts up front: the import
-        // aborts on the first error, so a single batched membership check per
-        // family plus one name lookup preserves semantics with O(1) queries
-        // instead of O(rows × links).
-        const importLinkIndex = await loadEventLinkIndex(db, parsed.rows.flatMap((item) => item.challengeLinks));
-        const importNames = [...new Set(parsed.rows.map((item) => item.name))];
-        const existingNames = new Set((await Promise.all(chunked(importNames).map((names) => db.select({ name: randomEvents.name }).from(randomEvents).where(inArray(randomEvents.name, names))))).flat().map((row) => row.name));
-        for (const item of parsed.rows) { for (const link of item.challengeLinks) { if (!(link.family === "map" ? importLinkIndex.map.has(link.challengeId) : importLinkIndex.title.has(link.challengeId))) throw new Error("CHALLENGE_NOT_FOUND"); } if (existingNames.has(item.name)) throw new Error("EVENT_IMPORT_NAME_CONFLICT"); }
-        const timestamp = now(); const response = { importedCount: parsed.rows.length }; const statements: D1PreparedStatement[] = [];
-        for (const item of parsed.rows) { const eventId = `event.${crypto.randomUUID()}`; statements.push(database.prepare("INSERT INTO random_events (id,name,category,rarity,description,duration_seconds,cooldown_seconds,weight,game_version,event_group,effect_tags_json,release_status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(eventId, item.name, item.category, randomEventRarityForWeight(item.weight), item.description, item.durationSeconds, item.cooldownSeconds, item.weight, item.gameVersion, item.eventGroup ?? null, JSON.stringify(item.effectTags), item.releaseStatus, timestamp, timestamp)); for (const link of item.challengeLinks) statements.push(database.prepare(link.family === "map" ? "INSERT INTO random_event_map_challenges (event_id,challenge_id) VALUES (?,?)" : "INSERT INTO random_event_title_challenges (event_id,challenge_id) VALUES (?,?)").bind(eventId, link.challengeId)); }
-        statements.push(database.prepare("INSERT INTO random_event_imports (id,source_hash,file_name,row_count,imported_by,imported_at) VALUES (?,?,?,?,?,?)").bind(crypto.randomUUID(), parsed.sourceHash, input.fileName, parsed.rows.length, auth.subject, timestamp)); statements.push(database.prepare("INSERT INTO idempotency_keys (id,actor_id,operation,request_hash,response_json,created_at) VALUES (?,?,?,?,?,?)").bind(`${auth.subject}:admin.random-event.import:${idempotencyKey}`, auth.subject, "admin.random-event.import", await hashRequest(input), JSON.stringify(response), timestamp)); statements.push(database.prepare("INSERT INTO audit_events (id,correlation_id,actor_type,actor_id,operation,entity_type,entity_id,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, "admin.random-event.import", "random_event_import", parsed.sourceHash, JSON.stringify({ fileName: input.fileName, importedCount: parsed.rows.length }), timestamp));
-        await database.batch(statements); return response;
       },
     } satisfies RandomEventPlatformServices,
     suspendedEventVersions,

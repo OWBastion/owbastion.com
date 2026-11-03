@@ -11,7 +11,6 @@ import { createRequestId } from "~/utils/request-id";
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "事件管理 · 躲避堡垒 3" });
 
-type ImportPreview = { sourceHash: string; validRowCount: number; errors: Array<{ row: number; message: string }>; rows: Array<{ name: string; category: string; releaseStatus: string }> };
 type EventVersion = { gameVersion: string; availability: "available" | "suspended"; mode: string | null; eventCount: number };
 type StatusFilter = RandomEvent["releaseStatus"] | "all";
 
@@ -34,10 +33,6 @@ const createValues = reactive<EventFieldValues>({ name: "", eventGroup: null, ca
 const saving = shallowRef(false);
 const creatingNow = shallowRef(false);
 const versionSaving = shallowRef<string | null>(null);
-const importOpen = shallowRef(false);
-const importFile = shallowRef<File | null>(null);
-const importPreview = ref<ImportPreview | null>(null);
-const importing = shallowRef(false);
 const error = shallowRef("");
 
 const suspended = computed(() => new Set(versions.value.filter((version) => version.availability === "suspended").map((version) => version.gameVersion)));
@@ -213,35 +208,6 @@ async function setVersionAvailability(version: EventVersion, availability: Event
   }
 }
 
-async function previewImport() {
-  if (!importFile.value) return;
-  importing.value = true;
-  error.value = "";
-  try {
-    importPreview.value = await api<ImportPreview>("/v1/events/imports/preview", { method: "POST", body: { contractVersion: "1", fileName: importFile.value.name, csv: await importFile.value.text() } });
-  } catch (cause) {
-    error.value = portalErrorDetails(cause, "无法预检 CSV。").description;
-  } finally {
-    importing.value = false;
-  }
-}
-async function importEvents() {
-  if (!importFile.value || !importPreview.value || importPreview.value.errors.length) return;
-  importing.value = true;
-  try {
-    const result = await api<{ importedCount: number }>("/v1/events/imports", { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", fileName: importFile.value.name, csv: await importFile.value.text() } });
-    importOpen.value = false;
-    importFile.value = null;
-    importPreview.value = null;
-    await reload();
-    toast.add({ title: `已导入 ${result.importedCount} 条事件`, color: "success" });
-  } catch (cause) {
-    error.value = portalErrorDetails(cause, "无法导入 CSV。").description;
-  } finally {
-    importing.value = false;
-  }
-}
-
 // Unsaved edits are never dropped silently.
 onBeforeRouteLeave(() => draft.value.size === 0 || window.confirm("有未保存的修改，确定离开？"));
 const warnBeforeUnload = (event: BeforeUnloadEvent) => { if (draft.value.size) event.preventDefault(); };
@@ -252,27 +218,9 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", warnBeforeUnloa
 <template>
   <AdminWorkspace title="事件管理" :count="loading ? '读取中…' : `${events.length} 条`">
     <template #actions>
-      <UButton label="导入 CSV" color="neutral" variant="outline" @click="importOpen = !importOpen" />
       <UButton label="新建事件" icon="i-lucide-plus" @click="openCreate" />
     </template>
     <template #messages><UAlert v-if="error" color="error" variant="subtle" :description="error" /></template>
-
-    <UCollapsible v-if="importOpen" v-model:open="importOpen">
-      <template #content>
-        <UCard>
-          <template #header><div><p class="text-sm font-medium">导入 CSV</p><p class="text-sm text-muted">低频维护操作：先预检，再确认写入。</p></div></template>
-          <div class="grid gap-3">
-            <UFileUpload v-model="importFile" accept=".csv,text/csv" label="选择飞书导出的 CSV" />
-            <div class="flex gap-2">
-              <UButton label="预检" color="neutral" variant="outline" :loading="importing" :disabled="!importFile" @click="previewImport" />
-              <UButton v-if="importPreview && !importPreview.errors.length" label="确认导入" :loading="importing" @click="importEvents" />
-            </div>
-            <UAlert v-if="importPreview?.errors.length" color="error" variant="subtle" :title="`发现 ${importPreview.errors.length} 个问题`" :description="importPreview.errors.map((item) => `第 ${item.row} 行：${item.message}`).join('；')" />
-            <UAlert v-else-if="importPreview" color="success" variant="subtle" :description="`可导入 ${importPreview.validRowCount} 条事件。`" />
-          </div>
-        </UCard>
-      </template>
-    </UCollapsible>
 
     <AdminEventPoolSummary :pool-size="pool.length" :pool-weight="poolWeight" :versions="versions" :saving="versionSaving" @toggle="setVersionAvailability" />
 

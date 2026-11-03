@@ -66,7 +66,7 @@ import type {
   AdminMapTitleRule, AdminMapTitleRuleListResponse, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleInheritanceResponse, AdminMapTitleRuleExceptionUpsertRequest,
   AdminStandaloneMode, AdminStandaloneModeListResponse, AdminStandaloneModeUpsertRequest,
   AdminSeason, AdminSeasonListResponse, AdminSeasonWriteRequest, PublicSeasonListResponse,
-  RandomEvent, AdminRandomEventCreateRequest, AdminRandomEventUpdateRequest, AdminRandomEventBatchRequest, AdminRandomEventImportRequest, RandomEventVersion, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse,
+  RandomEvent, AdminRandomEventCreateRequest, AdminRandomEventUpdateRequest, AdminRandomEventBatchRequest, RandomEventVersion, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse,
   PlayerUploadSessionRequest,
   PlayerUploadSessionResponse,
   OcrAccuracyFeedbackRequest,
@@ -81,7 +81,7 @@ import type {
   ScreenshotSetStatus,
   OcrkitScreenshotSetResponse,
   AgentEventListResponse, AgentMap, AgentMapListResponse, AgentAchievementListResponse, AgentTitle, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult, AgentPlayerTitleGrantListResponse, AgentMapTitleHolderListResponse,
-  AdminReview, AdminReviewAudit, AdminReviewImportPreview, AdminReviewImportRequest, AdminReviewImportResponse, AdminReviewListResponse,
+  AdminReview, AdminReviewAudit, AdminReviewListResponse,
 } from "@owbastion/contracts";
 import type {
   AdminPlayerInvitationAuditResponse,
@@ -238,8 +238,6 @@ export type PlatformServices = {
   updateAdminRandomEvent(input: AdminRandomEventUpdateRequest & { eventId: string }, auth: AuthContext, idempotencyKey: string): Promise<RandomEvent>;
   batchUpdateAdminRandomEvents(input: AdminRandomEventBatchRequest, auth: AuthContext, idempotencyKey: string): Promise<RandomEvent[]>;
   archiveAdminRandomEvent(input: { eventId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
-  previewAdminRandomEventImport(input: AdminRandomEventImportRequest, auth: AuthContext): Promise<{ sourceHash: string; validRowCount: number; errors: Array<{ row: number; message: string }>; rows: Array<{ name: string; category: string; releaseStatus: "development" | "implemented" | "removed" }> }>;
-  importAdminRandomEvents(input: AdminRandomEventImportRequest, auth: AuthContext, idempotencyKey: string): Promise<{ importedCount: number }>;
   listAdminRandomEventVersions(auth: AuthContext): Promise<AdminRandomEventVersionListResponse>;
   updateAdminRandomEventVersion(input: AdminRandomEventVersionAvailabilityRequest & { gameVersion: string }, auth: AuthContext, idempotencyKey: string): Promise<RandomEventVersion>;
   listAdminStandaloneModes(auth: AuthContext): Promise<AdminStandaloneModeListResponse>;
@@ -342,8 +340,6 @@ export type PlatformServices = {
   removeAdminBinding(input: { bindingId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   listAdminReviews(input: AdminReviewQuery, auth: AuthContext): Promise<AdminReviewListResponse>;
   getAdminReview(input: { reviewId: string }, auth: AuthContext): Promise<AdminReviewDetail>;
-  previewAdminReviewImport(input: AdminReviewImportRequest, auth: AuthContext): Promise<AdminReviewImportPreview>;
-  importAdminReviews(input: AdminReviewImportRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminReviewImportResponse>;
   getReviewSummary(input: ReviewTarget): Promise<ReviewSummary>;
   getReviewSummaries(input: ReviewSummaryBatchInput): Promise<ReviewSummary[]>;
   listPublicReviewComments(input: PublicReviewCommentQuery): Promise<PublicReviewCommentPage>;

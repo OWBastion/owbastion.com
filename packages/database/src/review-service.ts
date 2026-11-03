@@ -15,22 +15,17 @@ import type {
   ReviewTargetType,
   ReviewUpsertInput,
 } from "@owbastion/domain";
-import type { AdminReview, AdminReviewImportPreview, AdminReviewImportRequest, AdminReviewImportResponse } from "@owbastion/contracts";
+import type { AdminReview } from "@owbastion/contracts";
 import { hashRequest } from "./portal-session";
-import { parseReviewImport } from "./review-import";
 import { reviewImports, reviews } from "./review-schema";
 import { gameplayRevisions, maps, playerAccounts, randomEvents } from "./schema";
 
-// D1 allows 100 bound parameters per statement.
-const nameLookupChunkSize = 90;
 export const maxReviewCommentLength = 500;
 export const reviewSampleThreshold = 3;
 
 type ReviewServices = Pick<PlatformServices,
   | "listAdminReviews"
   | "getAdminReview"
-  | "previewAdminReviewImport"
-  | "importAdminReviews"
   | "getReviewSummary"
   | "getReviewSummaries"
   | "listPublicReviewComments"
@@ -229,35 +224,6 @@ export const createReviewServices = (database: D1Database, db: ReturnType<typeof
       r.withdrawn_at, r.invalidated_at, r.invalidated_by, r.invalidation_reason
     ${adminReviewQuery}`;
 
-  const lookUp = async <T>(values: string[], query: (chunk: string[]) => Promise<T[]>) => (await Promise.all(
-    Array.from({ length: Math.ceil(values.length / nameLookupChunkSize) }, (_, index) => query(values.slice(index * nameLookupChunkSize, (index + 1) * nameLookupChunkSize))),
-  )).flat();
-
-  // A CSV event name resolves to the one event with that name, or to the event the maintainer
-  // chose for it in `resolutions` (renamed events, shared names).
-  const resolveReviewImport = async (input: AdminReviewImportRequest) => {
-    const parsed = await parseReviewImport(input, hashRequest);
-    const resolutions = input.resolutions ?? {};
-    const rowCounts = new Map<string, number>();
-    for (const row of parsed.rows) rowCounts.set(row.eventName, (rowCounts.get(row.eventName) ?? 0) + 1);
-    const names = [...rowCounts.keys()];
-    const chosenIds = [...new Set(names.flatMap((name) => resolutions[name] ? [resolutions[name]!] : []))];
-    const byName = new Map<string, Array<{ eventId: string; name: string; releaseStatus: string; gameVersion: string }>>();
-    const unchosen = names.filter((name) => !resolutions[name]);
-    const columns = { eventId: randomEvents.id, name: randomEvents.name, releaseStatus: randomEvents.releaseStatus, gameVersion: randomEvents.gameVersion };
-    for (const event of await lookUp(unchosen, (chunk) => db.select(columns).from(randomEvents).where(inArray(randomEvents.name, chunk)))) {
-      byName.set(event.name, [...(byName.get(event.name) ?? []), event]);
-    }
-    const existingIds = new Set((await lookUp(chosenIds, (chunk) => db.select({ id: randomEvents.id }).from(randomEvents).where(inArray(randomEvents.id, chunk)))).map((event) => event.id));
-    const errors = [...parsed.errors];
-    for (const id of chosenIds) if (!existingIds.has(id)) errors.push({ row: 0, message: `未找到事件ID：${id}` });
-    const unresolved = unchosen.filter((name) => byName.get(name)?.length !== 1).map((name) => ({ name, rowCount: rowCounts.get(name)!, candidates: byName.get(name) ?? [] }));
-    const alreadyImported = Boolean(await db.select({ id: reviewImports.id }).from(reviewImports).where(eq(reviewImports.sourceHash, parsed.sourceHash)).get());
-    if (alreadyImported) errors.push({ row: 0, message: "该文件已导入" });
-    const targets = new Map(parsed.rows.map((row) => [row.sourceId, resolutions[row.eventName] ?? byName.get(row.eventName)?.[0]?.eventId]));
-    return { ...parsed, errors, unresolved, alreadyImported, targets };
-  };
-
   const mutateComment = async (input: { reviewId: string; reason?: string }, auth: AuthContext, key: string, nextStatus: "visible" | "hidden"): Promise<ReviewRecord> => {
     const operation = nextStatus === "hidden" ? "review.comment.hide" : "review.comment.restore";
     const replay = await replayOrConflict<ReviewRecord>(auth.subject, operation, key, input);
@@ -345,44 +311,6 @@ export const createReviewServices = (database: D1Database, db: ReturnType<typeof
           return { operation: audit.operation, actorType: audit.actor_type, actorId: audit.actor_id, reason, createdAt: audit.created_at };
         }),
       };
-    },
-
-    async previewAdminReviewImport(input: AdminReviewImportRequest, _auth: AuthContext): Promise<AdminReviewImportPreview> {
-      const resolved = await resolveReviewImport(input);
-      return { contractVersion: "1", sourceHash: resolved.sourceHash, rowCount: resolved.rowCount, importCount: resolved.errors.length || resolved.unresolved.length ? 0 : resolved.rows.length, errors: resolved.errors, unresolved: resolved.unresolved };
-    },
-
-    async importAdminReviews(input: AdminReviewImportRequest, auth: AuthContext, key: string): Promise<AdminReviewImportResponse> {
-      const operation = "admin.review.import";
-      const replay = await replayOrConflict<AdminReviewImportResponse>(auth.subject, operation, key, input);
-      if (replay) return replay;
-      const resolved = await resolveReviewImport(input);
-      if (resolved.alreadyImported) throw new Error("REVIEW_IMPORT_DUPLICATE");
-      if (resolved.errors.length || resolved.unresolved.length || !resolved.rows.length) throw new Error("REVIEW_IMPORT_INVALID");
-      const timestamp = now();
-      const importId = crypto.randomUUID();
-      const response = { contractVersion: "1" as const, importedCount: resolved.rows.length };
-      try {
-        await database.batch([
-        database.prepare("INSERT INTO review_imports (id, source_hash, file_name, row_count, imported_by, imported_at) VALUES (?, ?, ?, ?, ?, ?)")
-          .bind(importId, resolved.sourceHash, input.fileName, resolved.rows.length, auth.subject, timestamp),
-        ...resolved.rows.map((row) => database.prepare(`
-          INSERT INTO reviews (
-            id, import_id, source_id, source_label, target_type, target_id, rating, comment,
-            comment_status, anonymous, status, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, 'event', ?, ?, ?, 'visible', 1, 'active', ?, ?)
-        `).bind(crypto.randomUUID(), importId, row.sourceId, row.submitter, resolved.targets.get(row.sourceId), row.rating, row.comment, row.createdAt, row.createdAt)),
-        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)")
-          .bind(`${auth.subject}:${operation}:${key}`, auth.subject, operation, await hashRequest(input), JSON.stringify(response), timestamp),
-        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-          .bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, "review_import", importId, JSON.stringify({ fileName: input.fileName, importedCount: response.importedCount, sourceHash: resolved.sourceHash }), timestamp),
-        ]);
-      } catch (error) {
-        // A concurrent import of the same file loses the race on the unique source hash.
-        if (error instanceof Error && /UNIQUE.*review_imports\.source_hash/i.test(error.message)) throw new Error("REVIEW_IMPORT_DUPLICATE");
-        throw error;
-      }
-      return response;
     },
 
     async getReviewSummary(input: ReviewTarget): Promise<ReviewSummary> {

@@ -17,19 +17,14 @@ Ratings for events and maps. Privacy: [data-and-security.md](../dev-rules/data-a
   all aggregates. Ratings are feedback only and never change difficulty, weights, release
   state, Agents projections, or Bastion data.
 
-## Historical survey import
+## Historical survey ratings
 
-Maintainers import the legacy rating survey CSV through a preview-and-confirm flow (one atomic
-write, source hash, audit, actor-scoped idempotency; a repeated file is rejected). Imported
-reviews are event reviews with no player account: always anonymous, active, with the submission
-date as creation time. The source row ID and original submitter label are stored for maintainers only (the
-admin contract shows the label); the label is not an identity, because the migration merged many visitors under one label,
-so every row imports as its own review. Events match by exact current name. A name
-that matches no event (renamed) or several (shared) is resolved in the preview: the maintainer
-picks the event for that name, and the choice is sent with the confirm request. The import runs
-only when every name is resolved. Imported reviews of removed events stay
-in aggregates and comments, because removal only takes an event out of the pool; only new
-reviews follow the rateable rule. Moderation treats imported rows like any other review.
+The legacy rating survey was imported once. Those reviews are event reviews with no player
+account: always anonymous and active, with the submission date as creation time. The
+`import_id`, source row ID, and original submitter label stay for maintainers only; the label is
+not an identity, because the migration merged many visitors under one label. They stay in
+aggregates and comments, including those of removed events, because removal only takes an event
+out of the pool. Moderation treats them like any other review. There is no import feature.
 
 ## Public reads
 

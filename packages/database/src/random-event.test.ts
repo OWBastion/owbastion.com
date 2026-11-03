@@ -109,7 +109,6 @@ const writeInput = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const csvHeaders = "事件名称,事件效果,事件类别,稀有度级别,类别概率,内置冷却,持续时间（秒）,权重,组内总权重,组内个数,单次失败率(Q),保底触发率,最终出现概率,全局出现概率,版本,效果类型,事件状态";
 
 describe("random-event rarity derivation", () => {
   it("derives rarity from weight across the admin write path", async () => {
@@ -127,20 +126,6 @@ describe("random-event rarity derivation", () => {
 
     const cleared = await services.updateAdminRandomEvent({ ...writeInput({ weight: null }), eventId: created.eventId }, auth, "update-2");
     expect(cleared.rarity).toBe("");
-  });
-
-  it("derives rarity from weight on CSV import instead of trusting the rarity column", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    const services = createPlatformServices(database);
-
-    const csv = [csvHeaders, "导入事件,效果说明,增益,SSR,,0.5,30,1.5,,,,,,,5.0,心之钢,已实装"].join("\n");
-    const preview = await services.previewAdminRandomEventImport({ contractVersion: "1", fileName: "events.csv", csv });
-    expect(preview.errors).toEqual([]);
-
-    const result = await services.importAdminRandomEvents({ contractVersion: "1", fileName: "events.csv", csv }, auth, "import-1");
-    expect(result.importedCount).toBe(1);
-    expect(sqlite.prepare("SELECT rarity, weight FROM random_events WHERE name = ?").get("导入事件")).toEqual({ rarity: "N", weight: 1.5 });
   });
 
   it("stores the event group, keeps it when an update omits it, and clears it with null", async () => {
@@ -205,14 +190,4 @@ describe("random-event rarity derivation", () => {
     expect(result.items[0]?.eventGroup).toBe("赌徒");
   });
 
-  it("imports an optional trailing 事件组 column", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    const services = createPlatformServices(database);
-
-    const csv = [`${csvHeaders},事件组`, "梭哈,效果说明,机制,,,0.5,30,1.5,,,,,,,5.0,心之钢,已实装,赌徒", "先知,效果说明,机制,,,0.5,30,1.5,,,,,,,5.0,心之钢,已实装,"].join("\n");
-    expect((await services.previewAdminRandomEventImport({ contractVersion: "1", fileName: "events.csv", csv })).errors).toEqual([]);
-    await services.importAdminRandomEvents({ contractVersion: "1", fileName: "events.csv", csv }, auth, "import-group");
-    expect(sqlite.prepare("SELECT name, event_group FROM random_events ORDER BY name").all()).toEqual([{ name: "先知", event_group: null }, { name: "梭哈", event_group: "赌徒" }]);
-  });
 });

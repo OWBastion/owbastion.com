@@ -14,7 +14,6 @@ import {
   adminMapTitleRuleUpdateRequestSchema,
   adminRandomEventBatchRequestSchema,
   adminRandomEventCreateRequestSchema,
-  adminRandomEventImportRequestSchema,
   adminRandomEventUpdateRequestSchema,
   adminRandomEventVersionAvailabilityRequestSchema,
   adminStandaloneModeUpsertRequestSchema,
@@ -186,16 +185,6 @@ export const registerAdminCatalogRoutes = (app: ApiApp, dependencies: AdminRoute
     action: (_input, auth, key) => dependencies.services(c).archiveAdminRandomEvent({ eventId: c.req.param("eventId") }, auth, key),
     errors: {
       ...errorGroup(404, "The event does not exist", "EVENT_NOT_FOUND"),
-    },
-  }));
-  app.post("/v1/admin/events/imports/preview", maintainerRoute(requireMaintainer, async (c, auth) => { const parsed = adminRandomEventImportRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); return c.json(await dependencies.services(c).previewAdminRandomEventImport(parsed.data, auth)); }));
-  app.post("/v1/admin/events/imports", (c) => adminMutation(c, {
-    schema: adminRandomEventImportRequestSchema,
-    status: 201,
-    action: (input, auth, key) => dependencies.services(c).importAdminRandomEvents(input, auth, key),
-    errors: {
-      ...errorGroup(422, "The import data is invalid", "EVENT_IMPORT_INVALID", "EVENT_IMPORT_NAME_CONFLICT", "CHALLENGE_NOT_FOUND"),
-      ...errorGroup(409, "The import was already processed", "EVENT_IMPORT_DUPLICATE", "IDEMPOTENCY_CONFLICT"),
     },
   }));
   app.get("/v1/admin/event-versions", maintainerRoute(requireMaintainer, async (c, auth) => { return c.json(await logServiceOperation(c, "admin_list_event_versions", () => dependencies.services(c).listAdminRandomEventVersions(auth))); }));

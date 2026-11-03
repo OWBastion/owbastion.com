@@ -140,14 +140,13 @@ Resolution for `(ruleId, mapId, gameplayRevisionId)`:
 
 - The public Portal lists implemented and removed events with metadata and open linked
   challenges. Maintainers create, edit, archive, and link events in the Portal.
-- CSV preview-and-confirm import validates all rows before an atomic write, records source
-  hash and audit, and never stores the CSV. A batch (max 100, listed fields only, all or
-  nothing, one audit event; undo is another batch) excludes Challenge links.
+- A batch (max 100, listed fields only, all or nothing, one audit event; undo is another
+  batch) excludes Challenge links.
 - A whole game version can be suspended or restored (idempotent operational state):
   events, balancing, and admin visibility are unchanged, but the version's events leave
   `/v1/agents/events` from the next Bastion build; the platform triggers nothing.
-- `eventGroup` is an optional display and search label (editor or trailing `事件组` CSV
-  column; omitting it in an update keeps the value). It never affects eligibility or
+- `eventGroup` is an optional display and search label (set in the editor; omitting it
+  in an update keeps the value). It never affects eligibility or
   probability and is separate from Bastion's eligibility groups.
 - Default projection covers implemented and removed; `status` selects one `releaseStatus`
   (`development`, `implemented`, `removed`) for list, detail, and search.
