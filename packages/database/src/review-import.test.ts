@@ -58,7 +58,12 @@ describe("survey review import", () => {
     const preview = (csv: string) => services.previewAdminReviewImport({ contractVersion: "1", fileName: "survey.csv", csv }, auth("admin"));
 
     await expect(preview(`${header}\n1,2026/04/03,访客,"未闭合,5,`)).resolves.toMatchObject({ importCount: 0, errors: [{ row: 1, message: "CSV 引号未闭合" }] });
-    await expect(preview(`${header}\n1,2026/04/03,访客,重名,5,`)).resolves.toMatchObject({ importCount: 0, errors: [{ message: "事件名称不唯一：重名" }] });
+    const ambiguous = await preview(`${header}\n1,2026/04/03,访客,重名,5,`);
+    expect(ambiguous).toMatchObject({ importCount: 0, errors: [{ message: expect.stringContaining("事件名称不唯一：重名") }] });
+    expect(ambiguous.errors[0]!.message).toEqual(expect.stringContaining("event.twin-a（implemented，版本 1）"));
+    expect(ambiguous.errors[0]!.message).toEqual(expect.stringContaining("event.twin-b"));
+    await expect(preview(`${header},事件ID\n1,2026/04/03,访客,重名,5,,event.twin-b`)).resolves.toMatchObject({ importCount: 1, errors: [] });
+    await expect(preview(`${header},事件ID\n1,2026/04/03,访客,重名,5,,event.missing`)).resolves.toMatchObject({ importCount: 0, errors: [{ message: "未找到事件ID：event.missing" }] });
     await expect(preview("ID,评分\n1,5")).resolves.toMatchObject({ importCount: 0, errors: [{ row: 1 }] });
 
     const many = `${header}\n${Array.from({ length: 150 }, (_, index) => `${index + 1},2026/04/03,访客,事件${index},4,`).join("\n")}`;
@@ -80,5 +85,20 @@ describe("survey review import", () => {
     expect(sqlite.prepare("SELECT (SELECT COUNT(*) FROM reviews) AS reviews, (SELECT COUNT(*) FROM review_imports) AS imports, (SELECT COUNT(*) FROM idempotency_keys) AS keys").get()).toEqual({ reviews: 0, imports: 0, keys: 0 });
     sqlite.exec("DROP TRIGGER fail_audit");
     await expect(services.importAdminReviews(input, auth("admin"), "atomic")).resolves.toEqual({ contractVersion: "1", importedCount: 1 });
+  });
+
+  it("imports a row with an event ID into that event even when the name is shared", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    sqlite.exec(`
+      INSERT INTO random_events (id, name, category, rarity, description, game_version, release_status, created_at, updated_at) VALUES
+        ('event.early', '我独自闯关', 'test', 'common', 'Test', '1', 'removed', 1, 1),
+        ('event.late', '我独自闯关', 'test', 'common', 'Test', '2', 'removed', 2, 2),
+        ('event.renamed', '任务：钢铁防线', 'test', 'common', 'Test', '1', 'implemented', 1, 1);
+    `);
+    const services = createPlatformServices(database);
+    const csv = ["ID,提交时间,提交人,评分事件,评分,评论,事件ID", "1,2026/04/03,Teakowa,我独自闯关,5,牢大,event.early", "2,2026/04/03,Teakowa,任务：钢铁防线,5,夯,"].join("\n");
+    await services.importAdminReviews({ contractVersion: "1", fileName: "survey.csv", csv }, auth("admin"), "pinned");
+    expect(sqlite.prepare("SELECT target_id, source_id FROM reviews ORDER BY source_id").all()).toEqual([{ target_id: "event.early", source_id: 1 }, { target_id: "event.renamed", source_id: 2 }]);
   });
 });
