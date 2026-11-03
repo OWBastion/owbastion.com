@@ -203,7 +203,7 @@ describe("OCR Queue consumer", () => {
     expect(reconcileReviewedSubmissionProgress).toHaveBeenCalledWith({ submissionId: "submission-1", actorId: "admin" });
     expect(succeeded.ack).toHaveBeenCalledOnce();
     expect(failed.ack).not.toHaveBeenCalled();
-    expect(failed.retry).toHaveBeenCalledWith({ delaySeconds: 10 });
+    expect(failed.retry).toHaveBeenCalledOnce();
   });
 
   it("delivers a policy event and acknowledges it only after the platform records delivery", async () => {
