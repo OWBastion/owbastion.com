@@ -1,6 +1,6 @@
 <script setup lang='ts'>
 import type { TableColumn } from '@nuxt/ui';
-import type { AdminReview, AdminReviewDetail } from '~/composables/useAdminApi';
+import type { AdminReview, AdminReviewDetail, AdminReviewImportPreview, AdminReviewImportResponse } from '~/composables/useAdminApi';
 import { createRequestId } from '~/utils/request-id';
 import { portalErrorDetails } from '~/utils/portal-error';
 
@@ -78,6 +78,35 @@ async function openDetail(reviewId: string) {
   finally { detailLoading.value = false; }
 }
 
+const importOpen = ref(false);
+const importFile = ref<File | null>(null);
+const importPreview = ref<AdminReviewImportPreview | null>(null);
+const importing = ref(false);
+watch(importFile, () => { importPreview.value = null; });
+
+async function previewImport() {
+  if (!importFile.value) return;
+  importing.value = true;
+  errorMessage.value = '';
+  try { importPreview.value = await api<AdminReviewImportPreview>('/v1/reviews/imports/preview', { method: 'POST', body: { contractVersion: '1', fileName: importFile.value.name, csv: await importFile.value.text() } }); }
+  catch (error) { errorMessage.value = portalErrorDetails(error, '无法预检 CSV。').description; }
+  finally { importing.value = false; }
+}
+
+async function importReviews() {
+  if (!importFile.value || !importPreview.value || importPreview.value.errors.length || importing.value) return;
+  importing.value = true;
+  errorMessage.value = '';
+  try {
+    const result = await api<AdminReviewImportResponse>('/v1/reviews/imports', { method: 'POST', headers: { 'Idempotency-Key': createRequestId() }, body: { contractVersion: '1', fileName: importFile.value.name, csv: await importFile.value.text() } });
+    importOpen.value = false;
+    importFile.value = null;
+    feedback.value = `已导入 ${result.importedCount} 条评分。`;
+    await load();
+  } catch (error) { errorMessage.value = portalErrorDetails(error, '无法导入 CSV。').description; }
+  finally { importing.value = false; }
+}
+
 function beginModeration(action: NonNullable<typeof pendingAction.value>) { pendingAction.value = action; reason.value = ''; }
 function cancelModeration() { pendingAction.value = null; reason.value = ''; }
 
@@ -106,11 +135,27 @@ watch([targetType, targetId, reviewStatus, commentStatus, rating], () => { page.
 
 <template>
   <AdminWorkspace title='玩家评价' :count='loading ? "读取中…" : total + " 条"'>
-    <template #actions><UButton label='刷新' icon='i-lucide-refresh-cw' color='neutral' variant='outline' :loading='loading' @click='load' /></template>
+    <template #actions><UButton label='导入 CSV' color='neutral' variant='outline' @click='importOpen = !importOpen' /><UButton label='刷新' icon='i-lucide-refresh-cw' color='neutral' variant='outline' :loading='loading' @click='load' /></template>
     <template #messages>
       <UAlert v-if='errorMessage' color='error' variant='subtle' :description='errorMessage' />
       <UAlert v-if='feedback' color='success' variant='subtle' :description='feedback' />
     </template>
+    <UCollapsible v-if='importOpen' v-model:open='importOpen'>
+      <template #content>
+        <UCard>
+          <template #header><div><p class='text-sm font-medium'>导入历史评分</p><p class='text-sm text-muted'>低频维护操作：先预检，再确认写入。导入的评分匿名展示，不关联玩家账号。</p></div></template>
+          <div class='grid gap-3'>
+            <UFileUpload v-model='importFile' accept='.csv,text/csv' label='选择评分收集表 CSV' />
+            <div class='flex gap-2'>
+              <UButton label='预检' color='neutral' variant='outline' :loading='importing' :disabled='!importFile' @click='previewImport' />
+              <UButton v-if='importPreview && !importPreview.errors.length' label='确认导入' :loading='importing' @click='importReviews' />
+            </div>
+            <UAlert v-if='importPreview?.errors.length' color='error' variant='subtle' :title='`发现 ${importPreview.errors.length} 个问题`' :description='importPreview.errors.map((item) => item.row ? `第 ${item.row} 行：${item.message}` : item.message).join("；")' />
+            <UAlert v-else-if='importPreview' color='success' variant='subtle' :description='`共 ${importPreview.rowCount} 行，合并重复评分 ${importPreview.duplicateCount} 行，可导入 ${importPreview.importCount} 条。`' />
+          </div>
+        </UCard>
+      </template>
+    </UCollapsible>
     <section aria-label='玩家评价记录'>
       <AdminDataTable :data='reviews' :columns='columns' :mobile-columns='[{ id: "target", priority: "primary", order: 0 }, { id: "rating", priority: "primary", order: 1 }, { id: "playerName", priority: "detail", order: 2 }, { id: "status", priority: "detail", order: 3 }, { id: "commentStatus", priority: "detail", order: 4 }, { id: "createdAt", priority: "detail", order: 5 }]' row-key='reviewId' :loading='loading' empty='暂无匹配评价。' table-key='player-reviews' manual-filtering :reset-scroll-key='`${page}-${targetType}-${reviewStatus}-${commentStatus}-${rating}`'>
         <template #filters><div class='review-filters'><UInput v-model='targetId' size='md' aria-label='按目标筛选' placeholder='事件或地图 ID' /><USelect v-model='targetType' aria-label='筛选目标类型' :items='[{ label: "全部目标", value: "all" }, { label: "随机事件", value: "event" }, { label: "地图", value: "map" } ]' /><USelect v-model='reviewStatus' aria-label='筛选评价状态' :items='[{ label: "全部评价状态", value: "all" }, { label: "有效", value: "active" }, { label: "已撤回", value: "withdrawn" }, { label: "已失效", value: "invalidated" } ]' /><USelect v-model='commentStatus' aria-label='筛选评论状态' :items='[{ label: "全部评论状态", value: "all" }, { label: "公开", value: "visible" }, { label: "已隐藏", value: "hidden" } ]' /><USelect v-model='rating' aria-label='筛选评分' :items='[{ label: "全部评分", value: "all" }, { label: "1 分", value: "1" }, { label: "2 分", value: "2" }, { label: "3 分", value: "3" }, { label: "4 分", value: "4" }, { label: "5 分", value: "5" } ]' /></div></template>
@@ -118,7 +163,7 @@ watch([targetType, targetId, reviewStatus, commentStatus, rating], () => { page.
         <template #mobile-secondary><div class='review-filters'><USelect v-model='targetType' aria-label='筛选目标类型' :items='[{ label: "全部目标", value: "all" }, { label: "随机事件", value: "event" }, { label: "地图", value: "map" } ]' /><USelect v-model='reviewStatus' aria-label='筛选评价状态' :items='[{ label: "全部评价状态", value: "all" }, { label: "有效", value: "active" }, { label: "已撤回", value: "withdrawn" }, { label: "已失效", value: "invalidated" } ]' /><USelect v-model='commentStatus' aria-label='筛选评论状态' :items='[{ label: "全部评论状态", value: "all" }, { label: "公开", value: "visible" }, { label: "已隐藏", value: "hidden" } ]' /><USelect v-model='rating' aria-label='筛选评分' :items='[{ label: "全部评分", value: "all" }, { label: "1 分", value: "1" }, { label: "2 分", value: "2" }, { label: "3 分", value: "3" }, { label: "4 分", value: "4" }, { label: "5 分", value: "5" } ]' /></div></template>
         <template #target-cell='{ row }'><strong>{{ row.original.targetName }}</strong><span class='table-meta'>{{ targetTypeLabel(row.original.targetType) }}</span></template>
         <template #rating-cell='{ row }'><span aria-label='评分'>{{ "★".repeat(row.original.rating) }}</span></template>
-        <template #playerName-cell='{ row }'><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong><span class='table-meta'>{{ row.original.anonymous ? "公开匿名" : "公开署名" }}</span></template>
+        <template #playerName-cell='{ row }'><strong v-if='row.original.playerName && row.original.playerId'><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong><strong v-else>历史调查导入</strong><span class='table-meta'>{{ row.original.anonymous ? "公开匿名" : "公开署名" }}</span></template>
         <template #status-cell='{ row }'><StatusBadge :label='statusLabel(row.original.status)' :tone='row.original.status === "active" ? "success" : row.original.status === "invalidated" ? "warning" : "default"' /></template>
         <template #commentStatus-cell='{ row }'><StatusBadge :label='commentStatusLabel(row.original.commentStatus)' :tone='row.original.commentStatus === "visible" ? "success" : "warning"' /></template>
         <template #createdAt-cell='{ row }'><span class='table-meta'>{{ formatTime(row.original.createdAt) }}</span></template>

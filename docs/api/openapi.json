@@ -1034,6 +1034,46 @@
     }
    }
   },
+  "/v1/admin/reviews/imports/preview": {
+   "post": {
+    "operationId": "previewReviewImport",
+    "description": "Maintainer-only dry run of a legacy survey CSV import. Reports unmatched events and duplicate submissions without writing.",
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/admin/reviews/imports": {
+   "post": {
+    "operationId": "importReviews",
+    "description": "Maintainer-only atomic import of legacy survey ratings as anonymous event reviews with no player account. The Idempotency-Key header is required.",
+    "responses": {
+     "201": {
+      "$ref": "#/components/responses/Json"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "409": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
   "/v1/admin/reviews/{reviewId}": {
    "get": {
     "operationId": "getAdminReview",

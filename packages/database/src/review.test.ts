@@ -23,9 +23,19 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     VALUES ('revision:' || NEW.id || ':initial', NEW.id, CASE WHEN NEW.status = 'active' THEN 'default' ELSE 'historical' END, NEW.game_version, NEW.created_at, NEW.updated_at);
   END;
   ${randomEventsSchema}
+  CREATE TABLE review_imports (
+    id TEXT PRIMARY KEY NOT NULL,
+    source_hash TEXT NOT NULL UNIQUE,
+    file_name TEXT NOT NULL,
+    row_count INTEGER NOT NULL,
+    imported_by TEXT NOT NULL,
+    imported_at INTEGER NOT NULL
+  );
   CREATE TABLE reviews (
     id TEXT PRIMARY KEY NOT NULL,
-    player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
+    player_account_id TEXT REFERENCES player_accounts(id),
+    import_id TEXT REFERENCES review_imports(id),
+    source_label TEXT,
     target_type TEXT NOT NULL CHECK (target_type IN ('event', 'map')),
     target_id TEXT NOT NULL,
     gameplay_revision_id TEXT REFERENCES gameplay_revisions(id),
@@ -39,8 +49,10 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     withdrawn_at INTEGER,
     invalidated_at INTEGER,
     invalidated_by TEXT,
-    invalidation_reason TEXT
+    invalidation_reason TEXT,
+    CHECK ((player_account_id IS NULL) = (import_id IS NOT NULL))
   );
+  CREATE UNIQUE INDEX reviews_import_event_idx ON reviews(import_id, source_label, target_id) WHERE import_id IS NOT NULL;
   CREATE UNIQUE INDEX reviews_player_event_idx ON reviews(player_account_id, target_id) WHERE target_type = 'event';
   CREATE UNIQUE INDEX reviews_player_legacy_map_idx ON reviews(player_account_id, target_id) WHERE target_type = 'map' AND gameplay_revision_id IS NULL;
   CREATE UNIQUE INDEX reviews_player_map_revision_idx ON reviews(player_account_id, target_id, gameplay_revision_id) WHERE target_type = 'map' AND gameplay_revision_id IS NOT NULL;
@@ -227,6 +239,45 @@ describe("review persistence and domain rules", () => {
     await services.upsertReview({ targetType: "map", targetId: "map.active", gameplayRevisionId: "revision:map.active:initial", rating: 4 }, auth("1"), "conflict");
     await expect(services.upsertReview({ targetType: "map", targetId: "map.active", gameplayRevisionId: "revision:map.active:initial", rating: 5 }, auth("1"), "conflict")).rejects.toThrow("IDEMPOTENCY_CONFLICT");
     await expect(services.upsertReview({ targetType: "map", targetId: "map.active", gameplayRevisionId: "revision:map.active:initial", rating: 4, comment: longComment }, auth("1"), "long-valid-target")).rejects.toThrow("REVIEW_COMMENT_TOO_LONG");
+  });
+
+  it("imports survey ratings as anonymous accountless event reviews, including removed events", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    sqlite.exec(`
+      INSERT INTO random_events (id, name, category, rarity, description, game_version, release_status, created_at, updated_at) VALUES
+        ('event.live', '足力健', 'test', 'common', 'Test', '1', 'implemented', 1, 1),
+        ('event.gone', '有点松弛', 'test', 'common', 'Test', '1', 'removed', 1, 1);
+    `);
+    const services = createPlatformServices(database);
+    const csv = [
+      "ID,提交时间,提交人,评分事件,评分,评论",
+      "20260403068,2026/04/03,Teakowa,足力健,5,夯",
+      "20260403050,2026/04/03,Teakowa,足力健,4,人上人",
+      "20260630200,2026/06/30,访客 1,足力健,1,",
+      "20260403058,2026/04/03,Teakowa,有点松弛,5,回来吧",
+    ].join("\n");
+    const input = { contractVersion: "1" as const, fileName: "survey.csv", csv };
+
+    await expect(services.previewAdminReviewImport(input, auth("admin"))).resolves.toEqual({ contractVersion: "1", sourceHash: expect.any(String), rowCount: 4, importCount: 3, duplicateCount: 1, errors: [] });
+    await expect(services.previewAdminReviewImport({ ...input, csv: csv.replace("有点松弛,5", "不存在,5") }, auth("admin"))).resolves.toMatchObject({ importCount: 0, errors: [{ row: 0, message: "未找到事件：不存在" }] });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM reviews").get()).toEqual({ count: 0 });
+
+    await expect(services.importAdminReviews(input, auth("admin"), "import-1")).resolves.toEqual({ contractVersion: "1", importedCount: 3 });
+    await expect(services.importAdminReviews(input, auth("admin"), "import-1")).resolves.toEqual({ contractVersion: "1", importedCount: 3 });
+    await expect(services.importAdminReviews(input, auth("admin"), "import-2")).rejects.toThrow("REVIEW_IMPORT_DUPLICATE");
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM reviews WHERE player_account_id IS NULL AND anonymous = 1").get()).toEqual({ count: 3 });
+
+    await expect(services.getReviewSummary({ targetType: "event", targetId: "event.live" })).resolves.toMatchObject({ reviewCount: 2, averageRating: 3, ratingDistribution: { 1: 1, 5: 1 } });
+    await expect(services.getReviewSummary({ targetType: "event", targetId: "event.gone" })).resolves.toMatchObject({ reviewCount: 1, averageRating: 5 });
+    const comments = await services.listPublicReviewComments({ targetType: "event", targetId: "event.gone", page: 1, pageSize: 20 });
+    expect(comments.items).toEqual([{ rating: 5, comment: "回来吧", author: null, createdAt: Date.UTC(2026, 3, 2, 16) }]);
+
+    const list = await services.listAdminReviews({ targetId: "event.live", page: 1, pageSize: 20 }, auth("admin"));
+    expect(adminReviewListResponseSchema.parse(list).items).toEqual(expect.arrayContaining([expect.objectContaining({ playerAccountId: null, playerName: null, sourceLabel: "Teakowa", anonymous: true, rating: 5 })]));
+    await services.hideReviewComment({ reviewId: list.items.find((item) => item.sourceLabel === "Teakowa")!.reviewId }, auth("admin"), "hide-imported");
+    await expect(services.upsertReview({ targetType: "event", targetId: "event.gone", rating: 5 }, auth("1"), "rate-removed")).rejects.toThrow();
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'admin.review.import'").get()).toEqual({ count: 1 });
   });
 
   it("lists maintainer review identity and audit context without changing aggregate boundaries", async () => {
