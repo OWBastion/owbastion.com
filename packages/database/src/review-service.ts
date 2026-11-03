@@ -229,21 +229,32 @@ export const createReviewServices = (database: D1Database, db: ReturnType<typeof
       r.withdrawn_at, r.invalidated_at, r.invalidated_by, r.invalidation_reason
     ${adminReviewQuery}`;
 
+  const lookUp = async <T>(values: string[], query: (chunk: string[]) => Promise<T[]>) => (await Promise.all(
+    Array.from({ length: Math.ceil(values.length / nameLookupChunkSize) }, (_, index) => query(values.slice(index * nameLookupChunkSize, (index + 1) * nameLookupChunkSize))),
+  )).flat();
+
+  // A row names its event, or pins it with the optional event ID column when a name is ambiguous.
   const resolveReviewImport = async (input: AdminReviewImportRequest) => {
     const parsed = await parseReviewImport(input, hashRequest);
-    const names = [...new Set(parsed.rows.map((row) => row.eventName))];
-    const chunks = Array.from({ length: Math.ceil(names.length / nameLookupChunkSize) }, (_, index) => names.slice(index * nameLookupChunkSize, (index + 1) * nameLookupChunkSize));
-    const events = (await Promise.all(chunks.map((chunk) => db.select({ id: randomEvents.id, name: randomEvents.name }).from(randomEvents).where(inArray(randomEvents.name, chunk))))).flat();
-    const idsByName = new Map<string, string[]>();
-    for (const event of events) idsByName.set(event.name, [...(idsByName.get(event.name) ?? []), event.id]);
+    const columns = { id: randomEvents.id, name: randomEvents.name, status: randomEvents.releaseStatus, version: randomEvents.gameVersion };
+    const names = [...new Set(parsed.rows.filter((row) => !row.eventId).map((row) => row.eventName))];
+    const pinnedIds = [...new Set(parsed.rows.flatMap((row) => row.eventId ? [row.eventId] : []))];
+    const byName = new Map<string, Array<{ id: string; status: string; version: string }>>();
+    for (const event of await lookUp(names, (chunk) => db.select(columns).from(randomEvents).where(inArray(randomEvents.name, chunk)))) {
+      byName.set(event.name, [...(byName.get(event.name) ?? []), event]);
+    }
+    const existingIds = new Set((await lookUp(pinnedIds, (chunk) => db.select({ id: randomEvents.id }).from(randomEvents).where(inArray(randomEvents.id, chunk)))).map((event) => event.id));
     const errors = [...parsed.errors];
     for (const name of names) {
-      const count = idsByName.get(name)?.length ?? 0;
-      if (count !== 1) errors.push({ row: 0, message: count ? `事件名称不唯一：${name}` : `未找到事件：${name}` });
+      const candidates = byName.get(name) ?? [];
+      if (candidates.length === 0) errors.push({ row: 0, message: `未找到事件：${name}` });
+      else if (candidates.length > 1) errors.push({ row: 0, message: `事件名称不唯一：${name}，请在“事件ID”列指定：${candidates.map((event) => `${event.id}（${event.status}，版本 ${event.version}）`).join("、")}` });
     }
+    for (const id of pinnedIds) if (!existingIds.has(id)) errors.push({ row: 0, message: `未找到事件ID：${id}` });
     const alreadyImported = Boolean(await db.select({ id: reviewImports.id }).from(reviewImports).where(eq(reviewImports.sourceHash, parsed.sourceHash)).get());
     if (alreadyImported) errors.push({ row: 0, message: "该文件已导入" });
-    return { ...parsed, errors, alreadyImported, targetIds: new Map(names.map((name) => [name, idsByName.get(name)?.[0]])) };
+    const targets = new Map(parsed.rows.map((row) => [row.sourceId, row.eventId ?? (byName.get(row.eventName)?.length === 1 ? byName.get(row.eventName)![0]!.id : undefined)]));
+    return { ...parsed, errors, alreadyImported, targets };
   };
 
   const mutateComment = async (input: { reviewId: string; reason?: string }, auth: AuthContext, key: string, nextStatus: "visible" | "hidden"): Promise<ReviewRecord> => {
@@ -359,7 +370,7 @@ export const createReviewServices = (database: D1Database, db: ReturnType<typeof
             id, import_id, source_id, source_label, target_type, target_id, rating, comment,
             comment_status, anonymous, status, created_at, updated_at
           ) VALUES (?, ?, ?, ?, 'event', ?, ?, ?, 'visible', 1, 'active', ?, ?)
-        `).bind(crypto.randomUUID(), importId, row.sourceId, row.submitter, resolved.targetIds.get(row.eventName), row.rating, row.comment, row.createdAt, row.createdAt)),
+        `).bind(crypto.randomUUID(), importId, row.sourceId, row.submitter, resolved.targets.get(row.sourceId), row.rating, row.comment, row.createdAt, row.createdAt)),
         database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)")
           .bind(`${auth.subject}:${operation}:${key}`, auth.subject, operation, await hashRequest(input), JSON.stringify(response), timestamp),
         database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
