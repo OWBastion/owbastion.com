@@ -44,9 +44,8 @@ ones). It must be idempotent and never touch a remote database.
 
 ## Catalog import
 
-Random events are not imported by CLI or seed; use the maintainer Portal's CSV
-preview-and-confirm flow so every environment shares one authorization, audit,
-and write path.
+Random events are not imported by CLI or seed; maintainers create them in the
+Portal so every environment shares one authorization, audit, and write path.
 
 `pnpm db:import:catalog --snapshot <path>` is for legacy migration or explicit
 recovery only, not Bastion synchronization. It writes local D1 by default;

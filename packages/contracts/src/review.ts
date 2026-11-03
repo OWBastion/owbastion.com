@@ -79,26 +79,6 @@ export const adminReviewSchema = z.object({
   invalidatedBy: z.string().nullable(),
   invalidationReason: z.string().nullable(),
 }).strict();
-// resolutions maps a CSV event name to the event it belongs to, for names that do not match exactly one event.
-export const adminReviewImportRequestSchema = z.object({
-  contractVersion,
-  fileName: z.string().trim().min(1).max(256),
-  csv: z.string().min(1).max(512 * 1024),
-  resolutions: z.record(z.string().min(1).max(256), externalId).optional(),
-}).strict();
-export const adminReviewImportPreviewSchema = z.object({
-  contractVersion,
-  sourceHash: z.string(),
-  rowCount: z.number().int(),
-  importCount: z.number().int(),
-  errors: z.array(z.object({ row: z.number().int(), message: z.string() }).strict()),
-  unresolved: z.array(z.object({
-    name: z.string(),
-    rowCount: z.number().int(),
-    candidates: z.array(z.object({ eventId: externalId, name: z.string(), releaseStatus: z.string(), gameVersion: z.string() }).strict()),
-  }).strict()),
-}).strict();
-export const adminReviewImportResponseSchema = z.object({ contractVersion, importedCount: z.number().int() }).strict();
 export const adminReviewAuditSchema = z.object({
   operation: z.string().trim().min(1).max(128),
   actorType: z.string().trim().min(1).max(32),
@@ -121,9 +101,6 @@ export type PublicReviewCommentPage = z.infer<typeof publicReviewCommentPageSche
 export type PlayerReview = z.infer<typeof playerReviewSchema>;
 export type PlayerReviewResponse = z.infer<typeof playerReviewResponseSchema>;
 export type AdminReview = z.infer<typeof adminReviewSchema>;
-export type AdminReviewImportRequest = z.infer<typeof adminReviewImportRequestSchema>;
-export type AdminReviewImportPreview = z.infer<typeof adminReviewImportPreviewSchema>;
-export type AdminReviewImportResponse = z.infer<typeof adminReviewImportResponseSchema>;
 export type AdminReviewAudit = z.infer<typeof adminReviewAuditSchema>;
 export type AdminReviewListResponse = z.infer<typeof adminReviewListResponseSchema>;
 export type AdminReviewDetailResponse = z.infer<typeof adminReviewDetailResponseSchema>;

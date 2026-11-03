@@ -108,7 +108,6 @@ const writeInput = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const csvHeaders = "事件名称,事件效果,事件类别,稀有度级别,类别概率,内置冷却,持续时间（秒）,权重,组内总权重,组内个数,单次失败率(Q),保底触发率,最终出现概率,全局出现概率,版本,效果类型,事件状态";
 
 describe("composite event outcomes", () => {
   const compositeInput = (overrides: Record<string, unknown> = {}) => writeInput({
@@ -270,20 +269,5 @@ describe("composite event outcomes", () => {
     expect((await services.listAgentEvents({ query: "顺风", page: 1, pageSize: 20 })).items.map((event) => event.eventId)).toHaveLength(1);
     expect((await services.listAgentEvents({ query: "减益结果", page: 1, pageSize: 20 })).items.map((event) => event.eventId)).toHaveLength(1);
     expect((await services.searchAgentContent({ query: "逆风", kind: "event", page: 1, pageSize: 20 })).items).toEqual([{ kind: "event", id: expect.any(String), name: "命运掷骰", summary: "事件说明" }]);
-  });
-
-  it("fails a CSV row with category 复合 at preview and never imports it", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    const services = createPlatformServices(database);
-
-    const csv = [csvHeaders, "复合导入,效果说明,复合,SSR,,0.5,30,1.5,,,,,,,5.0,心之钢,开发中", "正常导入,效果说明,增益,SSR,,0.5,30,1.5,,,,,,,5.0,心之钢,开发中"].join("\n");
-    const preview = await services.previewAdminRandomEventImport({ contractVersion: "1", fileName: "events.csv", csv });
-    expect(preview.validRowCount).toBe(0);
-    expect(preview.errors).toEqual([{ row: 2, message: expect.stringContaining("管理端") }]);
-    expect(preview.rows).not.toEqual(expect.arrayContaining([expect.objectContaining({ name: "复合导入" })]));
-
-    await expect(services.importAdminRandomEvents({ contractVersion: "1", fileName: "events.csv", csv }, auth, "import-composite")).rejects.toThrow("EVENT_IMPORT_INVALID");
-    expect(sqlite.prepare("SELECT COUNT(*) AS n FROM random_events").get()).toEqual({ n: 0 });
   });
 });

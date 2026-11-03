@@ -1,9 +1,9 @@
 import { inArray } from "drizzle-orm";
 import type { drizzle } from "drizzle-orm/d1";
 import { achievementChallenges, titleChallenges } from "./schema";
-import type { EventImportRow } from "./random-event-import";
+import type { AdminRandomEventCreateRequest } from "@owbastion/contracts";
 
-type ChallengeLinks = EventImportRow["challengeLinks"];
+type ChallengeLinks = AdminRandomEventCreateRequest["challengeLinks"];
 type Db = ReturnType<typeof drizzle>;
 
 // chunked so a large import cannot exceed the SQLite variable limit.

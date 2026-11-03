@@ -29,8 +29,6 @@ const defaultServices: Partial<PlatformServices> = {
   updateAdminRandomEvent: async () => { throw new Error("EVENT_NOT_FOUND"); },
   batchUpdateAdminRandomEvents: async () => { throw new Error("EVENT_NOT_FOUND"); },
   archiveAdminRandomEvent: async () => { throw new Error("EVENT_NOT_FOUND"); },
-  previewAdminRandomEventImport: async () => ({ sourceHash: "hash", validRowCount: 0, errors: [], rows: [] }),
-  importAdminRandomEvents: async () => ({ importedCount: 0 }),
   listAdminRandomEventVersions: async () => ({ contractVersion: "1" as const, items: [] }),
   updateAdminRandomEventVersion: async ({ gameVersion, availability }) => ({ gameVersion, availability, mode: null, eventCount: 0 }),
   listAdminStandaloneModes: async () => ({ contractVersion: "1" as const, items: [] }),
@@ -579,12 +577,6 @@ describe("API", () => {
       const response = await statusApp.request(`http://localhost${path}`, {}, env);
       expect(response.status).toBe(422);
     }
-  });
-  it("requires a maintainer and an idempotency key for event imports", async () => {
-    const request = { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", fileName: "events.csv", csv: "名称" }) };
-    expect((await app.request("http://localhost/v1/admin/events/imports", request, env)).status).toBe(403);
-    const maintainerApp = createTestApp({}, authenticateAsMaintainer);
-    expect((await maintainerApp.request("http://localhost/v1/admin/events/imports", request, env)).status).toBe(422);
   });
   it("reports the invalid event field without echoing submitted values", async () => {
     const createEvent = vi.fn();
