@@ -1,24 +1,26 @@
 <script setup lang="ts">
 import ReviewEditor from "./ReviewEditor.vue";
 import ReviewSummary from "./ReviewSummary.vue";
-import type { ReviewTargetType } from "~/composables/usePlayerReview";
+import type { ReviewSummary as ReviewSummaryData, ReviewTargetType } from "~/composables/usePlayerReview";
 
 const props = defineProps<{
+  compact?: boolean;
   targetType: ReviewTargetType;
   targetId: string;
   authenticated: boolean;
   gameplayRevisionId?: string | null;
+  knownSummary?: ReviewSummaryData | null;
 }>();
 
 const emit = defineEmits<{ "review-changed": [] }>();
 
 const route = useRoute();
-const review = usePlayerReview(() => props.targetType, () => props.targetId, () => props.authenticated, () => props.gameplayRevisionId ?? null);
+const review = usePlayerReview(() => props.targetType, () => props.targetId, () => props.authenticated, () => props.gameplayRevisionId ?? null, () => props.knownSummary ?? null);
 const loginPath = computed(() => "/login?returnTo=" + encodeURIComponent(route.fullPath));
 const titleId = computed(() => "review-title-" + props.targetId.replace(/[^a-zA-Z0-9_-]/g, "-"));
 const editing = shallowRef(false);
 const editorId = computed(() => `${titleId.value}-editor`);
-const summary = computed(() => review.summary.value);
+const summary = computed(() => props.knownSummary ?? review.summary.value);
 const comments = computed(() => review.comments.value);
 const currentReview = computed(() => review.currentReview.value);
 const loading = computed(() => review.loading.value);
@@ -38,11 +40,11 @@ const withdraw = async () => { if (await review.withdraw()) emit("review-changed
 </script>
 
 <template>
-  <section class="detail-section review-panel" :aria-labelledby="titleId">
-    <div class="section-title">
+  <section class="detail-section review-panel" :aria-labelledby="compact ? undefined : titleId" :aria-label="compact ? '玩家评分' : undefined">
+    <div v-if="!compact" class="section-title">
       <h3 :id="titleId">玩家评分</h3><UBadge v-if="loading" label="读取中" color="neutral" variant="subtle" /><UBadge v-else-if="unavailable" label="暂不可用" color="warning" variant="subtle" /></div>
     <div class="review-body">
-      <ReviewSummary :summary="summary" :comments="comments" :loading="loading" :page="reviewPage" :has-more="reviewHasMore" @page="review.changePage" />
+      <ReviewSummary :compact="compact" :summary="summary" :comments="comments" :loading="loading" :page="reviewPage" :has-more="reviewHasMore" @page="review.changePage" />
       <UAlert v-if="unavailable" color="warning" variant="subtle" title="评价暂不可用" description="这项内容已无法读取评价。" />
       <template v-else>
         <UAlert v-if="error && !loading && !props.authenticated" color="error" variant="subtle" :description="error" role="alert" />

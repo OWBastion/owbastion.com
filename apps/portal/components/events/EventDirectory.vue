@@ -7,7 +7,11 @@ import { useReviewSummaries } from "~/composables/useReviewSummaries";
 import { calculateEventProbabilities, formatProbability } from "~/utils/event-probabilities";
 import { commonEffectTags, emptyEventFilters, facetCount, facetOptions, groupEvents, matchesEvent, sortEvents, type EventFacet, type EventFilters, type EventSort } from "~/utils/event-filters";
 import EventProbabilityMeter from "~/components/events/EventProbabilityMeter.vue";
-import EventBalanceHistory from "~/components/events/EventBalanceHistory.vue";
+import FieldInfo from "~/components/events/FieldInfo.vue";
+import { probabilityHints } from "~/utils/event-probability-hints";
+import EventBalanceEntries from "~/components/events/EventBalanceEntries.vue";
+import { findEventHistory } from "~/utils/editorial-content";
+import type { EventHistoryEntry } from "../../content/event-history";
 
 const props = defineProps<{ events: RandomEvent[]; authenticated: boolean }>();
 const filters = reactive<EventFilters>(emptyEventFilters());
@@ -72,6 +76,23 @@ const reviewLoading = computed(() => reviewSummaries.loading.value);
 const reviewError = computed(() => reviewSummaries.error.value);
 const eventRatingChip = (eventId: string) => reviewRatingChip(reviewSummaries.summaryFor(eventId), reviewLoading.value, reviewError.value);
 const refreshReviewSummaries = () => reviewSummaries.refresh();
+const history = shallowRef<EventHistoryEntry[]>([]);
+watch(() => selected.value?.eventId, async (eventId) => {
+  history.value = [];
+  if (!eventId) return;
+  const found = await findEventHistory(eventId);
+  if (eventId === selected.value?.eventId) history.value = found;
+}, { immediate: true });
+// Rating, balance history, and probability stats share one list; one row opens at a time.
+const detailRows = computed(() => selected.value ? [
+  { value: "rating", label: "评分", slot: "rating" },
+  ...(history.value.length ? [{ value: "history", label: "平衡调整", slot: "history" }] : []),
+  { value: "probability", label: "概率统计", slot: "probability" },
+] : []);
+const rowValue = (row?: string) => {
+  if (row === "rating" && selected.value) { const chip = eventRatingChip(selected.value.eventId); return `${chip.icon} ${chip.label}`; }
+  return row === "history" ? `${history.value.length} 次` : "";
+};
 
 // A changelog hover card links here with ?eventId=; open that event once, whatever its status.
 const route = useRoute();
@@ -117,38 +138,25 @@ onMounted(() => {
       <div v-if="selected" class="detail-header-tags">
         <UBadge :label="selected.category" :color="categoryColor(selected.category)" variant="subtle" />
         <UBadge v-if="selected.rarity" :label="selected.rarity" color="neutral" variant="outline" />
-        <StatusBadge v-bind="eventRatingChip(selected.eventId)" />
       </div>
     </DefineHeaderTags>
 
     <DefineDetailContent>
       <div v-if="selected" class="detail">
         <p class="description">{{ selected.description }}</p>
-        <section v-if="appearance(selected) !== null" class="detail-probability surface-card" aria-label="出现概率">
-          <div class="detail-probability__value num">{{ formatProbability(appearance(selected)) }}</div>
-          <EventProbabilityMeter :probability="appearance(selected)" :max="maxAppearance" />
-          <p v-if="ranking.rankOf.get(selected.eventId)" class="detail-probability__rank num">概率第 {{ ranking.rankOf.get(selected.eventId) }} / {{ ranking.total }}</p>
-        </section>
-        <dl class="detail-grid">
-          <div v-if="selected.durationSeconds !== null" class="detail-grid__row"><dt>持续</dt><dd>{{ selected.durationSeconds }} 秒</dd></div>
-          <div v-if="selected.cooldownSeconds" class="detail-grid__row"><dt>冷却</dt><dd>{{ selected.cooldownSeconds }} 秒</dd></div>
-        </dl>
-        <UAccordion :items="[{ label: '概率统计', slot: 'probability' }]">
-          <template #probability>
-            <dl class="detail-grid">
-              <div v-if="selected.weight !== null && selected.weight !== undefined" class="detail-grid__row"><dt>权重</dt><dd>{{ selected.weight }}</dd></div>
-              <div class="detail-grid__row"><dt>候选池事件数</dt><dd>{{ probability(selected).poolSize }}</dd></div>
-              <div class="detail-grid__row"><dt>单次失败率</dt><dd>{{ formatProbability(probability(selected).failureProbability) }}</dd></div>
-              <div class="detail-grid__row"><dt>保底触发率</dt><dd>{{ formatProbability(probability(selected).guaranteeProbability) }}</dd></div>
-              <div class="detail-grid__row"><dt>出现概率</dt><dd>{{ formatProbability(probability(selected).appearanceProbability) }}</dd></div>
-            </dl>
-            <p class="cap">基础概率：按全部已实装事件的权重计算，未计入最近事件去重和特殊资格限制。</p>
-          </template>
-        </UAccordion>
-        <div class="event-tags">
+        <div v-if="selected.effectAnnotations.length || unannotatedEffectTags(selected).length" class="event-tags">
           <EffectGlossaryTooltip v-for="annotation in selected.effectAnnotations" :key="annotation.term.key" :annotation="annotation" />
           <UBadge v-for="tag in unannotatedEffectTags(selected)" :key="`detail-${tag}`" :label="tag" color="neutral" variant="subtle" />
         </div>
+        <dl class="detail-stats">
+          <div v-if="appearance(selected) !== null" class="detail-stats__cell">
+            <dt>概率</dt>
+            <dd class="detail-stats__value num">{{ formatProbability(appearance(selected)) }}</dd>
+            <dd v-if="ranking.rankOf.get(selected.eventId)" class="detail-stats__sub num">第 {{ ranking.rankOf.get(selected.eventId) }} / {{ ranking.total }} <FieldInfo label="概率排名" :text="probabilityHints.rank" /></dd>
+          </div>
+          <div v-if="selected.durationSeconds !== null" class="detail-stats__cell"><dt>持续</dt><dd class="detail-stats__value num">{{ selected.durationSeconds }}<small>秒</small></dd></div>
+          <div v-if="selected.cooldownSeconds" class="detail-stats__cell"><dt>冷却</dt><dd class="detail-stats__value num">{{ selected.cooldownSeconds }}<small>秒</small></dd></div>
+        </dl>
         <section v-if="selected.outcomes.length" class="outcomes" aria-label="结果项">
           <h3 class="type-card-title">结果项</h3>
           <article v-for="outcome in selected.outcomes" :key="outcome.position" class="outcome surface-card">
@@ -163,7 +171,6 @@ onMounted(() => {
             </div>
           </article>
         </section>
-        <EventBalanceHistory :event-id="selected.eventId" />
         <section v-if="selected.challenges.length" class="challenges">
           <h3 class="type-card-title">挑战</h3>
           <NuxtLink
@@ -176,7 +183,25 @@ onMounted(() => {
             <span class="type-label-sm">{{ challengeAction(challenge) }}</span>
           </NuxtLink>
         </section>
-        <PlayerReviewPanel target-type="event" :target-id="selected.eventId" :authenticated="props.authenticated" @review-changed="refreshReviewSummaries" />
+        <UAccordion :key="selected.eventId" :items="detailRows" type="single" class="detail-rows">
+          <template #trailing="{ item, ui }">
+            <span class="detail-rows__value num">{{ rowValue(item.value) }}</span>
+            <UIcon name="i-lucide-chevron-down" :class="ui.trailingIcon({ class: 'ms-0' })" aria-hidden="true" />
+          </template>
+          <template #rating>
+            <PlayerReviewPanel compact target-type="event" :target-id="selected.eventId" :authenticated="props.authenticated" :known-summary="reviewSummaries.summaryFor(selected.eventId)" @review-changed="refreshReviewSummaries" />
+          </template>
+          <template #history><EventBalanceEntries :entries="history" /></template>
+          <template #probability>
+            <dl class="detail-grid">
+              <div v-if="selected.weight !== null && selected.weight !== undefined" class="detail-grid__row"><dt>权重 <FieldInfo label="权重" :text="probabilityHints.weight" /></dt><dd>{{ selected.weight }}</dd></div>
+              <div class="detail-grid__row"><dt>候选池事件数 <FieldInfo label="候选池事件数" :text="probabilityHints.poolSize" /></dt><dd>{{ probability(selected).poolSize }}</dd></div>
+              <div class="detail-grid__row"><dt>单次失败率 <FieldInfo label="单次失败率" :text="probabilityHints.failure" /></dt><dd>{{ formatProbability(probability(selected).failureProbability) }}</dd></div>
+              <div class="detail-grid__row"><dt>保底触发率 <FieldInfo label="保底触发率" :text="probabilityHints.guarantee" /></dt><dd>{{ formatProbability(probability(selected).guaranteeProbability) }}</dd></div>
+              <div class="detail-grid__row"><dt>出现概率 <FieldInfo label="出现概率" :text="probabilityHints.appearance" /></dt><dd>{{ formatProbability(probability(selected).appearanceProbability) }}</dd></div>
+            </dl>
+          </template>
+        </UAccordion>
       </div>
     </DefineDetailContent>
 
@@ -302,11 +327,16 @@ onMounted(() => {
 .event-tags { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .detail { display: grid; gap: var(--space-4); }
 .detail-header-tags { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-2); }
-.detail-probability { display: grid; gap: var(--space-2); padding: var(--space-4); }
-.detail-probability__value { color: var(--text); font-size: var(--type-headline-size); font-weight: 700; line-height: 1.1; }
-.detail-probability p { margin: 0; color: var(--muted); }
-.detail-probability__rank { color: var(--quiet); font-size: var(--type-caption-size); }
-.detail-probability b { color: var(--text); font-weight: 600; }
+.detail-stats { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; margin: 0; padding: var(--space-3) 0; border-block: 1px solid var(--line); }
+.detail-stats__cell { display: grid; align-content: start; gap: 2px; min-width: 0; padding-inline: var(--space-4); }
+.detail-stats__cell:first-child { padding-inline-start: 0; }
+.detail-stats__cell + .detail-stats__cell { border-inline-start: 1px solid var(--line); }
+.detail-stats dt { color: var(--quiet); font-size: var(--type-caption-size); }
+.detail-stats dd { margin: 0; }
+.detail-stats__value { color: var(--text); font-size: var(--type-headline-size); font-weight: 700; line-height: 1.15; }
+.detail-stats__value small { margin-inline-start: 2px; color: var(--muted); font-size: var(--type-caption-size); font-weight: 400; }
+.detail-stats__sub { color: var(--quiet); font-size: var(--type-caption-size); }
+.detail-rows__value { margin-inline-start: auto; color: var(--muted); font-size: var(--type-body-sm-size); font-weight: 400; }
 .description { margin: 0; color: var(--text); line-height: 1.65; white-space: pre-line; }
 .challenges { display: grid; gap: var(--space-2); }
 .challenges h3 { margin: 0; }

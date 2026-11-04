@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import type { RandomEvent } from "~/types/random-event";
 import { draftedFields, eventStatusItems, NO_EVENT_GROUP, type EventDraft, type EventPatch } from "~/utils/event-draft";
+import FieldInfo from "~/components/events/FieldInfo.vue";
 import { formatProbability } from "~/utils/event-probabilities";
+import { probabilityHints } from "~/utils/event-probability-hints";
 
 export type EventSortKey = "name" | "weight" | "probability" | "gameVersion";
 export type EventSort = { key: EventSortKey; dir: 1 | -1 };
@@ -50,8 +52,8 @@ const stageNumber = (event: RandomEvent, raw: string) => emit("stage", event.eve
           <th :aria-sort="ariaSort('name')"><button type="button" class="event-table__sort" @click="sortBy('name')">事件 {{ arrow("name") }}</button></th>
           <th class="event-table__secondary">事件组</th>
           <th class="event-table__optional">类别</th>
-          <th :aria-sort="ariaSort('weight')" class="event-table__weight"><button type="button" class="event-table__sort" @click="sortBy('weight')">权重 {{ arrow("weight") }}</button></th>
-          <th :aria-sort="ariaSort('probability')"><button type="button" class="event-table__sort" @click="sortBy('probability')">出现概率 {{ arrow("probability") }}</button></th>
+          <th :aria-sort="ariaSort('weight')" class="event-table__weight"><button type="button" class="event-table__sort" @click="sortBy('weight')">权重 {{ arrow("weight") }}</button><FieldInfo label="权重" :text="probabilityHints.weight" /></th>
+          <th :aria-sort="ariaSort('probability')"><button type="button" class="event-table__sort" @click="sortBy('probability')">出现概率 {{ arrow("probability") }}</button><FieldInfo label="出现概率" :text="probabilityHints.appearance" /></th>
           <th class="event-table__optional" :aria-sort="ariaSort('gameVersion')"><button type="button" class="event-table__sort" @click="sortBy('gameVersion')">版本 {{ arrow("gameVersion") }}</button></th>
           <th class="event-table__secondary">状态</th>
         </tr>

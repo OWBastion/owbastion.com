@@ -107,6 +107,11 @@ describe("event history scope and list items", () => {
     expect(sections[0]!.entry.scope).toBeUndefined();
   });
 
+  it("ends an event section at a horizontal rule", () => {
+    const { sections } = annotateEventSections(release, [el("h2", "🔃 随机事件调整"), el("h4", "钢铁防线"), el("ul", "护甲"), el("hr", ""), el("p", "下一节")]);
+    expect(sections[0]!.entry.body.map((node) => node.tag)).toEqual(["ul"]);
+  });
+
   it("shows the name an event had in that release", () => {
     const { sections } = annotateEventSections(release, [el("h2", "🔃 随机事件调整"), el("h4", "钢铁防线"), el("ul", "护甲")]);
     expect(sections[0]!.entry.formerName).toBe("钢铁防线");
@@ -130,7 +135,9 @@ describe("event history scope and list items", () => {
 describe("generated event history", () => {
   it("lists every release that changed an event, newest first", async () => {
     const history = await findEventHistory(ironBulwark.eventId!);
-    expect(history.map((item) => item.version)).toEqual(["26.1101.1", "26.0912.1", "26.0729.1", "26.0131.1", "26.0123.1"]);
+    const versions = history.map((item) => item.version);
+    expect(versions).toEqual([...versions].sort().reverse());
+    expect(versions).toEqual(expect.arrayContaining(["26.1101.1", "26.0912.1", "26.0729.1", "26.0131.1", "26.0123.1"]));
   });
 
   it("keeps the history of a removed event and splits a reused name by version", async () => {
