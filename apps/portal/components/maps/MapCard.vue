@@ -11,8 +11,8 @@ const emit = defineEmits<{ select: [] }>();
 
 const rating = computed(() => props.reviewSummary?.reviewCount && props.reviewSummary.averageRating !== null ? props.reviewSummary.averageRating.toFixed(1) : null);
 const mapIndex = computed(() => props.map.mapId.split(".").at(-1)?.slice(0, 2).toUpperCase() ?? "地图");
-// "T1".."T5": the digit drives the tier colour ramp; anything else renders neutral.
-const tier = computed(() => Number(/^T(\d)$/.exec(props.map.difficultyRating ?? "")?.[1] ?? 0));
+// "T0".."T5": the digit drives the tier colour ramp (T0 hardest, hottest); anything else renders neutral.
+const tier = computed(() => /^T(\d)$/.exec(props.map.difficultyRating ?? "")?.[1]);
 </script>
 
 <template>
@@ -39,10 +39,11 @@ const tier = computed(() => Number(/^T(\d)$/.exec(props.map.difficultyRating ?? 
 .map-card-name { position: absolute; inset: auto var(--space-4) var(--space-3); overflow: hidden; color: oklch(97% 0.01 120); font-family: var(--font-display); font-size: clamp(1.125rem, 7cqi, 1.5rem); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .map-card-rating { position: absolute; top: var(--space-3); left: var(--space-3); padding: .15rem .5rem; border-radius: calc(var(--radius-control) / 1.5); color: oklch(97% 0.01 120); background: oklch(12% 0.01 165 / 70%); font-size: .8125rem; font-weight: 700; }
 .map-card-tier { position: absolute; top: var(--space-3); right: var(--space-3); min-width: 2.5rem; padding: .15rem .5rem; border-radius: calc(var(--radius-control) / 1.5); color: oklch(15% 0.02 150); background: oklch(80% 0.02 150); font-size: .8125rem; font-weight: 700; text-align: center; }
-.map-card-tier[data-tier="1"] { background: oklch(85% 0.17 135); }
-.map-card-tier[data-tier="2"] { background: oklch(86% 0.16 110); }
-.map-card-tier[data-tier="3"] { background: oklch(84% 0.15 80); }
-.map-card-tier[data-tier="4"] { background: oklch(76% 0.16 55); }
-.map-card-tier[data-tier="5"] { color: oklch(98% 0.01 30); background: oklch(62% 0.2 28); }
+.map-card-tier[data-tier="5"] { background: oklch(86% 0.07 220); }
+.map-card-tier[data-tier="4"] { background: oklch(85% 0.14 160); }
+.map-card-tier[data-tier="3"] { background: oklch(86% 0.16 110); }
+.map-card-tier[data-tier="2"] { background: oklch(82% 0.16 75); }
+.map-card-tier[data-tier="1"] { background: oklch(76% 0.17 48); }
+.map-card-tier[data-tier="0"] { color: oklch(98% 0.01 30); background: oklch(62% 0.2 28); }
 @media (prefers-reduced-motion: reduce) { .map-card-media img { transition: none; } }
 </style>
