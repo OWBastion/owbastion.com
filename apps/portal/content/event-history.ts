@@ -104,10 +104,10 @@ export function annotateEventSections(release: Release, children: AstNode[]) {
   const sections: Array<{ eventId: string; entry: EventHistoryEntry }> = [];
   const base = { version: release.version, releasedAt: release.releasedAt, path: release.path };
   let inEvents = false;
+  let eventsH2 = false;
   let announced = false;
   let returning = false;
   let h2Scope: string | undefined;
-  let h3Scope: string | undefined;
   let current: { entries: EventLineageEntry[]; entry: EventHistoryEntry } | null = null;
   let previous: AstNode | undefined;
   const record = (entries: EventLineageEntry[], entry: EventHistoryEntry) => {
@@ -118,17 +118,19 @@ export function annotateEventSections(release: Release, children: AstNode[]) {
     previous = node;
     if (node.tag === "h2") {
       const title = textOf(node);
-      inEvents = /随机事件|周年专属事件|事件回归/.test(title) && !title.includes("修复");
+      eventsH2 = /随机事件|周年专属事件|事件回归/.test(title) && !title.includes("修复");
+      inEvents = eventsH2;
       announced = title.includes("新增");
       returning = title.includes("事件回归");
-      h2Scope = undefined; h3Scope = undefined; current = null;
+      h2Scope = undefined; current = null;
       return node;
     }
-    if (!inEvents) return node;
     if (before?.tag === "h2") h2Scope = scopeNote(node);
+    // An activity section (春节限时活动) holds its event changes under an h3 of its own.
+    if (node.tag === "h3") inEvents = eventsH2 || (/随机事件调整/.test(textOf(node)) && !textOf(node).includes("修复"));
+    if (!inEvents) return node;
     if (node.tag === "h3") {
       const title = textOf(node);
-      h3Scope = title.match(/^「([^」]+)」/)?.[1];
       current = null;
       // Under 事件回归 each h3 is one returning event.
       const entries = returning ? findEntries(parseHeading(title).name, release.version) : [];
@@ -146,7 +148,7 @@ export function annotateEventSections(release: Release, children: AstNode[]) {
       const { entries, tag } = resolveEventHeading(heading, release.version);
       const name = parseHeading(heading).name;
       const former = entries.length === 1 && name !== currentName(entries[0]!) && entries[0]!.names.some((candidate) => (typeof candidate === "string" ? candidate : candidate.name) === name);
-      const entry: EventHistoryEntry = { ...base, tag, scope: h3Scope ?? h2Scope, formerName: former ? name : undefined, body: [] };
+      const entry: EventHistoryEntry = { ...base, tag, scope: h2Scope, formerName: former ? name : undefined, body: [] };
       current = { entries, entry };
       record(entries, entry);
       const linked = entries.length === 1 ? entries[0]!.eventId : undefined;
@@ -155,15 +157,13 @@ export function annotateEventSections(release: Release, children: AstNode[]) {
         : node;
     }
     if (current) {
-      // A leading "5.0 事件抢鲜体验" note names the activity; the badge replaces the note.
-      if (!current.entry.body.length && node.tag === "blockquote" && textOf(node).includes("抢鲜体验")) current.entry.scope ??= textOf(node).trim();
-      else current.entry.body.push(node);
+      current.entry.body.push(node);
     } else if (node.tag === "ul") {
       for (const item of node.children ?? []) {
         for (const name of listItemNames(item)) {
           const entries = findEntries(parseHeading(name).name, release.version);
           if (entries.length !== 1) continue;
-          const entry: EventHistoryEntry = { ...base, tag: announced ? "新增" : undefined, scope: h3Scope ?? h2Scope, body: itemBody(item) };
+          const entry: EventHistoryEntry = { ...base, tag: announced ? "新增" : undefined, scope: h2Scope, body: itemBody(item) };
           record(entries, entry);
         }
       }

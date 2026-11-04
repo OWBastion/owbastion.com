@@ -71,15 +71,28 @@ describe("event history scope and list items", () => {
     expect(sections[0]!.entry.scope).toBe("镜中回响");
   });
 
-  it("labels a section with the activity named in a leading note", () => {
+  it("labels events changed inside an activity section", () => {
+    const { sections } = annotateEventSections({ ...release, version: "26.0212.1" }, [
+      el("h2", "🏮 春节限时活动：鸿运当头"),
+      el("blockquote", "以下调整仅适用于「鸿运当头」限时活动。"),
+      el("h3", "鸿运当头模式调整"),
+      ul(li(text("「命运共同体」从鸿运当头事件池中移除。"))),
+      el("h3", "鸿运当头随机事件调整"),
+      ul(li(text("「作弊：我要验牌」「赌徒：短期投资」从鸿运当头事件池中移除。"))),
+    ]);
+    expect(sections.map((item) => [item.eventId, item.entry.scope])).toEqual([[idOf("作弊：我要验牌"), "鸿运当头"], [idOf("赌徒：短期投资"), "鸿运当头"]]);
+  });
+
+  it("does not label a preview or a series as a limited-time activity", () => {
     const { sections } = annotateEventSections(release, [
       el("h2", "🔃 随机事件调整"),
+      el("h3", "「我独系列」"),
       el("h4", "魔术大师"),
       el("blockquote", "5.0 事件抢鲜体验"),
       el("ul", "权重由 0.5 增加至 1.5"),
     ]);
-    expect(sections[0]!.entry.scope).toBe("5.0 事件抢鲜体验");
-    expect(sections[0]!.entry.body).toHaveLength(1);
+    expect(sections[0]!.entry.scope).toBeUndefined();
+    expect(sections[0]!.entry.body).toHaveLength(2);
   });
 
   it("reads bold-labelled and quoted list items as per-event changes", () => {
@@ -91,8 +104,7 @@ describe("event history scope and list items", () => {
       ul(li(strong("赌徒："), text(" 获胜时获得的心之钢由 8 层增加至 16 层。"))),
     ]);
     expect(sections.map((item) => item.eventId)).toEqual([idOf("我独自升级"), idOf("我独自决定"), idOf("赌徒")]);
-    expect(sections[0]!.entry.scope).toBe("我独系列");
-    expect(sections[2]!.entry.scope).toBeUndefined();
+    expect(sections[0]!.entry.scope).toBeUndefined();
   });
 
   it("shows the name an event had in that release", () => {
