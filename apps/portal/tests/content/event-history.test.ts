@@ -117,6 +117,14 @@ describe("event history scope and list items", () => {
     const kept = dedupeEventHistory([entry("26.0227.1"), entry("26.0131.1"), entry("26.0212.1"), entry("26.0317.1", "活动")]);
     expect(kept.map((item) => item.version)).toEqual(["26.0317.1", "26.0131.1"]);
   });
+
+  it("merges the changes of one release into one entry", () => {
+    const entry = (tag: string | undefined, text: string): EventHistoryEntry => ({ version: "26.1017.1", releasedAt: "2026-01-01T00:00:00.000Z", path: "/changelog/26.1017.1", tag, body: [el("ul", text)] });
+    const kept = dedupeEventHistory([entry(undefined, "权重增加"), entry("新增", "加入事件池")]);
+    expect(kept).toHaveLength(1);
+    expect(kept[0]!.body).toHaveLength(2);
+    expect(kept[0]!.tag).toBe("新增");
+  });
 });
 
 describe("generated event history", () => {
