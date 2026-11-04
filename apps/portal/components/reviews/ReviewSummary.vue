@@ -2,6 +2,7 @@
 import type { PublicReviewComment, ReviewRating, ReviewSummary } from "~/composables/usePlayerReview";
 
 const props = defineProps<{
+  compact?: boolean;
   summary: ReviewSummary | null;
   comments: PublicReviewComment[];
   loading: boolean;
@@ -21,7 +22,7 @@ const distributionWidth = (rating: ReviewRating) => Math.round(((props.summary?.
   <div class="review-summary" aria-live="polite">
     <div v-if="loading" class="review-loading" role="status">读取中…</div>
     <template v-else>
-      <div class="review-summary-overview">
+      <div v-if="!compact" class="review-summary-overview">
         <div class="review-average"><strong :class="{ empty: !averageParts }"><template v-if="averageParts">{{ averageParts[0] }}<span class="review-dot" role="presentation"></span><span class="sr-only">.</span>{{ averageParts[1] }}</template><template v-else>暂无评分</template></strong><span v-if="summary?.reviewCount">{{ summary.reviewCount }} 条</span></div>
         <div v-if="summary?.reviewCount" class="review-distribution" aria-label="评分分布">
           <div v-for="rating in ratings" :key="rating" class="review-distribution-row">
