@@ -29,11 +29,19 @@ const reviewErrorMessage = (error: unknown, fallback: string) => {
   return details.requestId ? localized + " 请求编号：" + details.requestId : localized;
 };
 
+// Page-1 snapshots per target keep reopened panels instant; saving or withdrawing rewrites the entry.
+// Client-only: a module-level map on the server would leak between requests.
+const snapshotTtlMs = 60_000;
+type Snapshot = { at: number; authenticated: boolean; summary: ReviewSummary | null; comments: PublicReviewComment[]; total: number; hasMore: boolean; review: PlayerReview | null };
+const snapshots = new Map<string, Snapshot>();
+
 export function usePlayerReview(
   targetType: MaybeRefOrGetter<ReviewTargetType>,
   targetId: MaybeRefOrGetter<string>,
   authenticated: MaybeRefOrGetter<boolean>,
   gameplayRevisionId: MaybeRefOrGetter<string | null> = null,
+  // A summary the caller already holds (e.g. from a list batch) saves the summary request.
+  knownSummary: MaybeRefOrGetter<ReviewSummary | null> = null,
 ) {
   const api = usePortalApi();
   const summary = shallowRef<ReviewSummary | null>(null);
@@ -85,8 +93,9 @@ export function usePlayerReview(
     const encodedType = encodeURIComponent(type);
     const encodedId = encodeURIComponent(id);
     const revisionQuery = revisionId ? "?gameplayRevisionId=" + encodeURIComponent(revisionId) : "";
+    const needSummary = !toValue(knownSummary);
     const requests = await Promise.allSettled([
-      api<SummaryResponse>("/v1/public/reviews/" + encodedType + "/" + encodedId + "/summary" + revisionQuery),
+      needSummary ? api<SummaryResponse>("/v1/public/reviews/" + encodedType + "/" + encodedId + "/summary" + revisionQuery) : Promise.resolve(null),
       api<CommentsResponse>("/v1/public/reviews/" + encodedType + "/" + encodedId + "/comments?page=" + requestedPage + "&pageSize=" + pageSize + (revisionId ? "&gameplayRevisionId=" + encodeURIComponent(revisionId) : "")),
       ...(isAuthenticated ? [api<PlayerReviewResponse>("/v1/me/reviews/" + encodedType + "/" + encodedId + revisionQuery)] : []),
     ]);
@@ -101,7 +110,7 @@ export function usePlayerReview(
 
     const summaryResult = requests[0];
     const commentsResult = requests[1];
-    if (summaryResult?.status === "fulfilled") summary.value = summaryResult.value.summary;
+    if (summaryResult?.status === "fulfilled" && summaryResult.value) summary.value = summaryResult.value.summary;
     if (commentsResult?.status === "fulfilled") {
       comments.value = commentsResult.value.items;
       page.value = commentsResult.value.page;
@@ -110,7 +119,27 @@ export function usePlayerReview(
     }
     const playerResult = requests[2];
     if (isAuthenticated && playerResult?.status === "fulfilled" && !preserveDraft) syncDraft(playerResult.value.review);
+    if (import.meta.client && !failed && requestedPage === 1) {
+      snapshots.set(targetKey.value, { at: Date.now(), authenticated: isAuthenticated, summary: summary.value, comments: comments.value, total: total.value, hasMore: hasMore.value, review: isAuthenticated ? currentReview.value : null });
+    }
     loading.value = false;
+  };
+
+  const restore = () => {
+    const snapshot = import.meta.client ? snapshots.get(targetKey.value) : undefined;
+    if (!snapshot || snapshot.authenticated !== toValue(authenticated) || Date.now() - snapshot.at > snapshotTtlMs) return false;
+    if (!snapshot.summary && !toValue(knownSummary)) return false;
+    requestSequence++;
+    summary.value = snapshot.summary;
+    comments.value = snapshot.comments;
+    page.value = 1;
+    total.value = snapshot.total;
+    hasMore.value = snapshot.hasMore;
+    syncDraft(snapshot.review);
+    error.value = "";
+    success.value = "";
+    loading.value = false;
+    return true;
   };
 
   const save = async () => {
@@ -192,7 +221,7 @@ export function usePlayerReview(
     total.value = 0;
     hasMore.value = false;
     unavailable.value = false;
-    void load(1);
+    if (!restore()) void load(1);
   }, { immediate: true });
 
   return { summary, comments, currentReview, page, total, hasMore, loading, saving, error, success, unavailable, draftRating, draftComment, draftAnonymous, load, save, withdraw, changePage };

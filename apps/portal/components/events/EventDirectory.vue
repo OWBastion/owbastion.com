@@ -189,7 +189,7 @@ onMounted(() => {
             <UIcon name="i-lucide-chevron-down" :class="ui.trailingIcon({ class: 'ms-0' })" aria-hidden="true" />
           </template>
           <template #rating>
-            <PlayerReviewPanel compact target-type="event" :target-id="selected.eventId" :authenticated="props.authenticated" @review-changed="refreshReviewSummaries" />
+            <PlayerReviewPanel compact target-type="event" :target-id="selected.eventId" :authenticated="props.authenticated" :known-summary="reviewSummaries.summaryFor(selected.eventId)" @review-changed="refreshReviewSummaries" />
           </template>
           <template #history><EventBalanceEntries :entries="history" /></template>
           <template #probability>

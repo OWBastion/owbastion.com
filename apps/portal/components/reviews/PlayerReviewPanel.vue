@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import ReviewEditor from "./ReviewEditor.vue";
 import ReviewSummary from "./ReviewSummary.vue";
-import type { ReviewTargetType } from "~/composables/usePlayerReview";
+import type { ReviewSummary as ReviewSummaryData, ReviewTargetType } from "~/composables/usePlayerReview";
 
 const props = defineProps<{
   compact?: boolean;
@@ -9,17 +9,18 @@ const props = defineProps<{
   targetId: string;
   authenticated: boolean;
   gameplayRevisionId?: string | null;
+  knownSummary?: ReviewSummaryData | null;
 }>();
 
 const emit = defineEmits<{ "review-changed": [] }>();
 
 const route = useRoute();
-const review = usePlayerReview(() => props.targetType, () => props.targetId, () => props.authenticated, () => props.gameplayRevisionId ?? null);
+const review = usePlayerReview(() => props.targetType, () => props.targetId, () => props.authenticated, () => props.gameplayRevisionId ?? null, () => props.knownSummary ?? null);
 const loginPath = computed(() => "/login?returnTo=" + encodeURIComponent(route.fullPath));
 const titleId = computed(() => "review-title-" + props.targetId.replace(/[^a-zA-Z0-9_-]/g, "-"));
 const editing = shallowRef(false);
 const editorId = computed(() => `${titleId.value}-editor`);
-const summary = computed(() => review.summary.value);
+const summary = computed(() => props.knownSummary ?? review.summary.value);
 const comments = computed(() => review.comments.value);
 const currentReview = computed(() => review.currentReview.value);
 const loading = computed(() => review.loading.value);
