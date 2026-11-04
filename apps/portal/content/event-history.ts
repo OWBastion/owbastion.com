@@ -156,7 +156,9 @@ export function annotateEventSections(release: Release, children: AstNode[]) {
         ? { ...node, children: [{ type: "element", tag: "event-name-hover", props: { eventId: linked }, children: node.children }] }
         : node;
     }
-    if (current) {
+    if (node.tag === "hr") {
+      current = null;
+    } else if (current) {
       current.entry.body.push(node);
     } else if (node.tag === "ul") {
       for (const item of node.children ?? []) {
