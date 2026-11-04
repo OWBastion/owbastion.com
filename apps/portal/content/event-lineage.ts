@@ -88,6 +88,8 @@ export const eventLineage: EventLineageEntry[] = [
   { eventId: "event.4c8b4822-86a0-47f1-927a-4286ca7f6a06", names: ["生命在于运动", "生命在于静止"] },
   { eventId: "event.1217fed2-426f-4aac-bcb0-d024c07e7354", names: ["有点松驰", "有点松弛"] },
   { eventId: "event.46cc2493-c127-426d-b3fa-323ad629790c", names: ["有我有你"] },
+  { eventId: "event.bbd0cae6-8a0f-447a-b9f8-8a90fe72ed9f", names: ["黑洞"] },
+  { eventId: "event.d2c44d8f-fe5d-4b5b-9d74-9a84645a6e28", names: ["等价交换"] },
   { names: ["操盘手"] },
   { eventId: "event.a0f7c27c-5245-4029-ad24-e2127f21c063", names: ["鼓舞士气 ProMax"] },
   { eventId: "event.a66d200b-381f-43d7-8695-a27e0c90a423", names: ["重伤"] },

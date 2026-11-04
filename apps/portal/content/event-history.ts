@@ -7,6 +7,10 @@ export interface EventHistoryEntry {
   releasedAt: string;
   path: string;
   tag?: string;
+  /** The limited-time mode or activity this change applies to, when it is not the regular game. */
+  scope?: string;
+  /** The heading the event had in this release, when it differs from its current name. */
+  formerName?: string;
   body: AstNode[];
 }
 
@@ -56,34 +60,126 @@ export function resolveEventHeading(raw: string, version: string): { entries: Ev
   return { entries: found, tag };
 }
 
+const currentName = (entry: EventLineageEntry) => {
+  const last = entry.names[entry.names.length - 1]!;
+  return typeof last === "string" ? last : last.name;
+};
+
+const scopeNote = (node: AstNode | undefined) => node?.tag === "blockquote" ? textOf(node).match(/仅适用于「([^」]+)」/)?.[1] : undefined;
+
+// A list item with blank lines around it wraps its text in a paragraph.
+const itemNodes = (item: AstNode): AstNode[] => {
+  const [first, ...rest] = item.children ?? [];
+  return first?.tag === "p" ? [...(first.children ?? []), ...rest] : item.children ?? [];
+};
+
+/** "「A」「B」与「C」加入事件池" → [A, B, C]; "**A：** 说明" → [A]. Other list items name no event. */
+function listItemNames(item: AstNode): string[] {
+  const first = itemNodes(item)[0];
+  if (first?.tag === "strong") {
+    const label = textOf(first).trim();
+    if (/[：:]$/.test(label)) return [label.slice(0, -1).trim()];
+  }
+  const lead = textOf(item).match(/^\s*(?:「[^」]+」\s*[与和、及]?\s*)+/)?.[0];
+  return lead ? [...lead.matchAll(/「([^」]+)」/g)].map((match) => match[1]!) : [];
+}
+
+/** The nodes of a list item without its bold "名称：" label, as a one-item list. */
+function itemBody(item: AstNode): AstNode[] {
+  const nodes = itemNodes(item);
+  const first = nodes[0];
+  const labelled = first?.tag === "strong" && /[：:]$/.test(textOf(first).trim());
+  const rest = labelled ? nodes.slice(1) : nodes;
+  const [head, ...tail] = rest;
+  const trimmed = head?.type === "text" ? [{ ...head, value: head.value!.replace(/^\s+/, "") }, ...tail] : rest;
+  return [{ type: "element", tag: "ul", props: {}, children: [{ type: "element", tag: "li", props: {}, children: trimmed }] }];
+}
+
 /**
- * Finds the per-event balance sections of one release and, for events the platform
- * knows, wraps the heading text in the hover-card element. Sections under
- * 错误修复 are not event adjustments and are left alone.
+ * Finds the per-event balance changes of one release: `####` sections, and list items
+ * that start with a bold "名称：" or quoted 「名称」. For events the platform knows, a
+ * `####` heading gets the hover-card element. Sections under 错误修复 are left alone.
  */
 export function annotateEventSections(release: Release, children: AstNode[]) {
   const sections: Array<{ eventId: string; entry: EventHistoryEntry }> = [];
+  const base = { version: release.version, releasedAt: release.releasedAt, path: release.path };
   let inEvents = false;
+  let announced = false;
+  let returning = false;
+  let h2Scope: string | undefined;
+  let h3Scope: string | undefined;
   let current: { entries: EventLineageEntry[]; entry: EventHistoryEntry } | null = null;
+  let previous: AstNode | undefined;
+  const record = (entries: EventLineageEntry[], entry: EventHistoryEntry) => {
+    for (const { eventId } of entries) if (eventId) sections.push({ eventId, entry });
+  };
   const out = children.map((node) => {
-    if (node.tag === "h2") { const title = textOf(node); inEvents = title.includes("随机事件") && !title.includes("修复"); current = null; return node; }
+    const before = previous;
+    previous = node;
+    if (node.tag === "h2") {
+      const title = textOf(node);
+      inEvents = /随机事件|周年专属事件|事件回归/.test(title) && !title.includes("修复");
+      announced = title.includes("新增");
+      returning = title.includes("事件回归");
+      h2Scope = undefined; h3Scope = undefined; current = null;
+      return node;
+    }
     if (!inEvents) return node;
-    if (node.tag === "h3") { current = null; return node; }
+    if (before?.tag === "h2") h2Scope = scopeNote(node);
+    if (node.tag === "h3") {
+      const title = textOf(node);
+      h3Scope = title.match(/^「([^」]+)」/)?.[1];
+      current = null;
+      // Under 事件回归 each h3 is one returning event.
+      const entries = returning ? findEntries(parseHeading(title).name, release.version) : [];
+      if (entries.length === 1) {
+        const entry: EventHistoryEntry = { ...base, tag: "回归", scope: h2Scope, body: [] };
+        current = { entries, entry };
+        record(entries, entry);
+      }
+      return node;
+    }
     if (node.tag === "h4") {
       current = null;
       const heading = textOf(node);
       if (ignoredEventHeadings.includes(heading.trim())) return node;
       const { entries, tag } = resolveEventHeading(heading, release.version);
-      const entry: EventHistoryEntry = { version: release.version, releasedAt: release.releasedAt, path: release.path, tag, body: [] };
+      const name = parseHeading(heading).name;
+      const former = entries.length === 1 && name !== currentName(entries[0]!) && entries[0]!.names.some((candidate) => (typeof candidate === "string" ? candidate : candidate.name) === name);
+      const entry: EventHistoryEntry = { ...base, tag, scope: h3Scope ?? h2Scope, formerName: former ? name : undefined, body: [] };
       current = { entries, entry };
-      for (const { eventId } of entries) if (eventId) sections.push({ eventId, entry });
+      record(entries, entry);
       const linked = entries.length === 1 ? entries[0]!.eventId : undefined;
       return linked
         ? { ...node, children: [{ type: "element", tag: "event-name-hover", props: { eventId: linked }, children: node.children }] }
         : node;
     }
-    current?.entry.body.push(node);
+    if (current) {
+      // A leading "5.0 事件抢鲜体验" note names the activity; the badge replaces the note.
+      if (!current.entry.body.length && node.tag === "blockquote" && textOf(node).includes("抢鲜体验")) current.entry.scope ??= textOf(node).trim();
+      else current.entry.body.push(node);
+    } else if (node.tag === "ul") {
+      for (const item of node.children ?? []) {
+        for (const name of listItemNames(item)) {
+          const entries = findEntries(parseHeading(name).name, release.version);
+          if (entries.length !== 1) continue;
+          const entry: EventHistoryEntry = { ...base, tag: announced ? "新增" : undefined, scope: h3Scope ?? h2Scope, body: itemBody(item) };
+          record(entries, entry);
+        }
+      }
+    }
     return node;
   });
   return { children: out, sections };
+}
+
+/** Oldest first in, newest first out; a change identical to the one before it is a repeat and is dropped. */
+export function dedupeEventHistory(entries: EventHistoryEntry[]): EventHistoryEntry[] {
+  const kept: EventHistoryEntry[] = [];
+  for (const entry of [...entries].sort((a, b) => compareVersions(a.version, b.version))) {
+    const last = kept[kept.length - 1];
+    if (last && last.scope === entry.scope && JSON.stringify(last.body) === JSON.stringify(entry.body)) continue;
+    kept.push(entry);
+  }
+  return kept.reverse();
 }

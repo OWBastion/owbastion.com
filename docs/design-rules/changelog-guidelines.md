@@ -36,13 +36,20 @@ Order is free; omit sections with no content.
 
 ## Event history
 
-Each `#### [名]` under `## 🔃 随机事件调整` becomes one entry in that event's balance history on
-the Events page, and its heading gets a hover card. Fixes are not part of it. The build resolves
-every heading through `apps/portal/content/event-lineage.ts` and fails on an unknown name.
+Event changes become entries in each event's balance history on the Events page, and a `####`
+event heading gets a hover card. Fixes are not part of it. The build resolves every `####` heading
+through `apps/portal/content/event-lineage.ts` and fails on an unknown name.
 
-- New event, rename, or merge: add or extend its entry there before publishing. List a name once per
-  event, oldest first; give a reused name `until`.
-- A heading that names no event goes in `ignoredEventHeadings`.
+- Sources: `#### [名]` sections, and list items that start with a bold `**[名]：**` or a quoted
+  `「[名]」` under `## 🔃 随机事件调整`, `## 🌟 新增…事件` (adds the 新增 tag), or `## 🃏 …事件回归`
+  (each `###` is one event, 回归 tag). A list item that names no known event is ignored.
+- Limited-time scope: put `> 以下调整仅适用于「[活动名]」。` as the first line under the `##`
+  heading, or start the `###` heading with `「[活动名]」`. A `> 5.0 事件抢鲜体验` note under an event
+  heading works the same way. The history shows the scope as a label.
+- A change identical to the previous one for the same event is shown once.
+- New event, rename, or merge: add or extend its entry in the lineage before publishing. List a name
+  once per event, oldest first; give a reused name `until`. A heading that names no event goes in
+  `ignoredEventHeadings`.
 
 ## Style
 

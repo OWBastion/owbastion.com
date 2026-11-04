@@ -9,11 +9,13 @@ const body = (nodes: unknown[]) => ({ type: "root", children: nodes }) as MDCRoo
 
 <template>
   <ol class="balance-entries">
-    <li v-for="item in entries" :key="item.version" class="balance-entries__item">
+    <li v-for="item in entries" :key="`${item.version}-${item.tag}-${item.scope}`" class="balance-entries__item">
       <div class="balance-entries__meta">
         <NuxtLink :to="item.path" class="balance-entries__version num">{{ item.version }}</NuxtLink>
         <time :datetime="item.releasedAt">{{ formatEditorialDate(item.releasedAt) }}</time>
         <UBadge v-if="item.tag" :label="item.tag" color="neutral" variant="subtle" />
+        <UBadge v-if="item.scope" :label="item.scope" color="info" variant="outline" />
+        <span v-if="item.formerName">时称「{{ item.formerName }}」</span>
       </div>
       <MDCRenderer :body="body(item.body)" :data="{}" class="balance-entries__body" />
     </li>
