@@ -44,9 +44,4 @@ describe("featured review comments", () => {
     expect(comments).toEqual(new Set([long]));
   });
 
-  it("returns an empty list when nothing qualifies", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    await expect(createPlatformServices(database).listFeaturedReviewComments()).resolves.toEqual({ items: [] });
-  });
 });

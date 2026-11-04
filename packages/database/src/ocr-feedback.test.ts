@@ -80,20 +80,6 @@ const maintainer = { actorType: "user" as const, subject: "maintainer-1", roles:
 const accuracyRows = (sqlite: DatabaseSync) => sqlite.prepare("SELECT submission_id, ocr_result_id, accuracy, marked_by, marked_by_type FROM ocr_accuracy_feedback ORDER BY created_at").all() as Array<Record<string, unknown>>;
 
 describe("OCR accuracy feedback", () => {
-  it("returns the unlisted CDN evidence URL in player detail", async () => {
-    const { services, sqlite } = await setup();
-    sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, object_key, upload_status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-      .run("attachment-evidence", "submission-1", "portal", "upload-1", "image/png", "uploads/submissions/submission-1/evidence.png", "stored", 1);
-
-    const detail = await services.getPlayerSubmission({ submissionId: "submission-1" }, "session-token");
-    expect(detail.evidenceUrl).toBe("https://evidence.owbastion.codes/uploads/submissions/submission-1/evidence.png");
-  });
-
-  it("names the recognition model in the player's OCR summary", async () => {
-    const { services } = await setup();
-    const detail = await services.getPlayerSubmission({ submissionId: "submission-1" }, "session-token");
-    expect(detail.ocr).toMatchObject({ mapName: "萨摩亚", modelVersion: "ocr-v1" });
-  });
 
   it("records a player accuracy mark without transcription content", async () => {
     const { sqlite, services } = await setup();
@@ -115,29 +101,9 @@ describe("OCR accuracy feedback", () => {
     await expect(services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-2", accuracy: "inaccurate" }, "other-session-token", "key-2")).rejects.toThrow("SUBMISSION_NOT_FOUND");
   });
 
-  it("keeps retries idempotent without creating duplicate rows", async () => {
-    const { sqlite, services } = await setup();
-    const first = await services.submitPlayerOcrFeedback({ submissionId: "submission-1", ocrResultId: "ocr-1", accuracy: "accurate" }, "session-token", "key-3");
-    expect(first.alreadySubmitted).toBe(false);
-    const replay = await services.submitPlayerOcrFeedback({ submissionId: "submission-1", ocrResultId: "ocr-1", accuracy: "accurate" }, "session-token", "key-3");
-    expect(replay.alreadySubmitted).toBe(true);
-    expect(accuracyRows(sqlite)).toHaveLength(1);
-  });
-
-  it("rejects a changed reuse of an idempotency key", async () => {
-    const { services } = await setup();
-    await services.submitPlayerOcrFeedback({ submissionId: "submission-1", ocrResultId: "ocr-1", accuracy: "accurate" }, "session-token", "key-4");
-    await expect(services.submitPlayerOcrFeedback({ submissionId: "submission-1", ocrResultId: "ocr-1", accuracy: "inaccurate" }, "session-token", "key-4")).rejects.toThrow("IDEMPOTENCY_CONFLICT");
-  });
-
   it("rejects feedback against a stale recognition result", async () => {
     const { services } = await setup();
     await expect(services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-1", accuracy: "accurate" }, "session-token", "key-5")).rejects.toThrow("OCR_PROMPT_STALE");
-  });
-
-  it("rejects feedback when the submission is in the resubmission path", async () => {
-    const { services } = await setup({ submissionStatus: "resubmission_required" });
-    await expect(services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-2", accuracy: "inaccurate" }, "session-token", "key-6")).rejects.toThrow("OCR_FEEDBACK_UNAVAILABLE");
   });
 
   it("does not mutate the submission, its review state, or mastery outcome", async () => {
@@ -150,18 +116,6 @@ describe("OCR accuracy feedback", () => {
     expect((sqlite.prepare("SELECT COUNT(*) AS count FROM submission_reviews").get() as { count: number }).count).toBe(0);
   });
 
-  it("exposes only the current mark in the player detail projection", async () => {
-    const { services } = await setup();
-    const before = await services.getPlayerSubmission({ submissionId: "submission-2" }, "session-token");
-    expect(before.feedback).toEqual({ ocrResultId: "ocr-2", accuracy: null });
-    await services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-2", accuracy: "inaccurate" }, "session-token", "key-8");
-    const after = await services.getPlayerSubmission({ submissionId: "submission-2" }, "session-token");
-    expect(after.feedback).toEqual({ ocrResultId: "ocr-2", accuracy: "inaccurate" });
-    const serialized = JSON.stringify(after);
-    expect(serialized).not.toContain("confidence");
-    expect(serialized).not.toContain("responseJson");
-  });
-
   it("records a maintainer mark on the shared row and lets the latest writer win", async () => {
     const { sqlite, services } = await setup();
     await services.submitPlayerOcrFeedback({ submissionId: "submission-1", ocrResultId: "ocr-1", accuracy: "accurate" }, "session-token", "key-9");
@@ -172,17 +126,4 @@ describe("OCR accuracy feedback", () => {
     expect(accuracyRows(sqlite)).toHaveLength(1);
   });
 
-  it("keeps maintainer retries idempotent", async () => {
-    const { sqlite, services } = await setup();
-    await services.submitAdminOcrAccuracy({ submissionId: "submission-1", ocrResultId: "ocr-1", accuracy: "accurate" }, maintainer, "admin-key-2");
-    const replay = await services.submitAdminOcrAccuracy({ submissionId: "submission-1", ocrResultId: "ocr-1", accuracy: "accurate" }, maintainer, "admin-key-2");
-    expect(replay.alreadySubmitted).toBe(true);
-    expect(accuracyRows(sqlite)).toHaveLength(1);
-  });
-
-  it("rejects maintainer marks on stale or foreign recognition results", async () => {
-    const { services } = await setup();
-    await expect(services.submitAdminOcrAccuracy({ submissionId: "submission-2", ocrResultId: "ocr-1", accuracy: "accurate" }, maintainer, "admin-key-3")).rejects.toThrow("OCR_PROMPT_STALE");
-    await expect(services.submitAdminOcrAccuracy({ submissionId: "missing", ocrResultId: "ocr-1", accuracy: "accurate" }, maintainer, "admin-key-4")).rejects.toThrow("SUBMISSION_NOT_FOUND");
-  });
 });

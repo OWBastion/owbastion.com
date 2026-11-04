@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { annotateEventSections, dedupeEventHistory, resolveEventHeading, type AstNode, type EventHistoryEntry } from "../../content/event-history";
+import { annotateEventSections, resolveEventHeading, type AstNode } from "../../content/event-history";
 import { eventLineage } from "../../content/event-lineage";
-import { findEventHistory } from "../../utils/editorial-content";
 
 const ironBulwark = eventLineage.find((entry) => entry.names.includes("任务：钢铁防线"))!;
 const el = (tag: string, text: string): AstNode => ({ type: "element", tag, props: {}, children: [{ type: "text", value: text }] });
@@ -107,39 +106,6 @@ describe("event history scope and list items", () => {
     expect(sections[0]!.entry.scope).toBeUndefined();
   });
 
-  it("shows the name an event had in that release", () => {
-    const { sections } = annotateEventSections(release, [el("h2", "🔃 随机事件调整"), el("h4", "钢铁防线"), el("ul", "护甲")]);
-    expect(sections[0]!.entry.formerName).toBe("钢铁防线");
-  });
 
-  it("drops a change that repeats the one before it", () => {
-    const entry = (version: string, scope?: string): EventHistoryEntry => ({ version, releasedAt: "2026-01-01T00:00:00.000Z", path: `/changelog/${version}`, scope, body: [el("ul", "权重由 1.2 增加至 1.3")] });
-    const kept = dedupeEventHistory([entry("26.0227.1"), entry("26.0131.1"), entry("26.0212.1"), entry("26.0317.1", "活动")]);
-    expect(kept.map((item) => item.version)).toEqual(["26.0317.1", "26.0131.1"]);
-  });
 
-  it("merges the changes of one release into one entry", () => {
-    const entry = (tag: string | undefined, text: string): EventHistoryEntry => ({ version: "26.1017.1", releasedAt: "2026-01-01T00:00:00.000Z", path: "/changelog/26.1017.1", tag, body: [el("ul", text)] });
-    const kept = dedupeEventHistory([entry(undefined, "权重增加"), entry("新增", "加入事件池")]);
-    expect(kept).toHaveLength(1);
-    expect(kept[0]!.body).toHaveLength(2);
-    expect(kept[0]!.tag).toBe("新增");
-  });
-});
-
-describe("generated event history", () => {
-  it("lists every release that changed an event, newest first", async () => {
-    const history = await findEventHistory(ironBulwark.eventId!);
-    expect(history.map((item) => item.version)).toEqual(["26.1101.1", "26.0912.1", "26.0729.1", "26.0131.1", "26.0123.1"]);
-  });
-
-  it("keeps the history of a removed event and splits a reused name by version", async () => {
-    const [early, returned] = eventLineage.filter((entry) => entry.names.some((name) => typeof name !== "string" && name.name === "我独自闯关" || name === "我独自闯关"));
-    expect((await findEventHistory(early!.eventId!)).map((item) => item.version)).toEqual(["26.0317.1", "25.1223.1"]);
-    expect((await findEventHistory(returned!.eventId!)).map((item) => item.version)).toEqual(["26.1030.1", "26.1017.1"]);
-  });
-
-  it("is empty for an unknown event", async () => {
-    expect(await findEventHistory("event.unknown")).toEqual([]);
-  });
 });

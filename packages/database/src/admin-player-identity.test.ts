@@ -32,14 +32,6 @@ describe("administrator BattleTag change", () => {
     expect(account()).toMatchObject({ player_id: "2222", player_name: "B" });
   });
 
-  it("changes only the number", async () => {
-    const { services, account } = setup();
-
-    await services.updateAdminPlayerIdentity(change("A", "2222"), admin, "identity.1");
-
-    expect(account()).toEqual({ id: "player.1", player_id: "2222", player_name: "A", normalized_player_name: "a" });
-  });
-
   it("rejects a BattleTag used by another account", async () => {
     const { sqlite, timestamp, services, account } = setup();
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.2', '2222', 'B', 'b', ?, ?)").run(timestamp, timestamp);

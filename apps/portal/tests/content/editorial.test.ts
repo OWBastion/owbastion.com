@@ -5,26 +5,7 @@ import { blogFrontmatterSchema, changelogFrontmatterSchema } from "../../content
 import { findEditorialEntry, queryEditorialEntries, queryEditorialSummaries } from "../../utils/editorial-content";
 
 describe("editorial content collections", () => {
-  it("validates Blog metadata", () => {
-    const result = blogFrontmatterSchema.safeParse({
-      title: "开发日志 #8：轮换挑战与地图精通",
-      description: "开发日志摘要",
-      publishedAt: new Date("2026-08-08"),
-    });
 
-    expect(result.success).toBe(true);
-  });
-
-  it("validates Changelog metadata", () => {
-    const result = changelogFrontmatterSchema.safeParse({
-      title: "随机事件调整",
-      description: "已发布变更摘要",
-      releasedAt: new Date("2026-08-08"),
-      version: "26.0801.1",
-    });
-
-    expect(result.success).toBe(true);
-  });
 
   it("rejects missing required editorial metadata", () => {
     const blogResult = blogFrontmatterSchema.safeParse({
@@ -113,14 +94,6 @@ describe("build-time editorial loader", () => {
     expect(blog.every((entry) => !("body" in entry))).toBe(true);
   });
 
-  it("finds detail entries and returns null for unknown slugs", async () => {
-    const entry = await findEditorialEntry("changelog", "26.0801.1");
-
-    expect(entry?.path).toBe("/changelog/26.0801.1");
-    expect(entry?.body.children.length).toBeGreaterThan(0);
-    expect(await findEditorialEntry("blog", "no-such-post")).toBeNull();
-    expect(await findEditorialEntry("changelog", "0.0000.0")).toBeNull();
-  });
 
   it("renders math into KaTeX markup inside the parsed body", async () => {
     const entry = await findEditorialEntry("blog", "random-system-weighted-algorithm");

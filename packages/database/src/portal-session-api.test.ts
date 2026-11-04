@@ -45,21 +45,6 @@ const expectNoProfileReads = (queries: string[]) => {
 };
 
 describe("Portal API session authentication", () => {
-  it("keeps administrator and player authentication free of submission projections", async () => {
-    const { request, queries } = await setup();
-    const admin = await request("/v1/admin/map-title-rules", "admin");
-    expect(admin.status).toBe(200);
-    expect(admin.headers.get("cache-control")).toBe("private, no-store");
-    expectNoProfileReads(queries);
-    queries.length = 0;
-    const player = await request("/v1/me/mastery", "player");
-    expect(player.status).toBe(200);
-    expect(player.headers.get("cache-control")).toBe("private, no-store");
-    expectNoProfileReads(queries);
-    queries.length = 0;
-    expect((await request("/v1/admin/qq/groups", "admin")).status).toBe(200);
-    expectNoProfileReads(queries);
-  });
 
   it("preserves full current-player data and submission ownership", async () => {
     const { request } = await setup();

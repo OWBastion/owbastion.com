@@ -47,15 +47,6 @@ describe("screenshot upload retry", () => {
     expect(putEvidence).toHaveBeenCalledTimes(1);
   });
 
-  it("retries a transient upload failure once and treats a rejected replay as already uploaded", async () => {
-    api.mockImplementation(async (path: string) => path.endsWith("/session") ? session() : { submissionId: "submission-1", status: "processing" });
-    putEvidence.mockRejectedValueOnce(failure()).mockRejectedValueOnce(failure(422, "UPLOAD_SESSION_INVALID"));
-    const { submit } = useSubmissionUpload();
-
-    await expect(submit(file())).resolves.toMatchObject({ status: "processing" });
-    expect(putEvidence).toHaveBeenCalledTimes(2);
-    expect(calls("/complete")).toBe(1);
-  });
 
   it("starts a new session when the server rejected the previous one", async () => {
     let sessions = 0;

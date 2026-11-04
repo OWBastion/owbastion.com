@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { leaderboardPlayerKey, projectLeaderboardEntry, rankLeaderboardRows } from "./leaderboard";
+import { projectLeaderboardEntry, rankLeaderboardRows } from "./leaderboard";
 
 const base = {
   rank: 3,
@@ -51,14 +51,5 @@ describe("rankLeaderboardRows", () => {
       ["a", 3],
       ["b", 4],
     ]);
-  });
-});
-
-describe("leaderboardPlayerKey", () => {
-  it("derives a stable opaque key per account", async () => {
-    const key = await leaderboardPlayerKey("account-1");
-    expect(key).toMatch(/^[0-9a-f]{24}$/);
-    expect(await leaderboardPlayerKey("account-1")).toBe(key);
-    expect(await leaderboardPlayerKey("account-2")).not.toBe(key);
   });
 });

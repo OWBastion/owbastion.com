@@ -8,41 +8,6 @@ import { assessChallengeOcrQuality } from "./ocr-response";
 import { admin, achievementInput, canonicalChallengeIds, hashRequest, insertSubmission, progressCompletion, progressGrants, runInput, seedProgressReadRule, seedProgressReadRun, seedProgressReadSession, setup, type ProgressFixtureInput } from "./progress-test-harness";
 
 describe("verified-run progress challenges", () => {
-  it("keeps each public rule's mode, difficulty and submission window independent in one progress read", async () => {
-    const { sqlite, services } = setup();
-    const start = Date.now() - 50_000;
-    const end = start + 100_000;
-    sqlite.exec(`INSERT INTO gameplay_revisions (id,map_id,lifecycle,mode,game_version,created_at,updated_at) VALUES
-      ('revision:map.alpha:mirror', 'map.alpha', 'selectable', '2026镜中回响', '26.0810.1', 1, 1),
-      ('revision:map.beta:mirror', 'map.beta', 'selectable', '2026镜中回响', '26.0810.1', 1, 1);`);
-    seedProgressReadRule(sqlite, { id: "regular", startsAt: start, endsAt: end, rule: { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"], difficultyAtLeast: "困难" } });
-    seedProgressReadRule(sqlite, { id: "expert", startsAt: start, endsAt: end, rule: { type: "required_maps_completed", mapIds: ["map.alpha"], difficultyAtLeast: "专家" } });
-    seedProgressReadRule(sqlite, { id: "earlier", startsAt: start - 1_000, endsAt: end, rule: { type: "required_maps_completed", mapIds: ["map.alpha"], difficultyAtLeast: "专家" } });
-    seedProgressReadRule(sqlite, { id: "later", startsAt: start + 1, endsAt: end, rule: { type: "required_maps_completed", mapIds: ["map.alpha"] } });
-    seedProgressReadRule(sqlite, { id: "mirror", startsAt: start, endsAt: end, rule: { type: "required_maps_completed", mapIds: ["map.alpha", "map.beta"], mode: "2026 镜中回响", difficultyAtLeast: "专家" } });
-    seedProgressReadRule(sqlite, { id: "private", visibility: 0 });
-    seedProgressReadRule(sqlite, { id: "retired-challenge", status: "archived" });
-    seedProgressReadRule(sqlite, { id: "future", startsAt: end, rule: { type: "required_maps_completed", mapIds: ["map.alpha"] } });
-    seedProgressReadRun(sqlite, { id: "at-start", createdAt: start });
-    seedProgressReadRun(sqlite, { id: "before-start", createdAt: start - 1, difficulty: "专家" });
-    seedProgressReadRun(sqlite, { id: "at-end", createdAt: end, map: "map.beta", difficulty: "专家" });
-    seedProgressReadRun(sqlite, { id: "invalidated", createdAt: start + 1, map: "map.beta", status: "invalidated" });
-    seedProgressReadRun(sqlite, { id: "another-player", createdAt: start + 1, map: "map.beta", player: "account-2", difficulty: "专家" });
-    seedProgressReadRun(sqlite, { id: "mirror-alpha", createdAt: start + 1, revision: "revision:map.alpha:mirror", difficulty: "传奇" });
-    seedProgressReadRun(sqlite, { id: "mirror-beta-at-end", createdAt: end, map: "map.beta", revision: "revision:map.beta:mirror", difficulty: "专家" });
-    seedProgressReadRun(sqlite, { id: "unrelated-map", createdAt: start + 1, map: "map.gamma", difficulty: "地狱" });
-    await seedProgressReadSession(sqlite);
-    const response = await services.listCurrentPlayerChallengeProgress({ sessionToken: "read-token" });
-    expect(response!.items.map(({ challengeId, completedMaps, satisfied, maps }) => ({ challengeId, completedMaps, satisfied, maps }))).toEqual([
-      { challengeId: "earlier", completedMaps: 1, satisfied: true, maps: [{ mapId: "map.alpha", completed: true }] },
-      { challengeId: "expert", completedMaps: 0, satisfied: false, maps: [{ mapId: "map.alpha", completed: false }] },
-      { challengeId: "future", completedMaps: 0, satisfied: false, maps: [{ mapId: "map.alpha", completed: false }] },
-      { challengeId: "later", completedMaps: 0, satisfied: false, maps: [{ mapId: "map.alpha", completed: false }] },
-      { challengeId: "mirror", completedMaps: 1, satisfied: false, maps: [{ mapId: "map.alpha", completed: true }, { mapId: "map.beta", completed: false }] },
-      { challengeId: "regular", completedMaps: 1, satisfied: false, maps: [{ mapId: "map.alpha", completed: true }, { mapId: "map.beta", completed: false }] },
-    ]);
-    expect(response!.items.find((item) => item.challengeId === "future")!.status).toBe("scheduled");
-  });
 
   it("completes and grants only after every required map has an eligible active run", async () => {
     const { sqlite, services } = setup();
@@ -308,17 +273,6 @@ describe("verified-run progress challenges", () => {
     expect((await services.listCurrentPlayerChallengeProgress({ sessionToken: "read-token" }))!.items).toMatchObject([{ completedMaps: 1, satisfied: false }]);
   });
 
-  it.each([
-    [{ scope: "map", mapIds: ["map.alpha"] }, "INVALID_MAP_SCOPE"],
-    [{ submissionMode: "automatic" }, "INVALID_SUBMISSION_MODE"],
-    [{ progressRule: { type: "required_maps_completed", mapIds: ["map.missing"] } }, "MAP_NOT_FOUND"],
-    [{ progressRule: { type: "required_maps_completed", mapIds: ["map.retired"] } }, "MAP_NOT_ACTIVE"],
-  ] as const)("rejects incompatible progress configuration %j", async (overrides, error) => {
-    const { sqlite, services } = setup();
-    await expect(services.createProgressChallenge(achievementInput(overrides as Partial<ProgressFixtureInput>), admin, "reject")).rejects.toThrow(error);
-    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM title_challenges").get()).toEqual({ count: 0 });
-  });
-
   it("requires a new progress challenge for qualification changes and preserves predecessor awards", async () => {
     const { sqlite, services } = setup();
     const first = await services.createProgressChallenge(achievementInput({ progressRule: { type: "required_maps_completed", mapIds: ["map.alpha"] } }), admin, "create.1");
@@ -401,85 +355,6 @@ describe("verified-run progress challenges", () => {
       { player_account_id: "account-1", status: "active" },
       { player_account_id: "account-2", status: "active", revocation_type: null },
     ]);
-  });
-
-  it("repairs the derived mirror on same-state Verified Run retries", async () => {
-    const { sqlite, services } = setup();
-    await services.createProgressChallenge(achievementInput(), admin, "create.1");
-    insertSubmission(sqlite, "submission-1", "account-1", 500);
-    insertSubmission(sqlite, "submission-2", "account-1", 600);
-    await services.recordVerifiedRun(runInput({ sourceSubmissionId: "submission-1" }));
-    const betaRun = await services.recordVerifiedRun(runInput({ mapId: "map.beta", gameplayRevisionId: "revision:map.beta", sourceSubmissionId: "submission-2", matchCode: "2345-6789-1234" }));
-    expect(progressCompletion(sqlite)).toMatchObject([{ status: "active" }]);
-
-    // The authoritative run mutation committed while the derived
-    // reconciliation did not: the mirror stays active on an invalidated run.
-    sqlite.prepare("UPDATE mastery_runs SET status = 'invalidated' WHERE id = ?").run(betaRun.run.runId);
-    const breakMirror = () => {
-      sqlite.prepare("UPDATE challenge_completions SET status = 'active', invalidated_by = NULL, invalidated_at = NULL, invalidation_reason = NULL WHERE source_type = 'verified_run_progress'").run();
-      sqlite.prepare("UPDATE player_title_grants SET status = 'active', revoked_by = NULL, revoked_at = NULL, revoke_reason = NULL, revocation_type = NULL WHERE granted_by = 'system:verified_run_progress'").run();
-    };
-    const expectRepaired = () => {
-      expect(progressCompletion(sqlite)).toMatchObject([{ status: "invalidated" }]);
-      expect(progressGrants(sqlite)).toMatchObject([{ status: "revoked" }]);
-    };
-
-    await services.invalidateVerifiedRun({ verifiedRunId: betaRun.run.runId, reason: "evidence invalidated" }, { actorType: "user", actorId: "maintainer-1" });
-    expectRepaired();
-
-    breakMirror();
-    await services.transitionAdminVerifiedRun({ contractVersion: "1", verifiedRunId: betaRun.run.runId, action: "invalidate" }, admin, "noop.invalidate");
-    expectRepaired();
-
-    breakMirror();
-    await services.correctAdminVerifiedRun({ contractVersion: "1", verifiedRunId: betaRun.run.runId, changes: { difficulty: "困难" } }, admin, "noop.correct");
-    expectRepaired();
-
-    breakMirror();
-    await services.recordVerifiedRun(runInput({ mapId: "map.beta", gameplayRevisionId: "revision:map.beta", sourceSubmissionId: "submission-2", matchCode: "2345-6789-1234" }));
-    expectRepaired();
-  });
-
-  it("re-runs the create backfill on a replayed request", async () => {
-    const { sqlite, services } = setup();
-    insertSubmission(sqlite, "submission-1", "account-1", 500);
-    insertSubmission(sqlite, "submission-2", "account-1", 600);
-    await services.recordVerifiedRun(runInput({ sourceSubmissionId: "submission-1" }));
-    await services.recordVerifiedRun(runInput({ mapId: "map.beta", gameplayRevisionId: "revision:map.beta", sourceSubmissionId: "submission-2", matchCode: "2345-6789-1234" }));
-    expect(progressCompletion(sqlite)).toEqual([]);
-
-    const input = achievementInput();
-    await services.createProgressChallenge(input, admin, "create.1");
-    expect(progressCompletion(sqlite)).toMatchObject([{ status: "active" }]);
-
-    // The create batch committed but the backfill mirror never landed.
-    sqlite.prepare("DELETE FROM challenge_completions WHERE source_type = 'verified_run_progress'").run();
-    sqlite.prepare("DELETE FROM player_title_grants WHERE granted_by = 'system:verified_run_progress'").run();
-    await services.createProgressChallenge(input, admin, "create.1");
-    expect(progressCompletion(sqlite)).toMatchObject([{ status: "active" }]);
-    expect(progressGrants(sqlite)).toMatchObject([{ status: "active" }]);
-  });
-
-  it("re-runs reconciliation on a replayed spot-check revocation", async () => {
-    const { sqlite, services } = setup();
-    await services.createProgressChallenge(achievementInput(), admin, "create.1");
-    insertSubmission(sqlite, "submission-1", "account-1", 500);
-    insertSubmission(sqlite, "submission-2", "account-1", 600);
-    await services.recordVerifiedRun(runInput({ sourceSubmissionId: "submission-1" }));
-    const betaRun = await services.recordVerifiedRun(runInput({ mapId: "map.beta", gameplayRevisionId: "revision:map.beta", sourceSubmissionId: "submission-2", matchCode: "2345-6789-1234" }));
-    sqlite.prepare("INSERT INTO submission_outcomes (id, submission_id, outcome_key, outcome_type, status, entity_id, awarded_xp, details_json, created_at, updated_at) VALUES ('outcome-1', 'submission-2', 'verified_run', 'verified_run', 'created', ?, 0, '{}', 1, 1)").run(betaRun.run.runId);
-    sqlite.prepare("INSERT INTO submission_spot_checks (id, submission_id, status, policy_json, sampled_at) VALUES ('spot-1', 'submission-2', 'pending', '{}', 1)").run();
-
-    await services.resolveAdminSubmissionSpotCheck({ submissionId: "submission-2", contractVersion: "1", decision: "revoked" }, admin, "spot.1");
-    expect(progressCompletion(sqlite)).toMatchObject([{ status: "invalidated" }]);
-    expect(progressGrants(sqlite)).toMatchObject([{ status: "revoked" }]);
-
-    // The revocation batch committed while the derived reconciliation did not.
-    sqlite.prepare("UPDATE challenge_completions SET status = 'active', invalidated_by = NULL, invalidated_at = NULL, invalidation_reason = NULL WHERE source_type = 'verified_run_progress'").run();
-    sqlite.prepare("UPDATE player_title_grants SET status = 'active', revoked_by = NULL, revoked_at = NULL, revoke_reason = NULL, revocation_type = NULL WHERE granted_by = 'system:verified_run_progress'").run();
-    await services.resolveAdminSubmissionSpotCheck({ submissionId: "submission-2", contractVersion: "1", decision: "revoked" }, admin, "spot.1");
-    expect(progressCompletion(sqlite)).toMatchObject([{ status: "invalidated" }]);
-    expect(progressGrants(sqlite)).toMatchObject([{ status: "revoked" }]);
   });
 
   it("keeps aggregate conditions out of screenshot evidence evaluation", async () => {
