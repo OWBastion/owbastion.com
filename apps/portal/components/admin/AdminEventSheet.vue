@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import FieldInfo from "~/components/events/FieldInfo.vue";
 import { formatProbability } from "~/utils/event-probabilities";
+import { probabilityHints } from "~/utils/event-probability-hints";
 import type { EventPatch } from "~/utils/event-draft";
 import type { EventFieldValues } from "./AdminEventFields.vue";
 
@@ -25,7 +27,7 @@ const drawsPerAppearance = computed(() => props.probability ? Math.max(1, Math.r
     <template #body>
       <div v-if="values" class="event-sheet">
         <section v-if="mode === 'edit'" class="event-sheet__probability" aria-live="polite">
-          <span class="event-sheet__value num">{{ formatProbability(probability) }}</span>
+          <span class="event-sheet__value num">{{ formatProbability(probability) }} <FieldInfo label="出现概率" :text="probabilityHints.appearance" /></span>
           <span v-if="changed && savedProbability !== probability" class="event-sheet__saved num">已保存 {{ formatProbability(savedProbability) }}</span>
           <p class="text-sm text-muted">{{ drawsPerAppearance ? `平均每 ${drawsPerAppearance} 次事件抽取出现 1 次` : "不在候选池：只有已实装且版本未挂起的事件参与抽取" }}</p>
         </section>

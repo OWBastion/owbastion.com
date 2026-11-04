@@ -8,6 +8,7 @@ import { calculateEventProbabilities, formatProbability } from "~/utils/event-pr
 import { commonEffectTags, emptyEventFilters, facetCount, facetOptions, groupEvents, matchesEvent, sortEvents, type EventFacet, type EventFilters, type EventSort } from "~/utils/event-filters";
 import EventProbabilityMeter from "~/components/events/EventProbabilityMeter.vue";
 import FieldInfo from "~/components/events/FieldInfo.vue";
+import { probabilityHints } from "~/utils/event-probability-hints";
 import EventBalanceHistory from "~/components/events/EventBalanceHistory.vue";
 
 const props = defineProps<{ events: RandomEvent[]; authenticated: boolean }>();
@@ -126,9 +127,9 @@ onMounted(() => {
       <div v-if="selected" class="detail">
         <p class="description">{{ selected.description }}</p>
         <section v-if="appearance(selected) !== null" class="detail-probability surface-card" aria-label="出现概率">
-          <div class="detail-probability__value num">{{ formatProbability(appearance(selected)) }} <FieldInfo label="出现概率" text="一次抽取中，这个事件最终被选中的概率，已包含保底触发的情况。" /></div>
+          <div class="detail-probability__value num">{{ formatProbability(appearance(selected)) }} <FieldInfo label="出现概率" :text="probabilityHints.appearance" /></div>
           <EventProbabilityMeter :probability="appearance(selected)" :max="maxAppearance" />
-          <p v-if="ranking.rankOf.get(selected.eventId)" class="detail-probability__rank num">概率第 {{ ranking.rankOf.get(selected.eventId) }} / {{ ranking.total }} <FieldInfo label="概率排名" text="在全部参与抽取的事件中，按出现概率从高到低的名次。" /></p>
+          <p v-if="ranking.rankOf.get(selected.eventId)" class="detail-probability__rank num">概率第 {{ ranking.rankOf.get(selected.eventId) }} / {{ ranking.total }} <FieldInfo label="概率排名" :text="probabilityHints.rank" /></p>
         </section>
         <dl class="detail-grid">
           <div v-if="selected.durationSeconds !== null" class="detail-grid__row"><dt>持续</dt><dd>{{ selected.durationSeconds }} 秒</dd></div>
@@ -137,11 +138,11 @@ onMounted(() => {
         <UAccordion :items="[{ label: '概率统计', slot: 'probability' }]">
           <template #probability>
             <dl class="detail-grid">
-              <div v-if="selected.weight !== null && selected.weight !== undefined" class="detail-grid__row"><dt>权重 <FieldInfo label="权重" text="事件的抽取权重。每轮抽到它后，以「权重 ÷ 2.5」的概率通过，权重 2.5 及以上必定通过。" /></dt><dd>{{ selected.weight }}</dd></div>
-              <div class="detail-grid__row"><dt>候选池事件数 <FieldInfo label="候选池事件数" text="参与抽取的事件数量：已实装、未归档，且所在版本未被暂停。" /></dt><dd>{{ probability(selected).poolSize }}</dd></div>
-              <div class="detail-grid__row"><dt>单次失败率 <FieldInfo label="单次失败率" text="一轮抽取中，随机抽到的候选没有通过权重判定的概率，按整个候选池平均计算。" /></dt><dd>{{ formatProbability(probability(selected).failureProbability) }}</dd></div>
-              <div class="detail-grid__row"><dt>保底触发率 <FieldInfo label="保底触发率" text="连续 8 轮都没有通过判定的概率。此时直接采用最后一次抽到的事件。" /></dt><dd>{{ formatProbability(probability(selected).guaranteeProbability) }}</dd></div>
-              <div class="detail-grid__row"><dt>出现概率 <FieldInfo label="出现概率" text="一次抽取中，这个事件最终被选中的概率，已包含保底触发的情况。" /></dt><dd>{{ formatProbability(probability(selected).appearanceProbability) }}</dd></div>
+              <div v-if="selected.weight !== null && selected.weight !== undefined" class="detail-grid__row"><dt>权重 <FieldInfo label="权重" :text="probabilityHints.weight" /></dt><dd>{{ selected.weight }}</dd></div>
+              <div class="detail-grid__row"><dt>候选池事件数 <FieldInfo label="候选池事件数" :text="probabilityHints.poolSize" /></dt><dd>{{ probability(selected).poolSize }}</dd></div>
+              <div class="detail-grid__row"><dt>单次失败率 <FieldInfo label="单次失败率" :text="probabilityHints.failure" /></dt><dd>{{ formatProbability(probability(selected).failureProbability) }}</dd></div>
+              <div class="detail-grid__row"><dt>保底触发率 <FieldInfo label="保底触发率" :text="probabilityHints.guarantee" /></dt><dd>{{ formatProbability(probability(selected).guaranteeProbability) }}</dd></div>
+              <div class="detail-grid__row"><dt>出现概率 <FieldInfo label="出现概率" :text="probabilityHints.appearance" /></dt><dd>{{ formatProbability(probability(selected).appearanceProbability) }}</dd></div>
             </dl>
             <p class="cap">基础概率：按全部已实装事件的权重计算，未计入最近事件去重和特殊资格限制。</p>
           </template>
