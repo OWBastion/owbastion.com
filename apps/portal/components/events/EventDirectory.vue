@@ -144,7 +144,6 @@ onMounted(() => {
               <div class="detail-grid__row"><dt>保底触发率 <FieldInfo label="保底触发率" :text="probabilityHints.guarantee" /></dt><dd>{{ formatProbability(probability(selected).guaranteeProbability) }}</dd></div>
               <div class="detail-grid__row"><dt>出现概率 <FieldInfo label="出现概率" :text="probabilityHints.appearance" /></dt><dd>{{ formatProbability(probability(selected).appearanceProbability) }}</dd></div>
             </dl>
-            <p class="cap">基础概率：按全部已实装事件的权重计算，未计入最近事件去重和特殊资格限制。</p>
           </template>
         </UAccordion>
         <div class="event-tags">
