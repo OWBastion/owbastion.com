@@ -35,8 +35,12 @@ boundaries with representative inputs.
   assert utility classes, internal props, slots, or wrapper structure.
 - Vitest + happy-dom has no layout engine: it does not prove CSS layout, overflow,
   scroll, focus, or overlays.
+- Portal component/page tests fake the network at `$fetch`, not `useAdminApi` /
+  `usePortalApi`, so the real client path composition stays under test.
 - `pnpm test:portal-e2e:built` starts the existing `.output` production server and
-  asserts home-page SSR HTML (no browser, no Playwright). Run after
+  asserts home-page SSR HTML and the admin/player proxy path, query, cookie,
+  idempotency-key, and body forwarding against a fake upstream (no browser, no
+  Playwright). Run after
   `pnpm build:portal`; `pnpm test:portal-e2e` builds first.
 - `pnpm check` is the full gate (migrations, style lint, unit/UI suites,
   typecheck, build, SSR smoke).

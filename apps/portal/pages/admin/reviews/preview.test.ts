@@ -8,7 +8,7 @@ const { api, refresh, detail, previewRequests } = vi.hoisted(() => ({
   api: vi.fn(), refresh: vi.fn(), detail: { onData: null as null | ((data: unknown) => void) },
   previewRequests: [] as Array<{ resolve: (value: unknown) => void; reject: (error: unknown) => void }>,
 }));
-mockNuxtImport("useAdminApi", () => () => api);
+vi.stubGlobal("$fetch", api);
 mockNuxtImport("useToast", () => () => ({ add: vi.fn() }));
 mockNuxtImport("navigateTo", () => vi.fn());
 mockNuxtImport("useRoute", () => () => ({ params: { submissionId: "submission.preview" }, query: {}, fullPath: "/admin/reviews/submission.preview" }));
@@ -56,7 +56,7 @@ describe("submission review previews", () => {
     vi.useFakeTimers();
     await wrapper.findAll("button").find((button) => button.text() === "Unnormalized")!.trigger("click");
     await debounce();
-    expect(api).toHaveBeenLastCalledWith(expect.stringContaining("/review/preview"), { method: "POST", body: { contractVersion: "1", ...rawInput } });
+    expect(api).toHaveBeenLastCalledWith(expect.stringMatching(/^\/api\/admin\/v1\/.+\/review\/preview$/), expect.objectContaining({ method: "POST", body: { contractVersion: "1", ...rawInput } }));
     previewRequests[1]!.resolve(preview("corrected"));
     await flushPromises();
     api.mockResolvedValueOnce({ decision }).mockResolvedValueOnce({ items: [] });
