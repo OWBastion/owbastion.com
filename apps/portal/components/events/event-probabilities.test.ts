@@ -11,14 +11,14 @@ describe("event probabilities", () => {
     expect(result.poolSize).toBe(3);
     expect(result.poolTotalWeight).toBeCloseTo(2.9);
     expect(result.failureProbability).toBeCloseTo(1 - 2.9 / 7.5);
-    expect(result.guaranteeProbability).toBeCloseTo(result.failureProbability! ** 8);
+    expect(result.guaranteeProbability).toBeCloseTo(result.failureProbability! ** 7);
   });
 
   it("matches a hand-computed pool and the probabilities of the pool sum to one", () => {
     const events = [event("a", 2.5), event("b", 1.25), event("c", 0)];
     const [a, b, c] = events.map((item) => calculateEventProbabilities(item, events).appearanceProbability!);
     const success = (1 + 0.5 + 0) / 3;
-    const guarantee = (1 - success) ** 8;
+    const guarantee = (1 - success) ** 7;
     expect(a).toBeCloseTo((1 / 3) * (1 - guarantee) / success + guarantee / 3);
     expect(b).toBeCloseTo((0.5 / 3) * (1 - guarantee) / success + guarantee / 3);
     expect(c).toBeCloseTo(guarantee / 3);

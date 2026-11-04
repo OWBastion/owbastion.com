@@ -2,7 +2,8 @@ import type { RandomEvent } from "~/types/random-event";
 
 // Mirrors Bastion's rejection sampling over one global pool (docs/modules/03-events-system.md):
 // each round draws a candidate uniformly and accepts it with probability weight / EVENT_WEIGHT_BASE,
-// for at most EVENT_MAX_ATTEMPTS rounds, then keeps the last candidate.
+// for at most EVENT_MAX_ATTEMPTS rounds. The last round keeps its candidate whether or not it is accepted,
+// so the uniform guarantee is reached after EVENT_MAX_ATTEMPTS - 1 rejections.
 export const EVENT_WEIGHT_BASE = 2.5;
 export const EVENT_MAX_ATTEMPTS = 8;
 
@@ -33,7 +34,7 @@ function probabilityIn(stats: ReturnType<typeof poolStats>, weight: number): Eve
   const { poolSize, poolTotalWeight, success } = stats;
   if (success === null) return { poolSize, poolTotalWeight, failureProbability: null, guaranteeProbability: null, appearanceProbability: null };
   const failureProbability = 1 - success;
-  const guaranteeProbability = failureProbability ** EVENT_MAX_ATTEMPTS;
+  const guaranteeProbability = failureProbability ** (EVENT_MAX_ATTEMPTS - 1);
   const accepted = success === 0 ? 0 : (acceptance(weight) / poolSize) * (1 - guaranteeProbability) / success;
   return { poolSize, poolTotalWeight, failureProbability, guaranteeProbability, appearanceProbability: accepted + guaranteeProbability / poolSize };
 }
