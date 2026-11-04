@@ -10,6 +10,7 @@ import { bundledLanguages } from "shiki/langs";
 import { bundledThemes } from "shiki/themes";
 import { z } from "zod";
 import { blogFrontmatterSchema, changelogFrontmatterSchema } from "../content/editorial-schemas";
+import { annotateEventSections, dedupeEventHistory, type AstNode, type EventHistoryEntry } from "../content/event-history";
 
 const kinds = {
   blog: { schema: blogFrontmatterSchema, sortField: "publishedAt" },
@@ -81,12 +82,19 @@ export default defineNuxtModule({
     const generate = async () => {
       const parse = await getParser();
       await rm(outputRoot, { recursive: true, force: true });
+      const eventHistory = new Map<string, EventHistoryEntry[]>();
       for (const [kind, { schema, sortField }] of Object.entries(kinds)) {
         const files = await listMarkdownFiles(join(sourceRoot, kind));
         const entries = await Promise.all(files.map(async (file) => {
           const slug = file.slice(join(sourceRoot, kind).length + 1, -".md".length).replaceAll("\\", "/");
           const parsed = await parse(await readFile(file, "utf8"));
           const meta = validateFrontmatter(schema, parsed.data, file);
+          if (kind === "changelog") {
+            const path = `/${kind}/${slug}`;
+            const annotated = annotateEventSections({ version: meta.version!, releasedAt: meta.releasedAt!.toISOString(), path }, parsed.body.children as AstNode[]);
+            parsed.body.children = annotated.children as typeof parsed.body.children;
+            for (const { eventId, entry } of annotated.sections) eventHistory.set(eventId, [...(eventHistory.get(eventId) ?? []), entry]);
+          }
           return {
             path: `/${kind}/${slug}`,
             title: meta.title,
@@ -111,6 +119,12 @@ export default defineNuxtModule({
         const summaries = entries.map(({ body: _body, slug: _slug, ...entry }) => entry);
         await mkdir(outputRoot, { recursive: true });
         await writeFile(join(outputRoot, `index.${kind}.json`), JSON.stringify(summaries), "utf8");
+      }
+      // One file per platform event, newest release first.
+      for (const [eventId, history] of eventHistory) {
+        const target = join(outputRoot, "event-history", `${eventId}.json`);
+        await mkdir(dirname(target), { recursive: true });
+        await writeFile(target, JSON.stringify(dedupeEventHistory(history)), "utf8");
       }
     };
 

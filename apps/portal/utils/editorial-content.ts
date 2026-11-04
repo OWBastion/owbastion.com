@@ -1,4 +1,5 @@
 import type { MDCRoot, Toc } from "@nuxtjs/mdc";
+import type { EventHistoryEntry } from "../content/event-history";
 
 export type EditorialKind = "blog" | "changelog";
 
@@ -26,6 +27,8 @@ export interface ChangelogSummary extends EditorialBase { releasedAt: string; ve
 // files during nuxi prepare/dev/build; the runtime only reads generated data.
 const summaryModules = import.meta.glob("../.generated/editorial/index.*.json", { import: "default" });
 const entryModules = import.meta.glob("../.generated/editorial/*/*.json", { import: "default" });
+
+const eventHistoryModules = import.meta.glob("../.generated/editorial/event-history/*.json", { import: "default" });
 
 const sortField = { blog: "publishedAt", changelog: "releasedAt" } as const;
 
@@ -66,4 +69,10 @@ export async function findEditorialEntry(kind: EditorialKind, slug: string): Pro
   ensureGenerated(kind);
   const load = entryModules[`../.generated/editorial/${kind}/${slug}.json`];
   return load ? ((await load()) as EditorialEntry) : null;
+}
+
+/** Balance-change sections for one platform event, newest release first; empty when it has none. */
+export async function findEventHistory(eventId: string): Promise<EventHistoryEntry[]> {
+  const load = eventHistoryModules[`../.generated/editorial/event-history/${eventId}.json`];
+  return load ? ((await load()) as EventHistoryEntry[]) : [];
 }

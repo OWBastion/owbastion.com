@@ -34,6 +34,24 @@ Order is free; omit sections with no content.
 | General | `## 🕹 综合更新` | Global mechanics, settings, lobby rules not tied to one hero or event |
 | Fixes | `## 🐛 错误修复` | `### 英雄` / `### 随机事件` / `### 地图`; `- **[对象]：** 修复了……的问题` |
 
+## Event history
+
+Event changes become entries in each event's balance history on the Events page, and a `####`
+event heading gets a hover card. Fixes are not part of it. The build resolves every `####` heading
+through `apps/portal/content/event-lineage.ts` and fails on an unknown name.
+
+- Sources: `#### [名]` sections, and list items that start with a bold `**[名]：**` or a quoted
+  `「[名]」` under `## 🔃 随机事件调整`, `## 🌟 新增…事件` (adds the 新增 tag), or `## 🃏 …事件回归`
+  (each `###` is one event, 回归 tag). A list item that names no known event is ignored.
+- Limited-time scope: only for a limited-time activity (镜中回响, 鸿运当头). Put
+  `> 以下调整仅适用于「[活动名]」。` as the first line under the `##` heading. The history shows the
+  activity as a label. Event changes inside an activity `##` section go under a `### …随机事件调整`
+  heading. Other changes are not scoped.
+- A change identical to the previous one for the same event is shown once.
+- New event, rename, or merge: add or extend its entry in the lineage before publishing. List a name
+  once per event, oldest first; give a reused name `until`. A heading that names no event goes in
+  `ignoredEventHeadings`.
+
 ## Style
 
 - State facts directly; no mechanical bold-prefix formulas (`**触发条件放宽：**`) and no filler or
