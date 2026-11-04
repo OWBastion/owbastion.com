@@ -173,13 +173,23 @@ export function annotateEventSections(release: Release, children: AstNode[]) {
   return { children: out, sections };
 }
 
-/** Oldest first in, newest first out; a change identical to the one before it is a repeat and is dropped. */
+/**
+ * Oldest first in, newest first out. One release shows one entry per scope: changes of the same
+ * event and scope in a release are merged, and a change identical to the one before it is a repeat and is dropped.
+ */
 export function dedupeEventHistory(entries: EventHistoryEntry[]): EventHistoryEntry[] {
   const kept: EventHistoryEntry[] = [];
   for (const entry of [...entries].sort((a, b) => compareVersions(a.version, b.version))) {
+    const same = kept.find((candidate) => candidate.version === entry.version && candidate.scope === entry.scope);
+    if (same) {
+      same.tag ??= entry.tag;
+      same.formerName ??= entry.formerName;
+      same.body = [...same.body, ...entry.body];
+      continue;
+    }
     const last = kept[kept.length - 1];
     if (last && last.scope === entry.scope && JSON.stringify(last.body) === JSON.stringify(entry.body)) continue;
-    kept.push(entry);
+    kept.push({ ...entry });
   }
   return kept.reverse();
 }
