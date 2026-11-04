@@ -10,7 +10,7 @@ import { bundledLanguages } from "shiki/langs";
 import { bundledThemes } from "shiki/themes";
 import { z } from "zod";
 import { blogFrontmatterSchema, changelogFrontmatterSchema } from "../content/editorial-schemas";
-import { annotateEventSections, type AstNode, type EventHistoryEntry } from "../content/event-history";
+import { annotateEventSections, dedupeEventHistory, type AstNode, type EventHistoryEntry } from "../content/event-history";
 
 const kinds = {
   blog: { schema: blogFrontmatterSchema, sortField: "publishedAt" },
@@ -120,12 +120,11 @@ export default defineNuxtModule({
         await mkdir(outputRoot, { recursive: true });
         await writeFile(join(outputRoot, `index.${kind}.json`), JSON.stringify(summaries), "utf8");
       }
-      // Newest release first, one file per platform event.
+      // One file per platform event, newest release first.
       for (const [eventId, history] of eventHistory) {
-        history.sort((a, b) => Number(new Date(b.releasedAt)) - Number(new Date(a.releasedAt)) || b.version.localeCompare(a.version, undefined, { numeric: true }));
         const target = join(outputRoot, "event-history", `${eventId}.json`);
         await mkdir(dirname(target), { recursive: true });
-        await writeFile(target, JSON.stringify(history), "utf8");
+        await writeFile(target, JSON.stringify(dedupeEventHistory(history)), "utf8");
       }
     };
 
