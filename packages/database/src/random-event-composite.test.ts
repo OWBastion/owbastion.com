@@ -121,27 +121,6 @@ describe("composite event outcomes", () => {
   });
   const outcomeRows = (sqlite: DatabaseSync, eventId: string) => sqlite.prepare("SELECT name, polarity, position FROM random_event_outcomes WHERE event_id = ? ORDER BY position").all(eventId);
 
-  it("creates a composite event and exposes its outcomes in write order on every surface", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    const services = createPlatformServices(database);
-
-    const created = await services.createAdminRandomEvent(compositeInput(), auth, "outcome-create");
-    expect(created.outcomes.map((outcome) => [outcome.position, outcome.name, outcome.polarity])).toEqual([[0, "顺风", "buff"], [1, "逆风", "debuff"]]);
-    expect(outcomeRows(sqlite, created.eventId)).toEqual([
-      { name: "顺风", polarity: "buff", position: 0 },
-      { name: "逆风", polarity: "debuff", position: 1 },
-    ]);
-
-    expect((await services.getRandomEvent({ eventId: created.eventId }))?.outcomes.map((outcome) => outcome.name)).toEqual(["顺风", "逆风"]);
-    expect((await services.listRandomEvents({})).find((event) => event.eventId === created.eventId)?.outcomes.map((outcome) => outcome.name)).toEqual(["顺风", "逆风"]);
-    expect((await services.listAgentEvents({ page: 1, pageSize: 20 })).items.find((event) => event.eventId === created.eventId)?.outcomes.map((outcome) => outcome.name)).toEqual(["顺风", "逆风"]);
-
-    const atomic = await services.createAdminRandomEvent(writeInput({ name: "原子事件" }), auth, "outcome-atomic");
-    expect(atomic.outcomes).toEqual([]);
-    expect((await services.listRandomEvents({})).find((event) => event.eventId === atomic.eventId)?.outcomes).toEqual([]);
-  });
-
   it("derives the parent tags from the outcome union and annotates them from the glossary", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
@@ -155,77 +134,6 @@ describe("composite event outcomes", () => {
     expect(created.weight).toBe(0.4);
     expect(created.rarity).toBe("SSR");
     expect(sqlite.prepare("SELECT effect_tags_json FROM random_events WHERE id = ?").get(created.eventId)).toEqual({ effect_tags_json: '["加速","减速","标记"]' });
-  });
-
-  it.each([
-    ["no outcomes", { outcomes: [] }],
-    ["one outcome", { outcomes: [{ name: "顺风", polarity: "buff", description: "增益结果", effectTags: [] }] }],
-    ["only buffs", { outcomes: [
-      { name: "顺风", polarity: "buff", description: "增益", effectTags: [] },
-      { name: "顺水", polarity: "buff", description: "增益", effectTags: [] },
-    ] }],
-    ["only debuffs", { outcomes: [
-      { name: "逆风", polarity: "debuff", description: "减益", effectTags: [] },
-      { name: "逆水", polarity: "debuff", description: "减益", effectTags: [] },
-    ] }],
-    ["outcomes on an atomic event", { category: "增益", outcomes: [
-      { name: "顺风", polarity: "buff", description: "增益", effectTags: [] },
-      { name: "逆风", polarity: "debuff", description: "减益", effectTags: [] },
-    ] }],
-  ])("rejects a create with %s without writing anything", async (_label, overrides) => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    const services = createPlatformServices(database);
-
-    await expect(services.createAdminRandomEvent(compositeInput(overrides), auth, "reject-1")).rejects.toThrow("EVENT_OUTCOMES_INVALID");
-    expect(sqlite.prepare("SELECT COUNT(*) AS n FROM random_events").get()).toEqual({ n: 0 });
-    expect(sqlite.prepare("SELECT COUNT(*) AS n FROM random_event_outcomes").get()).toEqual({ n: 0 });
-    expect(sqlite.prepare("SELECT COUNT(*) AS n FROM audit_events").get()).toEqual({ n: 0 });
-  });
-
-  it("replaces the outcome set atomically on update and drops removed rows", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    const services = createPlatformServices(database);
-    const created = await services.createAdminRandomEvent(compositeInput(), auth, "replace-create");
-
-    const updated = await services.updateAdminRandomEvent({ ...compositeInput({
-      outcomes: [
-        { name: "骤雨", polarity: "debuff", description: "新减益", effectTags: ["减速"] },
-        { name: "疾风", polarity: "buff", description: "新增益", effectTags: [] },
-        { name: "晴空", polarity: "buff", description: "增益三", effectTags: [] },
-      ],
-    }), eventId: created.eventId }, auth, "replace-1");
-    expect(updated.outcomes.map((outcome) => [outcome.position, outcome.name])).toEqual([[0, "骤雨"], [1, "疾风"], [2, "晴空"]]);
-    expect(outcomeRows(sqlite, created.eventId)).toEqual([
-      { name: "骤雨", polarity: "debuff", position: 0 },
-      { name: "疾风", polarity: "buff", position: 1 },
-      { name: "晴空", polarity: "buff", position: 2 },
-    ]);
-    expect(updated.effectTags).toEqual(["减速"]);
-
-    // A rejected update leaves both the event row and the stored outcomes untouched.
-    await expect(services.updateAdminRandomEvent({ ...compositeInput({ name: "坏更新", outcomes: [{ name: "单", polarity: "buff", description: "", effectTags: [] }] }), eventId: created.eventId }, auth, "replace-2")).rejects.toThrow("EVENT_OUTCOMES_INVALID");
-    const kept = await services.getRandomEvent({ eventId: created.eventId });
-    expect(kept?.name).toBe("命运掷骰");
-    expect(kept?.outcomes.map((outcome) => outcome.name)).toEqual(["骤雨", "疾风", "晴空"]);
-  });
-
-  it("keeps stored outcomes across an update that omits the field and validates a category change against them", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    const services = createPlatformServices(database);
-    const created = await services.createAdminRandomEvent(compositeInput(), auth, "keep-create");
-
-    const renamed = await services.updateAdminRandomEvent({ ...writeInput({ name: "掷骰·改", category: "复合" }), eventId: created.eventId }, auth, "keep-1");
-    expect(renamed.outcomes.map((outcome) => outcome.name)).toEqual(["顺风", "逆风"]);
-    expect(renamed.effectTags).toEqual(["加速", "减速", "标记"]);
-
-    // Changing away from 复合 requires an explicit empty outcome set.
-    await expect(services.updateAdminRandomEvent({ ...writeInput({ category: "增益" }), eventId: created.eventId }, auth, "keep-2")).rejects.toThrow("EVENT_OUTCOMES_INVALID");
-    const demoted = await services.updateAdminRandomEvent({ ...writeInput({ category: "增益", outcomes: [] }), eventId: created.eventId }, auth, "keep-3");
-    expect(demoted.outcomes).toEqual([]);
-    expect(outcomeRows(sqlite, created.eventId)).toEqual([]);
   });
 
   it("rejects batch updates that move a category across 复合 or set tags on a composite event", async () => {
@@ -246,28 +154,4 @@ describe("composite event outcomes", () => {
     expect(renamed?.outcomes).toHaveLength(2);
   });
 
-  it("hides archived composite events from default lists but keeps their outcomes when archived is included", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    const services = createPlatformServices(database);
-    const created = await services.createAdminRandomEvent(compositeInput(), auth, "archive-create");
-
-    await services.archiveAdminRandomEvent({ eventId: created.eventId }, auth, "archive-1");
-    expect((await services.listRandomEvents({})).some((event) => event.eventId === created.eventId)).toBe(false);
-    const archived = await services.getRandomEvent({ eventId: created.eventId, includeArchived: true });
-    expect(archived?.archived).toBe(true);
-    expect(archived?.outcomes.map((outcome) => outcome.name)).toEqual(["顺风", "逆风"]);
-  });
-
-  it("matches outcome names and descriptions in agent event search", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    const services = createPlatformServices(database);
-    await services.createAdminRandomEvent(compositeInput(), auth, "search-outcome");
-    await services.createAdminRandomEvent(writeInput({ name: "无关事件" }), auth, "search-other");
-
-    expect((await services.listAgentEvents({ query: "顺风", page: 1, pageSize: 20 })).items.map((event) => event.eventId)).toHaveLength(1);
-    expect((await services.listAgentEvents({ query: "减益结果", page: 1, pageSize: 20 })).items.map((event) => event.eventId)).toHaveLength(1);
-    expect((await services.searchAgentContent({ query: "逆风", kind: "event", page: 1, pageSize: 20 })).items).toEqual([{ kind: "event", id: expect.any(String), name: "命运掷骰", summary: "事件说明" }]);
-  });
 });

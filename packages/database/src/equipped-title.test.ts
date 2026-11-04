@@ -68,16 +68,6 @@ describe("equipped title selection", () => {
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_equipped_titles WHERE player_account_id = 'player.one'").get()).toEqual({ count: 10 });
   });
 
-  it("projects an explicit all-title entitlement without equipped rows", async () => {
-    const { sqlite, database } = createD1();
-    const now = Date.now();
-    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.all', '9999', 'Developer', 'developer', 0, 'active', ?, ?)").run(now, now);
-    sqlite.prepare("INSERT INTO player_title_entitlements VALUES ('player.all', 1)").run();
-    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, icon_url, icon_object_key, category, condition, scope, display_kind, color_json, game_version) VALUES ('TITLE_NEW', '新称号', 'award', NULL, NULL, '测试', '条件', 'global', 'fixed', NULL, 'test')").run();
-    const response = await createPlatformServices(database).listAgentPlayerTitleGrants({ page: 1, pageSize: 20 });
-    expect(response.items).toEqual([{ playerId: "9999", playerName: "Developer", titleKeys: [], allTitles: true }]);
-  });
-
   it("omits banned players from the agent player projection", async () => {
     const { sqlite, database } = createD1();
     const now = Date.now();

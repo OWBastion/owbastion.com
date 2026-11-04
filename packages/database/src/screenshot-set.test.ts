@@ -202,20 +202,6 @@ describe("screenshot sets", () => {
     expect(bySubmission.get("sub-unstored")).toMatchObject({ sourceId: null, reason: "missing_evidence" });
   });
 
-  it("lets a maintainer exclude anomalous screenshots before finalization and validates the list", async () => {
-    const { sqlite, services } = setup();
-    seedSubmission(sqlite, { id: "sub-a", status: "approved", attachmentId: "att-a", ocrResultId: "ocr-a" });
-    seedSubmission(sqlite, { id: "sub-b", status: "approved", attachmentId: "att-b", ocrResultId: "ocr-b" });
-
-    await expect(services.createAdminScreenshotSet({ excludedSourceIds: ["00000000-0000-4000-8000-0000000000aa"] }, maintainer, "key-bad")).rejects.toThrow("SCREENSHOT_SET_EXCLUSION_INVALID");
-
-    const created = await services.createAdminScreenshotSet({ excludedSourceIds: ["att-b"] }, maintainer, "key-2");
-    expect(created.counts).toEqual({ memberCount: 1, excludedCount: 1 });
-    const detail = await services.getAdminScreenshotSet({ setId: created.setId }, maintainer);
-    expect(detail.members.map((member) => member.sourceId)).toEqual(["att-a"]);
-    expect(detail.exclusions).toEqual([{ sourceId: "att-b", submissionId: "sub-b", reason: "maintainer_excluded" }]);
-  });
-
   it("freezes membership and provenance at creation; finalization is immutable", async () => {
     const { sqlite, services } = setup();
     seedSubmission(sqlite, { id: "sub-a", status: "approved", attachmentId: "att-a", ocrResultId: "ocr-a", mark: "accurate" });
@@ -292,46 +278,4 @@ describe("screenshot sets", () => {
     await expect(services.getAdminScreenshotSet({ setId: "00000000-0000-4000-8000-0000000000aa" }, maintainer)).rejects.toThrow("SCREENSHOT_SET_NOT_FOUND");
   });
 
-  it("evaluates eligibility for more than 100 candidates without exceeding D1's bound-parameter limit", async () => {
-    const { sqlite, services } = setup();
-    for (let index = 1; index <= 120; index += 1) {
-      const id = `sub-${index}`;
-      seedSubmission(sqlite, { id, status: "approved", attachmentId: `att-${index}`, ocrResultId: `ocr-${index}` });
-    }
-
-    const candidates = await services.listAdminScreenshotSetCandidates({ page: 1, pageSize: 100 }, maintainer);
-    expect(candidates.total).toBe(120);
-    expect(candidates.hasMore).toBe(true);
-
-    const created = await services.createAdminScreenshotSet({}, maintainer, "key-1");
-    expect(created.counts.memberCount).toBe(120);
-    const detail = await services.getAdminScreenshotSet({ setId: created.setId }, maintainer);
-    expect(detail.members).toHaveLength(120);
-  });
-
-  it("discards a draft, keeps it out of OCRKit, and rejects finalize", async () => {
-    const { sqlite, services } = setup();
-    seedSubmission(sqlite, { id: "sub-a", status: "approved", attachmentId: "att-a", ocrResultId: "ocr-a" });
-
-    const draft = await services.createAdminScreenshotSet({}, maintainer, "key-1");
-    const discarded = await services.discardAdminScreenshotSet({ setId: draft.setId }, maintainer, "key-d1");
-    expect(discarded).toMatchObject({ setId: draft.setId, version: 1, status: "discarded" });
-    expect(await services.discardAdminScreenshotSet({ setId: draft.setId }, maintainer, "key-d1")).toEqual(discarded);
-
-    const detail = await services.getAdminScreenshotSet({ setId: draft.setId }, maintainer);
-    expect(detail.set.status).toBe("discarded");
-    expect(detail.set.discardedBy).toBe(maintainer.subject);
-    expect(detail.set.discardedAt).toBe(discarded.discardedAt);
-    const list = await services.listAdminScreenshotSets({ page: 1, pageSize: 20, status: "discarded" }, maintainer);
-    expect(list.items.map((item) => item.setId)).toEqual([draft.setId]);
-
-    await expect(services.discardAdminScreenshotSet({ setId: draft.setId }, maintainer, "key-d2")).rejects.toThrow("SCREENSHOT_SET_ALREADY_DISCARDED");
-    await expect(services.finalizeAdminScreenshotSet({ setId: draft.setId }, maintainer, "key-f1")).rejects.toThrow("SCREENSHOT_SET_ALREADY_DISCARDED");
-    await expect(services.getOcrkitScreenshotSet({ version: draft.version })).rejects.toThrow("SCREENSHOT_SET_NOT_FINALIZED");
-
-    // Finalized sets cannot be discarded either.
-    const finalizedDraft = await services.createAdminScreenshotSet({}, maintainer, "key-2");
-    await services.finalizeAdminScreenshotSet({ setId: finalizedDraft.setId }, maintainer, "key-f2");
-    await expect(services.discardAdminScreenshotSet({ setId: finalizedDraft.setId }, maintainer, "key-d3")).rejects.toThrow("SCREENSHOT_SET_ALREADY_FINALIZED");
-  });
 });

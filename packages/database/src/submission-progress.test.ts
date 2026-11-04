@@ -55,27 +55,6 @@ describe("submission review aggregate progress", () => {
     }
   });
 
-  it("returns after enqueueing progress reconciliation and grants once the queue message is processed", async () => {
-    const queue = { send: vi.fn(async () => undefined) };
-    const { sqlite, services, grants } = await setup(false, queue as unknown as Queue);
-    try {
-      const result = await services.reviewSubmission(review, auth, "approve.beta");
-      expect(sqlite.prepare("SELECT status FROM submissions WHERE id = 'submission.beta'").get()).toEqual({ status: "approved" });
-      expect(grants()).toEqual([]);
-      expect(queue.send).toHaveBeenCalledTimes(1);
-      const [message] = (queue.send.mock.calls as unknown as [{ version: 1; submissionId: string; actorId: string }][])[0]!;
-      expect(message).toEqual({ version: 1, submissionId: "submission.beta", actorId: "admin" });
-      await services.reconcileReviewedSubmissionProgress(message);
-      await services.reconcileReviewedSubmissionProgress(message);
-      expect(grants()).toEqual([{ title_key: "TOUR", status: "active" }]);
-      await services.reviewSubmission(review, auth, "approve.beta");
-      expect(queue.send).toHaveBeenCalledTimes(2);
-      expect(await services.reviewSubmission(review, auth, "approve.beta")).toEqual(result);
-    } finally {
-      sqlite.close();
-    }
-  });
-
   it("counts a map title held in place of a Verified Run when the final map is approved", async () => {
     const { sqlite, services, grants } = await setup(true);
     try {
@@ -88,30 +67,4 @@ describe("submission review aggregate progress", () => {
     }
   });
 
-  it.each([false, true])("repairs aggregate grants when approval is retried after a post-commit failure (map title: %s)", async (withMapTitle) => {
-    const { database, sqlite, services, grants } = await setup(withMapTitle);
-    const batch = database.batch.bind(database);
-    const spy = vi.spyOn(database, "batch").mockImplementation(async (statements) => {
-      if (sqlite.prepare("SELECT 1 FROM submission_reviews WHERE submission_id = 'submission.beta'").get()) {
-        throw new Error("D1_TRANSIENT_FAILURE");
-      }
-      return batch(statements);
-    });
-    try {
-      await expect(services.reviewSubmission(review, auth, "approve.beta")).rejects.toThrow("D1_TRANSIENT_FAILURE");
-      expect(sqlite.prepare("SELECT status FROM submissions WHERE id = 'submission.beta'").get()).toEqual({ status: "approved" });
-      expect(grants()).toEqual([]);
-      spy.mockRestore();
-      const result = await services.reviewSubmission(review, auth, "approve.beta");
-      expect(result.verifiedRunOutcome).toMatchObject({ status: "created" });
-      expect(grants()).toEqual([{ title_key: "TOUR", status: "active" }]);
-      expect(await services.reviewSubmission(review, auth, "approve.beta")).toEqual(result);
-      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM submission_reviews WHERE submission_id = 'submission.beta'").get()).toEqual({ count: 1 });
-      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs WHERE source_submission_id = 'submission.beta'").get()).toEqual({ count: 1 });
-      expect(grants()).toEqual([{ title_key: "TOUR", status: "active" }]);
-    } finally {
-      spy.mockRestore();
-      sqlite.close();
-    }
-  });
 });

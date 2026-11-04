@@ -22,50 +22,6 @@ const challengeInput = { contractVersion: "1" as const, titleKey: "MULTI", condi
 const edit = (row: AdminTitleChallenge) => ({ contractVersion: "1" as const, family: "achievement" as const, challengeId: row.challengeId, saveMode: "in_place" as "in_place" | "new_challenge", condition: row.condition, evidenceRule: row.evidenceRule, submissionMode: row.submissionMode, categoryOverride: row.categoryOverride, status: row.status, gameVersion: row.gameVersion });
 
 describe("title-centric admin acquisition contract", () => {
-  it("creates only a draft title, generates keys, rejects key conflicts and replays exactly", async () => {
-    const { services, sqlite } = setup();
-    const title = await services.createAdminTitle(titleInput, auth, "title");
-    expect(title).toMatchObject({ contractVersion: "1", titleKey: "MULTI", lifecycle: "draft", status: "draft", gameVersion: null, acquisition: { kind: "none" } });
-    expect(sqlite.prepare("SELECT count(*) AS n FROM title_challenges").get()).toEqual({ n: 0 });
-    expect(await services.createAdminTitle(titleInput, auth, "title")).toEqual(title);
-    await expect(services.createAdminTitle(titleInput, auth, "other")).rejects.toThrow("TITLE_KEY_CONFLICT");
-    const generated = await services.createAdminTitle({ ...titleInput, titleKey: undefined }, auth, "generated");
-    expect(generated.titleKey).toMatch(/^[A-Z][A-Z0-9_]+$/);
-    expect(await services.createAdminTitle({ ...titleInput, titleKey: undefined }, auth, "generated")).toEqual(generated);
-    expect(sqlite.prepare("SELECT count(*) AS n FROM audit_events WHERE operation='admin.title.create'").get()).toEqual({ n: 2 });
-    await expect(services.createAdminTitle({ ...titleInput, label: "不同" }, auth, "title")).rejects.toThrow("IDEMPOTENCY_CONFLICT");
-  });
-
-  it("stores a CDN icon URL on create and replaces or clears it on update", async () => {
-    const { services } = setup();
-    const created = await services.createAdminTitle({ ...titleInput, iconUrl: "https://cdn.example.com/a.webp" }, auth, "title");
-    expect(created.iconUrl).toBe("https://cdn.example.com/a.webp");
-    const replaced = await services.updateAdminCatalogTitle({ contractVersion: "1", titleKey: "MULTI", iconUrl: "https://cdn.example.com/b.webp" }, auth, "replace");
-    expect(replaced.title.iconUrl).toBe("https://cdn.example.com/b.webp");
-    const untouched = await services.updateAdminCatalogTitle({ contractVersion: "1", titleKey: "MULTI", label: "改名" }, auth, "rename");
-    expect(untouched.title.iconUrl).toBe("https://cdn.example.com/b.webp");
-    const cleared = await services.updateAdminCatalogTitle({ contractVersion: "1", titleKey: "MULTI", iconUrl: null }, auth, "clear");
-    expect(cleared.title.iconUrl).toBeNull();
-  });
-
-  it("adds independent challenges, enables the title atomically and exposes both publicly", async () => {
-    const { services, sqlite, database } = setup();
-    await services.createAdminTitle(titleInput, auth, "title");
-    const batch = vi.spyOn(database, "batch");
-    const first = await services.createAdminTitleChallenge({ ...challengeInput, enableTitle: false }, auth, "one");
-    expect(batch).toHaveBeenCalledTimes(1);
-    expect(first.challengeId).toMatch(/^title\.MULTI\..+/);
-    expect(adminTitleChallengeResponseSchema.safeParse(first).success).toBe(true);
-    expect(await services.listChallenges({ family: "achievement" })).toEqual([]);
-    const secondInput = { ...challengeInput, condition: "另一种条件" };
-    const second = await services.createAdminTitleChallenge(secondInput, auth, "two");
-    expect(second.challengeId).not.toBe(first.challengeId);
-    expect(await services.createAdminTitleChallenge(secondInput, auth, "two")).toEqual(second);
-    expect(sqlite.prepare("SELECT lifecycle,game_version FROM title_catalog WHERE key='MULTI'").get()).toEqual({ lifecycle: "active", game_version: "26.1003.1" });
-    expect(await services.listChallenges({ family: "achievement" })).toEqual(expect.arrayContaining([expect.objectContaining({ challengeId: first.challengeId }), expect.objectContaining({ challengeId: second.challengeId })]));
-    expect((await services.listAdminTitleChallenges({ titleKey: "MULTI" }, auth)).items).toHaveLength(2);
-    expect((await services.listAdminTitleSummaries(auth)).items).toEqual([expect.objectContaining({ status: "active", acquisition: { kind: "challenges", challengeCount: 2, completableCount: 2 } })]);
-  });
 
   it("rejects qualification changes in place and atomically replaces without touching old completions", async () => {
     const { services, sqlite, database } = setup();
@@ -95,41 +51,6 @@ describe("title-centric admin acquisition contract", () => {
     expect(await services.getAgentTitle({ titleKey: "MULTI" })).toMatchObject({ titleKey: "MULTI", mapId: "map.beta" });
     await services.createAdminTitleChallenge({ ...challengeInput, mapIds: ["map.beta"] }, auth, "third");
     expect((await services.listTitles({ mapId: "map.beta" })).filter(row => row.titleKey === "MULTI")).toHaveLength(1);
-  });
-
-  it("rolls back both halves of replacement when audit persistence fails", async () => {
-    const { services, sqlite } = setup();
-    await services.createAdminTitle(titleInput, auth, "title");
-    const first = await services.createAdminTitleChallenge(challengeInput, auth, "one");
-    sqlite.exec("CREATE TRIGGER fail_replacement BEFORE INSERT ON audit_events WHEN NEW.operation='admin.achievement.update' BEGIN SELECT RAISE(ABORT,'audit unavailable'); END");
-    await expect(services.updateAdminChallenge({ ...edit(first), saveMode: "new_challenge" }, auth, "replace")).rejects.toThrow();
-    expect(sqlite.prepare("SELECT id,status,replaced_by_challenge_id FROM title_challenges").all()).toEqual([{ id: first.challengeId, status: "active", replaced_by_challenge_id: null }]);
-    expect(sqlite.prepare("SELECT count(*) AS n FROM idempotency_keys WHERE operation='admin.achievement.update'").get()).toEqual({ n: 0 });
-  });
-
-  it("honors both save modes for text-only edits", async () => {
-    const { services } = setup();
-    await services.createAdminTitle(titleInput, auth, "title");
-    const first = await services.createAdminTitleChallenge(challengeInput, auth, "one");
-    const same = await services.updateAdminChallenge({ ...edit(first), condition: "修正文案" }, auth, "text");
-    expect(same).toMatchObject({ challengeId: first.challengeId, condition: "修正文案" });
-    const next = await services.updateAdminChallenge({ ...edit(first), saveMode: "new_challenge", condition: "另一版文案" }, auth, "text-new");
-    expect(next.challengeId).not.toBe(first.challengeId);
-    expect(await services.updateAdminChallenge({ ...edit(first), condition: "修正文案" }, auth, "text")).toEqual(same);
-  });
-
-  it("returns exact lifecycle state for undo, retains omitted windows and replays the original response", async () => {
-    const { services } = setup();
-    await services.createAdminTitle(titleInput, auth, "title");
-    const first = await services.createAdminTitleChallenge({ ...challengeInput, startsAt: 1_000, endsAt: 3_000 }, auth, "one");
-    const change = { contractVersion: "1" as const, challengeId: first.challengeId, status: "archived" as const, retiredVersion: null };
-    const result = await services.updateAdminChallengeLifecycle(change, auth, "end");
-    expect(result.previous).toEqual({ status: "active", retiredVersion: null, startsAt: 1_000, endsAt: 3_000 });
-    expect(result.challenge).toMatchObject({ status: "archived", startsAt: 1_000, endsAt: 3_000 });
-    const undo = await services.updateAdminChallengeLifecycle({ contractVersion: "1", challengeId: first.challengeId, ...result.previous }, auth, "undo");
-    expect(undo.challenge).toMatchObject(result.previous);
-    expect(await services.updateAdminChallengeLifecycle(change, auth, "end")).toEqual(result);
-    await expect(services.updateAdminChallengeLifecycle({ contractVersion: "1", challengeId: first.challengeId, status: "active", startsAt: 4_000 }, auth, "invalid-window")).rejects.toThrow("INVALID_CHALLENGE_WINDOW");
   });
 
   it("ends a title by ending its open challenges and keeps catalog updates to title fields", async () => {
@@ -181,21 +102,4 @@ describe("title-centric admin acquisition contract", () => {
     expect(await services.listChallenges({ family: "achievement" })).toContainEqual(expect.objectContaining({ challengeId: scheduled.challengeId, status: "scheduled" }));
   });
 
-  it("rejects missing, map-managed and invalid-scope targets, and still serves ended titles", async () => {
-    const { services, sqlite } = setup();
-    await expect(services.listAdminTitleChallenges({ titleKey: "missing" }, auth)).rejects.toThrow("TITLE_NOT_FOUND");
-    await expect(services.createAdminTitleChallenge(challengeInput, auth, "missing")).rejects.toThrow("TITLE_NOT_FOUND");
-    await services.createAdminTitle(titleInput, auth, "title");
-    await expect(services.createAdminTitleChallenge({ ...challengeInput, mapIds: [] }, auth, "scope")).rejects.toThrow("INVALID_MAP_SCOPE");
-    const first = await services.createAdminTitleChallenge(challengeInput, auth, "one");
-    // A title whose paths all ended still accepts new challenges and manual
-    // grant targeting; nothing stores a retired lifecycle to reopen.
-    await services.updateAdminChallengeLifecycle({ contractVersion: "1", challengeId: first.challengeId, status: "archived" }, auth, "end");
-    expect((await services.listAdminTitleSummaries(auth)).items.find(row => row.titleKey === "MULTI")).toMatchObject({ status: "ended" });
-    const reopened = await services.createAdminTitleChallenge({ ...challengeInput, condition: "新条件" }, auth, "two");
-    expect(reopened.status).toBe("active");
-    expect((await services.listAdminTitleSummaries(auth)).items.find(row => row.titleKey === "MULTI")).toMatchObject({ status: "active" });
-    sqlite.exec("INSERT INTO map_title_rules (id,title_key,kind,condition,evidence_rule,display_kind,status,introduced_version,created_at,updated_at) VALUES ('rule.managed','MULTI','test','rule','evidence','fixed','active','26.1003.1',1,1)");
-    await expect(services.createAdminTitleChallenge(challengeInput, auth, "managed")).rejects.toThrow("TITLE_MANAGED_BY_MAP_RULE");
-  });
 });

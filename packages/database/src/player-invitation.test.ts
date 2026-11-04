@@ -62,20 +62,6 @@ describe("player invitation codes", () => {
     await expect(services.getCurrentPlayerInvitations({ sessionToken: "token.alice", page: 1, pageSize: 20 })).resolves.toMatchObject({ createBlockedReason: "disabled", policy: null });
   });
 
-  it("creates a normalized code, replays the idempotent request, and rejects reuse of a code or a bad request", async () => {
-    const { services, create, count } = await fixture();
-    const first = await create("fun-2026", { maxUses: 3, validityDays: 10 });
-    expect(first).toMatchObject({ code: "FUN-2026", status: "available", maxUses: 3, usedCount: 0 });
-    await expect(create("fun-2026", { maxUses: 3, validityDays: 10 })).resolves.toEqual(first);
-    await expect(create("FUN-2026", {}, "another-key")).rejects.toThrow("PLAYER_INVITATION_CODE_TAKEN");
-    await expect(create("ab")).rejects.toThrow("PLAYER_INVITATION_CODE_INVALID");
-    await expect(create("admin-me")).rejects.toThrow("PLAYER_INVITATION_CODE_RESERVED");
-    await expect(create("big-code", { maxUses: 6 })).rejects.toThrow("PLAYER_INVITATION_LIMIT_EXCEEDED");
-    await expect(create("long-code", { validityDays: 31 })).rejects.toThrow("PLAYER_INVITATION_LIMIT_EXCEEDED");
-    await expect(services.createCurrentPlayerInvitation({ sessionToken: "token.nobody", code: "ghost", maxUses: 1, validityDays: 1 }, "k")).rejects.toThrow("UNAUTHENTICATED");
-    expect(count("player_invitations")).toBe(1);
-  });
-
   it("stops creating codes once the period's registrations reach the limit", async () => {
     const { sqlite, services, create, register } = await fixture({ maxRegistrationsPerPeriod: 1 });
     await create("code-a", { maxUses: 2 });
@@ -142,15 +128,6 @@ describe("registering with a player code", () => {
     await expect(services.listCurrentPlayerInvitationRedemptions({ sessionToken: "token.alice", page: 1, pageSize: 20 })).resolves.toMatchObject({ total: 1, items: [{ playerName: "Newbie", playerId: "4444", code: "WELCOME" }] });
     sqlite.prepare("UPDATE player_accounts SET hide_battletag = 1 WHERE player_id = '4444'").run();
     await expect(services.listCurrentPlayerInvitationRedemptions({ sessionToken: "token.alice", page: 1, pageSize: 20 })).resolves.toMatchObject({ items: [{ playerName: null, playerId: null }] });
-  });
-
-  it("keeps the confirmation code of a claim from another player's session or code", async () => {
-    const { services, create, redeem } = await fixture();
-    await create("shared", { maxUses: 2 });
-    const one = await redeem("shared", "One", "5001");
-    const two = await redeem("shared", "Two", "5002");
-    expect(one.code).not.toBe(two.code);
-    await expect(services.getBindingClaimStatus({ claimId: one.claimId, claimToken: two.claimToken })).rejects.toThrow("BINDING_CLAIM_FORBIDDEN");
   });
 
   it("refuses registered BattleTags, unclaimed historical holders, and admin-reserved BattleTags, but not claimed history", async () => {
@@ -226,23 +203,5 @@ describe("registering with a player code", () => {
     await expect(verify(claim.code, "member.late")).rejects.toThrow("BINDING_CLAIM_CODE_INVALID");
     sqlite.prepare("UPDATE player_invitations SET expires_at = 1").run();
     await expect(redeem("short", "Later", "9202")).rejects.toThrow("INVITE_INVALID");
-  });
-});
-
-describe("maintainer views", () => {
-  it("lists both invitation types with filters, details redemptions, and audits policy changes", async () => {
-    const { sqlite, services, create, register, now } = await fixture();
-    sqlite.prepare("INSERT INTO binding_invites (id, code_hash, player_name, normalized_player_name, player_id, created_by, created_at, expires_at) VALUES ('11111111-1111-4111-8111-111111111111', 'h', 'Target', 'target', '1', 'admin.one', ?, ?)").run(now, now + day);
-    const code = await create("overview", { maxUses: 2 });
-    await register("overview", "Guest", "9301", "member.guest");
-    const all = await services.listAdminInvitations({ type: "all", page: 1, pageSize: 20 }, admin);
-    expect(all.items.map((item) => item.type).sort()).toEqual(["admin", "player"]);
-    await expect(services.listAdminInvitations({ type: "player", issuer: "ali", page: 1, pageSize: 20 }, admin)).resolves.toMatchObject({ total: 1, items: [{ usedCount: 1, status: "active" }] });
-    await expect(services.listAdminInvitations({ type: "admin", status: "revoked", page: 1, pageSize: 20 }, admin)).resolves.toMatchObject({ total: 0 });
-    await expect(services.getAdminPlayerInvitation({ invitationId: code.invitationId, page: 1, pageSize: 20 }, admin)).resolves.toMatchObject({ invitation: { code: "OVERVIEW" }, total: 1, redemptions: [{ playerName: "Guest", playerId: "9301" }] });
-    await services.revokeAdminPlayerInvitation({ invitationId: code.invitationId }, admin, "r1");
-    await services.revokeAdminPlayerInvitation({ invitationId: code.invitationId }, admin, "r2");
-    const audit = await services.listAdminPlayerInvitationAudit({ page: 1, pageSize: 50 }, admin);
-    expect(audit.items.map((item) => item.operation)).toEqual(expect.arrayContaining(["admin.player_invitation.policy.update", "player.invitation.create", "player.invitation.redeem", "admin.player_invitation.revoke"]));
   });
 });

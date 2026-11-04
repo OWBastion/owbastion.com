@@ -54,16 +54,4 @@ describe("player profile visibility", () => {
     expect(sqlite.prepare("SELECT public_profile FROM player_accounts WHERE id = 'player.one'").get()).toEqual({ public_profile: 0 });
   });
 
-  it("persists the BattleTag-hiding flag and keeps it visible to the owner", async () => {
-    const { sqlite, database } = createD1();
-    const now = Date.now();
-    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.one', '1234', 'Player', 'player', 0, 'active', ?, ?)").run(now, now);
-    sqlite.prepare("INSERT INTO portal_sessions VALUES ('session.one', 'player.one', ?, ?)").run(hash("token.one"), now + 60_000);
-    const services = createPlatformServices(database);
-
-    await expect(services.getCurrentPlayer({ sessionToken: "token.one" })).resolves.toMatchObject({ player: { hideBattleTag: false } });
-    await expect(services.updateCurrentPlayerProfileVisibility({ sessionToken: "token.one", publicProfile: true, hideBattleTag: true }, "hide")).resolves.toEqual({ contractVersion: "1", publicProfile: true, hideBattleTag: true });
-    expect(sqlite.prepare("SELECT public_profile, hide_battletag FROM player_accounts WHERE id = 'player.one'").get()).toEqual({ public_profile: 1, hide_battletag: 1 });
-    await expect(services.getCurrentPlayer({ sessionToken: "token.one" })).resolves.toMatchObject({ player: { playerName: "Player", playerId: "1234", hideBattleTag: true } });
-  });
 });

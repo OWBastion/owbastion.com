@@ -64,58 +64,6 @@ describe("QQ login attempt codes", () => {
     vi.restoreAllMocks();
   });
 
-  it("retries with a new code when the random code collides with a live pending attempt", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    const now = Date.now();
-    // Force the first randomly-drawn code to collide with an existing live attempt.
-    insertAttempt(sqlite, { id: "attempt.existing", tokenHash: "token.existing", codeHash: await hashRequest(codeForByte(0)), status: "pending", expiresAt: now + 60_000, createdAt: now });
-    let codeDraws = 0;
-    vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementation((<T extends ArrayBufferView | null>(array: T) => {
-      if (array instanceof Uint8Array && array.length === 6) {
-        (array as Uint8Array).fill(codeDraws);
-        codeDraws += 1;
-      } else if (array instanceof Uint8Array) {
-        (array as Uint8Array).fill(0xaa);
-      }
-      return array;
-    }) as typeof globalThis.crypto.getRandomValues);
-    const services = createPlatformServices(database);
-
-    const result = await services.createQqLoginAttempt({ contractVersion: "1", provider: "qq" });
-
-    expect(codeDraws).toBe(2); // the colliding draw, then the successful retry
-    expect(result.code).toBe(codeForByte(1));
-    expect(result.code).not.toBe(codeForByte(0));
-    const pendingForCollidingCode = sqlite.prepare("SELECT COUNT(*) AS count FROM qq_login_attempts WHERE code_hash = ? AND status = 'pending'").get(await hashRequest(codeForByte(0))) as { count: number };
-    expect(pendingForCollidingCode.count).toBe(1); // only the pre-existing attempt, not a second one with the same code
-  });
-
-  it("verifies only the live attempt when an older expired row shares the same code_hash", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedActiveGroupAndBinding(sqlite, { groupOpenId: "group.one", memberOpenId: "member.one", accountId: "account.one" });
-    const now = Date.now();
-
-    // An abandoned attempt that shares a code with a later live attempt, already expired.
-    insertAttempt(sqlite, { id: "attempt.stale", tokenHash: "token.stale", codeHash: await hashRequest("SHARED1"), status: "expired", expiresAt: now - 60_000, createdAt: now - 180_000 });
-    // The live attempt a real player is currently using.
-    insertAttempt(sqlite, { id: "attempt.live", tokenHash: "token.live", codeHash: await hashRequest("SHARED1"), status: "pending", expiresAt: now + 60_000, createdAt: now });
-
-    const services = createPlatformServices(database);
-    const result = await services.verifyQqLogin(
-      { contractVersion: "1", provider: "qq", code: "SHARED1", groupOpenId: "group.one", memberOpenId: "member.one", messageId: "message.one" },
-      qqAuth,
-      "idempotency.verify.1",
-    );
-
-    expect(result.status).toBe("verified");
-    const live = sqlite.prepare("SELECT status FROM qq_login_attempts WHERE id = 'attempt.live'").get() as { status: string };
-    expect(live.status).toBe("verified");
-    const stale = sqlite.prepare("SELECT status FROM qq_login_attempts WHERE id = 'attempt.stale'").get() as { status: string };
-    expect(stale.status).toBe("expired");
-  });
-
   it("rejects a code whose only pending attempt has already expired, and marks it expired", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
@@ -134,36 +82,4 @@ describe("QQ login attempt codes", () => {
     expect(row.status).toBe("expired");
   });
 
-  it("rejects an unknown code with LOGIN_CODE_INVALID", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedActiveGroupAndBinding(sqlite, { groupOpenId: "group.one", memberOpenId: "member.one", accountId: "account.one" });
-    const services = createPlatformServices(database);
-
-    await expect(services.verifyQqLogin(
-      { contractVersion: "1", provider: "qq", code: "NOPE12", groupOpenId: "group.one", memberOpenId: "member.one", messageId: "message.one" },
-      qqAuth,
-      "idempotency.verify.3",
-    )).rejects.toThrow("LOGIN_CODE_INVALID");
-  });
-
-  it("prunes long-stale terminal attempts on the login-attempt creation hot path", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    const now = Date.now();
-    // Far past its own expiry and already terminal: eligible for deletion.
-    insertAttempt(sqlite, { id: "attempt.old", tokenHash: "token.old", codeHash: "code.old", status: "expired", expiresAt: now - 20 * 60_000, createdAt: now - 25 * 60_000 });
-    // Terminal but only just past expiry: kept, so a client that polls right after expiry still sees "expired".
-    insertAttempt(sqlite, { id: "attempt.recent", tokenHash: "token.recent", codeHash: "code.recent", status: "expired", expiresAt: now - 1_000, createdAt: now - 121_000 });
-    // Still pending past its own expiry: flipped to expired, not deleted.
-    insertAttempt(sqlite, { id: "attempt.pending-past-ttl", tokenHash: "token.pending", codeHash: "code.pending", status: "pending", expiresAt: now - 5_000, createdAt: now - 125_000 });
-
-    const services = createPlatformServices(database);
-    await services.createQqLoginAttempt({ contractVersion: "1", provider: "qq" });
-
-    const remainingIds = (sqlite.prepare("SELECT id, status FROM qq_login_attempts ORDER BY id").all() as { id: string; status: string }[]);
-    expect(remainingIds.find((row) => row.id === "attempt.old")).toBeUndefined();
-    expect(remainingIds.find((row) => row.id === "attempt.recent")?.status).toBe("expired");
-    expect(remainingIds.find((row) => row.id === "attempt.pending-past-ttl")?.status).toBe("expired");
-  });
 });

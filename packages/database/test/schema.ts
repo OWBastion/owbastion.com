@@ -102,7 +102,6 @@ const createOcrFeedbackProposalsSchema = (includeReviewState: boolean) => `CREAT
     UNIQUE (submission_id, ocr_result_id, field_key, player_account_id)
   );`;
 
-export const ocrFeedbackProposalsSchema = createOcrFeedbackProposalsSchema(true);
 export const ocrFeedbackProposalsWithoutReviewStateSchema = createOcrFeedbackProposalsSchema(false);
 
 const createReviewedAnnotationsSchema = (enforceReferences: boolean) => `CREATE TABLE reviewed_annotations (
@@ -127,7 +126,6 @@ const createReviewedAnnotationsSchema = (enforceReferences: boolean) => `CREATE 
     created_at INTEGER NOT NULL
   );`;
 
-export const reviewedAnnotationsSchema = createReviewedAnnotationsSchema(true);
 export const reviewedAnnotationsSchemaWithoutReferences = createReviewedAnnotationsSchema(false);
 
 export const idempotencyKeysRequiredIdSchema = `CREATE TABLE idempotency_keys (

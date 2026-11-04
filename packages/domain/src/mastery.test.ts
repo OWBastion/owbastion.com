@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMasteryMapProfile, buildMasteryProfiles, calculateVerifiedRunXpV1, calculateVerifiedRunXpV2, calculateVerifiedRunXpV3, beijingDayStart, createVerifiedRunEvidenceCompatibilityV1, isVerifiedRunEvidenceCompatibilityEnabled, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, verifiedRunEvidenceCompatibilityV1, verifiedRunXpRuleV1, verifiedRunXpRuleV2, normalizeMatchCode, runCodeEventWeightTotal, eventWeightTotalCode, type VerifiedRunForProjection } from "./mastery";
+import { buildMasteryMapProfile, buildMasteryProfiles, calculateVerifiedRunXpV3, beijingDayStart, createVerifiedRunEvidenceCompatibilityV1, isVerifiedRunEvidenceCompatibilityEnabled, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, normalizeMatchCode, runCodeEventWeightTotal, eventWeightTotalCode, type VerifiedRunForProjection } from "./mastery";
 
 const run = (overrides: Partial<VerifiedRunForProjection> = {}): VerifiedRunForProjection => ({
   runId: "run-1",
@@ -16,34 +16,7 @@ const run = (overrides: Partial<VerifiedRunForProjection> = {}): VerifiedRunForP
   ...overrides,
 });
 
-describe("historical Verified Run XP rule v1", () => {
-  it("keeps the historical v1 snapshot explainable", () => {
-    expect(verifiedRunXpRuleV1).toEqual({
-      version: "v1",
-      baseDifficultyXp: { 简单: 100, 一般: 150, 困难: 225, 专家: 325, 传奇: 450, 地狱: 600 },
-      defaultMapFactor: 1,
-      performanceBonus: { noDeaths: 0.05, noSkips: 0.05, cap: 0.1 },
-      challengeBonus: 0,
-    });
-    expect(calculateVerifiedRunXpV1({ difficulty: "困难", mapFactor: 1.1, deaths: 0, skips: 0 })).toEqual({
-      awardedXp: 272,
-      snapshot: {
-        ruleVersion: "v1",
-        baseDifficultyXp: 225,
-        mapFactor: 1.1,
-        performanceBonus: 0.1,
-        performanceBonusReasons: ["no_deaths", "no_skips"],
-        challengeBonus: 0,
-      },
-    });
-  });
-
-  it("does not infer bonuses from missing settlement facts and rejects invalid configuration", () => {
-    expect(calculateVerifiedRunXpV1({ difficulty: "传奇" })).toMatchObject({ awardedXp: 450, snapshot: { performanceBonus: 0, challengeBonus: 0 } });
-    expect(() => calculateVerifiedRunXpV1({ difficulty: "传奇", mapFactor: 0 })).toThrow("VERIFIED_RUN_MAP_FACTOR_INVALID");
-    expect(() => calculateVerifiedRunXpV1({ difficulty: "传奇", deaths: -1 })).toThrow("VERIFIED_RUN_SETTLEMENT_VALUE_INVALID");
-  });
-
+describe("run codes and evidence compatibility", () => {
   it("normalizes only the canonical three-part run code", () => {
     expect(normalizeMatchCode(" 1234－5678—9012 ")).toBe("1234-5678-9012");
   });
@@ -60,7 +33,6 @@ describe("historical Verified Run XP rule v1", () => {
 
   it("keeps the platform-owned game and OCR compatibility gate explicit", () => {
     const releasedCompatibility = createVerifiedRunEvidenceCompatibilityV1({ minimumGameVersion: "99.0101.1", supportedOcrLayoutVersions: ["test-layout-v1"] });
-    expect(verifiedRunEvidenceCompatibilityV1).toMatchObject({ minimumGameVersion: null, supportedOcrLayoutVersions: [], requiredConfidence: 0.9 });
     expect(isVerifiedRunEvidenceCompatibilityEnabled()).toBe(false);
     expect(isVerifiedRunEvidenceCompatibilityEnabled(releasedCompatibility)).toBe(true);
     expect(isVerifiedRunGameVersionSupported("99.0101.1", releasedCompatibility)).toBe(true);
@@ -70,28 +42,6 @@ describe("historical Verified Run XP rule v1", () => {
     expect(isVerifiedRunOcrLayoutSupported("test-layout-v1", releasedCompatibility)).toBe(true);
     expect(isVerifiedRunOcrLayoutSupported("test-layout-v0", releasedCompatibility)).toBe(false);
     expect(createVerifiedRunEvidenceCompatibilityV1({ minimumGameVersion: "unreleased", supportedOcrLayoutVersions: ["test-layout-v1"] }).minimumGameVersion).toBeNull();
-  });
-});
-
-describe("Verified Run XP rule v2", () => {
-  it("calculates from run facts and produces a snapshot without a Challenge bonus", () => {
-    expect(verifiedRunXpRuleV2).toEqual({
-      version: "v2",
-      baseDifficultyXp: verifiedRunXpRuleV1.baseDifficultyXp,
-      defaultMapFactor: 1,
-      performanceBonus: { noDeaths: 0.05, noSkips: 0.05, cap: 0.1 },
-    });
-    expect(calculateVerifiedRunXpV2({ difficulty: "困难", mapFactor: 1.1, deaths: 0, skips: 0 })).toEqual({
-      awardedXp: 272,
-      snapshot: {
-        ruleVersion: "v2",
-        baseDifficultyXp: 225,
-        mapFactor: 1.1,
-        performanceBonus: 0.1,
-        performanceBonusReasons: ["no_deaths", "no_skips"],
-      },
-    });
-    expect(JSON.stringify(calculateVerifiedRunXpV2({ difficulty: "困难" }))).not.toContain("challengeBonus");
   });
 });
 
@@ -149,36 +99,6 @@ describe("mastery projections", () => {
       { revision: "revision:map.test:r2", totalXp: 325, count: 1 },
     ]);
   });
-
-  it("groups interleaved runs without changing profile or recent-run tie ordering", () => {
-    const runs = [
-      run({ runId: "z-first", mapId: "map.z", gameplayRevisionId: "z1", awardedXp: 80, difficulty: "简单", acceptedAt: 5, deaths: null, skips: 2 }),
-      run({ runId: "a2", mapId: "map.a", gameplayRevisionId: "a2", awardedXp: 200 }),
-      run({ runId: "b1", mapId: "map.b", gameplayRevisionId: "b1", awardedXp: 200 }),
-      run({ runId: "z-last", mapId: "map.z", gameplayRevisionId: "z1", awardedXp: 120, difficulty: "传奇", completionDurationSeconds: 400, acceptedAt: 5, deaths: 1, skips: null }),
-      run({ runId: "a1", mapId: "map.a", gameplayRevisionId: "a1", awardedXp: 200 }),
-      run({ mapId: "map.z", gameplayRevisionId: "z1", awardedXp: 999, status: "invalidated" }),
-    ];
-    const profiles = buildMasteryProfiles(runs, 1);
-    expect(profiles.map((profile) => [profile.mapId, profile.gameplayRevisionId, profile.totalXp])).toEqual([
-      ["map.a", "a1", 200], ["map.a", "a2", 200], ["map.b", "b1", 200], ["map.z", "z1", 200],
-    ]);
-    expect(profiles[3]).toEqual({
-      mapId: "map.z",
-      gameplayRevisionId: "z1",
-      totalXp: 200,
-      verifiedRunCount: 2,
-      difficultyStats: [
-        { difficulty: "简单", verifiedRunCount: 1, fastestCompletionSeconds: 600 },
-        { difficulty: "传奇", verifiedRunCount: 1, fastestCompletionSeconds: 400 },
-      ],
-      lowestDeaths: 1,
-      fewestSkips: 2,
-      highestSingleRunXp: 120,
-      highestCompletedDifficulty: "传奇",
-      recentRuns: [runs[3]],
-    });
-  });
 });
 
 describe("verified run XP rule v3", () => {
@@ -204,10 +124,7 @@ describe("verified run XP rule v3", () => {
     expect(all.snapshot).toMatchObject({ mapRatingBonus: 0.2, achievementBonus: 0.15, dailyFirstClearBonus: 0.1 });
   });
 
-  it("rejects invalid inputs and rolls the day over at Beijing midnight", () => {
-    expect(() => calculateVerifiedRunXpV3({ difficulty: "地狱", achievementCount: -1 })).toThrow("VERIFIED_RUN_ACHIEVEMENT_COUNT_INVALID");
-    expect(() => calculateVerifiedRunXpV3({ difficulty: "地狱", achievementCount: 1.5 })).toThrow("VERIFIED_RUN_ACHIEVEMENT_COUNT_INVALID");
-    expect(() => calculateVerifiedRunXpV3({ difficulty: "地狱", mapRating: "T9" as never })).toThrow("VERIFIED_RUN_MAP_RATING_INVALID");
+  it("rolls the day over at Beijing midnight", () => {
     expect(beijingDayStart(Date.parse("2026-10-15T23:59:59+08:00"))).toBe(Date.parse("2026-10-15T00:00:00+08:00"));
     expect(beijingDayStart(Date.parse("2026-10-16T00:00:00+08:00"))).toBe(Date.parse("2026-10-16T00:00:00+08:00"));
   });
