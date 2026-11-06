@@ -42,7 +42,7 @@ watch(revision, () => { void refresh(); });
       <UInput v-model="query" class="player-list__search" size="md" icon="i-lucide-search" aria-label="搜索玩家" placeholder="搜索战网 ID 或 QQ 标识" />
       <div class="player-list__chips" role="group" aria-label="筛选玩家状态">
         <FilterChip v-for="filter in statusFilters" :key="filter.value" :label="filter.label" :pressed="status === filter.value" @toggle="status = filter.value" />
-        <span class="player-list__count">{{ loading ? "读取中…" : `${total} 位` }}</span>
+        <span class="player-list__count">{{ loading ? "读取中…" : String(total) }}</span>
       </div>
     </div>
     <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />

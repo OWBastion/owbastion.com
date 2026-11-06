@@ -424,7 +424,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
 </script>
 
 <template>
-  <AdminWorkspace title="称号与挑战" :count="loading ? '读取中…' : `${titles.length} 个称号`">
+  <AdminWorkspace title="称号与挑战" :count="loading ? '读取中…' : String(titles.length)">
     <template #actions><UButton label="新建称号" icon="i-lucide-plus" @click="openCreateTitle" /></template>
     <AdminAchievementNav />
     <section class="title-workspace" aria-label="称号列表">

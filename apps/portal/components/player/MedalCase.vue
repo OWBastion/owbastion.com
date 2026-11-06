@@ -11,7 +11,7 @@ const shown = computed(() => expanded.value ? props.titles : props.titles.slice(
 
 <template>
   <AchievementWall class="case">
-    <p class="case__count num"><b>{{ titles.length }}</b>枚</p>
+    <p class="case__count num"><b>{{ titles.length }}</b></p>
     <ul v-if="titles.length" class="case__shelf">
       <li v-for="(title, index) in shown" :key="title.titleKey" class="case__medal" :title="title.label">
         <AchievementIcon :url="title.iconUrl" :icon="title.icon" earned entrance :shine-delay="index * .35" />
