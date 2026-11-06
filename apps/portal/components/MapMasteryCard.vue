@@ -49,7 +49,7 @@ const stats = computed(() => {
   }
   return [
     { label: "精通 XP", value: `${profile.totalXp} XP` },
-    { label: "已验证通关", value: `${profile.verifiedRunCount} 次` },
+    { label: "已验证通关", value: String(profile.verifiedRunCount) },
     { label: "最高难度", value: empty(profile.highestCompletedDifficulty) },
     { label: "最低死亡", value: empty(profile.lowestDeaths) },
     { label: "最少跳过", value: empty(profile.fewestSkips) },
@@ -77,7 +77,7 @@ const linkLabel = computed(() => `查看${props.mapName}详情`);
         <UEmpty v-if="!profile" title="暂无精通记录" variant="naked" />
         <template v-else>
           <dl class="mastery-stats"><div v-for="stat in stats" :key="stat.label"><dt>{{ stat.label }}</dt><dd>{{ stat.value }}</dd></div></dl>
-          <div class="difficulty-summary" aria-label="各难度通关记录"><div v-for="stat in profile.difficultyStats" :key="stat.difficulty" class="content-stack"><strong>{{ stat.difficulty }}</strong><span>{{ stat.verifiedRunCount }} 次 · 最快 {{ formatMasteryDuration(stat.fastestCompletionSeconds) }}</span></div></div>
+          <div class="difficulty-summary" aria-label="各难度通关记录"><div v-for="stat in profile.difficultyStats" :key="stat.difficulty" class="content-stack"><strong>{{ stat.difficulty }}</strong><span>{{ stat.verifiedRunCount }} · 最快 {{ formatMasteryDuration(stat.fastestCompletionSeconds) }}</span></div></div>
         </template>
         <slot />
       </template>

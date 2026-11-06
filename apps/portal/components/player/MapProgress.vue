@@ -28,7 +28,7 @@ const share = computed(() => props.mapCount ? Math.min(100, Math.round(rows.valu
 <template>
   <div class="maps">
     <div class="maps__summary">
-      <p class="maps__count num"><b>{{ rows.length }}</b><span v-if="mapCount != null">/ {{ mapCount }} 张</span></p>
+      <p class="maps__count num"><b>{{ rows.length }}</b><span v-if="mapCount != null">/ {{ mapCount }}</span></p>
       <div v-if="share !== null" class="maps__meter" role="img" :aria-label="`已玩过 ${share}% 的地图`"><span :style="{ width: `${share}%` }" /></div>
       <ul class="maps__tiers num">
         <li v-for="tier in tierCounts" :key="tier.slot" :class="`t${tier.step}`"><b>{{ tier.count }}</b>{{ tier.label }}</li>

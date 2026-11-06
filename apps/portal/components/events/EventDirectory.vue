@@ -91,7 +91,7 @@ const detailRows = computed(() => selected.value ? [
 ] : []);
 const rowValue = (row?: string) => {
   if (row === "rating" && selected.value) { const chip = eventRatingChip(selected.value.eventId); return `${chip.icon} ${chip.label}`; }
-  return row === "history" ? `${history.value.length} 次` : "";
+  return row === "history" ? String(history.value.length) : "";
 };
 
 // A changelog hover card links here with ?eventId=; open that event once, whatever its status.

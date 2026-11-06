@@ -134,7 +134,7 @@ watch(boardData, (data) => { if (data?.page === 1 && data.items[0]) leaderScores
 const leaderScore = computed(() => leaderScores.value[scopeKey.value] ?? null);
 const share = (entry: LeaderboardEntry) => leaderScore.value ? Math.max(4, Math.round(entry.score / leaderScore.value * 100)) : null;
 const entryMeta = (entry: LeaderboardEntry) => board.value === "mastery"
-  ? [entry.runCount === undefined ? null : `${entry.runCount} 次`, entry.topDifficulty ?? null].filter(Boolean).join(" · ")
+  ? [entry.runCount === undefined ? null : String(entry.runCount), entry.topDifficulty ?? null].filter(Boolean).join(" · ")
   : entry.latestTitle?.label ?? "";
 </script>
 

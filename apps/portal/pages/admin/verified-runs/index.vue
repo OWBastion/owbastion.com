@@ -231,7 +231,7 @@ watch([matchCode, playerAccountId, unresolvedConflictsOnly, mapId, difficulty, r
 </script>
 
 <template>
-  <AdminWorkspace title="通关记录" :count="loading ? '读取中…' : `${total} 条`">
+  <AdminWorkspace title="通关记录" :count="loading ? '读取中…' : String(total)">
     <template #actions><UButton class="admin-workspace__icon-action hit-target-lg" icon="i-lucide-refresh-cw" square color="neutral" variant="outline" aria-label="刷新" :loading="loading" @click="load" /></template>
     <template #messages>
       <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
@@ -270,7 +270,7 @@ watch([matchCode, playerAccountId, unresolvedConflictsOnly, mapId, difficulty, r
         <template #status-cell="{ row }"><StatusBadge :label="runStatusLabel(row.original.status)" :tone="row.original.status === 'active' ? 'success' : 'warning'" /></template>
         <template #acceptanceSource-cell="{ row }"><span class="table-meta">{{ acceptanceSourceLabel(row.original.acceptanceSource) }}</span></template>
         <template #acceptedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.acceptedAt) }}</span></template>
-        <template #conflictCount-cell="{ row }"><StatusBadge v-if="row.original.conflictCount" :label="`${row.original.conflictCount} 条`" tone="warning" /><span v-else class="table-meta">—</span></template>
+        <template #conflictCount-cell="{ row }"><StatusBadge v-if="row.original.conflictCount" :label="`${row.original.conflictCount}`" tone="warning" /><span v-else class="table-meta">—</span></template>
         <template #actions-cell="{ row }"><div class="table-actions"><UButton label="详情" size="sm" color="neutral" variant="outline" @click="openDetail(row.original.runId)" /></div></template>
       </AdminDataTable>
       <UPagination v-if="total > 20" v-model:page="page" :total="total" :items-per-page="20" class="pagination" />

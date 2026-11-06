@@ -167,7 +167,7 @@ const rangeText = (season: AdminSeason) => `${formatSeasonDate(season.startsAt)}
 </script>
 
 <template>
-  <AdminWorkspace title="赛季" :count="adminData.loading.value ? '读取中…' : `${seasons.length} 个`">
+  <AdminWorkspace title="赛季" :count="adminData.loading.value ? '读取中…' : String(seasons.length)">
     <template #actions><UButton class="pressable" label="新建赛季" icon="i-lucide-plus" @click="openEditor(null)" /></template>
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
 

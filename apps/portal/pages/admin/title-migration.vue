@@ -294,7 +294,7 @@ async function grantAll() {
 </script>
 
 <template>
-  <AdminWorkspace title="称号迁移" :count="loading ? '读取中…' : `${total} 位持有者`">
+  <AdminWorkspace title="称号迁移" :count="loading ? '读取中…' : String(total)">
     <template #messages>
       <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
       <UAlert v-else-if="detailError" color="error" variant="subtle" :description="detailError" />

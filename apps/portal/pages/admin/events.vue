@@ -216,7 +216,7 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", warnBeforeUnloa
 </script>
 
 <template>
-  <AdminWorkspace title="事件管理" :count="loading ? '读取中…' : `${events.length} 条`">
+  <AdminWorkspace title="事件管理" :count="loading ? '读取中…' : String(events.length)">
     <template #actions>
       <UButton label="新建事件" icon="i-lucide-plus" @click="openCreate" />
     </template>
