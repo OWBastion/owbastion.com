@@ -50,12 +50,12 @@ const achievements = computed(() => props.summary?.titles?.general ?? []);
     </div>
     <div class="player-sheet-stat-cell">
       <b>{{ boards.achievement ? `#${boards.achievement.rank}` : "—" }}</b>
-      <span>成就排名 · {{ boards.achievement?.score ?? 0 }} 个</span>
+      <span>成就排名 · {{ boards.achievement?.score ?? 0 }}</span>
     </div>
   </div>
 
   <template v-if="summary">
-    <h4 class="player-sheet-section">地图 · 玩过 {{ mapRows.length }}<template v-if="summary.mapCount != null"> / {{ summary.mapCount }}</template> 张</h4>
+    <h4 class="player-sheet-section">地图 · 玩过 {{ mapRows.length }}<template v-if="summary.mapCount != null"> / {{ summary.mapCount }}</template></h4>
     <template v-if="mapRows.length">
       <div class="player-sheet-tiers num">
         <div v-for="tier in tierSummary" :key="tier.label" :class="`t${tier.step}`"><b>{{ tier.count }}</b><span>{{ tier.label }}</span></div>

@@ -96,7 +96,7 @@ async function createMap() {
 </script>
 
 <template>
-  <AdminWorkspace title="地图管理" :count="loading ? '读取中…' : `${maps.length} 张`">
+  <AdminWorkspace title="地图管理" :count="loading ? '读取中…' : String(maps.length)">
     <template #actions><UButton class="pressable" label="新增地图" icon="i-lucide-plus" @click="openCreate" /></template>
     <template #messages>
       <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
@@ -141,7 +141,7 @@ async function createMap() {
           <span v-else class="table-meta">暂无记录</span>
         </template>
         <template #mechanics-cell="{ row }"><span class="table-meta">{{ row.original.mechanics }}</span></template>
-        <template #challengeCount-cell="{ row }"><span>{{ row.original.challengeCount }} 项</span></template>
+        <template #challengeCount-cell="{ row }"><span>{{ row.original.challengeCount }}</span></template>
         <template #gameVersion-cell="{ row }"><span class="table-meta">{{ row.original.gameVersion }}</span></template>
         <template #actions-cell="{ row }">
           <div class="table-actions">

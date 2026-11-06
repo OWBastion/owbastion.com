@@ -21,7 +21,7 @@ const totalPages = computed(() => Math.max(1, Math.ceil((props.history?.total ??
 
 <template>
   <section class="mastery-history" aria-labelledby="mastery-history-title">
-    <div class="mastery-history-heading"><h3 id="mastery-history-title">通关记录</h3><span v-if="history">{{ history.total }} 条</span></div>
+    <div class="mastery-history-heading"><h3 id="mastery-history-title">通关记录</h3><span v-if="history">{{ history.total }}</span></div>
     <div v-if="loading" class="mastery-history-loading" role="status" aria-label="读取通关记录…"><USkeleton /><USkeleton /></div>
     <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取通关记录" :description="error">
       <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" @click="emit('retry')" /></template>

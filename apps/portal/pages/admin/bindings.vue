@@ -59,8 +59,8 @@ watch(activeTab, (value) => {
 const visibleClaims = computed(() => claimStatus.value === "pending_review" ? claims.value.filter((claim) => claim.status === "pending_review") : claims.value);
 const workspaceCount = computed(() => {
   if (loading.value) return "读取中…";
-  if (activeTab.value === "claims") return `${visibleClaims.value.length} 条`;
-  if (activeTab.value === "invitations") return `${invitations.value.length} 条`;
+  if (activeTab.value === "claims") return String(visibleClaims.value.length);
+  if (activeTab.value === "invitations") return String(invitations.value.length);
   return undefined;
 });
 const bindingTabs = [

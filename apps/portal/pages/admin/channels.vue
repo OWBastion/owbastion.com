@@ -62,7 +62,7 @@ async function saveEditor() { if (!editingGroup.value || !editor.displayName.tri
 </script>
 
 <template>
-  <AdminWorkspace title="渠道管理" :count="loading ? '读取中…' : `${groups.length} 个`">
+  <AdminWorkspace title="渠道管理" :count="loading ? '读取中…' : String(groups.length)">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <section aria-label="群配置"><AdminDataTable v-model:sorting="groupSorting" :sorting-options="groupSortingOptions" :default-sorting="defaultGroupSorting" :data="groups" :columns="columns" :mobile-columns="[{ id: 'displayName', priority: 'primary', order: 0 }, { id: 'status', priority: 'primary', order: 1 }, { id: 'environment', priority: 'detail', order: 2 }, { id: 'verifyEnabled', priority: 'detail', order: 3 }, { id: 'bindEnabled', priority: 'detail', order: 4 }, { id: 'updatedAt', priority: 'detail', order: 5 }]" row-key="groupOpenId" :loading="loading" empty="暂无群配置。" table-key="channels" class="admin-table">
       <template #displayName-cell="{ row }"><strong>{{ row.original.displayName || '未命名群组' }}</strong><small class="table-meta">{{ row.original.groupOpenId }}</small></template>

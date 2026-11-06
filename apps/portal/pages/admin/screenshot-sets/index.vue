@@ -171,7 +171,7 @@ watch(statusFilter, () => { page.value = 1; }, { flush: 'sync' });
         </div></template>
         <template #mobile-primary><USelect v-model='statusFilter' class='w-full' aria-label='筛选状态' :items='[{ label: "全部状态", value: "all" }, { label: "草稿", value: "draft" }, { label: "已定稿", value: "finalized" }, { label: "已废弃", value: "discarded" }]' /></template>
         <template #status-cell='{ row }'><StatusBadge :label='statusLabel(row.original.status)' :tone='statusTone(row.original.status)' /></template>
-        <template #counts-cell='{ row }'><span>{{ row.original.counts.memberCount }} 张入选</span><span class='table-meta'>排除 {{ row.original.counts.excludedCount }} 张</span></template>
+        <template #counts-cell='{ row }'><span>{{ row.original.counts.memberCount }}</span><span class='table-meta'>排除 {{ row.original.counts.excludedCount }}</span></template>
         <template #createdAt-cell='{ row }'><span>{{ formatTime(row.original.createdAt) }}</span><span class='table-meta'>{{ row.original.createdBy }}</span></template>
         <template #actions-cell='{ row }'><div class='table-actions'><UButton label='详情' size='sm' color='neutral' variant='outline' @click='openDetail(row.original.setId)' /></div></template>
       </AdminDataTable>

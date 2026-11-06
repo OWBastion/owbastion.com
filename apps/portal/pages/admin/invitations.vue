@@ -76,7 +76,7 @@ watch([type, status, issuer], () => { page.value = 1; }, { flush: "sync" });
 </script>
 
 <template>
-  <AdminWorkspace title="邀请" :count="loading ? '读取中…' : `${total} 条`">
+  <AdminWorkspace title="邀请" :count="loading ? '读取中…' : String(total)">
     <template #actions><UButton label="刷新" icon="i-lucide-refresh-cw" color="neutral" variant="outline" :loading="loading" @click="() => adminData.refresh()" /></template>
     <template #messages>
       <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
