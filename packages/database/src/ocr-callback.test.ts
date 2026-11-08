@@ -78,6 +78,17 @@ describe("asynchronous OCR callbacks", () => {
     expect(sqlite.prepare("SELECT status FROM submissions").get()).toEqual({ status: "ocr_pending" });
   });
 
+  it("fails the callback instead of reporting success when the claim is taken over before the result is saved", async () => {
+    const { services, sqlite } = fixture();
+    sqlite.exec(`CREATE TRIGGER takeover AFTER UPDATE OF callback_claimed ON ocr_results WHEN NEW.callback_claimed = 1 BEGIN
+      UPDATE ocr_results SET status = 'error', error_code = 'OCR_PENDING_TIMEOUT', callback_claimed = 0 WHERE id = NEW.id;
+      UPDATE submissions SET status = 'resubmission_required' WHERE id = NEW.submission_id;
+    END`);
+    await expect(services.completeOcrJob({ jobId, payload: resultPayload })).rejects.toThrow("OCR_CALLBACK_CLAIM_LOST");
+    expect(sqlite.prepare("SELECT status, error_code, response_json FROM ocr_results").get()).toEqual({ status: "error", error_code: "OCR_PENDING_TIMEOUT", response_json: null });
+    expect(sqlite.prepare("SELECT status FROM submissions").get()).toEqual({ status: "resubmission_required" });
+  });
+
   it("releases the callback claim after a processing error so delivery can be retried", async () => {
     const { database, sqlite } = fixture();
     let fail = true;
