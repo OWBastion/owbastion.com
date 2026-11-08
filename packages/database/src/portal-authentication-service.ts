@@ -115,7 +115,7 @@ export const createPortalAuthenticationServices = (
       if (!attempt) throw new Error("LOGIN_ATTEMPT_NOT_FOUND");
       if (attempt.tokenHash !== await hashRequest(input.attemptToken)) throw new Error("LOGIN_ATTEMPT_FORBIDDEN");
       if (attempt.status === "pending" && attempt.expiresAt <= now()) {
-        await db.update(qqLoginAttempts).set({ status: "expired" }).where(eq(qqLoginAttempts.id, attempt.id));
+        await db.update(qqLoginAttempts).set({ status: "expired" }).where(and(eq(qqLoginAttempts.id, attempt.id), eq(qqLoginAttempts.status, "pending")));
         return { contractVersion: "1" as const, status: "expired" as const };
       }
       if (attempt.status !== "verified") return { contractVersion: "1" as const, status: attempt.status as "pending" | "expired" };
@@ -125,10 +125,15 @@ export const createPortalAuthenticationServices = (
       const account = binding ? await db.select().from(playerAccounts).where(and(eq(playerAccounts.id, binding.playerAccountId), eq(playerAccounts.status, "active"))).get() : null;
       if (!account) return { contractVersion: "1" as const, status: "expired" as const };
       const sessionToken = randomToken();
+      const sessionTokenHash = await hashRequest(sessionToken);
       const timestamp = now();
       await pruneExpiredPortalSessions(timestamp);
-      await db.insert(portalSessions).values({ id: crypto.randomUUID(), playerAccountId: account.id, tokenHash: await hashRequest(sessionToken), expiresAt: timestamp + sessionTtlMs, createdAt: timestamp });
-      await db.update(qqLoginAttempts).set({ sessionTokenHash: await hashRequest(sessionToken), sessionIssuedAt: timestamp }).where(eq(qqLoginAttempts.id, attempt.id));
+      // The issuance is one-shot: only the poll that claims it inserts a session, so a concurrent poll cannot mint a second one.
+      const [claim] = await database.batch([
+        database.prepare("UPDATE qq_login_attempts SET session_token_hash = ?, session_issued_at = ? WHERE id = ? AND status = 'verified' AND session_issued_at IS NULL").bind(sessionTokenHash, timestamp, attempt.id),
+        database.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) SELECT ?, ?, ?, ?, ? WHERE changes() = 1").bind(crypto.randomUUID(), account.id, sessionTokenHash, timestamp + sessionTtlMs, timestamp),
+      ]);
+      if (!claim?.meta.changes) return { contractVersion: "1" as const, status: "verified" as const, environment: attempt.environment as "production" | "test" };
       return { contractVersion: "1" as const, status: "verified" as const, environment: attempt.environment as "production" | "test", sessionToken };
     },
 
@@ -143,7 +148,7 @@ export const createPortalAuthenticationServices = (
       if (!attempt) {
         const staleAttempt = await db.select().from(qqLoginAttempts).where(and(eq(qqLoginAttempts.codeHash, codeHash), eq(qqLoginAttempts.status, "pending"))).get();
         if (staleAttempt) {
-          await db.update(qqLoginAttempts).set({ status: "expired" }).where(eq(qqLoginAttempts.id, staleAttempt.id));
+          await db.update(qqLoginAttempts).set({ status: "expired" }).where(and(eq(qqLoginAttempts.id, staleAttempt.id), eq(qqLoginAttempts.status, "pending")));
           throw new Error("LOGIN_CODE_EXPIRED");
         }
         throw new Error("LOGIN_CODE_INVALID");
@@ -154,7 +159,12 @@ export const createPortalAuthenticationServices = (
       if (!binding) throw new Error("LOGIN_BINDING_REQUIRED");
       const account = await db.select().from(playerAccounts).where(eq(playerAccounts.id, binding.playerAccountId)).get();
       if (!account || account.status === "banned") throw new Error("PLAYER_BANNED");
-      await db.update(qqLoginAttempts).set({ status: "verified", groupOpenId: input.groupOpenId, memberOpenId: input.memberOpenId, environment: group.environment, messageId: input.messageId, verifiedAt: now() }).where(eq(qqLoginAttempts.id, attempt.id));
+      // The code is one-shot: only the call that moves the attempt out of pending may verify it.
+      const verifiedAt = now();
+      const [verified] = await database.batch([
+        database.prepare("UPDATE qq_login_attempts SET status = 'verified', group_open_id = ?, member_open_id = ?, environment = ?, message_id = ?, verified_at = ? WHERE id = ? AND status = 'pending' AND expires_at > ?").bind(input.groupOpenId, input.memberOpenId, group.environment, input.messageId, verifiedAt, attempt.id, verifiedAt),
+      ]);
+      if (!verified?.meta.changes) throw new Error("LOGIN_CODE_INVALID");
       const response = { contractVersion: "1" as const, status: "verified" as const, environment: group.environment as "production" | "test" };
       await recordIdempotency(db, auth.subject, "qq.login.verify", idempotencyKey, input, response);
       await recordAudit(db, auth, "qq.login.verify", "qq_login_attempt", attempt.id, { environment: group.environment });
