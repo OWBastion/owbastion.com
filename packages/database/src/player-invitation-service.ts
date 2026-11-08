@@ -98,7 +98,7 @@ export const createPlayerInvitationServices = (dependencies: Dependencies): { se
       if (!claim) return null;
       if (claim.tokenHash !== await hashRequest(input.claimToken)) throw new Error("BINDING_CLAIM_FORBIDDEN");
       const expired = claim.status === "pending_confirmation" && claim.expiresAt <= now();
-      if (expired) await db.update(playerInvitationClaims).set({ status: "expired" }).where(eq(playerInvitationClaims.id, claim.id));
+      if (expired) await db.update(playerInvitationClaims).set({ status: "expired" }).where(and(eq(playerInvitationClaims.id, claim.id), eq(playerInvitationClaims.status, "pending_confirmation")));
       const status = expired ? "expired" : claim.status as PlayerInvitationClaimStatusResponse["status"];
       return {
         contractVersion: "1" as const, status, expiresAt: claim.expiresAt,
@@ -121,7 +121,7 @@ export const createPlayerInvitationServices = (dependencies: Dependencies): { se
       }
       const timestamp = now();
       if (claim.expiresAt <= timestamp) {
-        await db.update(playerInvitationClaims).set({ status: "expired" }).where(eq(playerInvitationClaims.id, claim.id));
+        await db.update(playerInvitationClaims).set({ status: "expired" }).where(and(eq(playerInvitationClaims.id, claim.id), eq(playerInvitationClaims.status, "pending_confirmation")));
         throw new Error("BINDING_CLAIM_CODE_INVALID");
       }
       const group = await one<{ environment: "production" | "test" }>("SELECT environment FROM qq_group_access WHERE group_open_id = ? AND status = 'active' AND verify_enabled = 1", input.groupOpenId);

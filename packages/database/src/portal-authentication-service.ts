@@ -115,7 +115,7 @@ export const createPortalAuthenticationServices = (
       if (!attempt) throw new Error("LOGIN_ATTEMPT_NOT_FOUND");
       if (attempt.tokenHash !== await hashRequest(input.attemptToken)) throw new Error("LOGIN_ATTEMPT_FORBIDDEN");
       if (attempt.status === "pending" && attempt.expiresAt <= now()) {
-        await db.update(qqLoginAttempts).set({ status: "expired" }).where(eq(qqLoginAttempts.id, attempt.id));
+        await db.update(qqLoginAttempts).set({ status: "expired" }).where(and(eq(qqLoginAttempts.id, attempt.id), eq(qqLoginAttempts.status, "pending")));
         return { contractVersion: "1" as const, status: "expired" as const };
       }
       if (attempt.status !== "verified") return { contractVersion: "1" as const, status: attempt.status as "pending" | "expired" };
@@ -148,7 +148,7 @@ export const createPortalAuthenticationServices = (
       if (!attempt) {
         const staleAttempt = await db.select().from(qqLoginAttempts).where(and(eq(qqLoginAttempts.codeHash, codeHash), eq(qqLoginAttempts.status, "pending"))).get();
         if (staleAttempt) {
-          await db.update(qqLoginAttempts).set({ status: "expired" }).where(eq(qqLoginAttempts.id, staleAttempt.id));
+          await db.update(qqLoginAttempts).set({ status: "expired" }).where(and(eq(qqLoginAttempts.id, staleAttempt.id), eq(qqLoginAttempts.status, "pending")));
           throw new Error("LOGIN_CODE_EXPIRED");
         }
         throw new Error("LOGIN_CODE_INVALID");
