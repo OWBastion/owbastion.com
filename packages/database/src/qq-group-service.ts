@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, lt, ne, or } from "drizzle-orm";
+import { and, desc, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
 import type { QqGroupAccessRequest, QqGroupAccessResponse, QqGroupMemberLeftRequest, QqGroupRegistrationRequest } from "@owbastion/contracts";
@@ -79,12 +79,13 @@ export const createQqGroupServices = ({ db, queue, now, hashRequest, replayOrCon
         statements.unshift(db.insert(qqGroupAccess).values({ groupOpenId: input.groupOpenId, displayName: "", environment: "production", status: input.status, bindEnabled: 0, verifyEnabled: 0, lifecycleOccurredAt: input.occurredAt, createdAt: timestamp, updatedAt: timestamp }));
       } else if (input.occurredAt > existing.lifecycleOccurredAt) {
         if (input.status === "disconnected") {
-          statements.unshift(db.update(qqGroupAccess).set({ status: "disconnected", bindEnabled: 0, verifyEnabled: 0, lifecycleOccurredAt: input.occurredAt, updatedAt: timestamp }).where(eq(qqGroupAccess.groupOpenId, input.groupOpenId)));
+          statements.unshift(db.update(qqGroupAccess).set({ status: "disconnected", bindEnabled: 0, verifyEnabled: 0, lifecycleOccurredAt: input.occurredAt, updatedAt: timestamp }).where(and(eq(qqGroupAccess.groupOpenId, input.groupOpenId), lt(qqGroupAccess.lifecycleOccurredAt, input.occurredAt))));
         } else if (existing.status === "disconnected") {
-          statements.unshift(db.update(qqGroupAccess).set({ status: "pending", lifecycleOccurredAt: input.occurredAt, updatedAt: timestamp }).where(eq(qqGroupAccess.groupOpenId, input.groupOpenId)));
+          statements.unshift(db.update(qqGroupAccess).set({ status: "pending", lifecycleOccurredAt: input.occurredAt, updatedAt: timestamp }).where(and(eq(qqGroupAccess.groupOpenId, input.groupOpenId), lt(qqGroupAccess.lifecycleOccurredAt, input.occurredAt))));
         }
       }
-      if (shouldNotify) statements.push(db.insert(qqGroupPolicyOutbox).values({ id: crypto.randomUUID(), createdAt: timestamp }));
+      // Directly after the lifecycle update: a stale report that the update skipped must not notify.
+      if (shouldNotify) statements.splice(1, 0, db.insert(qqGroupPolicyOutbox).select(sql`SELECT ${crypto.randomUUID()}, NULL, ${timestamp}, NULL, NULL WHERE changes() = 1`));
       await db.batch(statements);
       if (shouldNotify) await dispatchPendingQqGroupPolicyEvents();
     },

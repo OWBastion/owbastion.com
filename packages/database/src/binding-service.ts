@@ -282,7 +282,7 @@ export const createBindingServices = (dependencies: BindingServicesDependencies)
       const invite = await db.select().from(bindingInvites).where(eq(bindingInvites.id, claim.inviteId)).get();
       const migration = invite ? toPublicHistoricalMigration(summarizeHistoricalMigration(await db.select().from(bindingInviteHistoricalTitleGrants).where(eq(bindingInviteHistoricalTitleGrants.inviteId, invite.id)), invite, claim.status, now())) : { status: "not_requested" as const, requestedCount: 0, restoredCount: 0 };
       if (claim.status === "pending_confirmation" && claim.expiresAt <= now()) {
-        await db.update(bindingClaims).set({ status: "expired" }).where(eq(bindingClaims.id, claim.id));
+        await db.update(bindingClaims).set({ status: "expired" }).where(and(eq(bindingClaims.id, claim.id), eq(bindingClaims.status, "pending_confirmation")));
         return { contractVersion: "1" as const, status: "expired" as const, expiresAt: claim.expiresAt, historicalMigration: { ...migration, status: "cancelled" as const } };
       }
       return { contractVersion: "1" as const, status: claim.status as "pending_confirmation" | "pending_review" | "approved" | "rejected" | "expired", expiresAt: claim.expiresAt, historicalMigration: claim.status === "rejected" || claim.status === "expired" ? { ...migration, status: "cancelled" as const } : migration };
@@ -325,7 +325,7 @@ export const createBindingServices = (dependencies: BindingServicesDependencies)
         throw new Error("BINDING_CLAIM_CODE_INVALID");
       }
       if (claim.expiresAt <= now()) {
-        await db.update(bindingClaims).set({ status: "expired" }).where(eq(bindingClaims.id, claim.id));
+        await db.update(bindingClaims).set({ status: "expired" }).where(and(eq(bindingClaims.id, claim.id), eq(bindingClaims.status, "pending_confirmation")));
         throw new Error("BINDING_CLAIM_CODE_INVALID");
       }
       const group = await db.select().from(qqGroupAccess).where(and(eq(qqGroupAccess.groupOpenId, input.groupOpenId), eq(qqGroupAccess.status, "active"), eq(qqGroupAccess.verifyEnabled, 1))).get();
