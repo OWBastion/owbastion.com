@@ -40,6 +40,7 @@ import { createAdminMapServices } from "./admin-map-service";
 import { createAdminCatalogServices } from "./admin-catalog-service";
 import { createSubmissionOcrServices } from "./submission-ocr-service";
 import { createSubmissionOcrReevaluation } from "./submission-ocr-reevaluation";
+import { createSubmissionSpotCheckServices } from "./submission-spot-check";
 import { createSubmissionReviewPersistence } from "./submission-review-persistence";
 import type { VerifiedRunSubmissionOutcome, VerifiedRunSubmissionOutcomeStatus } from "./submission-ocr-service";
 
@@ -2266,60 +2267,17 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           .bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, grant.id, JSON.stringify({ submissionId: row.id, titleKey: grant.titleKey, action: "submission_reopened" }), timestamp, row.id, timestamp)),
         database.prepare(`INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, ?, 'submission', ?, ?, ? WHERE ${reopened}`)
           .bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, row.id, JSON.stringify({ revokedGrantCount: grants.length, verifiedRunId: run?.id ?? null, reason: input.reason ?? null }), timestamp, row.id, timestamp),
+        // Persisted with the reopen so a replay always finds it and can repair the post-commit reconciliation.
+        database.prepare(`INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, ?, ?, ?, ? WHERE ${reopened}`)
+          .bind(`${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, await hashRequest(input), JSON.stringify(response), timestamp, row.id, timestamp),
       ] as [D1PreparedStatement, ...D1PreparedStatement[]]);
       const after = await db.select({ status: submissions.status }).from(submissions).where(eq(submissions.id, row.id)).get();
       if (after?.status !== "ocr_review_required") throw new Error("SUBMISSION_NOT_REOPENABLE");
-      await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, response);
       if (run) await reconcileVerifiedRunProgressChallenges({ verifiedRunIds: [run.id], actorId: auth.subject, reason: submissionReopenedReason });
       return response;
     },
 
-    async resolveAdminSubmissionSpotCheck(input, auth, idempotencyKey): Promise<AdminSubmissionSpotCheckResponse> {
-      const replay = await replayOrConflict<AdminSubmissionSpotCheckResponse>(db, auth.subject, "submission.spot_check.resolve", idempotencyKey, input);
-      if (replay) {
-        // The resolution batch already persisted idempotency, so a replay is
-        // the only retry that can rerun the post-commit reconciliation after
-        // a failed first attempt.
-        if (input.decision === "revoked" && replay.verifiedRunId) {
-          await reconcileVerifiedRunProgressChallenges({ verifiedRunIds: [replay.verifiedRunId], actorId: auth.subject, reason: input.reason });
-        }
-        return replay;
-      }
-      const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
-      if (!row) throw new Error("SUBMISSION_NOT_FOUND");
-      const spotCheck = await db.select().from(submissionSpotChecks).where(eq(submissionSpotChecks.submissionId, row.id)).get();
-      if (!spotCheck) throw new Error("SPOT_CHECK_NOT_FOUND");
-      if (spotCheck.status !== "pending") throw new Error("SPOT_CHECK_ALREADY_RESOLVED");
-      const timestamp = now();
-      const grants = input.decision === "revoked"
-        ? await db.select().from(playerTitleGrants).where(and(eq(playerTitleGrants.sourceId, row.id), inArray(playerTitleGrants.sourceType, ["automatic", "submission"]), eq(playerTitleGrants.status, "active")))
-        : [];
-      const verifiedRunOutcome = await loadVerifiedRunSubmissionOutcome(row.id);
-      const verifiedRun = input.decision === "revoked" && verifiedRunOutcome?.status === "created" && verifiedRunOutcome.verifiedRunId
-        ? await db.select().from(verifiedRuns).where(and(eq(verifiedRuns.id, verifiedRunOutcome.verifiedRunId), eq(verifiedRuns.sourceSubmissionId, row.id), eq(verifiedRuns.status, "active"))).get()
-        : null;
-      if (input.decision === "revoked" && !grants.length && !verifiedRunOutcome) throw new Error("SUBMISSION_OUTCOME_NOT_FOUND");
-      const response: AdminSubmissionSpotCheckResponse = { contractVersion: "1", submissionId: row.id, status: input.decision, grantId: row.grantId ?? null, verifiedRunId: verifiedRunOutcome?.verifiedRunId ?? null };
-      const idempotencyKeyId = `${auth.subject}:submission.spot_check.resolve:${idempotencyKey}`;
-      const requestHash = await hashRequest(input);
-      const statements: D1PreparedStatement[] = [
-        ...(input.decision === "revoked" ? [database.prepare("UPDATE challenge_completions SET status = 'invalidated', invalidated_by = ?, invalidated_at = ?, invalidation_reason = ? WHERE source_id = ? AND source_type IN ('submission', 'challenge_satisfies') AND status = 'active'").bind(auth.subject, timestamp, input.reason ?? "抽检判定称号完成证据无效", row.id)] : []),
-        ...(input.decision === "revoked" ? [database.prepare("UPDATE player_title_grants SET status = 'revoked', revocation_type = 'evidence', revoked_by = ?, revoked_at = ?, revoke_reason = ? WHERE status = 'active' AND ((source_id = ? AND source_type IN ('automatic', 'submission')) OR completion_id IN (SELECT id FROM challenge_completions WHERE source_id = ? AND source_type IN ('submission', 'challenge_satisfies') AND status = 'invalidated'))").bind(auth.subject, timestamp, input.reason ?? "抽检撤销自动授予的称号", row.id, row.id)] : []),
-        ...(input.decision === "revoked" && verifiedRun ? [
-          database.prepare("UPDATE mastery_runs SET status = 'invalidated', invalidated_at = ?, invalidated_by = ?, invalidation_reason = ? WHERE id = ? AND status = 'active'").bind(timestamp, auth.subject, input.reason ?? "抽检判定证据无效", verifiedRun.id),
-          database.prepare("INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) VALUES (?, ?, 'invalidated', ?, ?, ?, ?)").bind(crypto.randomUUID(), verifiedRun.id, auth.actorType, auth.subject, input.reason ?? "抽检判定证据无效", timestamp),
-          database.prepare("UPDATE submission_outcomes SET status = 'invalidated', updated_at = ? WHERE submission_id = ? AND outcome_key = 'verified_run' AND status = 'created'").bind(timestamp, row.id),
-        ] : []),
-        database.prepare("UPDATE submission_spot_checks SET status = ?, resolved_at = ?, reviewer = ?, reason = ? WHERE submission_id = ? AND status = 'pending'").bind(input.decision, timestamp, auth.subject, input.reason ?? null, row.id),
-        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'submission.spot_check.resolve', ?, ?, ?)").bind(idempotencyKeyId, auth.subject, requestHash, JSON.stringify(response), timestamp),
-        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, 'submission', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, input.decision === "revoked" ? "submission.spot_check.revoked" : "submission.spot_check.confirmed", row.id, JSON.stringify({ decision: input.decision, reason: input.reason ?? null, grantId: row.grantId ?? null, verifiedRunId: verifiedRunOutcome?.verifiedRunId ?? null, masteryInvalidated: Boolean(verifiedRun) }), timestamp),
-        ...grants.map((grant) => database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'title_grant.revoke', 'player_title_grant', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, grant.id, JSON.stringify({ submissionId: row.id, reason: input.reason ?? "抽检撤销自动授予的称号", sourceType: grant.sourceType, revocationType: "evidence" }), timestamp)),
-        ...(input.decision === "revoked" && verifiedRun ? [database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'mastery_run.invalidate', 'verified_run', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, verifiedRun.id, JSON.stringify({ submissionId: row.id, reason: input.reason ?? "抽检判定证据无效" }), timestamp)] : []),
-      ];
-      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
-      if (input.decision === "revoked" && verifiedRun) await reconcileVerifiedRunProgressChallenges({ verifiedRunIds: [verifiedRun.id], actorId: auth.subject, reason: input.reason });
-      return response;
-    },
+    ...createSubmissionSpotCheckServices({ database, db, now, hashRequest, replayOrConflict, loadVerifiedRunSubmissionOutcome, reconcileVerifiedRunProgressChallenges }),
 
     async getPlayerSubmission(input, sessionToken) {
       const { submission } = await getPlayerOwnedSubmission(input.submissionId, sessionToken);
