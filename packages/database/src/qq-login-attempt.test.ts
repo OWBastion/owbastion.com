@@ -166,4 +166,19 @@ describe("QQ login attempt codes", () => {
     expect(remainingIds.find((row) => row.id === "attempt.recent")?.status).toBe("expired");
     expect(remainingIds.find((row) => row.id === "attempt.pending-past-ttl")?.status).toBe("expired");
   });
+
+  it("issues one session when a verified attempt is polled concurrently", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedActiveGroupAndBinding(sqlite, { groupOpenId: "group.one", memberOpenId: "member.one", accountId: "account.one" });
+    const services = createPlatformServices(database);
+    const attempt = await services.createQqLoginAttempt({ contractVersion: "1", provider: "qq" });
+    await services.verifyQqLogin({ contractVersion: "1", provider: "qq", code: attempt.code, groupOpenId: "group.one", memberOpenId: "member.one", messageId: "message.one" }, qqAuth, "idempotency.poll.1");
+
+    const poll = { contractVersion: "1" as const, attemptId: attempt.attemptId, attemptToken: attempt.attemptToken };
+    const results = await Promise.all([services.getQqLoginStatus(poll), services.getQqLoginStatus(poll)]);
+
+    expect(results.filter((result) => "sessionToken" in result && result.sessionToken)).toHaveLength(1);
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM portal_sessions").get()).toEqual({ count: 1 });
+  });
 });
