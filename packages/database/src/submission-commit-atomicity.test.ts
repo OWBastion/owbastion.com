@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPlatformServices } from "./index";
 import { createD1, fakeEvidenceBucket, installSchema, localVerifiedRunEvidenceCompatibility, now, seedTitle } from "../test/map-title-rule-fixtures";
 
@@ -18,6 +18,34 @@ const seedApprovedSubmission = (spotCheck: boolean) => {
 };
 
 describe("spot-check resolution", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("lets only one of two same-decision resolutions with different keys write, even within one millisecond", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(1_800_000_000_000);
+    const { sqlite, services } = seedApprovedSubmission(true);
+    const revoke = { submissionId: "submission.a", contractVersion: "1" as const, decision: "revoked" as const };
+    const results = await Promise.allSettled([
+      services.resolveAdminSubmissionSpotCheck(revoke, auth, "spot.first"),
+      services.resolveAdminSubmissionSpotCheck(revoke, auth, "spot.second"),
+    ]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(sqlite.prepare("SELECT COUNT(*) AS n FROM idempotency_keys WHERE operation = 'submission.spot_check.resolve'").get()).toEqual({ n: 1 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE operation = 'title_grant.revoke'").get()).toEqual({ n: 1 });
+  });
+
+  it("does not report success to a call that reuses a key for a different decision concurrently", async () => {
+    const { sqlite, services } = seedApprovedSubmission(true);
+    const results = await Promise.allSettled([
+      services.resolveAdminSubmissionSpotCheck({ submissionId: "submission.a", contractVersion: "1", decision: "confirmed" }, auth, "spot.same-key"),
+      services.resolveAdminSubmissionSpotCheck({ submissionId: "submission.a", contractVersion: "1", decision: "revoked" }, auth, "spot.same-key"),
+    ]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    const { status } = sqlite.prepare("SELECT status FROM submission_spot_checks WHERE id = 'spot.a'").get() as { status: string };
+    const fulfilled = results.find((result) => result.status === "fulfilled") as PromiseFulfilledResult<{ status: string }>;
+    expect(fulfilled.value.status).toBe(status);
+    expect(sqlite.prepare("SELECT status FROM player_title_grants WHERE id = 'grant.a'").get()).toEqual({ status: status === "revoked" ? "revoked" : "active" });
+  });
+
   it("lets only one of two concurrent resolutions change anything", async () => {
     const { sqlite, services } = seedApprovedSubmission(true);
     const results = await Promise.allSettled([
