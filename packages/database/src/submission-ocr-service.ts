@@ -82,6 +82,11 @@ export const createSubmissionOcrServices = ({
   completion,
   canonicalChallenges,
 }: SubmissionOcrServicesDependencies): SubmissionOcrServices => {
+  // The first statement of every persist batch settles the claimed result; zero changes means the claim was lost and the whole batch was a no-op.
+  const assertClaimHeld = (results: Array<{ meta: { changes: number } }>) => {
+    if (!results[0]?.meta.changes) throw new Error("OCR_CALLBACK_CLAIM_LOST");
+  };
+
   const persistOcrResult = async (input: {
     submissionId: string;
     requestId: string;
@@ -101,7 +106,7 @@ export const createSubmissionOcrServices = ({
     const submissionUpdate = database.prepare(
       `UPDATE submissions SET status = ?, review_reason = ?, ocr_fail_count = ocr_fail_count + ?, rule_snapshot_json = COALESCE(?, rule_snapshot_json), updated_at = ? WHERE id = ? AND status = 'ocr_pending' AND changes() = 1`
     ).bind(input.nextStatus, input.reviewReason, input.incrementFailCount ? 1 : 0, input.ruleSnapshotJson ?? null, timestamp, input.submissionId);
-    await database.batch(input.verifiedRunOutcome ? [resultInsert, submissionUpdate, masterySubmissionOutcomeStatement(input.submissionId, input.verifiedRunOutcome)] : [resultInsert, submissionUpdate]);
+    assertClaimHeld(await database.batch(input.verifiedRunOutcome ? [resultInsert, submissionUpdate, masterySubmissionOutcomeStatement(input.submissionId, input.verifiedRunOutcome)] : [resultInsert, submissionUpdate]));
   };
 
   const shouldSampleAutomaticDecision = async (submissionId: string) => {
@@ -202,7 +207,7 @@ export const createSubmissionOcrServices = ({
       statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, 'service', 'system:ocr', 'submission.automatic_grant', 'player_title_grant', id, ?, ? FROM player_title_grants WHERE id = ?").bind(crypto.randomUUID(), input.requestId, JSON.stringify({ submissionId: input.submissionId, sourceType: "automatic", titleKey: award.titleKey, mapId: award.mapId, gameplayRevisionId: award.gameplayRevisionId, challengeId: award.challengeId, satisfiedBy: award.satisfiedBy }), timestamp, award.grantId));
     }
     if (input.sample) statements.push(database.prepare("INSERT OR IGNORE INTO submission_spot_checks (id, submission_id, status, policy_json, sampled_at) SELECT ?, ?, 'pending', ?, ? WHERE EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'approved')").bind(spotCheckId, input.submissionId, JSON.stringify({ version: "ocr-auto-v1", sampleRate: ocrAutoReviewSampleRate }), timestamp, input.submissionId));
-    await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+    assertClaimHeld(await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]));
   };
 
   const persistMasteryOnlyDecision = async (input: {
@@ -225,7 +230,7 @@ export const createSubmissionOcrServices = ({
       database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, 'service', 'system:ocr', 'submission.automatic_mastery', 'submission', id, ?, ? FROM submissions WHERE id = ? AND status = 'approved' AND grant_id IS NULL").bind(crypto.randomUUID(), input.requestId, JSON.stringify({ requestId: input.requestId, attempt: input.attempt, decision: "approved", verifiedRunOutcome: { status: input.verifiedRunOutcome.status, awardedXp: input.verifiedRunOutcome.awardedXp } }), timestamp, input.submissionId),
     ];
     if (input.sample) statements.push(database.prepare("INSERT OR IGNORE INTO submission_spot_checks (id, submission_id, status, policy_json, sampled_at) SELECT ?, ?, 'pending', ?, ? WHERE EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'approved')").bind(crypto.randomUUID(), input.submissionId, JSON.stringify({ version: "ocr-auto-v1", sampleRate: ocrAutoReviewSampleRate }), timestamp, input.submissionId));
-    await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+    assertClaimHeld(await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]));
   };
 
   const completeOcrResult = async (row: typeof submissions.$inferSelect, ocrResult: OcrResponse, input: { attempt: number; manual: boolean; requestId: string }) => {
