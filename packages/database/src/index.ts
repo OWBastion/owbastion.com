@@ -39,6 +39,7 @@ import { createAdminVerifiedRunServices } from "./admin-verified-run-service";
 import { createAdminMapServices } from "./admin-map-service";
 import { createAdminCatalogServices } from "./admin-catalog-service";
 import { createSubmissionOcrServices } from "./submission-ocr-service";
+import { createSubmissionOcrReevaluation } from "./submission-ocr-reevaluation";
 import { createSubmissionReviewPersistence } from "./submission-review-persistence";
 import type { VerifiedRunSubmissionOutcome, VerifiedRunSubmissionOutcomeStatus } from "./submission-ocr-service";
 
@@ -2224,39 +2225,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       return response;
     },
 
-    async reevaluateAdminSubmissionOcr(input, auth, idempotencyKey): Promise<AdminSubmissionOcrReevaluateResponse> {
-      const operation = "submission.ocr.reevaluate";
-      const replay = await replayOrConflict<AdminSubmissionOcrReevaluateResponse>(db, auth.subject, operation, idempotencyKey, input);
-      if (replay) return replay;
-      const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
-      if (!row) throw new Error("SUBMISSION_NOT_FOUND");
-      if (row.status !== "ocr_review_required") throw new Error("SUBMISSION_NOT_REEVALUABLE");
-      const latest = await db.select({ responseJson: ocrResults.responseJson }).from(ocrResults)
-        .where(and(eq(ocrResults.submissionId, row.id), eq(ocrResults.status, "review_required")))
-        .orderBy(desc(ocrResults.createdAt), desc(ocrResults.id)).limit(1).get();
-      let stored: OcrResponse | null = null;
-      try { stored = latest?.responseJson ? JSON.parse(latest.responseJson) as OcrResponse : null; } catch { stored = null; }
-      if (!stored) throw new Error("SUBMISSION_NOT_REEVALUABLE");
-
-      // Re-run the decision from the stored recognition (no OCRKit call): reopen the
-      // submission as pending with a fresh result row, then let the normal completion
-      // path decide again against today's catalog, modes and revisions.
-      const timestamp = Math.max(now(), row.updatedAt + 1);
-      const pendingResultId = crypto.randomUUID();
-      await database.batch([
-        database.prepare("UPDATE submissions SET status = 'ocr_pending', review_reason = NULL, updated_at = ? WHERE id = ? AND status = 'ocr_review_required' AND updated_at = ?").bind(timestamp, row.id, row.updatedAt),
-        database.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, manual, created_at) SELECT ?, ?, 0, 'pending', 1, ? WHERE changes() = 1").bind(pendingResultId, row.id, timestamp),
-        database.prepare(`INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at)
-          SELECT ?, ?, ?, ?, ?, 'submission', ?, '{}', ? WHERE changes() = 1`).bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, row.id, timestamp),
-      ]);
-      const reopened = await db.select({ id: ocrResults.id }).from(ocrResults).where(eq(ocrResults.id, pendingResultId)).get();
-      if (!reopened) throw new Error("SUBMISSION_NOT_REEVALUABLE");
-      await completeOcrResult({ ...row, status: "ocr_pending", reviewReason: null, updatedAt: timestamp }, stored, { requestId: pendingResultId, attempt: 0, manual: true });
-      const after = await db.select({ status: submissions.status }).from(submissions).where(eq(submissions.id, row.id)).get();
-      const response: AdminSubmissionOcrReevaluateResponse = { contractVersion: "1", submissionId: row.id, status: after?.status ?? "ocr_pending" };
-      await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, response);
-      return response;
-    },
+    ...createSubmissionOcrReevaluation({ database, db, now, completeOcrResult, replayOrConflict, recordIdempotency }),
 
     async reopenAdminSubmission(input, auth, idempotencyKey): Promise<AdminSubmissionReopenResponse> {
       const operation = "submission.reopen";
