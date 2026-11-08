@@ -84,8 +84,8 @@ export const createQqGroupServices = ({ db, queue, now, hashRequest, replayOrCon
           statements.unshift(db.update(qqGroupAccess).set({ status: "pending", lifecycleOccurredAt: input.occurredAt, updatedAt: timestamp }).where(and(eq(qqGroupAccess.groupOpenId, input.groupOpenId), lt(qqGroupAccess.lifecycleOccurredAt, input.occurredAt))));
         }
       }
-      // Directly after the lifecycle update: a stale report that the update skipped must not notify.
-      if (shouldNotify) statements.splice(1, 0, db.insert(qqGroupPolicyOutbox).select(sql`SELECT ${crypto.randomUUID()}, NULL, ${timestamp}, NULL, NULL WHERE changes() = 1`));
+      // First in the batch: only the report that moves the row from active notifies, in either arrival order.
+      if (shouldNotify) statements.unshift(db.insert(qqGroupPolicyOutbox).select(sql`SELECT ${crypto.randomUUID()}, NULL, ${timestamp}, NULL, NULL WHERE EXISTS (SELECT 1 FROM qq_group_access WHERE group_open_id = ${input.groupOpenId} AND status = 'active' AND lifecycle_occurred_at < ${input.occurredAt})`));
       await db.batch(statements);
       if (shouldNotify) await dispatchPendingQqGroupPolicyEvents();
     },
