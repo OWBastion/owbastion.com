@@ -498,15 +498,13 @@ export const createPlayerTitleServices = (
         grant.gameplayRevisionId ? eq(playerTitleGrants.gameplayRevisionId, grant.gameplayRevisionId) : isNull(playerTitleGrants.gameplayRevisionId),
       )).get();
       if (existing) throw new Error("TITLE_ALREADY_OWNED");
-      const timestamp = now();
+      const timestamp = now(), stale = "CASE WHEN completion_id IN (SELECT id FROM challenge_completions WHERE status != 'active') THEN";
       await database.batch([
-        database.prepare("UPDATE player_title_grants SET status = 'active', revocation_type = NULL, revoked_by = NULL, revoked_at = NULL, revoke_reason = NULL WHERE id = ? AND status = 'revoked' AND revocation_type = 'administrator'").bind(grant.id),
-        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, ?, ?, ?, ? WHERE changes() = 1").bind(`${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, await hashRequest(input), JSON.stringify({}), timestamp),
-        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, ?, 'player_title_grant', ?, ?, ? WHERE EXISTS (SELECT 1 FROM player_title_grants WHERE id = ? AND status = 'active')").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, grant.id, JSON.stringify({ reason: input.reason ?? null, completionId: grant.completionId }), timestamp, grant.id),
+        database.prepare(`UPDATE player_title_grants SET status = ${stale} 'revoked' ELSE 'active' END, revocation_type = ${stale} 'evidence' END, revoked_by = ${stale} ? END, revoked_at = ${stale} ? END, revoke_reason = NULL WHERE id = ? AND status = 'revoked' AND revocation_type = 'administrator'`).bind(auth.subject, timestamp, grant.id),
+        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, ?, ?, ?, ? WHERE changes() = 1").bind(`${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, await hashRequest(input), "{}", timestamp),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, ?, 'player_title_grant', ?, ?, ? WHERE changes() = 1").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, grant.id, JSON.stringify({ reason: input.reason ?? null, completionId: grant.completionId }), timestamp),
       ]);
-      const restored = await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).where(and(eq(playerTitleGrants.id, grant.id), eq(playerTitleGrants.status, "active"))).get();
-      if (!restored) throw new Error("TITLE_GRANT_NOT_ADMINISTRATIVELY_REVOKED");
+      if (!await replayOrConflict(auth.subject, operation, idempotencyKey, input)) throw new Error("TITLE_GRANT_NOT_ADMINISTRATIVELY_REVOKED");
     },
-
   };
 };
