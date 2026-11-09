@@ -63,6 +63,7 @@ export const registerAdminCatalogRoutes = (app: ApiApp, dependencies: AdminRoute
     errors: {
       ...errorGroup(404, "The challenge does not exist", "CHALLENGE_NOT_FOUND"),
       ...errorGroup(422, "The challenge window or version is invalid", "INVALID_CHALLENGE_WINDOW", "ACHIEVEMENT_GAME_VERSION_REQUIRED"),
+      ...errorGroup(409, "The challenge was replaced and cannot become active again", "CHALLENGE_ALREADY_REPLACED"),
     },
   }));
 
@@ -309,6 +310,7 @@ export const registerAdminCatalogRoutes = (app: ApiApp, dependencies: AdminRoute
         ...errorGroup(404, "The achievement does not exist", "CHALLENGE_NOT_FOUND"),
         ...errorGroup(422, "The challenge lifecycle metadata is invalid", "MAP_NOT_FOUND", "MAP_NOT_ACTIVE", "INVALID_MAP_SCOPE", "ACHIEVEMENT_GAME_VERSION_REQUIRED", "CHALLENGE_QUALIFICATION_CHANGED", "INVALID_CHALLENGE_WINDOW", "INVALID_SUBMISSION_MODE", "STANDALONE_MODE_NOT_FOUND"),
         ...errorGroup(409, "The title cannot accept a replacement challenge", "TITLE_MANAGED_BY_MAP_RULE"),
+        ...errorGroup(409, "The challenge is archived or already replaced", "CHALLENGE_NOT_REPLACEABLE"),
       },
     });
   });
