@@ -1,6 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it, vi } from "vitest";
 import { createPlatformServices } from "./index";
+import { createPlatformCache, instrumentDatabase } from "./platform-cache";
 
 const createCountingD1 = () => {
   const sqlite = new DatabaseSync(":memory:");
@@ -318,5 +319,70 @@ describe("platform cache isolate reuse", () => {
     const first = await servicesFor(database, kv).listMaps();
     first.length = 0;
     expect((await servicesFor(database, kv).listMaps()).map((map) => map.mapId)).toEqual(["map.a"]);
+  });
+});
+
+describe("platform cache version lifecycle", () => {
+  const withClock = async (run: (setTime: (ms: number) => void) => Promise<void>) => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(0);
+      await run((ms) => vi.setSystemTime(ms));
+    } finally {
+      vi.useRealTimers();
+    }
+  };
+
+  it("keeps serving fresh data after a failed version bump once the KV bypass window ends", async () => {
+    const { kv } = createFakeKv();
+    let failBump = false;
+    const flaky = { get: kv.get.bind(kv), put: async (key: string, value: string) => { if (failBump && key.includes(":ver:")) throw new Error("kv quota"); await kv.put(key, value); } } as unknown as KVNamespace;
+    let value = "old";
+    await withClock(async (setTime) => {
+      expect(await createPlatformCache(flaky).cached("catalog", "x", async () => value)).toBe("old");
+      value = "new";
+      failBump = true;
+      await createPlatformCache(flaky).invalidate("catalog");
+      failBump = false;
+      setTime(60_000);
+      expect(await createPlatformCache(flaky).cached("catalog", "x", async () => value)).toBe("new");
+    });
+  });
+
+  it("does not let a version read that began before a bump restore the old version", async () => {
+    const { kv } = createFakeKv();
+    let slowVersionRead: { release: () => void } | undefined;
+    const observed = { get: (async (key: string, options?: unknown) => {
+      const token = await (kv.get as (...a: unknown[]) => Promise<unknown>)(key, options);
+      if (slowVersionRead === undefined && key.includes(":ver:") && armed) {
+        await new Promise<void>((release) => { slowVersionRead = { release }; });
+      }
+      return token;
+    }) as KVNamespace["get"], put: kv.put.bind(kv) } as KVNamespace;
+    let armed = false;
+    let value = "old";
+    await withClock(async (setTime) => {
+      expect(await createPlatformCache(observed).cached("catalog", "x", async () => value)).toBe("old");
+      setTime(20_000);
+      armed = true;
+      const reader = createPlatformCache(observed).cached("catalog", "y", async () => value);
+      await vi.waitFor(() => expect(slowVersionRead).toBeDefined());
+      value = "new";
+      await createPlatformCache(observed).invalidate("catalog");
+      slowVersionRead!.release();
+      await reader;
+      expect(await createPlatformCache(observed).cached("catalog", "x", async () => value)).toBe("new");
+    });
+  });
+
+  it("invalidates the written scopes when a write fails with an unknown outcome", async () => {
+    const invalidate = vi.fn(async () => {});
+    const failing = { async run() { throw new Error("D1 timeout"); }, bind() { return failing; } };
+    const database = { prepare: () => failing, batch: async () => { throw new Error("D1 timeout"); } } as unknown as D1Database;
+    const wrapped = instrumentDatabase(database, { cached: async (_s, _n, loader) => loader(), cachedTtl: async (_n, _t, loader) => loader(), invalidate });
+    await expect(wrapped.prepare("UPDATE maps SET name = ?").bind("x").run()).rejects.toThrow("D1 timeout");
+    await expect(wrapped.batch([wrapped.prepare("UPDATE maps SET name = ?").bind("x")])).rejects.toThrow("D1 timeout");
+    expect(invalidate).toHaveBeenCalledTimes(4);
+    expect(invalidate).toHaveBeenCalledWith("catalog");
   });
 });
