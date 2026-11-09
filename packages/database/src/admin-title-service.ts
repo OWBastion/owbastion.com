@@ -65,9 +65,9 @@ export const createAdminTitleServices = ({ database, evidenceBucket, db, now, re
   const titleSummary = async (title: Title, challengeRows?: TitleChallenge[], ruleRows?: Rule[]) => summary(title,
     challengeRows ?? await db.select().from(titleChallenges).where(eq(titleChallenges.titleKey, title.key)),
     (ruleRows ?? await db.select().from(mapTitleRules).where(eq(mapTitleRules.titleKey, title.key)))[0]);
-  const mutationRecords = async (operation: string, input: unknown, response: unknown, auth: AuthContext, key: string, entityType: string, entityId: string, payload: unknown = input): Promise<D1PreparedStatement[]>  => [
-    database.prepare("INSERT INTO idempotency_keys (id,actor_id,operation,request_hash,response_json,created_at) VALUES (?,?,?,?,?,?)").bind(`${auth.subject}:${operation}:${key}`, auth.subject, operation, await hashRequest(input), JSON.stringify(response), now()),
-    database.prepare("INSERT INTO audit_events (id,correlation_id,actor_type,actor_id,operation,entity_type,entity_id,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, entityType, entityId, JSON.stringify(payload), now()),
+  const mutationRecords = async (operation: string, input: unknown, response: unknown, auth: AuthContext, key: string, entityType: string, entityId: string, payload: unknown = input, guarded = false): Promise<D1PreparedStatement[]>  => [
+    database.prepare(`INSERT INTO idempotency_keys (id,actor_id,operation,request_hash,response_json,created_at) ${guarded ? "SELECT ?,?,?,?,?,? WHERE changes()=1" : "VALUES (?,?,?,?,?,?)"}`).bind(`${auth.subject}:${operation}:${key}`, auth.subject, operation, await hashRequest(input), JSON.stringify(response), now()),
+    database.prepare(`INSERT INTO audit_events (id,correlation_id,actor_type,actor_id,operation,entity_type,entity_id,payload_json,created_at) ${guarded ? "SELECT ?,?,?,?,?,?,?,?,? WHERE changes()=1" : "VALUES (?,?,?,?,?,?,?,?,?)"}`).bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, entityType, entityId, JSON.stringify(payload), now()),
   ];
   const reconcile = async (id: string, auth: AuthContext) => {
     const { challenge, title } = await loadChallenge(id);
@@ -86,14 +86,14 @@ export const createAdminTitleServices = ({ database, evidenceBucket, db, now, re
     }
     if (challenge.status !== "draft" && !challenge.gameVersion?.trim()) throw new Error("ACHIEVEMENT_GAME_VERSION_REQUIRED");
   };
-  const writeChallenge = (row: TitleChallenge, insert: boolean) => insert
-    ? database.prepare("INSERT INTO title_challenges (id,title_key,category_override,condition,evidence_rule,submission_mode,game_version,status,introduced_version,retired_version,starts_at,ends_at,scope,map_variant,progress_rule,replaced_by_challenge_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(row.id, row.titleKey, row.categoryOverride, row.condition, row.evidenceRule, row.submissionMode, row.gameVersion, row.status, row.introducedVersion, row.retiredVersion, row.startsAt, row.endsAt, row.scope, row.mapVariant, row.progressRule, row.replacedByChallengeId, row.createdAt, row.updatedAt)
-    : database.prepare("UPDATE title_challenges SET condition=?,evidence_rule=?,submission_mode=?,category_override=?,game_version=?,status=?,introduced_version=?,retired_version=?,starts_at=?,ends_at=?,updated_at=? WHERE id=?").bind(row.condition, row.evidenceRule, row.submissionMode, row.categoryOverride, row.gameVersion, row.status, row.introducedVersion, row.retiredVersion, row.startsAt, row.endsAt, row.updatedAt, row.id);
-  const mapStatements = async (row: TitleChallenge, mapIds: string[]) => {
+  const writeChallenge = (row: TitleChallenge, insert: boolean, guarded = false) => insert
+    ? database.prepare(`INSERT INTO title_challenges (id,title_key,category_override,condition,evidence_rule,submission_mode,game_version,status,introduced_version,retired_version,starts_at,ends_at,scope,map_variant,progress_rule,replaced_by_challenge_id,created_at,updated_at) ${guarded ? "SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE changes()=1" : "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"}`).bind(row.id, row.titleKey, row.categoryOverride, row.condition, row.evidenceRule, row.submissionMode, row.gameVersion, row.status, row.introducedVersion, row.retiredVersion, row.startsAt, row.endsAt, row.scope, row.mapVariant, row.progressRule, row.replacedByChallengeId, row.createdAt, row.updatedAt)
+    : database.prepare("UPDATE title_challenges SET condition=?,evidence_rule=?,submission_mode=?,category_override=?,game_version=?,status=?,introduced_version=?,retired_version=?,starts_at=?,ends_at=?,updated_at=? WHERE id=?" + (guarded ? " AND replaced_by_challenge_id IS NULL" : "")).bind(row.condition, row.evidenceRule, row.submissionMode, row.categoryOverride, row.gameVersion, row.status, row.introducedVersion, row.retiredVersion, row.startsAt, row.endsAt, row.updatedAt, row.id);
+  const mapStatements = async (row: TitleChallenge, mapIds: string[], guarded = false) => {
     const revisions = row.scope === "map" ? await challengeCatalog.loadTitleChallengeRevisions(mapIds, row.mapVariant as "classic" | null) : [];
     return [
-      ...mapIds.map(mapId => database.prepare("INSERT INTO achievement_challenge_maps (challenge_id,map_id) VALUES (?,?)").bind(row.id, mapId)),
-      ...revisions.map(({ revision }) => database.prepare("INSERT INTO gameplay_revision_challenge_assignments (id,gameplay_revision_id,map_id,challenge_family,challenge_id,enabled,created_at,updated_at) VALUES (?,?,?,'title_challenge',?,1,?,?)").bind(`assignment:${revision.id}:title_challenge:${row.id}`, revision.id, revision.mapId, row.id, row.createdAt, row.updatedAt)),
+      ...mapIds.map(mapId => database.prepare(`INSERT INTO achievement_challenge_maps (challenge_id,map_id) ${guarded ? "SELECT ?,? WHERE changes()=1" : "VALUES (?,?)"}`).bind(row.id, mapId)),
+      ...revisions.map(({ revision }) => database.prepare(`INSERT INTO gameplay_revision_challenge_assignments (id,gameplay_revision_id,map_id,challenge_family,challenge_id,enabled,created_at,updated_at) ${guarded ? "SELECT ?,?,?,'title_challenge',?,1,?,? WHERE changes()=1" : "VALUES (?,?,?,'title_challenge',?,1,?,?)"}`).bind(`assignment:${revision.id}:title_challenge:${row.id}`, revision.id, revision.mapId, row.id, row.createdAt, row.updatedAt)),
     ];
   };
   const previousState = (row: TitleChallenge) => ({ status: row.status as AdminTitleChallenge["status"], retiredVersion: row.retiredVersion, startsAt: row.startsAt, endsAt: row.endsAt });
@@ -169,22 +169,35 @@ export const createAdminTitleServices = ({ database, evidenceBucket, db, now, re
       const qualificationChanged = JSON.stringify(normalizeRule(progressRule)) !== JSON.stringify(normalizeRule(parseChallengeProgressRule(old.progressRule))) || JSON.stringify([...mapIds].sort()) !== JSON.stringify([...oldMapIds].sort()) || mapVariant !== old.mapVariant;
       if (qualificationChanged && input.saveMode === "in_place") throw new Error("CHALLENGE_QUALIFICATION_CHANGED");
       const replacing = input.saveMode === "new_challenge";
-      if (replacing) await assertWritableTitle(title);
+      if (replacing) {
+        await assertWritableTitle(title);
+        if (old.status === "archived" || old.replacedByChallengeId !== null) throw new Error("CHALLENGE_NOT_REPLACEABLE");
+      }
+      if (!replacing && old.replacedByChallengeId !== null && input.status !== "archived") throw new Error("CHALLENGE_ALREADY_REPLACED");
       const gameVersion = input.gameVersion === undefined ? old.gameVersion : input.gameVersion;
       if (input.gameVersion === null && (old.gameVersion !== null || old.introducedVersion !== null)) throw new Error("ACHIEVEMENT_GAME_VERSION_REQUIRED");
       const row: TitleChallenge = { ...old, id: replacing ? `title.${title.key}.${crypto.randomUUID()}` : old.id, condition: input.condition, evidenceRule: input.evidenceRule, submissionMode: input.submissionMode, categoryOverride: input.categoryOverride, status: input.status, retiredVersion: input.status === "active" ? input.retiredVersion ?? null : null, startsAt: input.status === "archived" ? null : input.startsAt ?? null, endsAt: input.status === "archived" ? null : input.endsAt ?? null, scope: title.scope, mapVariant, progressRule: progressRule ? JSON.stringify(progressRule) : null, gameVersion, introducedVersion: replacing ? gameVersion : old.introducedVersion ?? gameVersion, replacedByChallengeId: replacing ? null : old.replacedByChallengeId, createdAt: replacing ? now() : old.createdAt, updatedAt: now() };
       await validate(title, row, mapIds, title.scope !== "map" && (input.mapIds !== undefined || input.mapVariant !== undefined), qualificationChanged);
       const nextTitle = { ...title, gameVersion: title.gameVersion ?? gameVersion, iconUrl: input.iconUrl === undefined ? title.iconUrl : input.iconUrl };
       const response = { contractVersion: "1" as const, ...challengeView(row, nextTitle, mapIds) };
-      await database.batch([
-        writeChallenge(row, replacing),
-        ...(replacing ? [
-          ...await mapStatements(row, mapIds),
-          database.prepare("UPDATE title_challenges SET status='archived',retired_version=NULL,starts_at=NULL,ends_at=NULL,replaced_by_challenge_id=?,updated_at=? WHERE id=?").bind(row.id, now(), old.id),
-        ] : []),
-        database.prepare("UPDATE title_catalog SET game_version=?,icon_url=?,icon_object_key=? WHERE key=?").bind(nextTitle.gameVersion, nextTitle.iconUrl, nextTitle.iconUrl === title.iconUrl ? title.iconObjectKey : null, title.key),
-        ...await mutationRecords(operation, input, response, auth, key, "challenge", row.id, { ...input, previousChallengeId: old.id, previous: previousState(old), replacementChallengeId: replacing ? row.id : null }),
-      ]);
+      const chained = replacing || row.status !== "archived";
+      const catalogUpdate = database.prepare(`UPDATE title_catalog SET game_version=?,icon_url=?,icon_object_key=? WHERE key=?${chained ? " AND changes()=1" : ""}`).bind(nextTitle.gameVersion, nextTitle.iconUrl, nextTitle.iconUrl === title.iconUrl ? title.iconObjectKey : null, title.key);
+      const records = await mutationRecords(operation, input, response, auth, key, "challenge", row.id, { ...input, previousChallengeId: old.id, previous: previousState(old), replacementChallengeId: replacing ? row.id : null }, chained);
+      if (replacing) {
+        // The first statement is a compare-and-set on the predecessor; every later statement runs only if it changed a row.
+        const [archived] = await database.batch([
+          database.prepare("UPDATE title_challenges SET status='archived',retired_version=NULL,starts_at=NULL,ends_at=NULL,updated_at=? WHERE id=? AND status<>'archived' AND replaced_by_challenge_id IS NULL").bind(now(), old.id),
+          writeChallenge(row, true, true),
+          ...await mapStatements(row, mapIds, true),
+          database.prepare("UPDATE title_challenges SET replaced_by_challenge_id=? WHERE id=? AND changes()=1").bind(row.id, old.id),
+          catalogUpdate,
+          ...records,
+        ]);
+        if (archived!.meta.changes === 0) throw new Error("CHALLENGE_NOT_REPLACEABLE");
+      } else {
+        const [written] = await database.batch([writeChallenge(row, false, row.status !== "archived"), catalogUpdate, ...records]);
+        if (written!.meta.changes === 0) throw new Error("CHALLENGE_ALREADY_REPLACED");
+      }
       if (input.iconUrl !== undefined && input.iconUrl !== title.iconUrl && title.iconObjectKey && evidenceBucket) await evidenceBucket.delete(title.iconObjectKey);
       // Never reconcile or invalidate the predecessor: its completions and grants are history.
       await reconcile(row.id, auth);
@@ -195,16 +208,20 @@ export const createAdminTitleServices = ({ database, evidenceBucket, db, now, re
       const replay = await replayOrConflict<AdminChallengeLifecycleResponse>(db, auth.subject, operation, key, input);
       if (replay) { await reconcile(replay.challenge.challengeId, auth); return replay; }
       const { challenge: old, title } = await loadChallenge(input.challengeId);
+      // A Challenge replaced by a successor stays archived; reactivating it would leave two active paths.
+      if (input.status === "active" && old.replacedByChallengeId !== null) throw new Error("CHALLENGE_ALREADY_REPLACED");
       const row = { ...old, status: input.status, retiredVersion: input.retiredVersion === undefined ? old.retiredVersion : input.retiredVersion, startsAt: input.startsAt === undefined ? old.startsAt : input.startsAt, endsAt: input.endsAt === undefined ? old.endsAt : input.endsAt, gameVersion: old.gameVersion ?? (input.status === "active" ? await latestBuildVersion() : null), updatedAt: now() };
       row.introducedVersion ??= row.gameVersion;
       if (row.startsAt !== null && row.endsAt !== null && row.endsAt <= row.startsAt) throw new Error("INVALID_CHALLENGE_WINDOW");
       const nextTitle = { ...title, gameVersion: title.gameVersion ?? row.gameVersion };
       const response: AdminChallengeLifecycleResponse = { contractVersion: "1", challenge: challengeView(row, nextTitle, await mapIdsFor(row.id)), previous: previousState(old) };
-      await database.batch([
-        writeChallenge(row, false),
-        database.prepare("UPDATE title_catalog SET game_version=? WHERE key=?").bind(nextTitle.gameVersion, title.key),
-        ...await mutationRecords(operation, input, response, auth, key, "challenge", row.id, { ...input, previous: response.previous }),
+      const guarded = input.status === "active";
+      const [updated] = await database.batch([
+        writeChallenge(row, false, guarded),
+        database.prepare(`UPDATE title_catalog SET game_version=? WHERE key=?${guarded ? " AND changes()=1" : ""}`).bind(nextTitle.gameVersion, title.key),
+        ...await mutationRecords(operation, input, response, auth, key, "challenge", row.id, { ...input, previous: response.previous }, guarded),
       ]);
+      if (guarded && updated!.meta.changes === 0) throw new Error("CHALLENGE_ALREADY_REPLACED");
       await reconcile(row.id, auth);
       return response;
     },

@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type {
   AdminReviewDetail,
@@ -255,7 +255,7 @@ export const createReviewServices = (database: D1Database, db: ReturnType<typeof
     const timestamp = now();
     await db.update(reviews).set(nextStatus === "invalidated"
       ? { status: "invalidated", invalidatedAt: timestamp, invalidatedBy: auth.subject, invalidationReason: input.reason ?? null, updatedAt: timestamp }
-      : { status: "active", invalidatedAt: null, invalidatedBy: null, invalidationReason: null, updatedAt: timestamp }).where(eq(reviews.id, row.id));
+      : { status: sql`CASE WHEN ${reviews.withdrawnAt} IS NOT NULL THEN 'withdrawn' ELSE 'active' END`, invalidatedAt: null, invalidatedBy: null, invalidationReason: null, updatedAt: timestamp }).where(eq(reviews.id, row.id));
     const response = asReviewRecord((await db.select().from(reviews).where(eq(reviews.id, row.id)).get())!);
     await recordIdempotency(auth.subject, operation, key, input, response);
     await recordAudit(auth, operation, "review", row.id, { reason: input.reason ?? null, previousStatus: row.status, status: response.status });
@@ -401,7 +401,7 @@ export const createReviewServices = (database: D1Database, db: ReturnType<typeof
       if (existing?.status === "invalidated") throw new Error("REVIEW_INVALIDATED");
       const timestamp = now();
       const reviewId = existing?.id ?? crypto.randomUUID();
-      await database.prepare(`
+      const written = await database.prepare(`
         INSERT INTO reviews (
           id, player_account_id, target_type, target_id, gameplay_revision_id, rating, comment,
           comment_status, anonymous, status, created_at, updated_at
@@ -409,8 +409,10 @@ export const createReviewServices = (database: D1Database, db: ReturnType<typeof
         ON CONFLICT DO UPDATE SET rating = excluded.rating, comment = excluded.comment,
           anonymous = excluded.anonymous, status = 'active', updated_at = excluded.updated_at,
           withdrawn_at = NULL
+        WHERE reviews.status <> 'invalidated'
       `).bind(reviewId, account.id, input.targetType, input.targetId, input.targetType === "map" ? input.gameplayRevisionId : null,
         rating, comment, existing?.commentStatus ?? "visible", input.anonymous ? 1 : 0, existing?.createdAt ?? timestamp, timestamp).run();
+      if (written.meta.changes === 0) throw new Error("REVIEW_INVALIDATED");
       const row = await db.select().from(reviews).where(and(
         eq(reviews.playerAccountId, account.id),
         eq(reviews.targetType, input.targetType),
