@@ -167,7 +167,7 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>, platfo
         .innerJoin(maps, eq(maps.id, verifiedRuns.mapId))
         .where(and(eq(verifiedRuns.playerAccountId, account.id), eq(verifiedRuns.status, "active")))
         .groupBy(verifiedRuns.mapId, maps.name),
-      db.select({ key: titleCatalog.key, label: titleCatalog.label, icon: titleCatalog.icon, iconUrl: titleCatalog.iconUrl, mapId: playerTitleGrants.mapId, mapName: maps.name, slot: mapTitleRewards.slot })
+      db.select({ key: titleCatalog.key, label: titleCatalog.label, icon: titleCatalog.icon, iconUrl: titleCatalog.iconUrl, mapId: playerTitleGrants.mapId, mapName: maps.name, slot: sql<string | null>`coalesce(${playerTitleGrants.slot}, ${mapTitleRewards.slot})` })
         .from(playerTitleGrants)
         .innerJoin(titleCatalog, eq(titleCatalog.key, playerTitleGrants.titleKey))
         .innerJoin(maps, eq(maps.id, playerTitleGrants.mapId))
