@@ -2529,11 +2529,12 @@
   "/v1/admin/achievements/{challengeId}/lifecycle": {
    "put": {
     "operationId": "updateAdminChallengeLifecycle",
-    "description": "Maintainer-only, idempotent and audited. Updates only challenge lifecycle metadata. Omitted retirement/window fields retain their values; explicit null clears. Returns the exact prior state for undo by sending previous as a new request with contractVersion 1 and a fresh Idempotency-Key.",
+    "description": "Maintainer-only, idempotent and audited. Updates only challenge lifecycle metadata. Omitted retirement/window fields retain their values; explicit null clears. Returns the exact prior state for undo by sending previous as a new request with contractVersion 1 and a fresh Idempotency-Key. A challenge that a successor replaced cannot become active again: CHALLENGE_ALREADY_REPLACED returns 409.",
     "parameters": [{ "$ref": "#/components/parameters/challengeId" }, { "$ref": "#/components/parameters/idempotencyKey" }],
     "requestBody": { "required": true, "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/ContractVersion" }, { "$ref": "#/components/schemas/AdminChallengeLifecycleRequest" }] } } } },
     "responses": {
      "200": { "description": "Challenge and exact prior state", "content": { "application/json": { "schema": { "type": "object", "required": ["contractVersion", "challenge", "previous"], "properties": { "contractVersion": { "type": "string", "enum": ["1"] }, "challenge": { "$ref": "#/components/schemas/AdminTitleChallenge" }, "previous": { "$ref": "#/components/schemas/AdminChallengeState" } } } } } },
+     "409": { "$ref": "#/components/responses/Json" },
      "404": { "$ref": "#/components/responses/Json" },
      "422": { "$ref": "#/components/responses/Json" }
     }
@@ -2977,7 +2978,7 @@
   "/v1/admin/achievements/{challengeId}": {
    "put": {
     "operationId": "updateAdminAchievement",
-    "description": "Maintainer-only, idempotent and audited. Achievement-family edits require saveMode in_place or new_challenge; scope is rejected because it belongs to the Title. Changes to progressRule presence/contents, mapIds or mapVariant require new_challenge; in_place returns 422 CHALLENGE_QUALIFICATION_CHANGED. new_challenge inserts a random prefixed ID and archives/links the predecessor in one batch; predecessor completions/grants remain untouched. Text changes honor either mode. Map-family edits retain their existing shape and do not use saveMode. A released challenge cannot clear gameVersion.",
+    "description": "Maintainer-only, idempotent and audited. Achievement-family edits require saveMode in_place or new_challenge; scope is rejected because it belongs to the Title. Changes to progressRule presence/contents, mapIds or mapVariant require new_challenge; in_place returns 422 CHALLENGE_QUALIFICATION_CHANGED. new_challenge inserts a random prefixed ID and archives/links the predecessor in one batch; predecessor completions/grants remain untouched. Text changes honor either mode. Map-family edits retain their existing shape and do not use saveMode. A released challenge cannot clear gameVersion. An archived or already replaced challenge cannot be replaced: CHALLENGE_NOT_REPLACEABLE returns 409.",
     "requestBody": { "required": true, "content": { "application/json": { "schema": { "oneOf": [{ "$ref": "#/components/schemas/AdminTitleChallengeUpdateRequest" }, { "$ref": "#/components/schemas/AdminMapChallengeUpdateRequest" }] } } } },
     "parameters": [
      {
