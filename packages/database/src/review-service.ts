@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type {
   AdminReviewDetail,
@@ -255,7 +255,7 @@ export const createReviewServices = (database: D1Database, db: ReturnType<typeof
     const timestamp = now();
     await db.update(reviews).set(nextStatus === "invalidated"
       ? { status: "invalidated", invalidatedAt: timestamp, invalidatedBy: auth.subject, invalidationReason: input.reason ?? null, updatedAt: timestamp }
-      : { status: "active", invalidatedAt: null, invalidatedBy: null, invalidationReason: null, updatedAt: timestamp }).where(eq(reviews.id, row.id));
+      : { status: sql`CASE WHEN ${reviews.withdrawnAt} IS NOT NULL THEN 'withdrawn' ELSE 'active' END`, invalidatedAt: null, invalidatedBy: null, invalidationReason: null, updatedAt: timestamp }).where(eq(reviews.id, row.id));
     const response = asReviewRecord((await db.select().from(reviews).where(eq(reviews.id, row.id)).get())!);
     await recordIdempotency(auth.subject, operation, key, input, response);
     await recordAudit(auth, operation, "review", row.id, { reason: input.reason ?? null, previousStatus: row.status, status: response.status });
