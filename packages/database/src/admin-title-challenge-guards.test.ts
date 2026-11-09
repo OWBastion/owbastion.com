@@ -62,6 +62,35 @@ describe("Challenge lifecycle guards", () => {
   });
 });
 
+describe("In-place Challenge edits of a replaced Challenge", () => {
+  const edit = (services: Setup["services"], row: AdminTitleChallenge, status: "active" | "archived", key: string) => services.updateAdminChallenge({ contractVersion: "1", family: "achievement", challengeId: row.challengeId, saveMode: "in_place", condition: row.condition, evidenceRule: row.evidenceRule, submissionMode: "manual", status, gameVersion: row.gameVersion } as never, auth, key);
+
+  it("rejects activating a replaced Challenge, in the read and in the write", async () => {
+    const setupResult = await setup();
+    const old = await setupResult.create("a");
+    await replace(setupResult.services, old, "replace");
+    await expect(edit(setupResult.services, old, "active", "reactivate")).rejects.toThrow("CHALLENGE_ALREADY_REPLACED");
+    expect(states(setupResult.sqlite)).toEqual([{ condition: "a", status: "archived", replaced: 1 }, { condition: "a+", status: "active", replaced: 0 }]);
+  });
+
+  it("rejects an in-place edit when the replacement lands after the read, and records nothing", async () => {
+    const setupResult = await setup();
+    const old = await setupResult.create("a");
+    const other = await setupResult.create("b");
+    raceBeforeBatch(setupResult, `UPDATE title_challenges SET status='archived', replaced_by_challenge_id='${other.challengeId}' WHERE id='${old.challengeId}'`);
+    await expect(edit(setupResult.services, old, "active", "edit")).rejects.toThrow("CHALLENGE_ALREADY_REPLACED");
+    expect(states(setupResult.sqlite)[0]).toEqual({ condition: "a", status: "archived", replaced: 1 });
+    expect(writes(setupResult.sqlite, "admin.achievement.update")).toEqual({ audit: { n: 0 }, idempotency: { n: 0 } });
+  });
+
+  it("still edits an active Challenge in place", async () => {
+    const setupResult = await setup();
+    const old = await setupResult.create("a");
+    await edit(setupResult.services, old, "active", "edit");
+    expect(states(setupResult.sqlite)).toEqual([{ condition: "a", status: "active", replaced: 0 }]);
+  });
+});
+
 describe("Challenge replacement guards", () => {
   it("replaces an active Challenge once, leaving one active successor", async () => {
     const setupResult = await setup();

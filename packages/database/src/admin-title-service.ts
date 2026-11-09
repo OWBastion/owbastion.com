@@ -173,14 +173,16 @@ export const createAdminTitleServices = ({ database, evidenceBucket, db, now, re
         await assertWritableTitle(title);
         if (old.status === "archived" || old.replacedByChallengeId !== null) throw new Error("CHALLENGE_NOT_REPLACEABLE");
       }
+      if (!replacing && old.replacedByChallengeId !== null && input.status !== "archived") throw new Error("CHALLENGE_ALREADY_REPLACED");
       const gameVersion = input.gameVersion === undefined ? old.gameVersion : input.gameVersion;
       if (input.gameVersion === null && (old.gameVersion !== null || old.introducedVersion !== null)) throw new Error("ACHIEVEMENT_GAME_VERSION_REQUIRED");
       const row: TitleChallenge = { ...old, id: replacing ? `title.${title.key}.${crypto.randomUUID()}` : old.id, condition: input.condition, evidenceRule: input.evidenceRule, submissionMode: input.submissionMode, categoryOverride: input.categoryOverride, status: input.status, retiredVersion: input.status === "active" ? input.retiredVersion ?? null : null, startsAt: input.status === "archived" ? null : input.startsAt ?? null, endsAt: input.status === "archived" ? null : input.endsAt ?? null, scope: title.scope, mapVariant, progressRule: progressRule ? JSON.stringify(progressRule) : null, gameVersion, introducedVersion: replacing ? gameVersion : old.introducedVersion ?? gameVersion, replacedByChallengeId: replacing ? null : old.replacedByChallengeId, createdAt: replacing ? now() : old.createdAt, updatedAt: now() };
       await validate(title, row, mapIds, title.scope !== "map" && (input.mapIds !== undefined || input.mapVariant !== undefined), qualificationChanged);
       const nextTitle = { ...title, gameVersion: title.gameVersion ?? gameVersion, iconUrl: input.iconUrl === undefined ? title.iconUrl : input.iconUrl };
       const response = { contractVersion: "1" as const, ...challengeView(row, nextTitle, mapIds) };
-      const catalogUpdate = database.prepare(`UPDATE title_catalog SET game_version=?,icon_url=?,icon_object_key=? WHERE key=?${replacing ? " AND changes()=1" : ""}`).bind(nextTitle.gameVersion, nextTitle.iconUrl, nextTitle.iconUrl === title.iconUrl ? title.iconObjectKey : null, title.key);
-      const records = await mutationRecords(operation, input, response, auth, key, "challenge", row.id, { ...input, previousChallengeId: old.id, previous: previousState(old), replacementChallengeId: replacing ? row.id : null }, replacing);
+      const chained = replacing || row.status !== "archived";
+      const catalogUpdate = database.prepare(`UPDATE title_catalog SET game_version=?,icon_url=?,icon_object_key=? WHERE key=?${chained ? " AND changes()=1" : ""}`).bind(nextTitle.gameVersion, nextTitle.iconUrl, nextTitle.iconUrl === title.iconUrl ? title.iconObjectKey : null, title.key);
+      const records = await mutationRecords(operation, input, response, auth, key, "challenge", row.id, { ...input, previousChallengeId: old.id, previous: previousState(old), replacementChallengeId: replacing ? row.id : null }, chained);
       if (replacing) {
         // The first statement is a compare-and-set on the predecessor; every later statement runs only if it changed a row.
         const [archived] = await database.batch([
@@ -193,7 +195,8 @@ export const createAdminTitleServices = ({ database, evidenceBucket, db, now, re
         ]);
         if (archived!.meta.changes === 0) throw new Error("CHALLENGE_NOT_REPLACEABLE");
       } else {
-        await database.batch([writeChallenge(row, false), catalogUpdate, ...records]);
+        const [written] = await database.batch([writeChallenge(row, false, row.status !== "archived"), catalogUpdate, ...records]);
+        if (written!.meta.changes === 0) throw new Error("CHALLENGE_ALREADY_REPLACED");
       }
       if (input.iconUrl !== undefined && input.iconUrl !== title.iconUrl && title.iconObjectKey && evidenceBucket) await evidenceBucket.delete(title.iconObjectKey);
       // Never reconcile or invalidate the predecessor: its completions and grants are history.
