@@ -30,11 +30,18 @@ export function buildMapProgressRows(input: {
 }): MapProgressRow[] {
   const rows = input.maps.map((map): MapProgressRow => {
     const gameplayRevisionId = map.defaultGameplayRevisionId ?? null;
-    const challenges = input.challenges.filter((challenge) =>
+    const catalog = input.challenges.filter((challenge) =>
       challenge.mapId === map.mapId
       && challenge.gameplayRevisionId === gameplayRevisionId
       && Boolean(challenge.titleKey),
     );
+    // A title whose challenge left the open catalog (a closed Pioneer window)
+    // stays earned: list it from the owned grant.
+    const catalogKeys = new Set(catalog.map((challenge) => challenge.titleKey));
+    const closed = gameplayRevisionId === null ? [] : input.titles
+      .filter((title) => title.scope === "map" && title.mapId === map.mapId && title.gameplayRevisionId === gameplayRevisionId && !catalogKeys.has(title.titleKey))
+      .map((title): MapProgressChallenge => ({ challengeId: `owned:${title.grantId}`, mapId: map.mapId, gameplayRevisionId, titleKey: title.titleKey, name: title.label, status: "active" }));
+    const challenges = [...catalog, ...closed];
     const earnedChallenges = challenges.filter((challenge) => Boolean(findOwnedTitle(input.titles, {
       titleKey: challenge.titleKey!,
       mapId: map.mapId,
