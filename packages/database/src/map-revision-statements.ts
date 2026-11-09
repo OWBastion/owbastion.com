@@ -1,7 +1,31 @@
-/** Inserts a default map-title-rule assignment only while the Revision still has the lifecycle and timestamp a preceding guarded UPDATE gave it. */
-export const insertGuardedMapTitleRuleAssignment = (database: D1Database, revisionId: string, mapId: string, ruleId: string, timestamp: number, applied: { lifecycle: string; updatedAt: number }) => database.prepare(
-  "INSERT INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, condition, evidence_rule, submission_mode, slot, created_at, updated_at) SELECT ?, ?, ?, 'map_title_rule', ?, 1, NULL, NULL, NULL, NULL, ?, ? WHERE EXISTS (SELECT 1 FROM gameplay_revisions WHERE id = ? AND lifecycle = ? AND updated_at = ?) ON CONFLICT (gameplay_revision_id, challenge_family, challenge_id) DO NOTHING",
-).bind(`assignment:${revisionId}:map_title_rule:${ruleId}`, revisionId, mapId, ruleId, timestamp, timestamp, revisionId, applied.lifecycle, applied.updatedAt);
+/** The Revision row a preceding guarded UPDATE wrote; dependent statements run only while it still matches. */
+type AppliedRevision = { revisionId: string; lifecycle: string; updatedAt: number };
+const appliedGuard = "EXISTS (SELECT 1 FROM gameplay_revisions WHERE id = ? AND lifecycle = ? AND updated_at = ?)";
+const appliedBinds = ({ revisionId, lifecycle, updatedAt }: AppliedRevision) => [revisionId, lifecycle, updatedAt];
+
+export const deleteGuardedAssignments = (database: D1Database, applied: AppliedRevision) => database.prepare(
+  `DELETE FROM gameplay_revision_challenge_assignments WHERE gameplay_revision_id = ? AND ${appliedGuard}`,
+).bind(applied.revisionId, ...appliedBinds(applied));
+
+export const insertGuardedAssignment = (
+  database: D1Database,
+  applied: AppliedRevision,
+  mapId: string,
+  assignment: { challengeFamily: string; challengeId: string; enabled: boolean; condition: string | null; evidenceRule: string | null; submissionMode: string | null; slot: string | null },
+  timestamp: number,
+) => database.prepare(
+  `INSERT INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, condition, evidence_rule, submission_mode, slot, created_at, updated_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${appliedGuard}`,
+).bind(
+  `assignment:${applied.revisionId}:${crypto.randomUUID()}`, applied.revisionId, mapId, assignment.challengeFamily, assignment.challengeId, assignment.enabled ? 1 : 0, assignment.condition, assignment.evidenceRule, assignment.submissionMode, assignment.slot, timestamp, timestamp, ...appliedBinds(applied),
+);
+
+export const insertGuardedMapTitleRuleAssignment = (database: D1Database, applied: AppliedRevision, mapId: string, ruleId: string, timestamp: number) => database.prepare(
+  `INSERT INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, condition, evidence_rule, submission_mode, slot, created_at, updated_at) SELECT ?, ?, ?, 'map_title_rule', ?, 1, NULL, NULL, NULL, NULL, ?, ? WHERE ${appliedGuard} ON CONFLICT (gameplay_revision_id, challenge_family, challenge_id) DO NOTHING`,
+).bind(`assignment:${applied.revisionId}:map_title_rule:${ruleId}`, applied.revisionId, mapId, ruleId, timestamp, timestamp, ...appliedBinds(applied));
+
+export const upsertGuardedPioneerException = (database: D1Database, applied: AppliedRevision, mapId: string, window: { ruleId: string; startsAt: number | null; endsAt: number | null }, timestamp: number) => database.prepare(
+  `INSERT INTO map_title_rule_exceptions (id, rule_id, map_id, enabled, starts_at, ends_at, created_at, updated_at) SELECT ?, ?, ?, 1, ?, ?, ?, ? WHERE ${appliedGuard} ON CONFLICT(rule_id, map_id) DO UPDATE SET enabled = 1, starts_at = excluded.starts_at, ends_at = excluded.ends_at, updated_at = excluded.updated_at`,
+).bind(crypto.randomUUID(), window.ruleId, mapId, window.startsAt, window.endsAt, timestamp, timestamp, ...appliedBinds(applied));
 
 export const reconcileEquippedTitlesForHistoricalRevision = (database: D1Database, revisionId: string) => [
   database.prepare(`

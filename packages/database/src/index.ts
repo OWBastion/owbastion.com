@@ -1961,7 +1961,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     ...randomEventServices.services,
     ...createMapRevisionServices(database, db, {
       ...databaseServiceDependencies,
-      insertDefaultMapTitleRuleAssignment,
       latestBuildVersion,
     }),
     ...createAdminMapServices(database, db, {

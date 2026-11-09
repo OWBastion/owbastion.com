@@ -48,3 +48,35 @@ describe("Revision promotion", () => {
     expect(count("audit_events")).toBe(0);
   });
 });
+
+describe("Revision update", () => {
+  const updateInput = (gameVersion: string) => ({
+    contractVersion: "1" as const,
+    mapId,
+    revisionId: "",
+    lifecycle: "selectable" as const,
+    gameVersion,
+    mapVariant: null,
+    spatialConfig: { bastionPositions: [[1, 2, 3]], resetPosition: [4, 5, 6], endPosition: [7, 8, 9], thirdPersonPosition: [10, 11, 12], creditsPosition: [13, 14, 15], control: null, portalPositions: [], springboardPositions: [] },
+    challengeAssignments: [],
+  });
+
+  it("applies an edit to a Revision whose lifecycle is unchanged", async () => {
+    const { database, sqlite, targetId } = fixture();
+    await expect(createPlatformServices(database).updateAdminMapRevision({ ...updateInput("2026.09.01"), revisionId: targetId }, auth, "update.ok")).resolves.toMatchObject({ revisionId: targetId, lifecycle: "selectable", gameVersion: "2026.09.01" });
+    expect(sqlite.prepare("SELECT game_version FROM gameplay_revisions WHERE id = ?").get(targetId)).toEqual({ game_version: "2026.09.01" });
+  });
+
+  it("does not overwrite a promotion that lands after the read", async () => {
+    const { sqlite, targetId, interleave, lifecycles, count } = fixture();
+    const promote = () => {
+      sqlite.prepare("UPDATE gameplay_revisions SET lifecycle = 'selectable' WHERE id = ?").run(initialId);
+      sqlite.prepare("UPDATE gameplay_revisions SET lifecycle = 'default' WHERE id = ?").run(targetId);
+    };
+    const services = createPlatformServices(interleave(promote));
+    await expect(services.updateAdminMapRevision({ ...updateInput("2026.09.01"), revisionId: targetId }, auth, "update.race")).rejects.toThrow("REVISION_PROMOTION_REQUIRES_EXPLICIT_OPERATION");
+    expect(lifecycles()).toEqual({ [initialId]: "selectable", [targetId]: "default" });
+    expect(sqlite.prepare("SELECT game_version FROM gameplay_revisions WHERE id = ?").get(targetId)).toEqual({ game_version: "2026.08.10" });
+    expect(count("idempotency_keys")).toBe(0);
+  });
+});

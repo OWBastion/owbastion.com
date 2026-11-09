@@ -1,4 +1,4 @@
-import { insertGuardedMapTitleRuleAssignment, reconcileEquippedTitlesForHistoricalRevision } from "./map-revision-statements";
+import { deleteGuardedAssignments, insertGuardedAssignment, insertGuardedMapTitleRuleAssignment, reconcileEquippedTitlesForHistoricalRevision, upsertGuardedPioneerException } from "./map-revision-statements";
 import { and, asc, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { agentProjectedSpatialConfigSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
@@ -45,7 +45,6 @@ type Dependencies = {
   replayOrConflict: <T>(actorId: string, operation: string, key: string, input: unknown) => Promise<T | null>;
   recordIdempotency: (actorId: string, operation: string, key: string, input: unknown, response: unknown) => Promise<void>;
   recordAudit: (auth: AuthContext, operation: string, entityType: string, entityId: string, payload: unknown) => Promise<void>;
-  insertDefaultMapTitleRuleAssignment: (revisionId: string, mapId: string, ruleId: string, timestamp: number) => D1PreparedStatement;
   latestBuildVersion: () => Promise<string>;
 };
 
@@ -81,7 +80,6 @@ export const createMapRevisionServices = (
     replayOrConflict,
     recordIdempotency,
     recordAudit,
-    insertDefaultMapTitleRuleAssignment,
     latestBuildVersion,
   } = dependencies;
   type AdminRevisionAssignmentInput = Omit<AdminMapRevisionChallengeAssignment, "assignmentId" | "gameplayRevisionId" | "mapId">;
@@ -445,31 +443,37 @@ export const createMapRevisionServices = (
         : [];
 
       const timestamp = now();
+      // The UPDATE compares against the lifecycle read above; the statements after it run only if it applied.
+      const applied = { revisionId: input.revisionId, lifecycle: input.lifecycle, updatedAt: timestamp };
       const statements = [
-        database.prepare("UPDATE gameplay_revisions SET lifecycle = ?, legacy_map_variant = ?, mode = ?, game_version = ?, spatial_config_json = ?, updated_at = ? WHERE id = ? AND map_id = ?").bind(
-          input.lifecycle, input.mapVariant, mode, input.gameVersion, spatialConfig ? JSON.stringify(spatialConfig) : null, timestamp, input.revisionId, input.mapId,
+        database.prepare("UPDATE gameplay_revisions SET lifecycle = ?, legacy_map_variant = ?, mode = ?, game_version = ?, spatial_config_json = ?, updated_at = ? WHERE id = ? AND map_id = ? AND lifecycle = ?").bind(
+          input.lifecycle, input.mapVariant, mode, input.gameVersion, spatialConfig ? JSON.stringify(spatialConfig) : null, timestamp, input.revisionId, input.mapId, current.lifecycle,
         ),
-        database.prepare("DELETE FROM gameplay_revision_challenge_assignments WHERE gameplay_revision_id = ?").bind(input.revisionId),
+        deleteGuardedAssignments(database, applied),
       ];
       for (const assignment of input.challengeAssignments) {
-        statements.push(database.prepare("INSERT INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, condition, evidence_rule, submission_mode, slot, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(
-          `assignment:${input.revisionId}:${crypto.randomUUID()}`, input.revisionId, input.mapId, assignment.challengeFamily, assignment.challengeId, assignment.enabled ? 1 : 0, assignment.condition, assignment.evidenceRule, assignment.submissionMode, assignment.slot, timestamp, timestamp,
-        ));
+        statements.push(insertGuardedAssignment(database, applied, input.mapId, assignment, timestamp));
       }
       for (const rule of defaultMapTitleRules) {
         if (rule.kind.trim().toLocaleLowerCase() !== "pioneer") {
-          statements.push(insertDefaultMapTitleRuleAssignment(input.revisionId, input.mapId, rule.id, timestamp));
+          statements.push(insertGuardedMapTitleRuleAssignment(database, applied, input.mapId, rule.id, timestamp));
         }
       }
       for (const window of input.pioneerWindows ?? []) {
-        statements.push(database.prepare("INSERT INTO map_title_rule_exceptions (id, rule_id, map_id, enabled, starts_at, ends_at, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?, ?, ?) ON CONFLICT(rule_id, map_id) DO UPDATE SET enabled = 1, starts_at = excluded.starts_at, ends_at = excluded.ends_at, updated_at = excluded.updated_at").bind(
-          crypto.randomUUID(), window.ruleId, input.mapId, window.startsAt, window.endsAt, timestamp, timestamp,
-        ));
+        statements.push(upsertGuardedPioneerException(database, applied, input.mapId, window, timestamp));
       }
       if (current.lifecycle === "selectable" && input.lifecycle === "historical") {
         statements.push(...reconcileEquippedTitlesForHistoricalRevision(database, input.revisionId));
       }
-      await database.batch(statements);
+      const results = await database.batch(statements);
+      if (results[0]?.meta.changes !== 1) {
+        // The Revision changed after the read: report it as the fresh state would have been reported.
+        const latest = await db.select().from(gameplayRevisions).where(eq(gameplayRevisions.id, input.revisionId)).get();
+        if (!latest) throw new Error("REVISION_NOT_FOUND");
+        if ((latest.lifecycle === "default") !== (input.lifecycle === "default")) throw new Error("REVISION_PROMOTION_REQUIRES_EXPLICIT_OPERATION");
+        assertRevisionLifecycle(latest.lifecycle, input.lifecycle);
+        throw new Error("INVALID_REVISION_TRANSITION");
+      }
       const response = await loadAdminMapRevision(input.revisionId);
       await recordIdempotency(auth.subject, "admin.map.revision.update", idempotencyKey, input, response);
       await recordAudit(auth, "admin.map.revision.update", "gameplay_revision", input.revisionId, {
@@ -561,7 +565,7 @@ export const createMapRevisionServices = (
           input.replacedDefaultLifecycle, timestamp, otherDefault.id, input.mapId, input.revisionId, input.mapId,
         )] : []),
         ...(current.lifecycle === "default" ? [] : [database.prepare("UPDATE gameplay_revisions SET lifecycle = 'default', updated_at = ? WHERE id = ? AND map_id = ? AND lifecycle IN ('preparing', 'selectable')").bind(timestamp, input.revisionId, input.mapId)]),
-        ...projectedRuleAssignments.map((assignment) => insertGuardedMapTitleRuleAssignment(database, input.revisionId, input.mapId, assignment.challengeId, timestamp, { lifecycle: "default", updatedAt: timestamp })),
+        ...projectedRuleAssignments.map((assignment) => insertGuardedMapTitleRuleAssignment(database, { revisionId: input.revisionId, lifecycle: "default", updatedAt: timestamp }, input.mapId, assignment.challengeId, timestamp)),
         ...(otherDefault && input.replacedDefaultLifecycle === "historical" ? reconcileEquippedTitlesForHistoricalRevision(database, otherDefault.id) : []),
         promotedGuard
           ? database.prepare(`INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, ?, ?, ?, ? WHERE ${promotedGuard.sql}`).bind(
