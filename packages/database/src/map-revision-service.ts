@@ -1,3 +1,4 @@
+import { insertGuardedMapTitleRuleAssignment, reconcileEquippedTitlesForHistoricalRevision } from "./map-revision-statements";
 import { and, asc, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { agentProjectedSpatialConfigSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
@@ -83,57 +84,6 @@ export const createMapRevisionServices = (
     insertDefaultMapTitleRuleAssignment,
     latestBuildVersion,
   } = dependencies;
-  const reconcileEquippedTitlesForHistoricalRevision = (revisionId: string) => [
-    database.prepare(`
-      WITH replacements AS MATERIALIZED (
-        SELECT equipped.grant_id AS old_grant_id, (
-          SELECT replacement.id
-          FROM player_title_grants AS old_grant
-          JOIN player_title_grants AS replacement
-            ON replacement.player_account_id = old_grant.player_account_id
-           AND replacement.title_key = old_grant.title_key
-          JOIN title_catalog AS title ON title.key = replacement.title_key
-          LEFT JOIN gameplay_revisions AS replacement_revision ON replacement_revision.id = replacement.gameplay_revision_id
-          WHERE old_grant.id = equipped.grant_id
-            AND replacement.status = 'active'
-            AND title.scope = 'global'
-            AND title.game_version IS NOT NULL
-            AND (
-              (replacement.map_id IS NULL AND replacement.gameplay_revision_id IS NULL)
-              OR (replacement.map_id = replacement_revision.map_id AND replacement_revision.lifecycle IN ('default', 'selectable'))
-            )
-            AND NOT EXISTS (
-              SELECT 1 FROM player_equipped_titles AS existing
-              WHERE existing.player_account_id = equipped.player_account_id
-                AND existing.grant_id = replacement.id
-            )
-          ORDER BY replacement.granted_at DESC, replacement.id
-          LIMIT 1
-        ) AS replacement_grant_id
-        FROM player_equipped_titles AS equipped
-        JOIN player_title_grants AS old_grant ON old_grant.id = equipped.grant_id
-        JOIN gameplay_revisions AS old_revision ON old_revision.id = old_grant.gameplay_revision_id
-        WHERE old_grant.gameplay_revision_id = ?
-          AND old_revision.lifecycle = 'historical'
-      )
-      UPDATE player_equipped_titles
-      SET grant_id = (
-        SELECT replacement_grant_id FROM replacements
-        WHERE old_grant_id = player_equipped_titles.grant_id
-      )
-      WHERE grant_id IN (SELECT old_grant_id FROM replacements WHERE replacement_grant_id IS NOT NULL)
-    `).bind(revisionId),
-    database.prepare(`
-      DELETE FROM player_equipped_titles
-      WHERE grant_id IN (
-        SELECT grant.id
-        FROM player_title_grants AS grant
-        JOIN gameplay_revisions AS revision ON revision.id = grant.gameplay_revision_id
-        WHERE grant.gameplay_revision_id = ?
-          AND revision.lifecycle = 'historical'
-      )
-    `).bind(revisionId),
-  ];
   type AdminRevisionAssignmentInput = Omit<AdminMapRevisionChallengeAssignment, "assignmentId" | "gameplayRevisionId" | "mapId">;
   type PioneerWindowInput = NonNullable<AdminMapRevisionUpdateRequest["pioneerWindows"]>[number];
   const revisionChallengeFamilies = new Set(["map_challenge", "map_title_rule", "title_challenge"]);
@@ -517,7 +467,7 @@ export const createMapRevisionServices = (
         ));
       }
       if (current.lifecycle === "selectable" && input.lifecycle === "historical") {
-        statements.push(...reconcileEquippedTitlesForHistoricalRevision(input.revisionId));
+        statements.push(...reconcileEquippedTitlesForHistoricalRevision(database, input.revisionId));
       }
       await database.batch(statements);
       const response = await loadAdminMapRevision(input.revisionId);
@@ -596,30 +546,37 @@ export const createMapRevisionServices = (
         [...assignmentRows, ...projectedRuleAssignments],
       );
       const requestHash = await hashRequest(input);
+      // The promote UPDATE is the claim. Every statement that depends on it carries this guard, so a target that
+      // stopped being promotable after the read above leaves the map untouched instead of demoting the old default.
+      const promotedGuard = current.lifecycle === "default"
+        ? null
+        : { sql: "EXISTS (SELECT 1 FROM gameplay_revisions WHERE id = ? AND map_id = ? AND lifecycle = 'default' AND updated_at = ?)", binds: [input.revisionId, input.mapId, timestamp] };
+      const promotableGuard = "EXISTS (SELECT 1 FROM gameplay_revisions WHERE id = ? AND map_id = ? AND lifecycle IN ('preparing', 'selectable'))";
+      const guardedAudit = (entityId: string, payload: unknown) => database.prepare(`INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, ?, 'gameplay_revision', ?, ?, ? WHERE ${promotedGuard!.sql}`).bind(
+        crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, entityId, JSON.stringify(payload), timestamp, ...promotedGuard!.binds,
+      );
       const statements = [
-        ...(otherDefault ? [database.prepare("UPDATE gameplay_revisions SET lifecycle = ?, updated_at = ? WHERE id = ? AND map_id = ? AND lifecycle = 'default'").bind(
-          input.replacedDefaultLifecycle, timestamp, otherDefault.id, input.mapId,
+        // Demotion must precede promotion for the one-default unique index; it only runs while the target is still promotable.
+        ...(otherDefault ? [database.prepare(`UPDATE gameplay_revisions SET lifecycle = ?, updated_at = ? WHERE id = ? AND map_id = ? AND lifecycle = 'default' AND ${promotableGuard}`).bind(
+          input.replacedDefaultLifecycle, timestamp, otherDefault.id, input.mapId, input.revisionId, input.mapId,
         )] : []),
         ...(current.lifecycle === "default" ? [] : [database.prepare("UPDATE gameplay_revisions SET lifecycle = 'default', updated_at = ? WHERE id = ? AND map_id = ? AND lifecycle IN ('preparing', 'selectable')").bind(timestamp, input.revisionId, input.mapId)]),
-        ...projectedRuleAssignments.map((assignment) => insertDefaultMapTitleRuleAssignment(input.revisionId, input.mapId, assignment.challengeId, timestamp)),
-        ...(otherDefault && input.replacedDefaultLifecycle === "historical" ? reconcileEquippedTitlesForHistoricalRevision(otherDefault.id) : []),
-        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(
-          `${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, requestHash, JSON.stringify(response), timestamp,
-        ),
-        ...(current.lifecycle === "default" ? [] : [
-          database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, 'gameplay_revision', ?, ?, ?)").bind(
-            crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, input.revisionId,
-            JSON.stringify({ previousLifecycle: current.lifecycle, lifecycle: "default", replacedDefaultRevisionId: otherDefault?.id ?? null, replacedDefaultLifecycle: input.replacedDefaultLifecycle ?? null, progressCopied: false }),
-            timestamp,
+        ...projectedRuleAssignments.map((assignment) => insertGuardedMapTitleRuleAssignment(database, input.revisionId, input.mapId, assignment.challengeId, timestamp, { lifecycle: "default", updatedAt: timestamp })),
+        ...(otherDefault && input.replacedDefaultLifecycle === "historical" ? reconcileEquippedTitlesForHistoricalRevision(database, otherDefault.id) : []),
+        promotedGuard
+          ? database.prepare(`INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, ?, ?, ?, ? WHERE ${promotedGuard.sql}`).bind(
+            `${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, requestHash, JSON.stringify(response), timestamp, ...promotedGuard.binds,
+          )
+          : database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(
+            `${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, requestHash, JSON.stringify(response), timestamp,
           ),
-          ...(otherDefault ? [database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, 'gameplay_revision', ?, ?, ?)").bind(
-            crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, otherDefault.id,
-            JSON.stringify({ previousLifecycle: "default", lifecycle: input.replacedDefaultLifecycle, replacedByRevisionId: input.revisionId, progressCopied: false }),
-            timestamp,
-          )] : []),
-        ]),
+        ...(promotedGuard ? [
+          guardedAudit(input.revisionId, { previousLifecycle: current.lifecycle, lifecycle: "default", replacedDefaultRevisionId: otherDefault?.id ?? null, replacedDefaultLifecycle: input.replacedDefaultLifecycle ?? null, progressCopied: false }),
+          ...(otherDefault ? [guardedAudit(otherDefault.id, { previousLifecycle: "default", lifecycle: input.replacedDefaultLifecycle, replacedByRevisionId: input.revisionId, progressCopied: false })] : []),
+        ] : []),
       ];
-      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      const results = await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      if (promotedGuard && results[otherDefault ? 1 : 0]?.meta.changes !== 1) throw new Error("REVISION_NOT_PROMOTABLE");
       return response;
     },
 
