@@ -401,7 +401,7 @@ export const createReviewServices = (database: D1Database, db: ReturnType<typeof
       if (existing?.status === "invalidated") throw new Error("REVIEW_INVALIDATED");
       const timestamp = now();
       const reviewId = existing?.id ?? crypto.randomUUID();
-      await database.prepare(`
+      const written = await database.prepare(`
         INSERT INTO reviews (
           id, player_account_id, target_type, target_id, gameplay_revision_id, rating, comment,
           comment_status, anonymous, status, created_at, updated_at
@@ -409,8 +409,10 @@ export const createReviewServices = (database: D1Database, db: ReturnType<typeof
         ON CONFLICT DO UPDATE SET rating = excluded.rating, comment = excluded.comment,
           anonymous = excluded.anonymous, status = 'active', updated_at = excluded.updated_at,
           withdrawn_at = NULL
+        WHERE reviews.status <> 'invalidated'
       `).bind(reviewId, account.id, input.targetType, input.targetId, input.targetType === "map" ? input.gameplayRevisionId : null,
         rating, comment, existing?.commentStatus ?? "visible", input.anonymous ? 1 : 0, existing?.createdAt ?? timestamp, timestamp).run();
+      if (written.meta.changes === 0) throw new Error("REVIEW_INVALIDATED");
       const row = await db.select().from(reviews).where(and(
         eq(reviews.playerAccountId, account.id),
         eq(reviews.targetType, input.targetType),
