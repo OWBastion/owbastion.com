@@ -19,15 +19,17 @@ const mapsExpanded = ref(false);
 
 const mapRows = computed(() => {
   const titles = props.summary?.titles?.map ?? [];
-  const byMap = new Map<string, { mapId: string; mapName: string; gameVersion: string | null; xp: number | null; tier: number; plain: LeaderboardPlayerMapTitle[] }>();
+  const byMap = new Map<string, { mapId: string; mapName: string; gameVersion: string | null; xp: number | null; tier: number; pioneer: boolean; plain: LeaderboardPlayerMapTitle[] }>();
   for (const row of props.summary?.perMapXp ?? []) {
-    byMap.set(row.mapId, { mapId: row.mapId, mapName: row.mapName, gameVersion: row.gameVersion, xp: row.xp, tier: 0, plain: [] });
+    byMap.set(row.mapId, { mapId: row.mapId, mapName: row.mapName, gameVersion: row.gameVersion, xp: row.xp, tier: 0, pioneer: false, plain: [] });
   }
   for (const title of titles) {
-    const row = byMap.get(title.mapId) ?? { mapId: title.mapId, mapName: title.mapName, gameVersion: null, xp: null, tier: 0, plain: [] };
+    const row = byMap.get(title.mapId) ?? { mapId: title.mapId, mapName: title.mapName, gameVersion: null, xp: null, tier: 0, pioneer: false, plain: [] };
     byMap.set(title.mapId, row);
     const index = tiers.findIndex((tier) => tier.slot === title.slot);
-    if (index >= 0) row.tier = Math.max(row.tier, index + 1);
+    // Pioneer holders always hold the higher tiers too, so it is shown beside the top tier, not as a rung.
+    if (title.slot === "pioneer") row.pioneer = true;
+    else if (index >= 0) row.tier = Math.max(row.tier, index + 1);
     else row.plain.push(title);
   }
   return [...byMap.values()].sort((a, b) => (b.xp ?? -1) - (a.xp ?? -1) || a.mapName.localeCompare(b.mapName));
@@ -35,7 +37,7 @@ const mapRows = computed(() => {
 const tierSummary = computed(() => [...tiers].reverse().map((tier) => ({
   label: tier.label,
   step: tiers.indexOf(tier) + 1,
-  count: mapRows.value.filter((row) => row.tier === tiers.indexOf(tier) + 1).length,
+  count: mapRows.value.filter((row) => tier.slot === "pioneer" ? row.pioneer : row.tier === tiers.indexOf(tier) + 1).length,
 })));
 const shownMaps = computed(() => mapsExpanded.value ? mapRows.value : mapRows.value.slice(0, MAP_SHOW));
 const achievements = computed(() => props.summary?.titles?.general ?? []);
@@ -64,6 +66,7 @@ const achievements = computed(() => props.summary?.titles?.general ?? []);
         <div v-for="row in shownMaps" :key="row.mapId" class="player-sheet-map-row">
           <span class="player-sheet-map-name">{{ row.mapName }} <span v-if="row.gameVersion" class="sec">{{ row.gameVersion }}</span></span>
           <span class="player-sheet-map-badges">
+            <span v-if="row.pioneer" class="tier t1">{{ tiers[0]!.label }}</span>
             <span v-if="row.tier" :class="['tier', `t${row.tier}`]">{{ tiers[row.tier - 1]!.label }}</span>
             <span v-for="title in row.plain" :key="title.titleKey" class="tier">{{ title.label }}</span>
           </span>
