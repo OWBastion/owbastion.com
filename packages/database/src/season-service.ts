@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, lte, ne, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AdminSeason, AdminSeasonWriteRequest, SeasonStatus } from "@owbastion/contracts";
-import { seasonPhase, seasonsOverlap, type AuthContext, type PlatformServices } from "@owbastion/domain";
+import { seasonPhase, type AuthContext, type PlatformServices } from "@owbastion/domain";
 import { hashRequest } from "./portal-session";
 import { seasons, verifiedRuns } from "./schema";
 
@@ -58,14 +58,15 @@ export const createSeasonServices = ({ database, db, now, replayOrConflict }: Se
 
   const validateWrite = async (input: AdminSeasonWriteRequest, timestamp: number, existing?: SeasonRow) => {
     if (input.endsAt <= input.startsAt) throw new Error("SEASON_RANGE_INVALID");
-    const others = (await db.select().from(seasons)).filter((season) => season.id !== existing?.id);
-    if (others.some((season) => seasonsOverlap(season, input))) throw new Error("SEASON_OVERLAP");
     if (existing && seasonPhase({ ...existing, status: existing.status as SeasonStatus }, timestamp) === "running" && (input.startsAt !== existing.startsAt || input.status === "draft")) throw new Error("SEASON_STARTED");
   };
 
+  // The Season write is the first statement of its batch; these records follow it only if it changed a row.
+  // Inclusive bounds match `seasonsOverlap` in the domain package.
+  const noOverlap = "NOT EXISTS (SELECT 1 FROM seasons WHERE id != ? AND starts_at <= ? AND ends_at >= ?)";
   const recordStatements = async (operation: string, input: unknown, response: unknown, auth: AuthContext, idempotencyKey: string, seasonId: string, payload: unknown, timestamp: number) => [
-    database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(`${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, await hashRequest(input), JSON.stringify(response), timestamp),
-    database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, "season", seasonId, JSON.stringify(payload), timestamp),
+    database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, ?, ?, ?, ? WHERE changes() = 1").bind(`${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, await hashRequest(input), JSON.stringify(response), timestamp),
+    database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE changes() = 1").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, "season", seasonId, JSON.stringify(payload), timestamp),
   ];
 
   const snapshot = (season: Pick<SeasonRow, "name" | "startsAt" | "endsAt" | "status" | "public">) => ({ name: season.name, startsAt: season.startsAt, endsAt: season.endsAt, status: season.status, public: season.public === 1 });
@@ -84,10 +85,11 @@ export const createSeasonServices = ({ database, db, now, replayOrConflict }: Se
       const timestamp = now();
       await validateWrite(input, timestamp);
       const seasonId = crypto.randomUUID();
-      await database.batch([
-        database.prepare("INSERT INTO seasons (id, name, starts_at, ends_at, status, public, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(seasonId, input.name, input.startsAt, input.endsAt, input.status, input.public ? 1 : 0, timestamp, timestamp),
+      const results = await database.batch([
+        database.prepare(`INSERT INTO seasons (id, name, starts_at, ends_at, status, public, created_at, updated_at) SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE ${noOverlap}`).bind(seasonId, input.name, input.startsAt, input.endsAt, input.status, input.public ? 1 : 0, timestamp, timestamp, seasonId, input.endsAt, input.startsAt),
         ...await recordStatements(operation, input, { seasonId }, auth, idempotencyKey, seasonId, { after: { name: input.name, startsAt: input.startsAt, endsAt: input.endsAt, status: input.status, public: input.public } }, timestamp),
       ] as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      if (results[0]?.meta.changes !== 1) throw new Error("SEASON_OVERLAP");
       return loadAdminSeason(seasonId);
     },
 
@@ -98,10 +100,11 @@ export const createSeasonServices = ({ database, db, now, replayOrConflict }: Se
       const existing = await loadExisting(input.seasonId);
       const timestamp = now();
       await validateWrite(input, timestamp, existing);
-      await database.batch([
-        database.prepare("UPDATE seasons SET name = ?, starts_at = ?, ends_at = ?, status = ?, public = ?, updated_at = ? WHERE id = ?").bind(input.name, input.startsAt, input.endsAt, input.status, input.public ? 1 : 0, timestamp, existing.id),
+      const results = await database.batch([
+        database.prepare(`UPDATE seasons SET name = ?, starts_at = ?, ends_at = ?, status = ?, public = ?, updated_at = ? WHERE id = ? AND ${noOverlap}`).bind(input.name, input.startsAt, input.endsAt, input.status, input.public ? 1 : 0, timestamp, existing.id, existing.id, input.endsAt, input.startsAt),
         ...await recordStatements(operation, input, { seasonId: existing.id }, auth, idempotencyKey, existing.id, { before: snapshot(existing), after: { name: input.name, startsAt: input.startsAt, endsAt: input.endsAt, status: input.status, public: input.public } }, timestamp),
       ] as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      if (results[0]?.meta.changes !== 1) throw new Error("SEASON_OVERLAP");
       return loadAdminSeason(existing.id);
     },
 
