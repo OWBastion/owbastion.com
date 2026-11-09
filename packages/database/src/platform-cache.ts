@@ -49,6 +49,12 @@ type IsolateCacheState = {
   entries: Map<string, string>;
   entryBytes: number;
   bypassUntil: number;
+  // Bumped each time a version bump settles, so a version read that began
+  // earlier cannot write its older token over the newer one.
+  generations: Map<PlatformCacheScope, number>;
+  // Scopes whose write committed but whose version bump failed: the published
+  // token is still the pre-write one, so reads skip the cache until a bump lands.
+  unbumped: Set<PlatformCacheScope>;
 };
 
 const isolateStates = new WeakMap<KVNamespace, IsolateCacheState>();
@@ -56,7 +62,7 @@ const isolateStates = new WeakMap<KVNamespace, IsolateCacheState>();
 const isolateStateFor = (kv: KVNamespace): IsolateCacheState => {
   let state = isolateStates.get(kv);
   if (!state) {
-    state = { versions: new Map(), entries: new Map(), entryBytes: 0, bypassUntil: 0 };
+    state = { versions: new Map(), entries: new Map(), entryBytes: 0, bypassUntil: 0, generations: new Map(), unbumped: new Set() };
     isolateStates.set(kv, state);
   }
   return state;
@@ -106,6 +112,25 @@ export const createPlatformCache = (kv?: KVNamespace): PlatformCache => {
     state.versions.clear();
   };
 
+  /** Publishes a fresh scope token; returns it, or null when KV rejected the write. */
+  const bump = async (scope: PlatformCacheScope): Promise<string | null> => {
+    const token = `${Date.now().toString(36)}.${crypto.randomUUID()}`;
+    try {
+      await kv!.put(VERSION_KEYS[scope], token);
+      shared!.versions.set(scope, { token, readAt: Date.now() });
+      shared!.unbumped.delete(scope);
+      return token;
+    } catch (error) {
+      shared!.versions.delete(scope);
+      shared!.unbumped.add(scope);
+      enterBypass(shared!);
+      logCacheEvent("version_bump_failed", { scope, error: errorMessage(error) });
+      return null;
+    } finally {
+      shared!.generations.set(scope, (shared!.generations.get(scope) ?? 0) + 1);
+    }
+  };
+
   /** Resolves the scope token, or null when KV must be skipped for this read. */
   const versionOf = async (scope: PlatformCacheScope): Promise<string | null> => {
     if (versions.has(scope)) return versions.get(scope)!;
@@ -113,14 +138,18 @@ export const createPlatformCache = (kv?: KVNamespace): PlatformCache => {
     const now = Date.now();
     let version: string | null;
     const memo = shared.versions.get(scope);
+    const generation = shared.generations.get(scope) ?? 0;
     if (shared.bypassUntil > now) {
       version = null;
+    } else if (shared.unbumped.has(scope)) {
+      version = await bump(scope);
     } else if (memo && now - memo.readAt < VERSION_MEMO_MS) {
       version = memo.token;
     } else {
       try {
         version = (await kv.get(VERSION_KEYS[scope])) ?? "0";
-        shared.versions.set(scope, { token: version, readAt: now });
+        // A bump that settled during the read is newer than this token.
+        if ((shared.generations.get(scope) ?? 0) === generation) shared.versions.set(scope, { token: version, readAt: now });
       } catch (error) {
         // Never look up or write entries under an unknown token; fall back to
         // the loader and stop spending KV operations for a short window.
@@ -129,8 +158,9 @@ export const createPlatformCache = (kv?: KVNamespace): PlatformCache => {
         logCacheEvent("version_read_failed", { scope, error: errorMessage(error) });
       }
     }
-    versions.set(scope, version);
-    return version;
+    // The writing instance already pinned its post-write token; keep it.
+    if (!versions.has(scope)) versions.set(scope, version);
+    return versions.get(scope)!;
   };
 
   const cached = <T>(scope: PlatformCacheScope, name: string, loader: Loader<T>): Promise<T> => {
@@ -250,22 +280,11 @@ export const createPlatformCache = (kv?: KVNamespace): PlatformCache => {
     // for the full entry TTL. Batch callers coalesce to one bump per scope.
     if (!kv || !shared) return;
     memos.delete(scope);
-    const token = `${Date.now().toString(36)}.${crypto.randomUUID()}`;
-    try {
-      // Attempted even during a read bypass: a published bump is what lets
-      // other isolates observe the write.
-      await kv.put(VERSION_KEYS[scope], token);
-      versions.set(scope, token);
-      shared.versions.set(scope, { token, readAt: Date.now() });
-    } catch (error) {
-      // This isolate must not keep serving the pre-write version it memoized,
-      // and other requests on it bypass cached entries briefly rather than
-      // reading under the old version.
-      versions.set(scope, null);
-      shared.versions.delete(scope);
-      enterBypass(shared);
-      logCacheEvent("version_bump_failed", { scope, error: errorMessage(error) });
-    }
+    // Attempted even during a read bypass: a published bump is what lets other
+    // isolates observe the write. On failure the scope is marked unbumped, so
+    // reads skip the cache and retry the bump instead of returning to the
+    // pre-write token once the bypass window ends.
+    versions.set(scope, await bump(scope));
   };
 
   return { cached, cachedTtl, invalidate };
@@ -328,6 +347,15 @@ export const instrumentDatabase = (database: D1Database, cache: PlatformCache): 
   const invalidate = async (scopes: Iterable<PlatformCacheScope>) => {
     await Promise.all([...scopes].map((scope) => cache.invalidate(scope)));
   };
+  // A write that throws may still have committed (for example a timeout), so
+  // the scopes are bumped on failure too; the cost is only extra cache misses.
+  const afterWrite = async <R>(scopes: Iterable<PlatformCacheScope>, write: () => Promise<R>): Promise<R> => {
+    try {
+      return await write();
+    } finally {
+      await invalidate(scopes);
+    }
+  };
 
   // A statement's write targets are fixed by its SQL, so they are parsed once at prepare time.
   const wrapStatement = (statement: D1PreparedStatement, scopes: PlatformCacheScope[]): WrappedStatement => {
@@ -337,25 +365,17 @@ export const instrumentDatabase = (database: D1Database, cache: PlatformCache): 
       bind(...values: unknown[]) {
         return wrapStatement(statement.bind(...values), scopes) as D1PreparedStatement;
       },
-      async run<T = unknown>() {
-        const result = await statement.run<T>();
-        await invalidate(scopes);
-        return result;
+      run<T = unknown>() {
+        return afterWrite(scopes, () => statement.run<T>());
       },
-      async all<T = unknown>() {
-        const result = await statement.all<T>();
-        await invalidate(scopes);
-        return result;
+      all<T = unknown>() {
+        return afterWrite(scopes, () => statement.all<T>());
       },
-      async first<T = unknown>(column?: string) {
-        const result = column === undefined ? await statement.first<T>() : await statement.first<T>(column);
-        await invalidate(scopes);
-        return result;
+      first<T = unknown>(column?: string) {
+        return afterWrite(scopes, () => column === undefined ? statement.first<T>() : statement.first<T>(column));
       },
-      async raw<T extends unknown[] = unknown[]>(options?: { columnNames?: boolean }) {
-        const result = await (statement.raw as (opts?: { columnNames?: boolean }) => Promise<T[]>)(options);
-        await invalidate(scopes);
-        return result;
+      raw<T extends unknown[] = unknown[]>(options?: { columnNames?: boolean }) {
+        return afterWrite(scopes, () => (statement.raw as (opts?: { columnNames?: boolean }) => Promise<T[]>)(options));
       },
     } as WrappedStatement;
     return wrapped;
@@ -367,14 +387,10 @@ export const instrumentDatabase = (database: D1Database, cache: PlatformCache): 
     },
     async batch<T = unknown>(statements: D1PreparedStatement[]) {
       const inner = statements.map((statement) => (statement as WrappedStatement).__inner ?? statement);
-      const results = await database.batch<T>(inner as [D1PreparedStatement, ...D1PreparedStatement[]]);
-      await invalidate(new Set(statements.flatMap((statement) => (statement as WrappedStatement).__scopes ?? [])));
-      return results;
+      return afterWrite(new Set(statements.flatMap((statement) => (statement as WrappedStatement).__scopes ?? [])), () => database.batch<T>(inner as [D1PreparedStatement, ...D1PreparedStatement[]]));
     },
     async exec(sql: string) {
-      const result = await database.exec(sql);
-      await invalidate(scopesTouchedBy(sql));
-      return result;
+      return afterWrite(scopesTouchedBy(sql), () => database.exec(sql));
     },
     withSession(constraintOrBookmark?: string) {
       return instrumentDatabase(database.withSession(constraintOrBookmark) as unknown as D1Database, cache) as unknown as D1DatabaseSession;
