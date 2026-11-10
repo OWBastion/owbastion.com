@@ -8,13 +8,15 @@ in-progress or planned work goes in `blog`. The filename date and sequence match
 ```yaml
 ---
 title: "本次更新主题"            # <= 160 chars, names the core modules
-description: "YY.MMDD.V 已发布，更新主题为本次更新主题。"   # fixed pattern, <= 320 chars
 releasedAt: YYYY-MM-DD           # matches the version's date
 version: "YY.MMDD.V"
 tags:
   - "版本更新"                   # always exactly this
 ---
 ```
+
+No `description` by default: the page shows only the title, and SEO text falls back to `版本 ：标题`. Add one
+(<= 320 chars) only when it says more than the title.
 
 ## Markdown
 

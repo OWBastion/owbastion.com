@@ -8,7 +8,7 @@ export type EditorialBody = MDCRoot & { toc?: Toc };
 export interface EditorialEntry {
   path: string;
   title: string;
-  description: string;
+  description?: string;
   tags: string[];
   publishedAt?: string;
   releasedAt?: string;
