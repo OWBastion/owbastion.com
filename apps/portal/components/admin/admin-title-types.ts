@@ -126,10 +126,10 @@ export const challengeWindowLabel = (challenge: Pick<AdminTitleChallenge, "start
   if (challenge.endsAt) return `至 ${formatDay(challenge.endsAt)}`;
   return "长期开放";
 };
-// Game versions are dated: YY.MMDD.N. The first build of the end day is the suggested retirement version.
+// Game versions are dated in UTC+8: YY.MMDD.N. The first build of the end day is the suggested retirement version.
 export const suggestRetiredVersion = (endsAt: number | null) => {
   if (!endsAt) return "";
-  const day = formatDay(endsAt);
+  const day = formatDay(endsAt + 8 * 60 * 60 * 1000);
   return `${day.slice(2, 4)}.${day.slice(5, 7)}${day.slice(8, 10)}.1`;
 };
 export { DAY as TITLE_DAY_MS };
