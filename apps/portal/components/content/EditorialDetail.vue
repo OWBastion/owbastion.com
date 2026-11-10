@@ -2,7 +2,7 @@
 import type { EditorialTocEntry } from "~/utils/editorial";
 import type { EditorialNeighbor } from "./EditorialNeighbors.vue";
 
-type EditorialEntry = { title: string; description?: string; path: string; body?: unknown; tags?: string[]; publishedAt?: string | Date; releasedAt?: string | Date; version?: string };
+type EditorialEntry = { title: string; description: string; path: string; body?: unknown; tags?: string[]; publishedAt?: string | Date; releasedAt?: string | Date; version?: string };
 
 const props = defineProps<{
   kind: "blog" | "changelog";

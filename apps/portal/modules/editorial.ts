@@ -19,7 +19,7 @@ const kinds = {
 
 type EditorialMeta = {
   title: string;
-  description?: string;
+  description: string;
   tags: string[];
   publishedAt?: Date;
   releasedAt?: Date;

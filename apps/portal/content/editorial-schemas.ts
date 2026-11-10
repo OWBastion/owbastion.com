@@ -16,8 +16,6 @@ export const blogFrontmatterSchema = editorialMetadataSchema.extend({
 });
 
 export const changelogFrontmatterSchema = editorialMetadataSchema.extend({
-  // The Markdown parser reports a missing description as "".
-  description: z.string().trim().max(320).transform((value) => value || undefined).optional(),
   releasedAt: z.coerce.date(),
   version: z.string().trim().min(1).max(64),
 });
