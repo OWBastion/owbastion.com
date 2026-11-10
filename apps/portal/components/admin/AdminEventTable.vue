@@ -98,16 +98,17 @@ const stageNumber = (event: RandomEvent, raw: string) => emit("stage", event.eve
 table { width: 100%; border-collapse: collapse; }
 th { position: sticky; top: 0; z-index: 1; padding: var(--space-2) var(--space-3); background: var(--surface-raised); border-bottom: 1px solid var(--line); color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 600; text-align: left; white-space: nowrap; }
 td { padding: var(--space-1) var(--space-3); border-bottom: 1px solid var(--line); vertical-align: middle; }
-tbody tr:hover td { background: color-mix(in oklch, var(--surface-raised) 60%, transparent); }
+@media (hover: hover) and (pointer: fine) { tbody tr:hover td { background: color-mix(in oklch, var(--surface-raised) 60%, transparent); } }
 tbody tr.is-changed td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 tbody tr.is-selected td { background: var(--accent-surface); }
 tbody tr.is-dim td:not(.event-table__check) { opacity: 0.6; }
 .event-table__check { width: 2.5rem; }
 .event-table__sort { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
-.event-table__sort:hover { color: var(--text); }
+@media (hover: hover) and (pointer: fine) { .event-table__sort:hover { color: var(--text); } }
 .event-table__name { display: flex; align-items: center; gap: var(--space-2); min-width: 8rem; }
 .event-table__open { padding: 0; border: 0; background: none; color: var(--text); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
-.event-table__open:hover, .event-table__open:focus-visible { color: var(--accent); text-decoration: underline; }
+.event-table__open:focus-visible { color: var(--accent); text-decoration: underline; }
+@media (hover: hover) and (pointer: fine) { .event-table__open:hover { color: var(--accent); text-decoration: underline; } }
 .event-table__number { width: 5rem; }
 .event-table__number :deep(input) { text-align: right; font-variant-numeric: tabular-nums; }
 .event-table__weight { width: 6.5rem; }

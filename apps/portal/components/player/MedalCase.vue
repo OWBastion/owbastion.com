@@ -33,6 +33,6 @@ const shown = computed(() => expanded.value ? props.titles : props.titles.slice(
 .case__medal { --achievement-icon-size: 3.25rem; display: grid; justify-items: center; gap: var(--space-1); min-width: 0; padding-top: var(--space-2); }
 .case__name { overflow: hidden; max-width: 100%; color: var(--muted); font-size: .6875rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .case__more { display: grid; place-items: center; width: var(--achievement-icon-size); height: var(--achievement-icon-size); border: 1px dashed var(--line-strong); border-radius: 50%; background: none; color: var(--muted); font-family: var(--font-display); font-size: var(--type-label-sm-size); font-weight: 700; cursor: pointer; }
-.case__more:hover { border-color: var(--accent); color: var(--accent); }
+@media (hover: hover) and (pointer: fine) { .case__more:hover { border-color: var(--accent); color: var(--accent); } }
 .case__empty { margin: 0; padding-block: var(--space-4); color: var(--quiet); font-size: var(--type-body-sm-size); }
 </style>

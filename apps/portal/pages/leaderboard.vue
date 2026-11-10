@@ -287,7 +287,8 @@ const entryMeta = (entry: LeaderboardEntry) => board.value === "mastery"
 .ladder > li.ladder__cut { position: relative; margin-top: var(--space-5); border-top: 1px dashed var(--line-strong); }
 .ladder > li.ladder__cut::before { position: absolute; top: -.7rem; left: 0; padding-right: var(--space-2); background: var(--page); color: var(--muted); content: "前 10"; font-size: var(--type-caption-size); font-weight: 600; }
 .rung { display: grid; grid-template-columns: 2.75rem 2.25rem minmax(0, 1fr) auto; grid-template-areas: "rank badge who score" "rank badge bar bar"; align-items: center; column-gap: var(--space-3); width: 100%; padding: var(--space-3) var(--space-2); border: 0; border-radius: var(--radius-control); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-.rung:hover, .rung:focus-visible { background: var(--surface-raised); }
+.rung:focus-visible { background: var(--surface-raised); }
+@media (hover: hover) and (pointer: fine) { .rung:hover { background: var(--surface-raised); } }
 .rung.me { background: var(--accent-surface); box-shadow: inset 3px 0 0 var(--accent); }
 .rung__rank { grid-area: rank; color: var(--muted); font-family: var(--font-display); font-size: 1.375rem; font-weight: 700; text-align: center; }
 .rung__badge { display: grid; grid-area: badge; place-items: center; width: 2.25rem; height: 2.25rem; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--muted); font-family: var(--font-display); font-weight: 700; }

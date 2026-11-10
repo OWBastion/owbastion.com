@@ -156,7 +156,8 @@ const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, 
 .series__title .num { color: var(--quiet); font-size: var(--type-label-sm-size); font-weight: 500; letter-spacing: 0; }
 .maps { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr)); gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .map { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); color: inherit; text-decoration: none; }
-.map:hover, .map:focus-visible { border-color: color-mix(in oklch, var(--accent) 50%, var(--line)); }
+.map:focus-visible { border-color: color-mix(in oklch, var(--accent) 50%, var(--line)); }
+@media (hover: hover) and (pointer: fine) { .map:hover { border-color: color-mix(in oklch, var(--accent) 50%, var(--line)); } }
 .map strong { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .map .num { color: var(--quiet); font-size: var(--type-label-sm-size); }
 .map.is-complete .num { color: var(--accent); font-weight: 700; }

@@ -75,7 +75,7 @@ watch(revision, () => { void refresh(); });
 .player-list__rows { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
 .player-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: 2.75rem; padding: var(--space-2) var(--space-3); border-radius: var(--radius-control); color: var(--text); text-decoration: none; transition: background-color 120ms ease, transform 100ms ease-out; }
 .player-row:active { transform: scale(.985); background: var(--accent-surface); }
-.player-row:hover { background: color-mix(in oklch, var(--surface-raised) 70%, transparent); }
+@media (hover: hover) and (pointer: fine) { .player-row:hover { background: color-mix(in oklch, var(--surface-raised) 70%, transparent); } }
 .player-row[aria-current="page"] { background: var(--accent-surface); }
 .player-row__name { display: flex; align-items: baseline; gap: var(--space-1); min-width: 0; overflow-wrap: anywhere; }
 .player-row__name small { color: var(--quiet); }

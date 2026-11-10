@@ -102,7 +102,7 @@ const achievements = computed(() => props.summary?.titles?.general ?? []);
 .player-sheet-map-xp b { color: var(--text); font-weight: 600; }
 .tier { padding: 0 var(--space-2); border: 1px solid var(--line-strong); border-radius: var(--radius-pill); font-size: var(--type-caption-size); font-weight: 600; line-height: 1.6; white-space: nowrap; }
 .more { margin-top: var(--space-2); padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: var(--type-label-sm-size); font-weight: 600; cursor: pointer; }
-.more:hover { text-decoration: underline; }
+@media (hover: hover) and (pointer: fine) { .more:hover { text-decoration: underline; } }
 .sec { color: var(--muted); }
 .notice { margin: 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-control); background: var(--surface-raised); color: var(--muted); font-size: var(--type-body-sm-size); }
 </style>

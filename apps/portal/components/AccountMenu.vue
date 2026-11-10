@@ -61,10 +61,14 @@ const items = computed<DropdownMenuItem[][]>(() => {
   color: var(--accent);
   background: var(--accent-surface);
 }
-.account-trigger:hover,
 .account-trigger[data-state="open"],
 .account-trigger[aria-expanded="true"] {
   border-color: var(--accent);
+}
+@media (hover: hover) and (pointer: fine) {
+  .account-trigger:hover {
+    border-color: var(--accent);
+  }
 }
 .account-avatar {
   font-size: .85rem;

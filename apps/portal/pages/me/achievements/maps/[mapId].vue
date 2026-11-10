@@ -104,7 +104,7 @@ watch(mapId, () => { void loadPlayerData(); });
 .map-hero__copy .eyebrow { margin: 0; }
 .map-hero__title { margin: 0; overflow-wrap: anywhere; font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3.25rem); font-weight: 700; letter-spacing: -.02em; line-height: 1.05; }
 .map-hero__link { display: inline-flex; align-items: center; gap: var(--space-1); width: fit-content; color: var(--accent); font-size: var(--type-label-sm-size); font-weight: 600; text-decoration: none; }
-.map-hero__link:hover { text-decoration: underline; }
+@media (hover: hover) and (pointer: fine) { .map-hero__link:hover { text-decoration: underline; } }
 .map-hero__stats { display: flex; gap: var(--space-2); }
 .map-achievement-grid { display: grid; grid-template-columns: minmax(0, 20rem) minmax(0, 1fr); align-items: start; gap: var(--space-5); }
 .map-panel { display: grid; gap: var(--space-4); min-width: 0; padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }

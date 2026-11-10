@@ -28,9 +28,12 @@ defineProps<{ name: string; iconUrl?: string | null; icon: string; earned: boole
 .medal__status--sunsetting { border-color: var(--warning); color: var(--warning); }
 .medal.is-highlighted .medal__name { color: var(--accent); }
 .medal__check { position: absolute; top: var(--space-2); right: calc(50% - var(--achievement-icon-size) / 2 - .25rem); padding: .15rem; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-size: .75rem; }
-.medal:hover :deep(.achievement-icon), .medal:focus-visible :deep(.achievement-icon) { transform: translateY(-4px) scale(1.06); }
-.medal:hover::before, .medal:focus-visible::before { opacity: .6; transform: translateX(-50%) scale(.8); }
-.medal:hover :deep(.achievement-icon__sparkle), .medal:focus-visible :deep(.achievement-icon__sparkle) { animation-duration: 1.4s; }
-.medal:not(.is-earned):hover :deep(.achievement-icon img) { opacity: .8; }
+.medal:focus-visible :deep(.achievement-icon) { transform: translateY(-4px) scale(1.06); }
+@media (hover: hover) and (pointer: fine) { .medal:hover :deep(.achievement-icon) { transform: translateY(-4px) scale(1.06); } }
+.medal:focus-visible::before { opacity: .6; transform: translateX(-50%) scale(.8); }
+@media (hover: hover) and (pointer: fine) { .medal:hover::before { opacity: .6; transform: translateX(-50%) scale(.8); } }
+.medal:focus-visible :deep(.achievement-icon__sparkle) { animation-duration: 1.4s; }
+@media (hover: hover) and (pointer: fine) { .medal:hover :deep(.achievement-icon__sparkle) { animation-duration: 1.4s; } }
+@media (hover: hover) and (pointer: fine) { .medal:not(.is-earned):hover :deep(.achievement-icon img) { opacity: .8; } }
 @media (prefers-reduced-motion: reduce) { .medal::before, .medal :deep(.achievement-icon) { transition: none; transform: none !important; } }
 </style>

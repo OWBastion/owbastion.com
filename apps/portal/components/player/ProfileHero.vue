@@ -30,7 +30,7 @@ defineProps<{ playerName: string; playerId: string; equippedTitles: OwnedTitle[]
 .profile-hero__name { grid-area: name; min-width: 0; padding-inline-end: var(--space-8); margin: 0; font-family: var(--font-display); font-size: clamp(2rem, 6cqi, 3.5rem); font-weight: 700; letter-spacing: -.02em; line-height: 1.05; overflow-wrap: anywhere; }
 .profile-hero__settings { position: absolute; top: var(--space-4); right: var(--space-4); }
 .profile-hero__titles { grid-area: titles; display: flex; flex-wrap: wrap; justify-self: start; gap: var(--space-2) var(--space-4); margin-top: var(--space-2); color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 600; text-decoration: none; }
-.profile-hero__titles:hover { color: var(--text); }
+@media (hover: hover) and (pointer: fine) { .profile-hero__titles:hover { color: var(--text); } }
 .profile-hero__title { --mark-size: 1.5rem; display: inline-flex; align-items: center; gap: var(--space-2); }
 .profile-hero__empty { color: var(--accent); }
 .profile-hero__stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: var(--space-2); margin: 0; }

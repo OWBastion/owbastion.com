@@ -75,7 +75,7 @@ watch(open, (isOpen) => { if (isOpen) void load(); });
 .player-sheet-loading { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
 .player-sheet-stat { height: 4.5rem; border-radius: var(--radius-card); }
 .player-sheet-profile-link { display: inline-block; margin-left: var(--space-2); color: var(--accent); font-size: var(--type-label-sm-size); font-weight: 600; }
-.player-sheet-profile-link:hover { text-decoration: underline; }
+@media (hover: hover) and (pointer: fine) { .player-sheet-profile-link:hover { text-decoration: underline; } }
 .notice { margin: 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-control); background: var(--surface-raised); color: var(--muted); font-size: var(--type-body-sm-size); }
 .title-pill { display: inline-block; max-width: 100%; padding: 0 var(--space-2); border: 1px solid color-mix(in oklch, var(--accent) 32%, var(--line-strong)); border-radius: var(--radius-pill); background: color-mix(in oklch, var(--accent) 7%, var(--surface)); color: var(--text); font-size: var(--type-caption-size); font-weight: 600; line-height: 1.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
 .player-sheet-section { margin: var(--space-6) 0 var(--space-2); color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 500; }

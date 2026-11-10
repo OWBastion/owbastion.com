@@ -43,7 +43,7 @@ const honorCount = (revision: AdminMapEditorRevision) => revision.challengeAssig
 <style scoped>
 .revision-strip { display: flex; gap: 0.625rem; padding: 0.25rem; margin: -0.25rem; overflow-x: auto; scrollbar-width: none; }
 .revision-strip :deep(.revision-card) { display: grid; flex: 0 0 auto; gap: 0.25rem; min-width: 11.5rem; padding: 0.6875rem 0.875rem; border: 1.5px solid var(--line); border-radius: var(--radius-card); color: var(--text); background: var(--surface); text-align: left; }
-.revision-strip :deep(.revision-card:hover) { border-color: var(--line-strong); }
+@media (hover: hover) and (pointer: fine) { .revision-strip :deep(.revision-card:hover) { border-color: var(--line-strong); } }
 .revision-strip :deep(.revision-card[data-state="active"]) { border-color: var(--accent); background: var(--surface-raised); box-shadow: 0 0 0 3px var(--accent-surface); }
 .revision-card__top { display: flex; align-items: center; gap: 0.5rem; }
 .revision-card__top strong { font-size: 0.9375rem; white-space: nowrap; }

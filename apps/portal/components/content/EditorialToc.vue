@@ -43,6 +43,7 @@ onBeforeUnmount(() => { window.removeEventListener("scroll", schedule); if (fram
 .editorial-toc li.is-sub { padding-left: var(--space-4); }
 .editorial-toc li.is-sub a { font-size: calc(var(--type-label-sm-size) - 1px); }
 .editorial-toc a { display: block; padding: var(--space-1) var(--space-3); margin-left: -1px; border-left: 2px solid transparent; color: var(--muted); font-size: var(--type-label-sm-size); line-height: 1.45; text-decoration: none; overflow-wrap: anywhere; }
-.editorial-toc a:hover, .editorial-toc a:focus-visible { color: var(--text); }
+.editorial-toc a:focus-visible { color: var(--text); }
+@media (hover: hover) and (pointer: fine) { .editorial-toc a:hover { color: var(--text); } }
 .editorial-toc a.is-active { border-left-color: var(--accent); color: var(--text); font-weight: 600; }
 </style>

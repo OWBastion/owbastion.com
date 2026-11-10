@@ -205,7 +205,7 @@ watch(() => route.fullPath, (path) => { queuePath.value = path; }, { immediate: 
 .review-filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .review-filters__more { display: grid; gap: var(--space-2); padding: var(--space-3); }
 .review-link { display: grid; color: inherit; text-decoration: none; }
-.review-link:hover strong { color: var(--accent); }
+@media (hover: hover) and (pointer: fine) { .review-link:hover strong { color: var(--accent); } }
 .status-stack { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
 .table-meta { display: block; color: var(--quiet); font-size: var(--type-caption-size); }
 @media (max-width: 48rem) { .review-filters { display: grid; grid-template-columns: 1fr; width: 100%; } }

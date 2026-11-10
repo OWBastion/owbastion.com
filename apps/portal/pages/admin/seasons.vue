@@ -298,7 +298,7 @@ const rangeText = (season: AdminSeason) => `${formatSeasonDate(season.startsAt)}
 .season-row__name { display: grid; min-width: 0; }
 .season-row__name span { color: var(--quiet); font-size: var(--type-caption-size); }
 .season-row__open { padding: 0; border: 0; background: none; color: var(--text); font-size: var(--type-label-size); font-weight: 600; text-align: left; cursor: pointer; }
-.season-row__open:hover { color: var(--accent); }
+@media (hover: hover) and (pointer: fine) { .season-row__open:hover { color: var(--accent); } }
 .season-row__players { text-align: right; }
 .notice { margin: 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-control); background: var(--surface-raised); color: var(--muted); font-size: var(--type-body-sm-size); }
 @media (max-width: 47.99rem) {
