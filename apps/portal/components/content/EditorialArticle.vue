@@ -5,7 +5,7 @@ import { editorialTags, formatEditorialDate, type EditorialTocEntry } from "~/ut
 
 type EditorialEntry = {
   title: string;
-  description: string;
+  description?: string;
   path: string;
   body?: unknown;
   tags?: string[];

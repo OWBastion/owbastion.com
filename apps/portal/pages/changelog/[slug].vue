@@ -30,7 +30,7 @@ const title = computed(() => {
   if (!entry.value) return "版本更新 · 躲避堡垒 3";
   return `${entry.value.version} ${entry.value.title} · 版本更新 · 躲避堡垒 3`;
 });
-const description = computed(() => entry.value?.description ?? "查看已发布的平台内容与规则变化。");
+const description = computed(() => entry.value ? entry.value.description ?? `${entry.value.version}：${entry.value.title}` : "查看已发布的平台内容与规则变化。");
 const canonical = computed(() => new URL(contentPath.value, siteUrl).toString());
 const shareTitle = computed(() => entry.value ? `${entry.value.version} ${entry.value.title}` : "版本更新");
 const index = computed(() => all.value.findIndex((item) => item.path === contentPath.value));
