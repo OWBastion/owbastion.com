@@ -270,7 +270,7 @@ useSeoMeta({ title: "地图编辑器 · 躲避堡垒 3" });
 .map-card__step { display: grid; place-items: center; width: 1.625rem; height: 1.625rem; border-radius: 50%; color: var(--surface); background: var(--text); font-size: 0.8125rem; }
 .map-card__fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: 0.75rem; }
 .map-card__mode { font-size: 0.875rem; }
-.draft-bar { position: fixed; z-index: 30; left: 50%; bottom: 1rem; display: flex; align-items: center; gap: 0.75rem; max-width: calc(100vw - 1.5rem); padding: 0.5rem 0.5rem 0.5rem 1rem; border-radius: var(--radius-card); color: var(--surface); background: var(--text); box-shadow: var(--elevation-3); transform: translate(-50%, 160%); transition: transform 250ms ease; font-size: 0.875rem; }
+.draft-bar { position: fixed; z-index: 30; left: 50%; bottom: max(1rem, env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 0.75rem; max-width: calc(100vw - 1.5rem); padding: 0.5rem 0.5rem 0.5rem 1rem; border-radius: var(--radius-card); color: var(--surface); background: var(--text); box-shadow: var(--elevation-3); transform: translate(-50%, 160%); transition: transform 250ms ease; font-size: 0.875rem; }
 .draft-bar--visible { transform: translate(-50%, 0); }
 .draft-bar :deep(button) { min-height: 2.5rem; }
 @media (prefers-reduced-motion: reduce) { .draft-bar { transition: none; } }

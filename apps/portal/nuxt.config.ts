@@ -64,7 +64,7 @@ export default defineNuxtConfig({
     head: {
       htmlAttrs: { lang: "zh-CN" },
       meta: [
-        { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+        { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" },
         { property: "og:image", content: `${siteUrl}/og-image.png` },
         { name: "twitter:card", content: "summary_large_image" },
       ],
