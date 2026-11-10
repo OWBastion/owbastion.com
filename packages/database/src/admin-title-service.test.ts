@@ -67,6 +67,24 @@ describe("title-centric admin acquisition contract", () => {
     expect((await services.listAdminTitleSummaries(auth)).items).toEqual([expect.objectContaining({ status: "active", acquisition: { kind: "challenges", challengeCount: 2, completableCount: 2 } })]);
   });
 
+  it("counts distinct players with an active grant per title and ignores revoked grants", async () => {
+    const { services, sqlite } = setup();
+    await services.createAdminTitle(titleInput, auth, "title");
+    const grant = (id: string, player: string, status: string, mapId: string | null = null) => sqlite.exec(`INSERT INTO player_title_grants (id,player_account_id,title_key,map_id,status,source_type,source_id,granted_by,granted_at) VALUES ('${id}','${player}','MULTI',${mapId ? `'${mapId}'` : "NULL"},'${status}','manual','${id}','admin',1)`);
+    sqlite.exec("PRAGMA foreign_keys=OFF");
+    grant("g1", "p1", "active");
+    grant("g2", "p2", "active");
+    grant("g3", "p3", "revoked");
+    grant("g4", "p1", "active", "map-a");
+    const holders = async () => (await services.listAdminTitleSummaries(auth)).items.find(row => row.titleKey === "MULTI")!.holderCount;
+    expect(await holders()).toBe(2);
+    sqlite.exec("INSERT INTO player_accounts (id,player_id,player_name,normalized_player_name,created_at,updated_at) VALUES ('p1','1','甲','甲',1,1),('p2','2','乙','乙',1,1)");
+    expect(await services.listAdminTitleHolders({ titleKey: "MULTI", page: 1, pageSize: 1 }, auth)).toMatchObject({ total: 2, hasMore: true, items: [{ playerAccountId: "p1", playerName: "甲", grantCount: 2 }] });
+    expect((await services.listAdminTitleHolders({ titleKey: "MULTI", page: 2, pageSize: 1 }, auth)).items.map(row => row.playerAccountId)).toEqual(["p2"]);
+    await expect(services.listAdminTitleHolders({ titleKey: "NOPE", page: 1, pageSize: 1 }, auth)).rejects.toThrow("TITLE_NOT_FOUND");
+    expect((await services.updateAdminCatalogTitle({ contractVersion: "1", titleKey: "MULTI", label: "改名" }, auth, "rename")).title.holderCount).toBe(2);
+  });
+
   it("rejects qualification changes in place and atomically replaces without touching old completions", async () => {
     const { services, sqlite, database } = setup();
     seedMap(sqlite, "map.alpha");

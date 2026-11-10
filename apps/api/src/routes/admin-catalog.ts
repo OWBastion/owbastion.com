@@ -18,6 +18,7 @@ import {
   adminRandomEventVersionAvailabilityRequestSchema,
   adminStandaloneModeUpsertRequestSchema,
 } from "@owbastion/contracts";
+import { parsePagination } from "../query-params";
 import { maintainerRoute, parseBody, errorResponse, errorGroup, type AdminRouteDependencies, type ApiApp } from "./route-contract";
 
 const TITLE_IMAGE_PREFIX = "achievements/";
@@ -37,6 +38,12 @@ export const registerAdminCatalogRoutes = (app: ApiApp, dependencies: AdminRoute
   }));
 
   app.get("/v1/admin/title-summaries", maintainerRoute(requireMaintainer, async (c, auth) => c.json(await dependencies.services(c).listAdminTitleSummaries(auth))));
+  app.get("/v1/admin/titles/:titleKey/holders", maintainerRoute(requireMaintainer, async (c, auth) => {
+    const pagination = parsePagination(new URL(c.req.url).searchParams, 100);
+    if (!pagination) return errorResponse(c, 422, "INVALID_REQUEST", "The pagination is invalid");
+    try { return c.json(await dependencies.services(c).listAdminTitleHolders({ titleKey: c.req.param("titleKey")!, ...pagination }, auth)); }
+    catch (error) { if (error instanceof Error && error.message === "TITLE_NOT_FOUND") return errorResponse(c, 404, "TITLE_NOT_FOUND", "The title does not exist"); throw error; }
+  }));
   app.post("/v1/admin/titles", (c) => adminMutation(c, {
     schema: adminTitleCreateRequestSchema,
     status: 201,

@@ -60,7 +60,7 @@ import type {
   Map,
   Title,
   AdminTitleGrantListResponse, AdminTitleGrantHolderDetailResponse, AdminHistoricalTitleHolderFilter, AdminTitleGrantRequest, AdminTitleGrantBulkRequest, AdminTitleGrantBulkResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse,
-  AdminChallenge, AdminChallengeListResponse, AdminChallengeUpdateRequest, AdminTitleCreateRequest, AdminTitleChallengeCreateRequest, AdminTitleChallenge, AdminTitleSummary, AdminChallengeLifecycleRequest, AdminChallengeLifecycleResponse, AdminCatalogTitleUpdateResponse, AdminMapMetadataUpdateRequest, AdminMapCreateRequest,
+  AdminChallenge, AdminChallengeListResponse, AdminChallengeUpdateRequest, AdminTitleCreateRequest, AdminTitleChallengeCreateRequest, AdminTitleChallenge, AdminTitleSummary, AdminTitleHolderListResponse, AdminChallengeLifecycleRequest, AdminChallengeLifecycleResponse, AdminCatalogTitleUpdateResponse, AdminMapMetadataUpdateRequest, AdminMapCreateRequest,
   AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapRevisionPromotionRequest,
   AdminCatalogTitleUpdateRequest,
   AdminMapTitleRule, AdminMapTitleRuleListResponse, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleInheritanceResponse, AdminMapTitleRuleExceptionUpsertRequest,
@@ -275,6 +275,7 @@ export type PlatformServices = {
   createAdminManualTitleGrantBatch(input: AdminManualTitleGrantBatchRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminManualTitleGrantBatchResponse>;
   listAdminChallenges(input: { family?: "map" | "achievement"; status?: string }, auth: AuthContext): Promise<AdminChallengeListResponse>;
   listAdminTitleSummaries(auth: AuthContext): Promise<{ contractVersion: "1"; items: AdminTitleSummary[] }>;
+  listAdminTitleHolders(input: { titleKey: string; page: number; pageSize: number }, auth: AuthContext): Promise<AdminTitleHolderListResponse>;
   createAdminTitle(input: AdminTitleCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminTitleSummary & { contractVersion: "1" }>;
   listAdminTitleChallenges(input: { titleKey: string }, auth: AuthContext): Promise<{ contractVersion: "1"; items: AdminTitleChallenge[] }>;
   createAdminTitleChallenge(input: AdminTitleChallengeCreateRequest & { titleKey: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminTitleChallenge & { contractVersion: "1" }>;

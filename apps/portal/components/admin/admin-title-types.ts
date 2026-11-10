@@ -28,6 +28,7 @@ export type AdminTitleSummary = {
   lifecycle: "draft" | "active";
   gameVersion: string | null;
   developerOnly: boolean;
+  holderCount: number;
   status: DerivedStatus;
   acquisition: AdminTitleAcquisition;
 };
@@ -74,6 +75,8 @@ export type AdminChallengeLifecycleResponse = {
   };
 };
 
+export type AdminTitleHolder = { playerAccountId: string; playerName: string; playerId: string; grantCount: number; firstGrantedAt: number };
+export type AdminTitleHolderListResponse = { contractVersion: string; items: AdminTitleHolder[]; page: number; pageSize: number; total: number; hasMore: boolean };
 export type AdminTitleSummaryListResponse = { contractVersion: string; items: AdminTitleSummary[] };
 export type AdminTitleChallengeListResponse = { contractVersion: string; items: AdminTitleChallenge[] };
 
