@@ -10,7 +10,7 @@ export default defineAppConfig({
     },
     badge: {
       slots: {
-        base: "w-fit max-w-full whitespace-nowrap rounded-[var(--radius-pill)] font-semibold",
+        base: "w-fit max-w-full whitespace-nowrap rounded-[var(--radius-pill)] font-semibold transition-colors duration-150",
       },
     },
     button: {

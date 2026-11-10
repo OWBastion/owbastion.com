@@ -195,6 +195,6 @@ watch(() => props.src, () => {
 /* Until the natural size is known the image fills the width, so a slow or failed load still shows something. */
 .evidence-image { display: block; width: 100%; height: auto; max-width: none; }
 .evidence-image--measured { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
-.evidence-image--eased { transition: transform 160ms cubic-bezier(0.2, 0, 0, 1); }
+.evidence-image--eased { transition: transform var(--dur-fast) var(--ease-out); }
 @media (prefers-reduced-motion: reduce) { .evidence-image--eased { transition: none; } }
 </style>

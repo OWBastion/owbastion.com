@@ -101,7 +101,7 @@ watch(modalOpen, (open) => {
           <h2 :id="`map-group-${group.key}`">{{ group.label }}<span v-if="group.bonus" class="group-heading__bonus num">精通经验 {{ group.bonus }}</span></h2>
           <span class="type-label-sm num">{{ group.maps.length }}</span>
         </div>
-        <div class="map-grid"><MapCard v-for="map in group.maps" :key="map.mapId" :map="map" :review-summary="reviewSummaries.summaryFor(map.mapId, map.defaultGameplayRevisionId)" @select="openMap(map)" /></div>
+        <TransitionGroup tag="div" name="list" class="map-grid"><MapCard v-for="map in group.maps" :key="map.mapId" :map="map" :review-summary="reviewSummaries.summaryFor(map.mapId, map.defaultGameplayRevisionId)" @select="openMap(map)" /></TransitionGroup>
       </section>
     </div>
     <UEmpty v-else :title="props.maps.length ? '没有找到' : '暂无地图'" variant="naked" />

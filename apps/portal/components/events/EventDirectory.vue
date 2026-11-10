@@ -212,7 +212,7 @@ onMounted(() => {
           <h2>{{ section.label }}</h2>
           <span class="type-label-sm num">{{ section.events.length }} 项事件</span>
         </div>
-        <ul class="event-list">
+        <TransitionGroup tag="ul" name="list" class="event-list">
           <li v-for="event in section.events" :key="event.eventId">
             <button
               class="event-row pressable-soft"
@@ -236,7 +236,7 @@ onMounted(() => {
               </span>
             </button>
           </li>
-        </ul>
+        </TransitionGroup>
       </section>
     </div>
     <UEmpty v-else :title="events.length ? '没有找到' : '暂无事件'" variant="naked"><template v-if="events.length && hasFilters" #actions><UButton label="清除条件" color="neutral" variant="outline" @click="clearFilters" /></template></UEmpty>

@@ -148,7 +148,8 @@ async function signOut() {
   .tab-bar__item:active { transform: scale(var(--press-scale-soft)); }
   .tab-bar__item [class*="i-lucide-"] { width: 1.25rem; height: 1.25rem; }
   .tab-bar__item.is-active { color: var(--accent); }
-  .tab-bar__item.is-active::before { content: ""; position: absolute; top: calc(var(--space-1) * -1); width: 1.5rem; height: 2px; background: var(--accent); }
+  .tab-bar__item::before { content: ""; position: absolute; top: calc(var(--space-1) * -1); width: 1.5rem; height: 2px; background: var(--accent); transform: scaleX(0); transition: transform var(--dur-fast) var(--ease-out); }
+  .tab-bar__item.is-active::before { transform: scaleX(1); }
 }
 @media (prefers-reduced-transparency: reduce) {
   .tab-bar { background: var(--surface); }

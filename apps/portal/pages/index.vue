@@ -34,6 +34,12 @@ useSeoMeta({
 .home__cta { display: inline-flex; align-items: center; gap: var(--space-3); min-height: 3.5rem; margin-top: var(--space-2); padding: 0 var(--space-8); color: var(--on-accent); background: var(--accent); clip-path: polygon(0 0, 100% 0, 100% calc(100% - .75rem), calc(100% - .75rem) 100%, 0 100%); font-size: 1.125rem; font-weight: 700; text-decoration: none; transition: background-color 160ms ease; }
 .home__cta:focus-visible { background: color-mix(in oklch, var(--accent) 86%, white); }
 @media (hover: hover) and (pointer: fine) { .home__cta:hover { background: color-mix(in oklch, var(--accent) 86%, white); } }
+.home > :is(.home__title, .home__lead, .home__cta, .home__release) { animation: load-reveal-rise var(--dur-slow) var(--ease-out) backwards; }
+.home > .home__lead { animation-delay: 50ms; }
+.home > .home__cta { animation-delay: 100ms; }
+.home > .home__release { animation-delay: 150ms; }
+.home__cta :deep(.iconify) { transition: transform var(--dur-fast) var(--ease-out); }
+@media (hover: hover) and (pointer: fine) { .home__cta:hover :deep(.iconify) { transform: translateX(4px); } }
 .home__release { display: inline-flex; align-items: baseline; gap: var(--space-2); color: var(--quiet); font-size: var(--type-label-sm-size); text-decoration: none; }
 @media (hover: hover) and (pointer: fine) { .home__release:hover { color: var(--text); } }
 .home__release .num { color: var(--text); font-weight: 700; }
