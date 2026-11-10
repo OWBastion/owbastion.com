@@ -22,7 +22,7 @@ Follow the organization [preflight](../.github/docs/issue-readiness.md#preflight
 
 ## Repository delivery constraints
 
-Follow the organization [PR delivery policy](../.github/docs/pr-delivery.md). Merge, releases, deployment, production data mutation, permission/authorization changes, external publication, destructive operations, secrets changes, and material scope expansion remain separate authorization boundaries.
+Follow the organization [PR delivery policy](../.github/docs/pr-delivery.md). Target `main` for changes to APIs, the database, or shared behavior; `next` holds only frontend-only changes and Cloudflare deployment changes, and is rebased onto `main` afterwards. Merge, releases, deployment, production data mutation, permission/authorization changes, external publication, destructive operations, secrets changes, and material scope expansion remain separate authorization boundaries.
 
 ## Rule routing
 
