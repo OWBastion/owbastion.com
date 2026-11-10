@@ -1,9 +1,11 @@
 import { z } from "zod";
-import { contractVersion, externalId, pageInfo, playerId, playerName } from "./shared";
+import { achievementIcon, contractVersion, externalId, gameVersionValue, pageInfo, playerId, playerName, titleColorSchema, titleLifecycleStatus } from "./shared";
+import { adminTitleSummarySchema } from "./admin-title";
 import { randomEventSchema } from "./random-event";
 import { playerVerifiedRunSubmissionOutcomeSchema, submissionStatusResponseSchema } from "./player-submissions";
 
 export { contractVersion } from "./shared";
+export * from "./admin-title";
 export * from "./random-event";
 export * from "./review";
 export * from "./player-title-wear";
@@ -15,15 +17,12 @@ const storedRetirementVersion = z.string().trim().min(1).max(64);
 // One stored lifecycle for every Challenge entity; availability states such as
 // scheduled/sunsetting are derived from lifecycle + window + announced version.
 const challengeLifecycleStatus = z.enum(["draft", "active", "archived"]);
-const titleLifecycleStatus = z.enum(["draft", "active"]);
 // Derived obtainability on admin catalog rows; never a stored state.
 const titleAvailabilityStatus = z.enum(["scheduled", "active", "sunsetting", "ended"]);
 const playableChallengeStatus = z.enum(["active", "sunsetting"]);
 const scheduleTimestamp = z.number().int().positive();
-const achievementIcon = z.string().trim().regex(/^[a-z0-9-]+$/).max(64);
 const optionalRetirementVersion = z.preprocess((value) => value === null ? undefined : value, retirementVersion.optional());
 const optionalScheduleTimestamp = z.preprocess((value) => value === null ? undefined : value, scheduleTimestamp.optional());
-const gameVersionValue = z.string().trim().min(1).max(64).nullable();
 const optionalGameVersion = gameVersionValue.optional();
 
 const inviteCode = z.string().trim().regex(/^[A-Z2-9]{12}$/);
@@ -534,11 +533,6 @@ export const adminMapRevisionPromotionRequestSchema = z.object({
   replacedDefaultLifecycle: z.enum(["selectable", "historical"]).nullable(),
 }).strict();
 
-const titleColorSchema = z.union([
-  z.object({ kind: z.literal("heroColor"), index: z.number().int().nonnegative() }),
-  z.object({ kind: z.literal("rgb"), value: z.tuple([z.number().int().min(0).max(255), z.number().int().min(0).max(255), z.number().int().min(0).max(255)]) }),
-  z.object({ kind: z.literal("palette"), name: z.enum(["orange", "red", "purple", "gold", "blue"]) }),
-]);
 
 export const titleSchema = z.object({
   titleKey: externalId,
@@ -832,18 +826,6 @@ export const adminTitleChallengeSchema = adminAchievementChallengeSchema.extend(
   replacedByChallengeId: externalId.nullable(),
 });
 export const adminTitleChallengeResponseSchema = adminTitleChallengeSchema.extend({ contractVersion });
-export const derivedStatusSchema = z.enum(["draft", "scheduled", "active", "sunsetting", "ended"]);
-export const adminTitleSummarySchema = z.object({
-  titleKey: externalId, label: z.string(), icon: achievementIcon, iconUrl: z.string().url().nullable(), category: z.string(),
-  scope: z.enum(["global", "map"]), displayKind: z.enum(["fixed", "map_pioneer", "map_name_suffix"]), color: titleColorSchema.nullable(),
-  publicVisibility: z.boolean(), lifecycle: titleLifecycleStatus, gameVersion: gameVersionValue, developerOnly: z.boolean(), status: derivedStatusSchema,
-  acquisition: z.discriminatedUnion("kind", [
-    z.object({ kind: z.literal("challenges"), challengeCount: z.number().int().nonnegative(), completableCount: z.number().int().nonnegative() }),
-    z.object({ kind: z.literal("map_rule"), ruleId: externalId, condition: z.string(), scopeLabel: z.string() }),
-    z.object({ kind: z.literal("none") }),
-  ]),
-});
-export const adminTitleSummaryListResponseSchema = z.object({ contractVersion, items: z.array(adminTitleSummarySchema) });
 const adminChallengePreviousStateSchema = z.object({ status: challengeLifecycleStatus, retiredVersion: storedRetirementVersion.nullable(), startsAt: scheduleTimestamp.nullable(), endsAt: scheduleTimestamp.nullable() });
 export const adminChallengeLifecycleRequestSchema = z.object({
   contractVersion, status: challengeLifecycleStatus, retiredVersion: optionalRetirementVersion.nullable(),
@@ -1863,7 +1845,6 @@ export type AdminChallengeUpdateRequest = z.infer<typeof adminChallengeUpdateReq
 export type AdminTitleCreateRequest = z.infer<typeof adminTitleCreateRequestSchema>;
 export type AdminTitleChallengeCreateRequest = z.infer<typeof adminTitleChallengeCreateRequestSchema>;
 export type AdminTitleChallenge = z.infer<typeof adminTitleChallengeSchema>;
-export type AdminTitleSummary = z.infer<typeof adminTitleSummarySchema>;
 export type AdminChallengeLifecycleRequest = z.infer<typeof adminChallengeLifecycleRequestSchema>;
 export type AdminChallengeLifecycleResponse = z.infer<typeof adminChallengeLifecycleResponseSchema>;
 export type AdminCatalogTitleUpdateResponse = z.infer<typeof adminCatalogTitleUpdateResponseSchema>;

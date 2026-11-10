@@ -456,6 +456,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
               <th scope="col">系列</th>
               <th scope="col">范围 · 展示方式</th>
               <th scope="col">获取方式</th>
+              <th class="title-num" scope="col">获得玩家</th>
               <th scope="col">状态</th>
               <th class="title-col-actions" scope="col">操作</th>
             </tr>
@@ -475,6 +476,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
                   <span class="title-cell-stack"><span>{{ titleScopeLabel(title.scope) }}</span><small class="table-meta">{{ titleDisplayKindLabel(title.displayKind) }}</small></span>
                 </td>
                 <td class="title-num">{{ titleAcquisitionLabel(title.acquisition) }}</td>
+                <td class="title-num">{{ title.holderCount }}</td>
                 <td><StatusBadge :label="title.developerOnly && title.lifecycle === 'active' ? '开发保留' : achievementStatusLabel(title.status)" :tone="title.developerOnly && title.lifecycle === 'active' ? 'warning' : achievementStatusTone(title.status)" /></td>
                 <td>
                   <div class="table-actions">
@@ -488,7 +490,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
                 </td>
               </tr>
               <tr v-if="expandedKeys.has(title.titleKey)" class="title-panel-row">
-                <td :id="`title-panel-${title.titleKey}`" colspan="7" role="region" :aria-label="`${title.label}的获取方式`">
+                <td :id="`title-panel-${title.titleKey}`" colspan="8" role="region" :aria-label="`${title.label}的获取方式`">
                   <div class="title-panel">
                     <div class="title-panel__head">
                       <span class="type-caption title-panel__heading">获取方式</span>
@@ -531,6 +533,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
                       </ul>
                       <UButton v-if="endedFold.canFold(title)" size="sm" color="neutral" variant="ghost" :label="endedFold.toggleLabel(title)" @click="endedFold.toggle(title)" />
                     </template>
+                    <AdminTitleHolders v-if="title.holderCount" :title-key="title.titleKey" :count="title.holderCount" />
                   </div>
                 </td>
               </tr>
@@ -543,7 +546,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
             <button type="button" class="title-record__head" :aria-expanded="expandedKeys.has(title.titleKey)" :aria-label="`${expandedKeys.has(title.titleKey) ? '收起' : '展开'}${title.label}的获取方式`" @click="toggleExpand(title)">
               <span class="title-cell-stack">
                 <strong>{{ title.label }}</strong>
-                <small class="table-meta">{{ title.category }} · {{ titleAcquisitionLabel(title.acquisition) }}</small>
+                <small class="table-meta">{{ title.category }} · {{ titleAcquisitionLabel(title.acquisition) }} · {{ title.holderCount }} 人获得</small>
               </span>
               <StatusBadge :label="title.developerOnly && title.lifecycle === 'active' ? '开发保留' : achievementStatusLabel(title.status)" :tone="title.developerOnly && title.lifecycle === 'active' ? 'warning' : achievementStatusTone(title.status)" />
             </button>
@@ -576,6 +579,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
                 </div>
                 <UButton v-if="endedFold.canFold(title)" size="sm" color="neutral" variant="ghost" :label="endedFold.toggleLabel(title)" @click="endedFold.toggle(title)" />
               </template>
+              <AdminTitleHolders v-if="title.holderCount" :title-key="title.titleKey" :count="title.holderCount" />
               <div class="title-record__foot">
                 <UButton v-if="title.acquisition.kind !== 'map_rule'" size="sm" color="neutral" variant="outline" icon="i-lucide-plus" label="添加挑战" @click="openAddChallenge(title)" />
                 <UButton size="sm" color="neutral" variant="outline" label="编辑称号" @click="openEditTitle(title)" />

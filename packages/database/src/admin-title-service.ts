@@ -1,10 +1,10 @@
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { deriveTitleAvailability, parseChallengeProgressRule, publicTitleChallengeStatus } from "@owbastion/domain";
 import type { AuthContext, ChallengeProgressRule, PlatformServices } from "@owbastion/domain";
 import type { AdminChallengeUpdateRequest, AdminTitleChallenge, AdminTitleSummary, AdminCatalogTitleUpdateResponse, AdminChallengeLifecycleResponse } from "@owbastion/contracts";
 import { hashRequest } from "./portal-session";
-import { achievementChallengeMaps, mapTitleRules, titleCatalog, titleChallenges } from "./schema";
+import { achievementChallengeMaps, mapTitleRules, playerAccounts, playerTitleGrants, titleCatalog, titleChallenges } from "./schema";
 import type { createChallengeCatalogServices } from "./challenge-catalog-service";
 
 type Title = typeof titleCatalog.$inferSelect;
@@ -21,7 +21,7 @@ type Dependencies = {
   reconcileProgressChallengePlayers: (input: { challenge: TitleChallenge; rule: ChallengeProgressRule; actorId: string }) => Promise<void>;
   challengeCatalog: Pick<ReturnType<typeof createChallengeCatalogServices>, "loadTitleChallengeRevisions" | "validateChallengeMapScope" | "toTitleChallengeBase">;
 };
-type Services = Pick<PlatformServices, "listAdminTitleSummaries" | "createAdminTitle" | "listAdminTitleChallenges" | "createAdminTitleChallenge" | "updateAdminChallengeLifecycle" | "updateAdminCatalogTitle">;
+type Services = Pick<PlatformServices, "listAdminTitleSummaries" | "listAdminTitleHolders" | "createAdminTitle" | "listAdminTitleChallenges" | "createAdminTitleChallenge" | "updateAdminChallengeLifecycle" | "updateAdminCatalogTitle">;
 
 export const createAdminTitleServices = ({ database, evidenceBucket, db, now, replayOrConflict, latestBuildVersion, assertProgressRuleTargets, reconcileProgressChallengePlayers, challengeCatalog }: Dependencies): Services & {
   updateTitleChallenge: (input: Extract<AdminChallengeUpdateRequest, { family: "achievement" }> & { challengeId: string }, auth: AuthContext, key: string) => Promise<AdminTitleChallenge & { contractVersion: "1" }>;
@@ -46,14 +46,14 @@ export const createAdminTitleServices = ({ database, evidenceBucket, db, now, re
     ...(challenge.mapVariant ? { mapVariant: challenge.mapVariant as "classic" } : {}),
     ...(parseChallengeProgressRule(challenge.progressRule) ? { progressRule: parseChallengeProgressRule(challenge.progressRule)! } : {}),
   });
-  const summary = (title: Title, challenges: TitleChallenge[], rule?: Rule): AdminTitleSummary => {
+  const summary = (title: Title, challenges: TitleChallenge[], rule: Rule | undefined, holderCount: number): AdminTitleSummary => {
     const paths = challenges.map(challenge => ({ ...challenge, gameVersion: title.gameVersion ? challenge.gameVersion : null }));
     return {
       titleKey: title.key, label: title.label, icon: title.icon, iconUrl: title.iconUrl, category: title.category,
       scope: title.scope as "global" | "map", displayKind: title.displayKind as AdminTitleSummary["displayKind"],
       color: JSON.parse(title.colorJson), publicVisibility: title.publicVisibility === 1,
       lifecycle: title.lifecycle as AdminTitleSummary["lifecycle"], gameVersion: title.gameVersion,
-      developerOnly: title.category === "开发保留",
+      developerOnly: title.category === "开发保留", holderCount,
       status: title.lifecycle === "draft" ? "draft" : rule?.status === "active" ? "active" : deriveTitleAvailability(paths, now()),
       acquisition: rule ? { kind: "map_rule", ruleId: rule.id, condition: rule.condition, scopeLabel: rule.defaultScope === "all_active" ? `适用于所有地图的${rule.mapVariant === "classic" ? "经典" : "默认"}版本` : "适用于指定地图版本" }
         : challenges.length ? { kind: "challenges", challengeCount: challenges.length, completableCount: title.lifecycle !== "active" ? 0 : paths.filter(path => {
@@ -62,9 +62,13 @@ export const createAdminTitleServices = ({ database, evidenceBucket, db, now, re
         }).length } : { kind: "none" },
     };
   };
+  // Players with at least one active grant; map titles count a player once across maps.
+  const holderCounts = async (titleKey?: string) => new Map((await db.select({ titleKey: playerTitleGrants.titleKey, count: sql<number>`count(distinct ${playerTitleGrants.playerAccountId})` }).from(playerTitleGrants)
+    .where(titleKey === undefined ? eq(playerTitleGrants.status, "active") : and(eq(playerTitleGrants.status, "active"), eq(playerTitleGrants.titleKey, titleKey))).groupBy(playerTitleGrants.titleKey)).map(row => [row.titleKey, row.count]));
   const titleSummary = async (title: Title, challengeRows?: TitleChallenge[], ruleRows?: Rule[]) => summary(title,
     challengeRows ?? await db.select().from(titleChallenges).where(eq(titleChallenges.titleKey, title.key)),
-    (ruleRows ?? await db.select().from(mapTitleRules).where(eq(mapTitleRules.titleKey, title.key)))[0]);
+    (ruleRows ?? await db.select().from(mapTitleRules).where(eq(mapTitleRules.titleKey, title.key)))[0],
+    (await holderCounts(title.key)).get(title.key) ?? 0);
   const mutationRecords = async (operation: string, input: unknown, response: unknown, auth: AuthContext, key: string, entityType: string, entityId: string, payload: unknown = input, guarded = false): Promise<D1PreparedStatement[]>  => [
     database.prepare(`INSERT INTO idempotency_keys (id,actor_id,operation,request_hash,response_json,created_at) ${guarded ? "SELECT ?,?,?,?,?,? WHERE changes()=1" : "VALUES (?,?,?,?,?,?)"}`).bind(`${auth.subject}:${operation}:${key}`, auth.subject, operation, await hashRequest(input), JSON.stringify(response), now()),
     database.prepare(`INSERT INTO audit_events (id,correlation_id,actor_type,actor_id,operation,entity_type,entity_id,payload_json,created_at) ${guarded ? "SELECT ?,?,?,?,?,?,?,?,? WHERE changes()=1" : "VALUES (?,?,?,?,?,?,?,?,?)"}`).bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, entityType, entityId, JSON.stringify(payload), now()),
@@ -103,11 +107,23 @@ export const createAdminTitleServices = ({ database, evidenceBucket, db, now, re
   return {
     async listAdminTitleSummaries() {
       // Bounded bulk reads: no per-title queries, including titles with no paths.
-      const [titles, challenges, rules] = await Promise.all([db.select().from(titleCatalog).orderBy(titleCatalog.category, titleCatalog.label), db.select().from(titleChallenges), db.select().from(mapTitleRules)]);
+      const [titles, challenges, rules, holders] = await Promise.all([db.select().from(titleCatalog).orderBy(titleCatalog.category, titleCatalog.label), db.select().from(titleChallenges), db.select().from(mapTitleRules), holderCounts()]);
       const byTitle = new Map<string, TitleChallenge[]>();
       for (const challenge of challenges) byTitle.set(challenge.titleKey, [...(byTitle.get(challenge.titleKey) ?? []), challenge]);
       const ruleByTitle = new Map(rules.map(rule => [rule.titleKey, rule]));
-      return { contractVersion: "1", items: titles.map(title => summary(title, byTitle.get(title.key) ?? [], ruleByTitle.get(title.key))) };
+      return { contractVersion: "1", items: titles.map(title => summary(title, byTitle.get(title.key) ?? [], ruleByTitle.get(title.key), holders.get(title.key) ?? 0)) };
+    },
+    async listAdminTitleHolders({ titleKey, page, pageSize }) {
+      await loadTitle(titleKey);
+      const active = and(eq(playerTitleGrants.titleKey, titleKey), eq(playerTitleGrants.status, "active"));
+      const [rows, totals] = await Promise.all([
+        db.select({ playerAccountId: playerAccounts.id, playerName: playerAccounts.playerName, playerId: playerAccounts.playerId, grantCount: sql<number>`count(*)`, firstGrantedAt: sql<number>`min(${playerTitleGrants.grantedAt})` })
+          .from(playerTitleGrants).innerJoin(playerAccounts, eq(playerTitleGrants.playerAccountId, playerAccounts.id)).where(active)
+          .groupBy(playerAccounts.id).orderBy(sql`min(${playerTitleGrants.grantedAt}) desc`, playerAccounts.id).limit(pageSize).offset((page - 1) * pageSize),
+        db.select({ total: sql<number>`count(distinct ${playerTitleGrants.playerAccountId})` }).from(playerTitleGrants).where(active),
+      ]);
+      const total = totals[0]?.total ?? 0;
+      return { contractVersion: "1", items: rows, page, pageSize, total, hasMore: page * pageSize < total };
     },
     async createAdminTitle(input, auth, key) {
       const operation = "admin.title.create";
@@ -116,7 +132,7 @@ export const createAdminTitleServices = ({ database, evidenceBucket, db, now, re
       const titleKey = input.titleKey ?? `TITLE_${crypto.randomUUID().replaceAll("-", "").toUpperCase()}`;
       if (await db.select({ key: titleCatalog.key }).from(titleCatalog).where(eq(titleCatalog.key, titleKey)).get()) throw new Error("TITLE_KEY_CONFLICT");
       const title: Title = { key: titleKey, label: input.label, icon: input.icon, iconUrl: input.iconUrl ?? null, iconObjectKey: null, category: input.category, condition: "", lifecycle: "draft", publicVisibility: input.publicVisibility ? 1 : 0, scope: input.scope, displayKind: input.displayKind, colorJson: JSON.stringify(input.color ?? null), gameVersion: input.gameVersion ?? null };
-      const response = { contractVersion: "1" as const, ...summary(title, []) };
+      const response = { contractVersion: "1" as const, ...summary(title, [], undefined, 0) };
       try {
         await database.batch([
           database.prepare("INSERT INTO title_catalog (key,label,icon,icon_url,category,condition,lifecycle,public_visibility,scope,display_kind,color_json,game_version) VALUES (?,?,?,?,?,?,'draft',?,?,?,?,?)").bind(title.key, title.label, title.icon, title.iconUrl, title.category, title.condition, title.publicVisibility, title.scope, title.displayKind, title.colorJson, title.gameVersion),
