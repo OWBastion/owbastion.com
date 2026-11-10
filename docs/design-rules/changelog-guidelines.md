@@ -8,7 +8,7 @@ in-progress or planned work goes in `blog`. The filename date and sequence match
 ```yaml
 ---
 title: "本次更新主题"            # <= 160 chars, names the core modules
-description: "一两句话概括正文里最主要的具体改动。"   # <= 320 chars
+description: "一句话说明这次最主要的改动。"   # one sentence, <= 45 chars
 releasedAt: YYYY-MM-DD           # matches the version's date
 version: "YY.MMDD.V"
 tags:
@@ -16,8 +16,8 @@ tags:
 ---
 ```
 
-`description` summarizes the body: name the concrete heroes, events, maps, or numbers. It must not
-repeat or paraphrase `title`, and must not use a fixed sentence pattern.
+`description` is one short sentence on the one or two main changes in the body, named concretely. It adds
+what `title` omits, lists no items, and uses no fixed sentence pattern.
 
 ## Markdown
 
