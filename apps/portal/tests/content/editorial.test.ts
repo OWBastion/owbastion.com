@@ -108,6 +108,7 @@ describe("build-time editorial loader", () => {
     for (const entry of changelog) {
       expect(entry.description, entry.path).not.toBe(entry.title);
       expect(entry.description, entry.path).not.toContain("更新主题为");
+      expect((entry.description ?? "").length, entry.path).toBeLessThanOrEqual(45);
     }
   });
 
