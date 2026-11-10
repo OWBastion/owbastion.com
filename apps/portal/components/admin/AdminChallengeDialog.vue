@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { AdminTitleChallenge, AdminTitleProgressRule, AdminTitleSummary } from "./admin-title-types";
-import { titleScopeLabel } from "./admin-title-types";
+import { suggestRetiredVersion, titleScopeLabel } from "./admin-title-types";
 import type { AdminMap, StandaloneModeOption } from "./admin-achievement-types";
 import { DEFAULT_EVIDENCE_RULE, DIFFICULTY_OPTIONS } from "./admin-achievement-types";
 
@@ -40,6 +40,7 @@ const form = reactive({
   startsAt: null as number | null,
   endsAt: null as number | null,
   gameVersion: "",
+  retiredVersion: "",
   enableTitle: true,
   saveMode: "in_place" as "in_place" | "new_challenge",
   initialProgressMode: "none" as "none" | "required_maps_completed",
@@ -64,10 +65,22 @@ watch(() => props.open, (open) => {
     startsAt: challenge?.startsAt ?? null,
     endsAt: challenge?.endsAt ?? null,
     gameVersion: challenge?.introducedVersion ?? "",
+    retiredVersion: challenge?.retiredVersion ?? "",
     enableTitle: true,
     saveMode: "in_place",
   });
 });
+
+// The retirement version follows the end time until the admin types one in.
+const retiredVersionTyped = shallowRef(false);
+watch(() => props.open, (open) => {
+  if (open) retiredVersionTyped.value = Boolean(form.retiredVersion) && form.retiredVersion !== suggestRetiredVersion(form.endsAt);
+});
+function setEndsAt(endsAt: number | null) {
+  form.endsAt = endsAt;
+  if (!retiredVersionTyped.value) form.retiredVersion = suggestRetiredVersion(endsAt);
+}
+const showRetiredVersion = computed(() => props.mode === "edit" && props.challenge?.status === "active");
 
 const isMapTitle = computed(() => props.title?.scope === "map");
 const progressMode = computed(() => form.progressMode === "required_maps_completed");
@@ -187,9 +200,7 @@ function submit() {
     status: challenge.status,
     ...(isMapTitle.value ? { mapIds: [...form.mapIds], mapVariant: form.mapVariant } : {}),
     progressRule: rule,
-    // The dialog never edits the announced sunset version; echo the stored one
-    // so an in-place or replacement save does not silently clear a planned sunset.
-    ...(challenge.status === "active" ? { retiredVersion: challenge.retiredVersion } : {}),
+    ...(challenge.status === "active" ? { retiredVersion: form.retiredVersion.trim() || null } : {}),
     ...(form.gameVersion.trim() ? { gameVersion: form.gameVersion.trim() } : challenge.status === "draft" ? { gameVersion: null } : {}),
     startsAt: form.startsAt,
     endsAt: form.endsAt,
@@ -262,10 +273,13 @@ function submit() {
           <AdminDateTimePicker v-model="form.startsAt" placeholder="立即" :disabled="saving" />
         </UFormField>
         <UFormField label="结束时间">
-          <AdminDateTimePicker v-model="form.endsAt" placeholder="长期开放" :disabled="saving" />
+          <AdminDateTimePicker :model-value="form.endsAt" placeholder="长期开放" :disabled="saving" @update:model-value="setEndsAt" />
         </UFormField>
         <UFormField label="引入版本" help="留空使用最新版本。">
           <UInput v-model="form.gameVersion" placeholder="例如 26.1003.1" :disabled="saving" />
+        </UFormField>
+        <UFormField v-if="showRetiredVersion" label="下线版本" help="填写后玩家侧显示为即将结束；清空则取消。">
+          <UInput v-model="form.retiredVersion" placeholder="例如 26.1101.1" :disabled="saving" @input="retiredVersionTyped = true" />
         </UFormField>
 
         <p v-if="siblings.length" class="challenge-section challenge-dialog-form__wide">其他获取方式</p>
