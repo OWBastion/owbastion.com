@@ -1,13 +1,12 @@
 <script setup lang="ts">
-// Regions follow ocrkit layout 1280x720-v10: the completion card at the top centre and the player name at the bottom left.
+// Region follows ocrkit layout 1280x720-v10: the completion card at the top centre carries every required field.
 const marks = [
   { label: "挑战完成卡", x: 25.8, y: 6.9, w: 48.4, h: 15.3 },
-  { label: "游戏 ID", x: 2.3, y: 79.9, w: 23.4, h: 13.2 },
 ];
 </script>
 
 <template>
-  <figure class="screen" aria-label="截图需包含：画面顶部的挑战完成卡、左下角的游戏 ID">
+  <figure class="screen" aria-label="截图需包含：画面顶部的挑战完成卡">
     <span v-for="mark in marks" :key="mark.label" class="screen__mark" :style="{ left: `${mark.x}%`, top: `${mark.y}%`, width: `${mark.w}%`, height: `${mark.h}%` }">{{ mark.label }}</span>
   </figure>
 </template>
