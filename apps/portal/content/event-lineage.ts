@@ -129,6 +129,7 @@ export const eventLineage: EventLineageEntry[] = [
   { eventId: "event.6262f855-db28-4e22-9d00-2180b938ac15", names: ["赌徒：唯手熟尔"] },
   { eventId: "event.859b0b11-bd2b-4679-832e-dd4f09d1d3e5", names: ["我独自升级"] },
   { eventId: "event.42c07be9-ce0f-44aa-b6aa-518c7af46598", names: ["我独自决定"] },
+  { eventId: "event.c518df12-c48e-4c5e-adfb-07fafc359823", names: ["赌徒：21点"] },
 ];
 
 // Headings in an event section that name no single event.
