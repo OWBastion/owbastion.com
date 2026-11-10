@@ -8,13 +8,16 @@ in-progress or planned work goes in `blog`. The filename date and sequence match
 ```yaml
 ---
 title: "本次更新主题"            # <= 160 chars, names the core modules
-description: "YY.MMDD.V 已发布，更新主题为本次更新主题。"   # fixed pattern, <= 320 chars
+description: "一句话说明这次最主要的改动。"   # one sentence, <= 45 chars
 releasedAt: YYYY-MM-DD           # matches the version's date
 version: "YY.MMDD.V"
 tags:
   - "版本更新"                   # always exactly this
 ---
 ```
+
+`description` is one short sentence on the one or two main changes in the body, named concretely. It adds
+what `title` omits, lists no items, and uses no fixed sentence pattern.
 
 ## Markdown
 

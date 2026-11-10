@@ -254,7 +254,7 @@ useSeoMeta({ title: "地图编辑器 · 躲避堡垒 3" });
     <USlideover v-model:open="metadataOpen" title="名称与资料" description="名称、评级、机制和封面不属于某个版本修订。">
       <template #body><AdminMapMetadataForm v-if="map" :map="map" :saving="metadataSaving" @save="saveMetadata" /></template>
     </USlideover>
-    <USlideover v-model:open="auditOpen" title="修改记录" :description="`${audit.length} 条`">
+    <USlideover v-model:open="auditOpen" title="修改记录" :description="String(audit.length)">
       <template #body><AdminMapAuditList :audit="audit" /></template>
     </USlideover>
 

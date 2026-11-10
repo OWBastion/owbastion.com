@@ -114,7 +114,7 @@ function sourcePath(submissionId: string) {
     <section v-if="detail.corrections.length" class="verified-run-detail__section" aria-labelledby="verified-run-corrections-title">
       <div class="card-heading">
         <h3 id="verified-run-corrections-title">事实更正历史</h3>
-        <span class="verified-run-detail__quiet">{{ detail.corrections.length }} 条</span>
+        <span class="verified-run-detail__quiet">{{ detail.corrections.length }}</span>
       </div>
       <ol class="verified-run-detail__history">
         <li v-for="correction in detail.corrections" :key="correction.correctionId">
@@ -129,7 +129,7 @@ function sourcePath(submissionId: string) {
     <section class="verified-run-detail__section" aria-labelledby="verified-run-conflicts-title">
       <div class="card-heading">
         <h3 id="verified-run-conflicts-title">对局码冲突</h3>
-        <span class="verified-run-detail__quiet">{{ detail.conflicts.length }} 条</span>
+        <span class="verified-run-detail__quiet">{{ detail.conflicts.length }}</span>
       </div>
       <UEmpty v-if="!detail.conflicts.length" title="暂无冲突记录" />
       <div v-else class="verified-run-detail__conflicts">

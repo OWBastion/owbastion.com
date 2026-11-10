@@ -206,6 +206,8 @@ describe("public leaderboard projections", () => {
     addTitle("CLASSIC_B", "map"); addRevision("rev.b0", "map.b", "archived");
     addGrant("g5", "p1", "CLASSIC_B", now, "active", "map.b");
     sqlite.prepare("UPDATE player_title_grants SET gameplay_revision_id = 'rev.b0' WHERE id = 'g5'").run();
+    // A rule-based map has no reward row; the grant's own slot names the tier.
+    sqlite.prepare("UPDATE player_title_grants SET slot = 'pioneer' WHERE id = 'g2'").run();
     sqlite.prepare("INSERT INTO map_title_rewards (map_id, slot, title_key) VALUES ('map.a', 'conqueror', 'CONQ_A'), ('map.a', 'dominator', 'DOM_A')").run();
     sqlite.prepare("INSERT INTO player_equipped_titles VALUES ('g1', 'p1', ?)").run(now);
     const summary = leaderboardPlayerSummarySchema.parse(await services.getPublicLeaderboardPlayer({ playerKey: await leaderboardPlayerKey("p1") }));
@@ -222,7 +224,7 @@ describe("public leaderboard projections", () => {
       map: [
         { titleKey: "CONQ_A", label: "CONQ_A", icon: "award", mapId: "map.a", mapName: "Map A", slot: "conqueror" },
         { titleKey: "DOM_A", label: "DOM_A", icon: "award", mapId: "map.a", mapName: "Map A", slot: "dominator" },
-        { titleKey: "MAP_T", label: "MAP_T", icon: "award", mapId: "map.a", mapName: "Map A", slot: null },
+        { titleKey: "MAP_T", label: "MAP_T", icon: "award", mapId: "map.a", mapName: "Map A", slot: "pioneer" },
         { titleKey: "CLASSIC_B", label: "CLASSIC_B", icon: "award", mapId: "map.b", mapName: "Map B", slot: null },
       ],
       general: [{ titleKey: "T1", label: "T1", icon: "award" }],

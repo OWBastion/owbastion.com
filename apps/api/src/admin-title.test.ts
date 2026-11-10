@@ -5,7 +5,7 @@ import { createApp, type RuntimeEnv } from "./app";
 
 const env = {} as RuntimeEnv;
 const maintainer = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
-const title: AdminTitleSummary = { titleKey: "MULTI", label: "多路径", icon: "trophy", iconUrl: null, category: "测试", scope: "global", displayKind: "fixed", color: null, publicVisibility: true, lifecycle: "draft", gameVersion: null, developerOnly: false, status: "draft", acquisition: { kind: "none" } };
+const title: AdminTitleSummary = { titleKey: "MULTI", label: "多路径", icon: "trophy", iconUrl: null, category: "测试", scope: "global", displayKind: "fixed", color: null, publicVisibility: true, lifecycle: "draft", gameVersion: null, developerOnly: false, holderCount: 0, status: "draft", acquisition: { kind: "none" } };
 const challenge: AdminTitleChallenge = { challengeId: "title.MULTI.random", titleKey: "MULTI", family: "achievement", type: "title_achievement", kind: "title_achievement", titleName: "多路径", icon: "trophy", category: "测试", categoryOverride: null, condition: "完成", evidenceRule: "截图", submissionMode: "manual", status: "draft", gameVersion: null, introducedVersion: null, retiredVersion: null, startsAt: null, endsAt: null, mapIds: [], replacedByChallengeId: null };
 const titleBody = { contractVersion: "1", titleKey: "MULTI", label: "多路径", icon: "trophy", category: "测试", scope: "global", displayKind: "fixed", publicVisibility: true };
 const challengeBody = { contractVersion: "1", condition: "完成", submissionMode: "manual", status: "active", enableTitle: true };
@@ -14,6 +14,7 @@ const lifecycleBody = { contractVersion: "1", status: "active", retiredVersion: 
 const endpoints = [
   ["GET", "/v1/admin/title-summaries", undefined],
   ["GET", "/v1/admin/title-images", undefined],
+  ["GET", "/v1/admin/titles/MULTI/holders", undefined],
   ["GET", "/v1/admin/titles/MULTI/challenges", undefined],
   ["POST", "/v1/admin/titles", titleBody],
   ["POST", "/v1/admin/titles/MULTI/challenges", challengeBody],

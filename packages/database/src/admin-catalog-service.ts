@@ -48,6 +48,7 @@ type AdminCatalogServices = Pick<PlatformServices,
   | "listAdminMapTitleInheritance"
   | "upsertAdminMapTitleRuleException"
   | "listAdminTitleSummaries"
+  | "listAdminTitleHolders"
   | "createAdminTitle"
   | "listAdminTitleChallenges"
   | "createAdminTitleChallenge"

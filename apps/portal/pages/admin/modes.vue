@@ -70,7 +70,7 @@ async function save() {
 </script>
 
 <template>
-  <AdminWorkspace title="独立模式" :count="adminData.loading.value ? '读取中…' : `${modes.length} 个`">
+  <AdminWorkspace title="独立模式" :count="adminData.loading.value ? '读取中…' : String(modes.length)">
     <template #actions><UButton class="pressable" label="新建模式" icon="i-lucide-plus" @click="openEditor(null)" /></template>
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <p class="text-sm text-muted">限时的独立模式（如 2026镜中回响）在这里一次配置：包含的地图、所属事件池和该模式构建的事件总权重。</p>

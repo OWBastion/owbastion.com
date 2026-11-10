@@ -269,8 +269,8 @@ watch(() => props.maps, () => { if (!selectedMapId.value && props.maps[0]) selec
       <UTabs v-model="statusView" :items="ruleViewTabs" :content="false" variant="link" aria-label="规则状态视图" />
       <AdminDataTable v-model:sorting="ruleSorting" :sorting-options="ruleSortingOptions" :default-sorting="defaultRuleSorting" :data="visibleRuleSummaries" :columns="ruleColumns" :loading="loadingRules" empty="暂无地图称号规则。" row-key="ruleId" table-key="unified-map-achievement-rules" table-min-width="900px" class="admin-table">
         <template #titleName-cell="{ row }"><strong>{{ row.original.titleName }}</strong><small class="type-caption">{{ kindLabel(row.original.kind) }} · {{ scopeLabel(row.original.defaultScope) }}</small></template>
-        <template #effectiveMapCount-cell="{ row }"><span>{{ row.original.effectiveMapCount }} 张</span></template>
-        <template #exceptionCount-cell="{ row }"><span>{{ row.original.exceptionCount }} 项</span></template>
+        <template #effectiveMapCount-cell="{ row }"><span>{{ row.original.effectiveMapCount }}</span></template>
+        <template #exceptionCount-cell="{ row }"><span>{{ row.original.exceptionCount }}</span></template>
         <template #displayKind-cell="{ row }"><span>{{ displayKindLabel(row.original.displayKind) }}</span></template>
         <template #submissionMode-cell="{ row }"><span>{{ submissionModeLabel(row.original.submissionMode) }}</span></template>
         <template #status-cell="{ row }"><StatusBadge :label="statusLabel(ruleDisplayStatus(row.original))" :tone="statusTone(ruleDisplayStatus(row.original))" /></template>

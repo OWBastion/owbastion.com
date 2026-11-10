@@ -6,5 +6,5 @@ export const reviewRatingChip = (summary: ReviewSummary | null, loading: boolean
   if (loading) return { label: "读取中…", tone: "default", icon: "★" };
   if (error) return { label: "评分暂不可用", tone: "default", icon: "★" };
   if (!summary || summary.averageRating === null) return { label: "暂无评分", tone: "accent", icon: "★" };
-  return { label: `${summary.averageRating.toFixed(1)} 分 · ${summary.reviewCount} 条`, tone: "accent", icon: "★" };
+  return { label: `${summary.averageRating.toFixed(1)} · ${summary.reviewCount}`, tone: "accent", icon: "★" };
 };

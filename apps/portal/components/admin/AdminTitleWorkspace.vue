@@ -26,8 +26,6 @@ const challengesByTitle = reactive(new Map<string, AdminTitleChallenge[]>());
 const challengesLoading = reactive(new Set<string>());
 const challengesError = reactive(new Map<string, string>());
 const savingKey = ref<string | null>(null);
-const planningChallengeId = ref<string | null>(null);
-const retirementVersions = reactive<Record<string, string>>({});
 
 const search = shallowRef("");
 const categoryFilter = shallowRef("all");
@@ -107,7 +105,6 @@ async function loadChallenges(titleKey: string) {
   try {
     const response = await api<AdminTitleChallengeListResponse>(`/v1/titles/${encodeURIComponent(titleKey)}/challenges`);
     challengesByTitle.set(titleKey, response.items);
-    for (const challenge of response.items) retirementVersions[challenge.challengeId] ??= challenge.retiredVersion ?? "";
   } catch (error) {
     challengesError.set(titleKey, portalErrorDetails(error, "无法读取挑战，请稍后重试。").description);
   } finally {
@@ -283,13 +280,6 @@ async function undoChallenge(title: AdminTitleSummary, challengeId: string, prev
   }
 }
 
-async function planSunsetting(title: AdminTitleSummary, challenge: AdminTitleChallenge) {
-  const retiredVersion = retirementVersions[challenge.challengeId]?.trim();
-  if (!retiredVersion) return;
-  await mutateChallengeLifecycle(title, challenge, { status: "active", retiredVersion }, `「${title.label}」的挑战已计划下线`);
-  planningChallengeId.value = null;
-}
-
 function grantHref(title: AdminTitleSummary) {
   return { path: "/admin/grants", query: { titleKey: title.titleKey } };
 }
@@ -424,7 +414,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
 </script>
 
 <template>
-  <AdminWorkspace title="称号与挑战" :count="loading ? '读取中…' : `${titles.length} 个称号`">
+  <AdminWorkspace title="称号与挑战" :count="loading ? '读取中…' : String(titles.length)">
     <template #actions><UButton label="新建称号" icon="i-lucide-plus" @click="openCreateTitle" /></template>
     <AdminAchievementNav />
     <section class="title-workspace" aria-label="称号列表">
@@ -466,6 +456,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
               <th scope="col">系列</th>
               <th scope="col">范围 · 展示方式</th>
               <th scope="col">获取方式</th>
+              <th class="title-num" scope="col">获得玩家</th>
               <th scope="col">状态</th>
               <th class="title-col-actions" scope="col">操作</th>
             </tr>
@@ -485,6 +476,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
                   <span class="title-cell-stack"><span>{{ titleScopeLabel(title.scope) }}</span><small class="table-meta">{{ titleDisplayKindLabel(title.displayKind) }}</small></span>
                 </td>
                 <td class="title-num">{{ titleAcquisitionLabel(title.acquisition) }}</td>
+                <td class="title-num">{{ title.holderCount }}</td>
                 <td><StatusBadge :label="title.developerOnly && title.lifecycle === 'active' ? '开发保留' : achievementStatusLabel(title.status)" :tone="title.developerOnly && title.lifecycle === 'active' ? 'warning' : achievementStatusTone(title.status)" /></td>
                 <td>
                   <div class="table-actions">
@@ -498,7 +490,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
                 </td>
               </tr>
               <tr v-if="expandedKeys.has(title.titleKey)" class="title-panel-row">
-                <td :id="`title-panel-${title.titleKey}`" colspan="7" role="region" :aria-label="`${title.label}的获取方式`">
+                <td :id="`title-panel-${title.titleKey}`" colspan="8" role="region" :aria-label="`${title.label}的获取方式`">
                   <div class="title-panel">
                     <div class="title-panel__head">
                       <span class="type-caption title-panel__heading">获取方式</span>
@@ -534,19 +526,6 @@ async function submitChallenge(payload: Record<string, unknown>) {
                           <div class="table-actions">
                             <UButton size="sm" color="neutral" variant="outline" label="编辑" :aria-label="`编辑${title.label}的挑战`" :disabled="savingKey === challenge.challengeId" @click="openEditChallenge(title, challenge)" />
                             <UButton v-if="challenge.status === 'draft'" size="sm" color="neutral" variant="outline" label="开放" :aria-label="`开放${title.label}的挑战`" :loading="savingKey === challenge.challengeId" @click="mutateChallengeLifecycle(title, challenge, { status: 'active' }, `已开放「${title.label}」的挑战`)" />
-                            <UPopover v-else-if="challengeDisplayStatus(challenge) === 'active' || challengeDisplayStatus(challenge) === 'sunsetting'" :open="planningChallengeId === challenge.challengeId" @update:open="(open) => { planningChallengeId = open ? challenge.challengeId : null; }">
-                              <UButton size="sm" color="neutral" variant="outline" label="计划下线" :aria-label="`计划下线${title.label}的挑战`" :disabled="savingKey === challenge.challengeId" />
-                              <template #content>
-                                <UCard class="plan-popover-card">
-                                  <form class="plan-popover" @submit.prevent="planSunsetting(title, challenge)">
-                                    <UFormField label="计划下线版本" required help="玩家侧会显示为即将结束。">
-                                      <UInput v-model="retirementVersions[challenge.challengeId]" required placeholder="例如 26.1101.1" :disabled="savingKey === challenge.challengeId" />
-                                    </UFormField>
-                                    <UButton type="submit" block label="确认" size="sm" :loading="savingKey === challenge.challengeId" :disabled="!retirementVersions[challenge.challengeId]?.trim()" />
-                                  </form>
-                                </UCard>
-                              </template>
-                            </UPopover>
                             <UButton v-if="challengeDisplayStatus(challenge) === 'active' || challengeDisplayStatus(challenge) === 'sunsetting'" size="sm" color="error" variant="soft" label="结束" :aria-label="`结束${title.label}的挑战`" :loading="savingKey === challenge.challengeId" @click="mutateChallengeLifecycle(title, challenge, { status: 'archived' }, `已结束「${title.label}」的挑战`)" />
                             <UButton v-if="challenge.status === 'archived'" size="sm" color="neutral" variant="outline" label="重开" :aria-label="`重开${title.label}的挑战`" :loading="savingKey === challenge.challengeId" @click="mutateChallengeLifecycle(title, challenge, { status: 'active' }, `已重开「${title.label}」的挑战`)" />
                           </div>
@@ -554,6 +533,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
                       </ul>
                       <UButton v-if="endedFold.canFold(title)" size="sm" color="neutral" variant="ghost" :label="endedFold.toggleLabel(title)" @click="endedFold.toggle(title)" />
                     </template>
+                    <AdminTitleHolders v-if="title.holderCount" :title-key="title.titleKey" :count="title.holderCount" />
                   </div>
                 </td>
               </tr>
@@ -566,7 +546,7 @@ async function submitChallenge(payload: Record<string, unknown>) {
             <button type="button" class="title-record__head" :aria-expanded="expandedKeys.has(title.titleKey)" :aria-label="`${expandedKeys.has(title.titleKey) ? '收起' : '展开'}${title.label}的获取方式`" @click="toggleExpand(title)">
               <span class="title-cell-stack">
                 <strong>{{ title.label }}</strong>
-                <small class="table-meta">{{ title.category }} · {{ titleAcquisitionLabel(title.acquisition) }}</small>
+                <small class="table-meta">{{ title.category }} · {{ titleAcquisitionLabel(title.acquisition) }} · {{ title.holderCount }} 人获得</small>
               </span>
               <StatusBadge :label="title.developerOnly && title.lifecycle === 'active' ? '开发保留' : achievementStatusLabel(title.status)" :tone="title.developerOnly && title.lifecycle === 'active' ? 'warning' : achievementStatusTone(title.status)" />
             </button>
@@ -593,22 +573,13 @@ async function submitChallenge(payload: Record<string, unknown>) {
                   <div class="table-actions">
                     <UButton size="sm" color="neutral" variant="outline" label="编辑" @click="openEditChallenge(title, challenge)" />
                     <UButton v-if="challenge.status === 'draft'" size="sm" color="neutral" variant="outline" label="开放" :loading="savingKey === challenge.challengeId" @click="mutateChallengeLifecycle(title, challenge, { status: 'active' }, `已开放「${title.label}」的挑战`)" />
-                    <UButton v-else-if="challengeDisplayStatus(challenge) === 'active' || challengeDisplayStatus(challenge) === 'sunsetting'" size="sm" color="neutral" variant="outline" label="计划下线" @click="planningChallengeId = planningChallengeId === challenge.challengeId ? null : challenge.challengeId" />
                     <UButton v-if="challengeDisplayStatus(challenge) === 'active' || challengeDisplayStatus(challenge) === 'sunsetting'" size="sm" color="error" variant="soft" label="结束" :loading="savingKey === challenge.challengeId" @click="mutateChallengeLifecycle(title, challenge, { status: 'archived' }, `已结束「${title.label}」的挑战`)" />
                     <UButton v-if="challenge.status === 'archived'" size="sm" color="neutral" variant="outline" label="重开" :loading="savingKey === challenge.challengeId" @click="mutateChallengeLifecycle(title, challenge, { status: 'active' }, `已重开「${title.label}」的挑战`)" />
                   </div>
-                  <form v-if="planningChallengeId === challenge.challengeId" class="plan-popover title-record__plan" :aria-label="`计划下线${title.label}的挑战`" @submit.prevent="planSunsetting(title, challenge)">
-                    <UFormField label="计划下线版本" required help="玩家侧会显示为即将结束。">
-                      <UInput v-model="retirementVersions[challenge.challengeId]" required placeholder="例如 26.1101.1" :disabled="savingKey === challenge.challengeId" />
-                    </UFormField>
-                    <div class="table-actions">
-                      <UButton type="button" size="sm" color="neutral" variant="ghost" label="取消" @click="planningChallengeId = null" />
-                      <UButton type="submit" size="sm" color="neutral" variant="outline" label="确认" :loading="savingKey === challenge.challengeId" :disabled="!retirementVersions[challenge.challengeId]?.trim()" />
-                    </div>
-                  </form>
                 </div>
                 <UButton v-if="endedFold.canFold(title)" size="sm" color="neutral" variant="ghost" :label="endedFold.toggleLabel(title)" @click="endedFold.toggle(title)" />
               </template>
+              <AdminTitleHolders v-if="title.holderCount" :title-key="title.titleKey" :count="title.holderCount" />
               <div class="title-record__foot">
                 <UButton v-if="title.acquisition.kind !== 'map_rule'" size="sm" color="neutral" variant="outline" icon="i-lucide-plus" label="添加挑战" @click="openAddChallenge(title)" />
                 <UButton size="sm" color="neutral" variant="outline" label="编辑称号" @click="openEditTitle(title)" />
@@ -681,8 +652,6 @@ async function submitChallenge(payload: Record<string, unknown>) {
 .title-challenge--loading { display: block; color: var(--quiet); }
 .title-rule-card { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); font-size: .875rem; }
 .title-empty-card { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); border: 1px dashed var(--line); border-radius: var(--radius-control); color: var(--muted); font-size: .875rem; }
-.plan-popover { display: grid; gap: var(--space-3); }
-.plan-popover-card { width: min(280px, calc(100vw - 32px)); }
 .title-count { margin: 0; font-variant-numeric: tabular-nums; }
 
 .title-state { display: grid; justify-items: center; gap: var(--space-2); padding: var(--space-8) var(--space-4); text-align: center; }
@@ -701,7 +670,6 @@ async function submitChallenge(payload: Record<string, unknown>) {
 .title-record__challenge { display: grid; gap: var(--space-2); padding-top: var(--space-3); }
 .title-record__challenge-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-2); flex-wrap: nowrap; }
 .title-record__foot { display: flex; flex-wrap: wrap; gap: var(--space-2); padding-top: var(--space-3); border-top: 1px solid var(--line); }
-.title-record__plan { border: 1px solid var(--line); border-radius: var(--radius-control); padding: var(--space-3); }
 
 @container (max-width: 47.99rem) {
   .title-challenge { grid-template-columns: minmax(0, 1fr) auto; }

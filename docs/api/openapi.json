@@ -2503,6 +2503,24 @@
     }
    }
   },
+  "/v1/admin/titles/{titleKey}/holders": {
+   "parameters": [{ "$ref": "#/components/parameters/titleKey" }],
+   "get": {
+    "operationId": "listAdminTitleHolders",
+    "description": "Maintainer-only, private/no-store. Distinct players with at least one active grant of the Title, one row per player, newest first grant first. grantCount is the number of active grants (map Titles count each map). Pagination: page >= 1, pageSize 1-100 (default 20). TITLE_NOT_FOUND returns 404.",
+    "parameters": [
+     { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "default": 1 } },
+     { "name": "pageSize", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } }
+    ],
+    "responses": {
+     "200": { "description": "Title holders", "content": { "application/json": { "schema": { "type": "object", "required": ["contractVersion", "items", "page", "pageSize", "total", "hasMore"], "properties": { "contractVersion": { "type": "string", "enum": ["1"] }, "items": { "type": "array", "items": { "type": "object", "required": ["playerAccountId", "playerName", "playerId", "grantCount", "firstGrantedAt"], "properties": { "playerAccountId": { "type": "string" }, "playerName": { "type": "string" }, "playerId": { "type": "string" }, "grantCount": { "type": "integer", "minimum": 1 }, "firstGrantedAt": { "type": "integer", "description": "Unix milliseconds of the earliest active grant." } } } }, "page": { "type": "integer" }, "pageSize": { "type": "integer" }, "total": { "type": "integer", "minimum": 0 }, "hasMore": { "type": "boolean" } } } } } },
+     "401": { "$ref": "#/components/responses/Json" },
+     "403": { "$ref": "#/components/responses/Json" },
+     "404": { "$ref": "#/components/responses/Json" },
+     "422": { "$ref": "#/components/responses/Json" }
+    }
+   }
+  },
   "/v1/admin/titles/{titleKey}/challenges": {
    "parameters": [{ "$ref": "#/components/parameters/titleKey" }],
    "get": {
@@ -4004,11 +4022,11 @@
    "ContractVersion": { "type": "object", "required": ["contractVersion"], "properties": { "contractVersion": { "type": "string", "enum": ["1"] } } },
    "ChallengeProgressRule": { "type": "object", "required": ["type"], "additionalProperties": false, "properties": { "type": { "type": "string", "enum": ["required_maps_completed"] }, "mapIds": { "type": "array", "minItems": 1, "maxItems": 256, "items": { "type": "string" } }, "mode": { "type": "string" }, "difficultyAtLeast": { "type": "string" } }, "anyOf": [{ "required": ["mapIds"] }, { "required": ["mode"] }] },
    "AdminTitleSummary": {
-    "type": "object", "required": ["titleKey", "label", "icon", "iconUrl", "category", "scope", "displayKind", "color", "publicVisibility", "lifecycle", "gameVersion", "developerOnly", "status", "acquisition"],
+    "type": "object", "required": ["titleKey", "label", "icon", "iconUrl", "category", "scope", "displayKind", "color", "publicVisibility", "lifecycle", "gameVersion", "developerOnly", "holderCount", "status", "acquisition"],
     "properties": {
      "titleKey": { "type": "string" }, "label": { "type": "string" }, "icon": { "type": "string" }, "iconUrl": { "type": "string", "nullable": true }, "category": { "type": "string" },
      "scope": { "type": "string", "enum": ["global", "map"] }, "displayKind": { "type": "string", "enum": ["fixed", "map_pioneer", "map_name_suffix"] }, "color": { "nullable": true, "description": "Existing title color: palette, heroColor, custom or gradient." },
-     "publicVisibility": { "type": "boolean" }, "lifecycle": { "type": "string", "enum": ["draft", "active"] }, "gameVersion": { "type": "string", "nullable": true }, "developerOnly": { "type": "boolean" }, "status": { "type": "string", "enum": ["draft", "scheduled", "active", "sunsetting", "ended"] },
+     "publicVisibility": { "type": "boolean" }, "lifecycle": { "type": "string", "enum": ["draft", "active"] }, "gameVersion": { "type": "string", "nullable": true }, "developerOnly": { "type": "boolean" }, "holderCount": { "type": "integer", "minimum": 0, "description": "Distinct players with at least one active grant of this Title." }, "status": { "type": "string", "enum": ["draft", "scheduled", "active", "sunsetting", "ended"] },
      "acquisition": { "oneOf": [
       { "type": "object", "required": ["kind", "challengeCount", "completableCount"], "properties": { "kind": { "type": "string", "enum": ["challenges"] }, "challengeCount": { "type": "integer", "minimum": 0 }, "completableCount": { "type": "integer", "minimum": 0 } } },
       { "type": "object", "required": ["kind", "ruleId", "condition", "scopeLabel"], "properties": { "kind": { "type": "string", "enum": ["map_rule"] }, "ruleId": { "type": "string" }, "condition": { "type": "string" }, "scopeLabel": { "type": "string" } } },
