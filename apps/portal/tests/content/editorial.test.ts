@@ -102,6 +102,15 @@ describe("build-time editorial loader", () => {
     expect(changelog.every((entry) => !Number.isNaN(Date.parse(entry.releasedAt ?? "")))).toBe(true);
   });
 
+  it("keeps changelog descriptions distinct from their titles", async () => {
+    const changelog = await queryEditorialSummaries("changelog");
+
+    for (const entry of changelog) {
+      expect(entry.description, entry.path).not.toBe(entry.title);
+      expect(entry.description, entry.path).not.toContain("更新主题为");
+    }
+  });
+
   it("orders entries newest first and exposes summaries without bodies", async () => {
     const blog = await queryEditorialSummaries("blog");
     const changelog = await queryEditorialSummaries("changelog");
