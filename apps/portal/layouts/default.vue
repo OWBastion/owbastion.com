@@ -41,7 +41,8 @@ const showFooter = computed(() => !route.path.startsWith("/admin"));
 .site-footer__brand em { margin-left: .2em; color: var(--muted); font-style: normal; }
 .site-footer__nav { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-5); }
 .site-footer__nav a { color: var(--muted); text-decoration: none; }
-.site-footer__nav a:hover, .site-footer__nav a:focus-visible { color: var(--text); }
+.site-footer__nav a:focus-visible { color: var(--text); }
+@media (hover: hover) and (pointer: fine) { .site-footer__nav a:hover { color: var(--text); } }
 .site-footer__copy { grid-column: 1 / -1; }
 @media (max-width: 47.99rem) {
   .site-footer__inner { grid-template-columns: 1fr; }

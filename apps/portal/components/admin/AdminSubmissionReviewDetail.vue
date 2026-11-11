@@ -394,10 +394,15 @@ function spotCheckLoading(decision: SpotCheckDecision) {
   overflow-wrap: anywhere;
   text-decoration: none;
 }
-.detail-meta__player:hover,
 .detail-meta__player:focus-visible {
   color: var(--accent);
   text-decoration: underline;
+}
+@media (hover: hover) and (pointer: fine) {
+  .detail-meta__player:hover {
+    color: var(--accent);
+    text-decoration: underline;
+  }
 }
 .detail-meta__sep,
 .detail-meta__time {

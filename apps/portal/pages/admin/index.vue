@@ -136,7 +136,8 @@ function waitingFor(createdAt: number) {
 .panel__list > li + li { border-top: 1px solid var(--line); }
 .panel__empty { margin: 0; padding: var(--space-4) 0; color: var(--quiet); text-align: center; }
 .row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-1); color: var(--text); text-decoration: none; }
-.row:hover .row__main strong, .row:focus-visible .row__main strong { text-decoration: underline; }
+.row:focus-visible .row__main strong { text-decoration: underline; }
+@media (hover: hover) and (pointer: fine) { .row:hover .row__main strong { text-decoration: underline; } }
 .row__main { display: grid; min-width: 0; }
 .row__main small { color: var(--quiet); overflow-wrap: anywhere; }
 .row__wait { flex: none; color: var(--muted); font-size: var(--type-caption-size); }

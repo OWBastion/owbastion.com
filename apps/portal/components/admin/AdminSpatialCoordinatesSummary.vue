@@ -310,8 +310,10 @@ async function copyCoordinate(pos: Vector) {
   transition: border-color 160ms ease, background-color 160ms ease;
 }
 
-.point-card:hover {
-  border-color: var(--line-strong);
+@media (hover: hover) and (pointer: fine) {
+  .point-card:hover {
+    border-color: var(--line-strong);
+  }
 }
 
 .point-card__header {
@@ -372,9 +374,11 @@ async function copyCoordinate(pos: Vector) {
   box-sizing: border-box;
 }
 
-.coord-pill:hover .coord-copy-icon {
-  opacity: 1;
-  color: var(--text);
+@media (hover: hover) and (pointer: fine) {
+  .coord-pill:hover .coord-copy-icon {
+    opacity: 1;
+    color: var(--text);
+  }
 }
 
 .coord-segment {

@@ -32,7 +32,7 @@ onMounted(() => { void refresh(); });
 .settings-page :deep(.masthead) { margin-bottom: 0; }
 .settings-card { padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
 .back-link { display: inline-flex; align-items: center; gap: var(--space-2); justify-self: start; color: var(--muted); font-size: .9rem; text-decoration: none; }
-.back-link:hover { color: var(--text); }
+@media (hover: hover) and (pointer: fine) { .back-link:hover { color: var(--text); } }
 .settings-section { display: grid; gap: var(--space-3); }
 .section-title { display: flex; align-items: center; gap: var(--space-2); margin: 0; font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; }
 .section-title svg { color: var(--muted); }

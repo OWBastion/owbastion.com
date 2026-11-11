@@ -94,7 +94,7 @@ const showToc = computed(() => props.toc.length >= 3);
 .editorial-article-body :deep(li) { margin: 0 0 .45em; }
 .editorial-article-body :deep(li)::marker { color: var(--quiet); }
 .editorial-article-body :deep(a) { color: var(--info); text-decoration: underline; text-decoration-thickness: .08em; text-underline-offset: .16em; }
-.editorial-article-body :deep(a:hover) { color: color-mix(in oklch, var(--info) 80%, var(--text)); }
+@media (hover: hover) and (pointer: fine) { .editorial-article-body :deep(a:hover) { color: color-mix(in oklch, var(--info) 80%, var(--text)); } }
 /* MDC wraps heading text in an anchor link; headings keep their own color and weight instead of looking like underlined links. */
 .editorial-article-body :deep(:where(h2, h3, h4) a) { color: inherit; text-decoration: none; }
 /* A quoted opening line is the editor's note about the article, so it reads as a note, not as a quotation. */

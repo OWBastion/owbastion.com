@@ -48,6 +48,20 @@ onMounted(() => {
       item: 'min-h-11 items-center gap-2.5 px-2.5 py-0',
     }"
   >
-    <UButton :icon="currentIcon" color="neutral" variant="outline" :aria-label="`当前主题：${currentLabel}，打开主题菜单`" />
+    <UButton class="theme-trigger" :icon="currentIcon" color="neutral" variant="outline" :aria-label="`当前主题：${currentLabel}，打开主题菜单`" />
   </UDropdownMenu>
 </template>
+
+<style scoped>
+/* Square control matching the 2.25rem login button beside it. */
+.theme-trigger {
+  width: 2.25rem;
+  min-height: 2.25rem;
+  justify-content: center;
+  padding: 0;
+  --tw-ring-color: var(--line-strong);
+}
+@media (pointer: coarse) {
+  .theme-trigger { width: var(--control-lg); min-height: var(--control-lg); }
+}
+</style>

@@ -266,13 +266,11 @@ const entryMeta = (entry: LeaderboardEntry) => board.value === "mastery"
 .podium__badge { --avatar-size: 3.75rem; display: grid; width: var(--avatar-size); height: var(--avatar-size); place-items: center; margin-bottom: var(--space-1); }
 .place1 .podium__badge { --avatar-size: 5rem; margin-top: var(--space-6); }
 .podium__badge { position: relative; }
-.place1 .podium__badge::before { position: absolute; z-index: -1; inset: -35%; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in oklch, var(--gold) 55%, transparent), color-mix(in oklch, var(--gold) 14%, transparent) 60%, transparent); content: ""; animation: podium-glow 4.5s ease-in-out infinite; }
-.place1 .podium__badge::after { position: absolute; inset: -.25rem; border: 2px solid var(--gold); border-radius: 50%; content: ""; opacity: 0; animation: podium-ring 3.6s ease-out infinite; }
-.podium__crown { position: absolute; top: -1.6rem; left: 50%; width: 1.75rem; height: 1.75rem; color: var(--gold); filter: drop-shadow(0 0 .4rem color-mix(in oklch, var(--gold) 70%, transparent)); transform: translateX(-50%); animation: podium-crown 4.5s ease-in-out infinite; }
-@keyframes podium-glow { 0%, 100% { opacity: .6; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.06); } }
+.place1 .podium__badge::before { position: absolute; z-index: -1; inset: -35%; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in oklch, var(--gold) 55%, transparent), color-mix(in oklch, var(--gold) 14%, transparent) 60%, transparent); content: ""; }
+.place1 .podium__badge::after { position: absolute; inset: -.25rem; border: 2px solid var(--gold); border-radius: 50%; content: ""; opacity: 0; animation: podium-ring 1.8s ease-out 400ms backwards; }
+.podium__crown { position: absolute; top: -1.6rem; left: 50%; width: 1.75rem; height: 1.75rem; color: var(--gold); filter: drop-shadow(0 0 .4rem color-mix(in oklch, var(--gold) 70%, transparent)); transform: translateX(-50%); }
 @keyframes podium-ring { 0% { opacity: .7; transform: scale(1); } 100% { opacity: 0; transform: scale(1.35); } }
-@keyframes podium-crown { 0%, 100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-3px); } }
-@media (prefers-reduced-motion: reduce) { .place1 .podium__badge::before, .place1 .podium__badge::after, .podium__crown { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .place1 .podium__badge::after { animation: none; } }
 .podium__badge--empty { border: 2px solid var(--metal); border-radius: 50%; color: var(--metal); font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; }
 .podium__name { max-width: 100%; overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .podium__score { color: var(--metal); font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; }
@@ -287,7 +285,8 @@ const entryMeta = (entry: LeaderboardEntry) => board.value === "mastery"
 .ladder > li.ladder__cut { position: relative; margin-top: var(--space-5); border-top: 1px dashed var(--line-strong); }
 .ladder > li.ladder__cut::before { position: absolute; top: -.7rem; left: 0; padding-right: var(--space-2); background: var(--page); color: var(--muted); content: "前 10"; font-size: var(--type-caption-size); font-weight: 600; }
 .rung { display: grid; grid-template-columns: 2.75rem 2.25rem minmax(0, 1fr) auto; grid-template-areas: "rank badge who score" "rank badge bar bar"; align-items: center; column-gap: var(--space-3); width: 100%; padding: var(--space-3) var(--space-2); border: 0; border-radius: var(--radius-control); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-.rung:hover, .rung:focus-visible { background: var(--surface-raised); }
+.rung:focus-visible { background: var(--surface-raised); }
+@media (hover: hover) and (pointer: fine) { .rung:hover { background: var(--surface-raised); } }
 .rung.me { background: var(--accent-surface); box-shadow: inset 3px 0 0 var(--accent); }
 .rung__rank { grid-area: rank; color: var(--muted); font-family: var(--font-display); font-size: 1.375rem; font-weight: 700; text-align: center; }
 .rung__badge { display: grid; grid-area: badge; place-items: center; width: 2.25rem; height: 2.25rem; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--muted); font-family: var(--font-display); font-weight: 700; }
@@ -296,7 +295,8 @@ const entryMeta = (entry: LeaderboardEntry) => board.value === "mastery"
 .rung__who small { overflow: hidden; color: var(--quiet); font-size: var(--type-caption-size); text-overflow: ellipsis; white-space: nowrap; }
 .rung__score { grid-area: score; font-family: var(--font-display); font-weight: 700; }
 .rung__bar { grid-area: bar; height: 3px; margin-top: var(--space-2); border-radius: var(--radius-pill); background: var(--line); overflow: hidden; }
-.rung__bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, color-mix(in oklch, var(--accent) 40%, transparent), var(--accent)); }
+.rung__bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, color-mix(in oklch, var(--accent) 40%, transparent), var(--accent)); transform-origin: left; animation: rung-grow 600ms var(--ease-out) 200ms backwards; }
+@keyframes rung-grow { from { transform: scaleX(0); } }
 
 /* My standing stays in reach while scrolling: rank, gap to the next place, score. */
 .mine { position: sticky; z-index: 1; bottom: calc(var(--tab-bar-height, 0px) + var(--space-3)); display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid color-mix(in oklch, var(--accent) 55%, var(--line)); border-radius: var(--radius-card); background: color-mix(in oklch, var(--surface) 88%, var(--accent)); box-shadow: 0 .75rem 2rem -1rem rgb(0 0 0 / .6); color: var(--text); font: inherit; text-align: left; text-decoration: none; cursor: pointer; backdrop-filter: blur(12px); }

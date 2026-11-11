@@ -99,7 +99,7 @@ async function signOut() {
    Desktop admin pages (>= 64rem) keep a fixed left sidebar for their deep section tree.
    Heights/widths are mirrored by --sidebar-width / --sticky-chrome-top in main.css. */
 .app-header-wrap { container-type: inline-size; position: sticky; z-index: 20; top: 0; width: 100%; padding-top: env(safe-area-inset-top); }
-.app-header { position: relative; z-index: 2; display: flex; height: 3.5rem; align-items: center; gap: var(--space-3); padding: 0 var(--space-2) 0 var(--space-4); border-bottom: 1px solid var(--line); }
+.app-header { position: relative; z-index: 2; display: flex; height: 3.5rem; align-items: center; gap: var(--space-3); padding: 0 calc(var(--space-2) + env(safe-area-inset-right)) 0 calc(var(--space-4) + env(safe-area-inset-left)); border-bottom: 1px solid var(--line); }
 .brand { display: inline-flex; min-width: 0; flex: none; align-items: center; gap: var(--space-2); color: var(--text); font-family: var(--font-display); font-size: 1rem; font-weight: 700; letter-spacing: .02em; text-decoration: none; white-space: nowrap; }
 .brand-name { overflow: hidden; text-overflow: ellipsis; }
 .brand-name em { margin-left: .2em; color: var(--muted); font-style: normal; }
@@ -110,19 +110,22 @@ async function signOut() {
 .account-name { display: none; }
 .login-link { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 2.25rem; padding: 0 var(--space-4); border-radius: var(--radius-control); color: var(--on-accent); background: var(--accent); font-weight: 700; text-decoration: none; clip-path: polygon(0 0, 100% 0, 100% calc(100% - .5rem), calc(100% - .5rem) 100%, 0 100%); }
 @media (pointer: coarse) { .login-link { min-height: var(--control-lg); } }
-.login-link:hover, .login-link:focus-visible { background: color-mix(in oklch, var(--accent) 86%, white); }
+.login-link:focus-visible { background: color-mix(in oklch, var(--accent) 86%, white); }
+@media (hover: hover) and (pointer: fine) { .login-link:hover { background: color-mix(in oklch, var(--accent) 86%, white); } }
 .tab-bar { display: none; }
 
 @media (min-width: 64rem) {
   .mobile-menu-toggle { display: none; }
   /* Aligns with .page-shell: min(100% - 3rem, 90rem). */
-  .app-header { gap: var(--space-8); padding-inline: max(1.5rem, calc((100% - 90rem) / 2)); }
+  .app-header { gap: var(--space-8); padding-inline: max(1.5rem + env(safe-area-inset-left), calc((100% - 90rem) / 2)) max(1.5rem + env(safe-area-inset-right), calc((100% - 90rem) / 2)); }
   .main-nav { display: block; flex: 1; min-width: 0; align-self: stretch; }
   .main-nav :deep([data-slot="root"]), .main-nav :deep([data-slot="list"]) { height: 100%; }
   .main-nav :deep([data-slot="list"]) { gap: var(--space-1); }
   .main-nav :deep([data-slot="item"]) { height: 100%; }
   .main-nav :deep([data-slot="link"]), .main-nav :deep([data-slot="trigger"]) { height: 100%; padding-inline: var(--space-3); color: var(--text-on-glass-secondary); font-size: .875rem; font-weight: 500; }
-  .main-nav :deep([data-slot="link"]:hover), .main-nav :deep([data-slot="trigger"]:hover) { color: var(--text); }
+  @media (hover: hover) and (pointer: fine) {
+    .main-nav :deep([data-slot="link"]:hover), .main-nav :deep([data-slot="trigger"]:hover) { color: var(--text); }
+  }
   .main-nav :deep([data-active]) { color: var(--accent); }
   .main-nav :deep([data-slot="linkLeadingIcon"]) { display: none; }
 
@@ -141,10 +144,12 @@ async function signOut() {
 }
 @media (max-width: 47.99rem) {
   .tab-bar { position: fixed; z-index: 1; inset: auto 0 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: var(--space-1) var(--space-2) max(var(--space-1), env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
-  .tab-bar__item { position: relative; display: grid; min-height: 3.25rem; place-items: center; align-content: center; gap: 2px; color: var(--quiet); font-size: .6875rem; font-weight: 500; text-decoration: none; }
+  .tab-bar__item { position: relative; display: grid; min-height: 3.25rem; place-items: center; align-content: center; gap: 2px; color: var(--quiet); font-size: .6875rem; font-weight: 500; text-decoration: none; transition: transform var(--press-duration) ease-out, color 160ms ease; }
+  .tab-bar__item:active { transform: scale(var(--press-scale-soft)); }
   .tab-bar__item [class*="i-lucide-"] { width: 1.25rem; height: 1.25rem; }
   .tab-bar__item.is-active { color: var(--accent); }
-  .tab-bar__item.is-active::before { content: ""; position: absolute; top: calc(var(--space-1) * -1); width: 1.5rem; height: 2px; background: var(--accent); }
+  .tab-bar__item::before { content: ""; position: absolute; top: calc(var(--space-1) * -1); width: 1.5rem; height: 2px; background: var(--accent); transform: scaleX(0); transition: transform var(--dur-fast) var(--ease-out); }
+  .tab-bar__item.is-active::before { transform: scaleX(1); }
 }
 @media (prefers-reduced-transparency: reduce) {
   .tab-bar { background: var(--surface); }

@@ -32,8 +32,8 @@ const tier = computed(() => /^T(\d)$/.exec(props.map.difficultyRating ?? "")?.[1
 .map-card { container-type: inline-size; display: grid; min-width: 0; padding: 0; overflow: hidden; border-radius: var(--radius-card); font: inherit; text-align: left; }
 .map-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .map-card-media { position: relative; display: grid; place-items: center; aspect-ratio: 16 / 9; overflow: hidden; color: var(--accent); background: repeating-linear-gradient(135deg, transparent 0 10px, color-mix(in oklch, var(--accent) 7%, transparent) 10px 11px), radial-gradient(80% 90% at 70% 0%, color-mix(in oklch, var(--accent) 16%, transparent), transparent 70%), var(--surface-raised); }
-.map-card-media img { width: 100%; height: 100%; object-fit: cover; transition: transform 300ms cubic-bezier(.2, .7, .2, 1); }
-.map-card:hover .map-card-media img { transform: scale(1.04); }
+.map-card-media img { width: 100%; height: 100%; object-fit: cover; transition: transform var(--dur-slow) var(--ease-out); }
+@media (hover: hover) and (pointer: fine) { .map-card:hover .map-card-media img { transform: scale(1.04); } }
 .map-card-index { font-family: var(--font-display); font-size: clamp(3rem, 26cqi, 6rem); font-weight: 700; letter-spacing: .04em; opacity: .22; }
 .map-card-shade { position: absolute; inset: 40% 0 0; background: linear-gradient(to bottom, transparent, oklch(12% 0.01 165 / 85%)); }
 .map-card-name { position: absolute; inset: auto var(--space-4) var(--space-3); overflow: hidden; color: oklch(97% 0.01 120); font-family: var(--font-display); font-size: clamp(1.125rem, 7cqi, 1.5rem); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }

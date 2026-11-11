@@ -28,8 +28,8 @@ const label = (state: StepState) => state === "failed" && props.resubmissionRequ
 
 <style scoped>
 .progress { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
-.progress li { --bar: var(--line); display: grid; gap: var(--space-2); color: var(--quiet); font-size: var(--type-caption-size); font-weight: 600; }
-.progress li::before { height: 4px; border-radius: var(--radius-pill); background: var(--bar); content: ""; }
+.progress li { --bar: var(--line); display: grid; gap: var(--space-2); color: var(--quiet); font-size: var(--type-caption-size); font-weight: 600; transition: color var(--dur-base) ease; }
+.progress li::before { height: 4px; border-radius: var(--radius-pill); background: var(--bar); content: ""; transition: background-color var(--dur-base) ease; }
 .progress .is-complete { --bar: var(--accent); }
 .progress .is-current { --bar: color-mix(in oklch, var(--accent) 45%, var(--line)); color: var(--accent); }
 .progress .is-current::before { animation: pulse 1.6s ease-in-out infinite; }

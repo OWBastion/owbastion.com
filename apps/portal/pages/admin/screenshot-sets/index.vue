@@ -247,7 +247,7 @@ watch(statusFilter, () => { page.value = 1; }, { flush: 'sync' });
 .set-filters { display: grid; grid-template-columns: minmax(140px, 220px); }
 .set-dialog-error { margin-bottom: var(--space-3); }
 .set-dialog-message { margin: 0; padding: var(--space-8) 0; color: var(--muted); text-align: center; }
-.set-candidate-list { display: grid; max-height: 55vh; gap: var(--space-2); overflow: auto; }
+.set-candidate-list { display: grid; max-height: 55dvh; gap: var(--space-2); overflow: auto; }
 .set-candidate { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); }
 .set-candidate > span { display: grid; gap: var(--space-1); min-width: 0; overflow-wrap: anywhere; }
 .set-thumb { width: 96px; height: 54px; object-fit: cover; border-radius: var(--radius-control); background: var(--muted); flex: none; }

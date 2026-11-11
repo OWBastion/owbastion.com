@@ -408,8 +408,8 @@ onBeforeUnmount(() => {
    would create a containing block that kills page-level sticky). */
 .admin-data-table { container-type: inline-size; overflow: visible; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); scroll-margin-top: var(--sticky-chrome-top, 0px); }
 .admin-data-table--row-link :deep(tbody tr) { cursor: pointer; transition: background-color 120ms ease-out; }
-.admin-data-table--row-link :deep(tbody tr:hover),
 .admin-data-table--row-link :deep(tbody tr:focus-within) { background: color-mix(in oklch, var(--surface-raised) 72%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
+@media (hover: hover) and (pointer: fine) { .admin-data-table--row-link :deep(tbody tr:hover) { background: color-mix(in oklch, var(--surface-raised) 72%, transparent); box-shadow: inset 3px 0 0 var(--accent); } }
 .admin-data-table--row-link :deep(tbody tr:active) { background: color-mix(in oklch, var(--surface-raised) 88%, transparent); }
 .admin-data-table__controls { position: sticky; z-index: 3; top: var(--sticky-chrome-top, 0px); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); border-radius: var(--radius-card) var(--radius-card) 0 0; background: var(--surface); }
 .admin-data-table__loading-bar {

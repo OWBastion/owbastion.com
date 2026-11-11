@@ -17,7 +17,7 @@ defineProps<{ name: string; iconUrl?: string | null; icon: string; earned: boole
 <style scoped>
 .medal { --achievement-icon-size: clamp(5.5rem, 24vw, 7rem); position: relative; display: grid; justify-items: center; gap: var(--space-3); width: 100%; padding: var(--space-3) var(--space-1) var(--space-2); border: 0; background: none; color: var(--quiet); cursor: pointer; }
 /* A soft floor shadow seats each badge on the shelf. */
-.medal::before { position: absolute; top: calc(var(--space-3) + var(--achievement-icon-size) - .35rem); left: 50%; width: calc(var(--achievement-icon-size) * .7); height: .6rem; border-radius: 50%; background: radial-gradient(closest-side, rgb(0 0 0 / .45), transparent); content: ""; transform: translateX(-50%); transition: opacity 200ms ease, transform 320ms cubic-bezier(.34, 1.56, .64, 1); }
+.medal::before { position: absolute; top: calc(var(--space-3) + var(--achievement-icon-size) - .35rem); left: 50%; width: calc(var(--achievement-icon-size) * .7); height: .6rem; border-radius: 50%; background: radial-gradient(closest-side, rgb(0 0 0 / .45), transparent); content: ""; transform: translateX(-50%); transition: opacity var(--dur-base) ease, transform var(--dur-slow) var(--ease-out); }
 .medal:not(.is-earned)::before { opacity: .4; }
 .medal.is-earned { color: var(--text); }
 .medal:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-card); }
@@ -28,9 +28,13 @@ defineProps<{ name: string; iconUrl?: string | null; icon: string; earned: boole
 .medal__status--sunsetting { border-color: var(--warning); color: var(--warning); }
 .medal.is-highlighted .medal__name { color: var(--accent); }
 .medal__check { position: absolute; top: var(--space-2); right: calc(50% - var(--achievement-icon-size) / 2 - .25rem); padding: .15rem; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-size: .75rem; }
-.medal:hover :deep(.achievement-icon), .medal:focus-visible :deep(.achievement-icon) { transform: translateY(-4px) scale(1.06); }
-.medal:hover::before, .medal:focus-visible::before { opacity: .6; transform: translateX(-50%) scale(.8); }
-.medal:hover :deep(.achievement-icon__sparkle), .medal:focus-visible :deep(.achievement-icon__sparkle) { animation-duration: 1.4s; }
-.medal:not(.is-earned):hover :deep(.achievement-icon img) { opacity: .8; }
+.medal:focus-visible :deep(.achievement-icon) { transform: translateY(-4px) scale(1.06); }
+@media (hover: hover) and (pointer: fine) { .medal:hover :deep(.achievement-icon) { transform: translateY(-4px) scale(1.06); } }
+.medal:focus-visible::before { opacity: .6; transform: translateX(-50%) scale(.8); }
+@media (hover: hover) and (pointer: fine) { .medal:hover::before { opacity: .6; transform: translateX(-50%) scale(.8); } }
+.medal:focus-visible :deep(.achievement-icon__sparkle) { animation-duration: 1.4s; animation-play-state: running; }
+.medal:focus-visible :deep(.achievement-icon.has-art.is-earned::before) { animation-play-state: running; }
+@media (hover: hover) and (pointer: fine) { .medal:hover :deep(.achievement-icon__sparkle) { animation-duration: 1.4s; } }
+@media (hover: hover) and (pointer: fine) { .medal:not(.is-earned):hover :deep(.achievement-icon img) { opacity: .8; } }
 @media (prefers-reduced-motion: reduce) { .medal::before, .medal :deep(.achievement-icon) { transition: none; transform: none !important; } }
 </style>

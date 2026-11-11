@@ -29,7 +29,8 @@ const ago = (timestamp: number) => {
 .submission-list { display: grid; margin: 0; padding: 0; list-style: none; }
 .submission-list > li + li { border-top: 1px solid var(--line); }
 .submission-row { --tone: var(--quiet); display: grid; grid-template-columns: auto minmax(0, 1fr) auto 4.5rem; align-items: center; gap: var(--space-3); min-height: 3.25rem; padding: 0 var(--space-2); border-radius: var(--radius-control); color: inherit; text-decoration: none; }
-.submission-row:hover, .submission-row:focus-visible { background: var(--surface-raised); }
+.submission-row:focus-visible { background: var(--surface-raised); }
+@media (hover: hover) and (pointer: fine) { .submission-row:hover { background: var(--surface-raised); } }
 .submission-row[data-tone="success"] { --tone: var(--success); }
 .submission-row[data-tone="info"] { --tone: var(--info); }
 .submission-row[data-tone="warning"] { --tone: var(--warning); }

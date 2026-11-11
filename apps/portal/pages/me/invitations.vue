@@ -130,7 +130,7 @@ onMounted(load);
 .invitations-page { display: grid; gap: var(--space-6); padding-block: var(--space-8) 4.5rem; }
 .invitations-page :deep(.masthead) { margin-bottom: 0; }
 .back-link { display: inline-flex; align-items: center; gap: var(--space-2); justify-self: start; color: var(--muted); font-size: .9rem; text-decoration: none; }
-.back-link:hover { color: var(--text); }
+@media (hover: hover) and (pointer: fine) { .back-link:hover { color: var(--text); } }
 .card { display: grid; gap: var(--space-3); padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
 .section-title { margin: 0; font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; }
 .form { display: flex; flex-wrap: wrap; gap: var(--space-2); }

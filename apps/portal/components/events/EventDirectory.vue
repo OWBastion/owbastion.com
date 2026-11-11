@@ -212,7 +212,7 @@ onMounted(() => {
           <h2>{{ section.label }}</h2>
           <span class="type-label-sm num">{{ section.events.length }} 项事件</span>
         </div>
-        <ul class="event-list">
+        <TransitionGroup tag="ul" name="list" class="event-list">
           <li v-for="event in section.events" :key="event.eventId">
             <button
               class="event-row pressable-soft"
@@ -236,7 +236,7 @@ onMounted(() => {
               </span>
             </button>
           </li>
-        </ul>
+        </TransitionGroup>
       </section>
     </div>
     <UEmpty v-else :title="events.length ? '没有找到' : '暂无事件'" variant="naked"><template v-if="events.length && hasFilters" #actions><UButton label="清除条件" color="neutral" variant="outline" @click="clearFilters" /></template></UEmpty>
@@ -308,7 +308,7 @@ onMounted(() => {
 .event-list { display: grid; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); list-style: none; overflow: hidden; }
 .event-list > li + li { border-top: 1px solid var(--line); }
 .event-row { position: relative; display: grid; grid-template-columns: 2.75rem minmax(0, 1fr) minmax(7rem, 10rem); align-items: center; gap: var(--space-4); width: 100%; padding: var(--space-3) var(--space-4); border: 0; color: inherit; background: transparent; font: inherit; text-align: left; cursor: pointer; transition: background-color 140ms ease; }
-.event-row:hover { background: var(--surface-raised); }
+@media (hover: hover) and (pointer: fine) { .event-row:hover { background: var(--surface-raised); } }
 .event-row.is-selected { background: color-mix(in oklch, var(--accent) 10%, transparent); }
 .event-row.is-selected::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--accent); }
 .event-row__rarity { display: grid; height: 2.75rem; place-items: center; border: 1px solid var(--line-strong); border-radius: var(--radius-control); color: var(--text); font-size: .8125rem; font-weight: 700; }
@@ -356,7 +356,8 @@ onMounted(() => {
   background: var(--surface);
   text-decoration: none;
 }
-.challenge-link:hover, .challenge-link:focus-visible { border-color: var(--line-strong); }
+.challenge-link:focus-visible { border-color: var(--line-strong); }
+@media (hover: hover) and (pointer: fine) { .challenge-link:hover { border-color: var(--line-strong); } }
 .challenge-link span, .muted { color: var(--quiet); font-size: var(--type-label-sm-size); }
 @container (max-width: 39.99rem) {
   .event-row { grid-template-columns: 2.5rem minmax(0, 1fr); padding: var(--space-3); }

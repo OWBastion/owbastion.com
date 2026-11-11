@@ -89,7 +89,7 @@ useSeoMeta({
 .player__title-icon { flex: none; }
 .player__ranks { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); margin: 0; }
 .player__rank { display: grid; gap: var(--space-1); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: color-mix(in oklch, var(--surface) 80%, transparent); color: inherit; text-decoration: none; }
-.player__rank:hover { border-color: var(--line-strong); }
+@media (hover: hover) and (pointer: fine) { .player__rank:hover { border-color: var(--line-strong); } }
 .player__rank dt { color: var(--quiet); font-size: var(--type-caption-size); }
 .player__rank dd { display: grid; margin: 0; }
 .player__rank b { font-family: var(--font-display); font-size: 1.5rem; line-height: 1.1; }
