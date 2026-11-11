@@ -744,7 +744,7 @@ button, [role="button"], .tab-bar__item, .pressable, .pressable-soft { -webkit-u
    over Nuxt UI's default shadow-lg (unlayered rule); the crisp edge replaces
    the ring that elevation-2's box-shadow supersedes. */
 .portal-menu-surface {
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   background: var(--menu-surface);
 }
 
