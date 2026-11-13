@@ -47,7 +47,7 @@ Repository or `production` environment secrets (values are never printed):
 | `BASTION_BUILD_TOKEN` | Bastion build only (numeric player IDs); never to browsers or QQBot |
 | `QQBOT_POLICY_WEBHOOK_URL`, `QQBOT_POLICY_WEBHOOK_SECRET` | Group-policy callback and its HMAC secret |
 | `OCRKIT_API_TOKEN` | Shared only with OCRKit |
-| `OCRKIT_SNAPSHOT_TOKEN` | OCRKit reads finalized screenshot sets |
+| `OCRKIT_SNAPSHOT_TOKEN` | OCRKit reads screenshot sets |
 | `BINDING_INVITE_CODE_ENCRYPTION_KEY` | AES-GCM key (`openssl rand -base64 32`); keep while invitations are active |
 | `ADMIN_BATTLETAG` | Full BattleTag, already in `player_accounts`; deploy sets its `is_admin` |
 

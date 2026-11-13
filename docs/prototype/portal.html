@@ -393,7 +393,7 @@ function submission(){
 }
 
 /* ================= admin ================= */
-const ADNAV=[['总览',[['','总览','layout']]],['内容',[['achievements','称号与挑战','award'],['maps','地图','map'],['events','随机事件','zap']]],['玩家',[['players','玩家','user'],['bindings','绑定与邀请','link'],['player-reviews','评价审核','msg']]],['审核',[['reviews','截图审核','eye','_'],['verified-runs','通关记录','trophy'],['screenshot-sets','截图集','image']]],['工具',[['grants','手动授予','send'],['titles','称号迁移','history'],['channels','QQ 群','hash']]]];
+const ADNAV=[['总览',[['','总览','layout']]],['内容',[['achievements','称号与挑战','award'],['maps','地图','map'],['events','随机事件','zap']]],['玩家',[['players','玩家','user'],['bindings','绑定与邀请','link'],['player-reviews','评价审核','msg']]],['审核',[['reviews','截图审核','eye','_'],['verified-runs','通关记录','trophy']]],['工具',[['grants','手动授予','send'],['titles','称号迁移','history'],['channels','QQ 群','hash']]]];
 function adShell(key,inner){
   const cur=ADNAV.flatMap(g=>g[1]).find(x=>x[0]===key);
   return need(`<div class="ad"><details class="ad-nav" ${S.adOpen?'open':''}><summary>${cur?cur[1]:'管理导航'}${ic('down')}</summary><div class="in">${ADNAV.map(([g,it])=>`<div class="g">${g}</div>${it.map(([p,l,i,b])=>`<a href="${L('admin'+(p?'/'+p:''))}" ${p===key?'aria-current="page"':''}>${ic(i)}${l}${b?`<span class="badge acc">${p==='reviews'?rvLeft().length:b}</span>`:''}</a>`).join('')}`).join('')}</div></details><div style="min-width:0">${inner}</div></div>`,true);
@@ -420,8 +420,6 @@ const AD={
   rows:[[['示例地图一',B('有效','ok'),{s:5},'很有意思','示例玩家 B'],['示例事件三',B('有效','ok'),{s:2},'（不当内容示例）','示例玩家 C'],['示例地图二',B('已隐藏','warn'),{s:1},'（已隐藏）','示例玩家 D'],['示例事件一',B('已撤回'),{s:4},'—','示例玩家 E']]],acts:[['隐藏评论','outline'],['恢复','outline']]},
  'verified-runs':{t:'通关记录',f:[['全部难度','普通','困难'],['全部状态','有效','已纠正','冲突'],['全部来源','提交识别','人工']],cols:[['通关码','状态','玩家','地图','接受时间']],
   rows:[[['AB12CD',B('有效','ok'),'示例玩家','示例地图二','今天 14:20'],['EF34GH',B('冲突','warn'),'示例玩家 B','示例地图一','昨天'],['IJ56KL',B('已纠正','info'),'示例玩家 C','示例地图三','9月20日']]],acts:[['纠正','outline'],['处理冲突','primary']]},
- 'screenshot-sets':{t:'截图集',primary:['新建截图集'],f:[['全部状态','草稿','已定稿','已废弃']],cols:[['名称','状态','版本','成员数','创建时间']],
-  rows:[[['结算界面基准集',B('已定稿','ok'),'v3','1,204','9月10日'],['低分辨率补充集',B('草稿'),'v1','86','9月25日'],['旧版界面集',B('已废弃'),'v2','640','7月2日']]],acts:[['定稿','primary'],['废弃','danger']]},
  titles:{t:'称号迁移',f:[['全部状态','待关联','已关联']],cols:[['历史称号','状态','历史持有人','候选玩家','来源']],
   rows:[[['旧版称号甲',B('待关联','warn'),'42','38','历史数据'],['旧版称号乙',B('待关联','warn'),'17','17','历史数据'],['旧版称号丙',B('已关联','ok'),'9','9','历史数据']]],acts:[['确认关联','primary']]},
  channels:{t:'QQ 群',f:[['全部环境','生产','测试']],cols:[['群','状态','环境','命令策略','成员']],

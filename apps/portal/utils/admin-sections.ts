@@ -15,7 +15,6 @@ export const adminSectionGroups: AdminSectionGroup[] = [
   ] },
   { label: "审核", icon: "i-lucide-scan-eye", sections: [
     { label: "截图审核", icon: "i-lucide-scan-eye", to: "/admin/reviews" },
-    { label: "截图集", icon: "i-lucide-images", to: "/admin/screenshot-sets" },
     { label: "评价审核", icon: "i-lucide-message-square-quote", to: "/admin/player-reviews" },
     { label: "通关记录", icon: "i-lucide-trophy", to: "/admin/verified-runs" },
   ] },

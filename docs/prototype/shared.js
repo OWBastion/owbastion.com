@@ -103,6 +103,6 @@ function siteMap(base=''){
   const G=[['公开',[['','首页'],['events','随机事件'],['events/1','事件详情'],['maps','地图'],['maps/1','地图详情'],['achievements','成就'],['changelog','版本更新'],['blog','开发日志'],['blog/1','文章']]],
    ['账号',[['login','登录'],['bind','绑定 QQ'],['recover','恢复帐号']]],
    ['玩家（需登录）',[['me','玩家中心'],['me/settings','个人设置'],['submit','提交截图'],['submissions/1','提交详情']]],
-   ['管理（需管理员）',[['admin','总览'],['admin/achievements','称号与挑战'],['admin/maps','地图'],['admin/maps/1','地图详情'],['admin/events','随机事件'],['admin/players','玩家'],['admin/players/1','玩家详情'],['admin/bindings','绑定与邀请'],['admin/player-reviews','评价审核'],['admin/reviews','截图审核'],['admin/reviews/1','审核详情'],['admin/verified-runs','通关记录'],['admin/screenshot-sets','截图集'],['admin/grants','手动授予'],['admin/titles','称号迁移'],['admin/channels','QQ 群']]]];
+   ['管理（需管理员）',[['admin','总览'],['admin/achievements','称号与挑战'],['admin/maps','地图'],['admin/maps/1','地图详情'],['admin/events','随机事件'],['admin/players','玩家'],['admin/players/1','玩家详情'],['admin/bindings','绑定与邀请'],['admin/player-reviews','评价审核'],['admin/reviews','截图审核'],['admin/reviews/1','审核详情'],['admin/verified-runs','通关记录'],['admin/grants','手动授予'],['admin/titles','称号迁移'],['admin/channels','QQ 群']]]];
   return `<h3>全站页面</h3>`+G.map(([g,it])=>`<p class="cap" style="margin-top:.5rem">${g}</p><p style="display:flex;flex-wrap:wrap;gap:.25rem .75rem">${it.map(([p,l])=>`<a href="${base}#/${p}" style="color:var(--accent)">${l}</a>`).join('')}<a href="profile-267.html#/u/1" style="color:var(--accent);${g==='玩家（需登录）'?'':'display:none'}">公开主页</a></p>`).join('');
 }
