@@ -118,12 +118,12 @@ onMounted(() => { hydrated.value = true; });
 .detail-hero img { width: 100%; height: 100%; object-fit: cover; }
 .detail-hero__index { font-family: var(--font-display); font-size: clamp(4rem, 18cqi, 8rem); font-weight: 700; opacity: .2; }
 .detail-hero__tier { position: absolute; top: var(--space-4); right: var(--space-4); min-width: 3rem; padding: .2rem .6rem; border-radius: calc(var(--radius-control) / 1.5); color: oklch(15% 0.02 150); background: oklch(80% 0.02 150); font-size: 1rem; font-weight: 700; text-align: center; }
-.detail-hero__tier[data-tier="5"] { background: oklch(86% 0.07 220); }
-.detail-hero__tier[data-tier="4"] { background: oklch(85% 0.14 160); }
-.detail-hero__tier[data-tier="3"] { background: oklch(86% 0.16 110); }
-.detail-hero__tier[data-tier="2"] { background: oklch(82% 0.16 75); }
-.detail-hero__tier[data-tier="1"] { background: oklch(76% 0.17 48); }
-.detail-hero__tier[data-tier="0"] { color: oklch(98% 0.01 30); background: oklch(62% 0.2 28); }
+.detail-hero__tier[data-tier="5"] { background: var(--tier-5); }
+.detail-hero__tier[data-tier="4"] { background: var(--tier-4); }
+.detail-hero__tier[data-tier="3"] { background: var(--tier-3); }
+.detail-hero__tier[data-tier="2"] { background: var(--tier-2); }
+.detail-hero__tier[data-tier="1"] { background: var(--tier-1); }
+.detail-hero__tier[data-tier="0"] { color: oklch(98% 0.01 30); background: var(--tier-0); }
 .mechanics { display: flex; flex-wrap: wrap; gap: var(--space-1); }
 .challenge-done { flex: none; color: var(--accent); }
 .challenge-list { gap: 0; }

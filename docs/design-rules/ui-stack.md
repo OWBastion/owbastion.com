@@ -43,5 +43,5 @@ correctly.
 
 ## Visual language
 
-Color, type, radius, and layout stay open for experiment on `next`. Change them through theme tokens
-and `ui` slot overrides, never through a parallel component.
+The current language is in [visual-language.md](visual-language.md). It can still change on `next`.
+Change it through theme tokens and `ui` slot overrides, never through a parallel component.
