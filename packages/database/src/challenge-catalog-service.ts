@@ -407,26 +407,26 @@ export const createChallengeCatalogServices = ({ db, now, platformCache, pioneer
     }).sort((left, right) => left.category.localeCompare(right.category, "zh-CN") || left.titleName.localeCompare(right.titleName, "zh-CN"));
   };
 
-  // Public list of timed paths an administrator chose to feature. "Open now" reuses the
-  // submission-window and title-availability rules, so there is one definition.
+  // Public list of timed paths that are open now. A path appears when its administrator-set
+  // window is open, reusing the submission-window and title-availability rules, so there is one definition.
   const listActiveChallenges = async (): Promise<ActiveChallenge[]> => {
     const timestamp = now();
     const [ruleRows, exceptions, titleRows, mapIdsByChallenge] = await Promise.all([
       loadMapTitleRuleChallenges(false, timestamp),
-      platformCache.cached("catalog", "featured-pioneer-exceptions", () => db.select().from(mapTitleRuleExceptions).where(eq(mapTitleRuleExceptions.featured, 1))),
-      platformCache.cached("catalog", "featured-title-challenges", () => db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges)
+      platformCache.cached("catalog", "pioneer-window-exceptions", () => db.select().from(mapTitleRuleExceptions)),
+      platformCache.cached("catalog", "timed-title-challenges", () => db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges)
         .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
-        .where(and(eq(titleChallenges.featured, 1), eq(titleChallenges.status, "active"), eq(titleCatalog.lifecycle, "active"), eq(titleCatalog.publicVisibility, 1), ne(titleCatalog.category, "开发保留")))),
+        .where(and(eq(titleChallenges.status, "active"), eq(titleCatalog.lifecycle, "active"), eq(titleCatalog.publicVisibility, 1), ne(titleCatalog.category, "开发保留")))),
       loadChallengeMapIds(),
     ]);
-    const featured = new globalThis.Map(exceptions.map((item) => [`${item.ruleId}:${item.mapId}`, item]));
+    const windows = new globalThis.Map(exceptions.map((item) => [`${item.ruleId}:${item.mapId}`, item]));
     const items: ActiveChallenge[] = [];
     const seen = new Set<string>();
     for (const row of ruleRows) {
       const rule = row.mapTitleRule;
       if (!rule || rule.kind.trim().toLocaleLowerCase() !== "pioneer" || !row.titleKey) continue;
       const key = `${rule.ruleId}:${row.mapId}`;
-      const exception = featured.get(key);
+      const exception = windows.get(key);
       if (!exception || seen.has(key) || exception.startsAt === null || exception.endsAt === null) continue;
       seen.add(key);
       items.push({ kind: "pioneer", titleKey: row.titleKey, titleName: row.name, mapId: row.mapId, mapName: row.mapName, startsAt: exception.startsAt, endsAt: exception.endsAt });

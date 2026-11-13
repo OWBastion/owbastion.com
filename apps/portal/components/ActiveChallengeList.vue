@@ -25,8 +25,9 @@ const target = (item: ActiveChallenge) => item.kind === "pioneer" ? { path: "/ma
 <style scoped>
 .active-challenges { display: grid; gap: var(--space-3); width: min(100%, 48rem); }
 .active-challenges__title { margin: 0; font-size: var(--type-label-sm-size); font-weight: 700; color: var(--muted); }
-.active-challenges__list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
-.active-challenges__item { display: flex; align-items: center; gap: var(--space-3); min-height: var(--control-lg); padding: var(--space-3) var(--space-4); border-radius: var(--radius-card); color: var(--text); text-decoration: none; }
+.active-challenges__list { display: flex; gap: var(--space-3); margin: 0; padding: 0 0 var(--space-2); overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scrollbar-width: thin; list-style: none; }
+.active-challenges__list > li { flex: 0 0 min(80%, 15rem); scroll-snap-align: start; }
+.active-challenges__item { display: flex; height: 100%; align-items: center; gap: var(--space-3); min-height: var(--control-lg); padding: var(--space-3) var(--space-4); border-radius: var(--radius-card); color: var(--text); text-decoration: none; }
 .active-challenges__item:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .active-challenges__name { display: grid; flex: 1; min-width: 0; font-weight: 600; }
 .active-challenges__name small { overflow: hidden; color: var(--quiet); font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }

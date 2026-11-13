@@ -56,7 +56,6 @@ export type AdminTitleChallenge = {
   mapVariant?: "classic";
   progressRule?: AdminTitleProgressRule;
   replacedByChallengeId: string | null;
-  featured: boolean;
 };
 
 export type AdminTitleUpdateResponse = {
