@@ -37,6 +37,18 @@
   --signal: oklch(64% 0.16 62);
   --signal-surface: oklch(94% 0.05 80);
   --grid-line: oklch(22% 0.02 260 / 5%);
+  --on-signal: oklch(20% 0.03 75);
+
+  /* Map difficulty scale (tier 0 hardest to 5 easiest) and podium metals. Fixed in both themes: each carries its own dark text. */
+  --tier-0: oklch(62% 0.2 28);
+  --tier-1: oklch(76% 0.17 48);
+  --tier-2: oklch(82% 0.16 75);
+  --tier-3: oklch(86% 0.16 110);
+  --tier-4: oklch(85% 0.14 160);
+  --tier-5: oklch(86% 0.07 220);
+  --medal-gold: oklch(82% 0.14 85);
+  --medal-silver: oklch(84% 0.02 250);
+  --medal-bronze: oklch(68% 0.11 55);
   --font-display: var(--font-ui);
   --font-ui: "Leon Sans", -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Noto Sans CJK SC", "Segoe UI", sans-serif;
 

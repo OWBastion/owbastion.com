@@ -258,7 +258,7 @@ const entryMeta = (entry: LeaderboardEntry) => board.value === "mastery"
 .lb-board[aria-busy] .lb-results { opacity: .5; }
 
 /* Podium: second, first, third; plinth height and metal tone mark the place. */
-.podium { --gold: oklch(82% .14 85); --silver: oklch(84% .02 250); --bronze: oklch(68% .11 55); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: var(--space-2); margin: var(--space-4) 0 0; padding: 0; list-style: none; }
+.podium { --gold: var(--medal-gold); --silver: var(--medal-silver); --bronze: var(--medal-bronze); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: var(--space-2); margin: var(--space-4) 0 0; padding: 0; list-style: none; }
 .podium__spot { --metal: var(--bronze); --plinth: 3.5rem; display: grid; justify-items: center; gap: var(--space-2); min-width: 0; }
 .podium__spot.place1 { --metal: var(--gold); --plinth: 6rem; isolation: isolate; }
 .podium__spot.place2 { --metal: var(--silver); --plinth: 4.5rem; }

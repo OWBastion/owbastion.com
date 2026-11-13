@@ -44,11 +44,11 @@ const tier = computed(() => /^T(\d)$/.exec(props.map.difficultyRating ?? "")?.[1
 .map-card-live { position: absolute; inset: auto auto calc(var(--space-3) + 2rem) var(--space-3); display: inline-flex; align-items: center; gap: var(--space-1); max-width: calc(100% - var(--space-6)); padding: .15rem .5rem; border-radius: calc(var(--radius-control) / 1.5); color: var(--on-accent); background: var(--accent); font-size: .8125rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .map-card-rating { position: absolute; top: var(--space-3); left: var(--space-3); padding: .15rem .5rem; border-radius: calc(var(--radius-control) / 1.5); color: oklch(97% 0.01 120); background: oklch(12% 0.01 165 / 70%); font-size: .8125rem; font-weight: 700; }
 .map-card-tier { position: absolute; top: var(--space-3); right: var(--space-3); min-width: 2.5rem; padding: .15rem .5rem; border-radius: calc(var(--radius-control) / 1.5); color: oklch(15% 0.02 150); background: oklch(80% 0.02 150); font-size: .8125rem; font-weight: 700; text-align: center; }
-.map-card-tier[data-tier="5"] { background: oklch(86% 0.07 220); }
-.map-card-tier[data-tier="4"] { background: oklch(85% 0.14 160); }
-.map-card-tier[data-tier="3"] { background: oklch(86% 0.16 110); }
-.map-card-tier[data-tier="2"] { background: oklch(82% 0.16 75); }
-.map-card-tier[data-tier="1"] { background: oklch(76% 0.17 48); }
-.map-card-tier[data-tier="0"] { color: oklch(98% 0.01 30); background: oklch(62% 0.2 28); }
+.map-card-tier[data-tier="5"] { background: var(--tier-5); }
+.map-card-tier[data-tier="4"] { background: var(--tier-4); }
+.map-card-tier[data-tier="3"] { background: var(--tier-3); }
+.map-card-tier[data-tier="2"] { background: var(--tier-2); }
+.map-card-tier[data-tier="1"] { background: var(--tier-1); }
+.map-card-tier[data-tier="0"] { color: oklch(98% 0.01 30); background: var(--tier-0); }
 @media (prefers-reduced-motion: reduce) { .map-card-media img { transition: none; } }
 </style>

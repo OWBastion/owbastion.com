@@ -1,11 +1,13 @@
 # Design Rules
 
-Portal (`apps/portal`) UI rules. On the `next` concept branch the visual language (color, type,
-radius, layout) is open for experiment. The UI stack is not: every design uses the designated
-libraries, and the accessibility, copy, and terminology floors always apply.
+Portal (`apps/portal`) UI rules. The visual language is recorded in
+[visual-language.md](visual-language.md) and can still change on the `next` branch. The UI stack is
+fixed: every design uses the designated libraries, and the accessibility, copy, and terminology
+floors always apply.
 
 | Change | Read |
 | --- | --- |
+| Color, type, radius, motion, tokens | [visual-language.md](visual-language.md) |
 | Libraries, components, icons, animation, tables, state | [ui-stack.md](ui-stack.md) |
 | Responsive behavior, accessibility | [interaction-accessibility.md](interaction-accessibility.md) |
 | Copy, states, explanatory text | [portal-copy-guidelines.md](portal-copy-guidelines.md) |
