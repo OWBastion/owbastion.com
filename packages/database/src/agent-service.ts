@@ -1,4 +1,5 @@
 import { and, eq, inArray, isNotNull, isNull, ne, or } from "drizzle-orm";
+import { aggregateTitleStillMet } from "./aggregate-title";
 import { drizzle } from "drizzle-orm/d1";
 import type {
   AgentSearchResult,
@@ -183,7 +184,7 @@ export const createAgentServices = (db: ReturnType<typeof drizzle>, dependencies
       const rows = await platformCache.cached("grants", "agent-player-title-grants", () => db.select({ playerId: playerAccounts.playerId, playerName: playerAccounts.playerName, titleKey: playerTitleGrants.titleKey, equipped: playerEquippedTitles.grantId, allTitles: playerTitleEntitlements.allTitles })
         .from(playerAccounts)
         .leftJoin(playerTitleEntitlements, eq(playerTitleEntitlements.playerAccountId, playerAccounts.id))
-        .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.playerAccountId, playerAccounts.id), eq(playerTitleGrants.status, "active"), isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId)))
+        .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.playerAccountId, playerAccounts.id), eq(playerTitleGrants.status, "active"), isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId), aggregateTitleStillMet()))
         .leftJoin(playerEquippedTitles, eq(playerEquippedTitles.grantId, playerTitleGrants.id))
         .leftJoin(titleCatalog, and(eq(playerTitleGrants.titleKey, titleCatalog.key), eq(titleCatalog.scope, "global"), isNotNull(titleCatalog.gameVersion)))
         .where(and(eq(playerAccounts.status, "active"), or(eq(playerTitleEntitlements.allTitles, 1), and(isNotNull(playerEquippedTitles.grantId), isNotNull(titleCatalog.key)))))

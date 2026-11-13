@@ -13,7 +13,8 @@ const createD1 = () => {
     CREATE TABLE portal_sessions (id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, token_hash TEXT NOT NULL, expires_at INTEGER NOT NULL);
     CREATE TABLE title_catalog (key TEXT PRIMARY KEY, label TEXT NOT NULL, icon TEXT NOT NULL, icon_url TEXT, icon_object_key TEXT, category TEXT NOT NULL, condition TEXT NOT NULL, lifecycle TEXT NOT NULL DEFAULT 'active', public_visibility INTEGER NOT NULL DEFAULT 1, scope TEXT NOT NULL, display_kind TEXT NOT NULL, color_json TEXT, game_version TEXT NOT NULL);
     CREATE TABLE gameplay_revisions (id TEXT PRIMARY KEY, map_id TEXT NOT NULL, lifecycle TEXT NOT NULL);
-    CREATE TABLE maps (id TEXT PRIMARY KEY, name TEXT NOT NULL);
+    CREATE TABLE maps (id TEXT PRIMARY KEY, name TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'active');
+    CREATE TABLE mastery_runs (id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, gameplay_revision_id TEXT NOT NULL, status TEXT NOT NULL);
     CREATE TABLE player_title_grants (id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, title_key TEXT NOT NULL, map_id TEXT, gameplay_revision_id TEXT, slot TEXT, status TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT NOT NULL, granted_by TEXT NOT NULL, granted_at INTEGER NOT NULL, revoked_by TEXT, revoked_at INTEGER, revoke_reason TEXT, completion_id TEXT, revocation_type TEXT);
     CREATE TABLE player_equipped_titles (grant_id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, equipped_at INTEGER NOT NULL);
     CREATE TABLE idempotency_keys (id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, operation TEXT NOT NULL, request_hash TEXT NOT NULL, response_json TEXT NOT NULL, created_at INTEGER NOT NULL);
@@ -95,7 +96,7 @@ describe("equipped title selection", () => {
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.map', 'map-player', 'Map Player', 'map player', 0, 'active', ?, ?)").run(now, now);
     sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.map', NULL, 'player.map', 'qq', 'group', 'member.map', 'active', ?)").run(now);
     sqlite.prepare("INSERT INTO portal_sessions VALUES ('session.map', 'player.map', ?, ?)").run(hash("token.map"), now + 60_000);
-    sqlite.prepare("INSERT INTO maps VALUES ('map.test', '测试地图')").run();
+    sqlite.prepare("INSERT INTO maps (id, name) VALUES ('map.test', '测试地图')").run();
     sqlite.prepare("INSERT INTO gameplay_revisions VALUES ('revision:map.test:default', 'map.test', 'default')").run();
     sqlite.prepare("INSERT INTO title_catalog (key, label, icon, icon_url, icon_object_key, category, condition, scope, display_kind, color_json, game_version) VALUES ('GLOBAL_MAP_TEST', '全局测试称号', 'award', NULL, NULL, '测试', '条件', 'global', 'fixed', NULL, 'test')").run();
     sqlite.prepare("INSERT INTO title_catalog (key, label, icon, icon_url, icon_object_key, category, condition, scope, display_kind, color_json, game_version) VALUES ('MAP_TEST', '地图测试称号', 'award', NULL, NULL, '测试', '条件', 'map', 'map_name_suffix', NULL, 'test')").run();
