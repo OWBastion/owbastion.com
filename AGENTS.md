@@ -48,25 +48,15 @@ Root `AGENTS.md` is a router and invariant source. Module-specific rules belong 
 - Preserve idempotency, auditability, retry behavior, and state consistency for writes and external workflows.
 - Preserve private/public separation. Never expose private evidence, credentials, signed URLs, QQ identifiers, internal risk signals, or production logs through public surfaces.
 - Administrative approvals, rejections, revocations, and similar decisions must not require a reason/note; optional audit text may be absent.
-- Applied D1 migrations are forward-only. Migrations contain schema changes and necessary repair, not routine seed/catalog snapshots or demo/user data.
-- HTTP success, health checks, builds, deployments, or local integration tests do not by themselves prove a production business path works.
 
 ## Verification, quality, and entropy
 
-Apply the organization [testing](../.github/docs/testing-policy.md), [verification](../.github/docs/verification-and-acceptance.md), [engineering quality](../.github/docs/engineering-quality.md), and [entropy](../.github/docs/entropy-policy.md) policies. Platform-specific independent bases for expected results: accepted business/API contract, migration invariant, representative regression, or observable UI behavior. Material state-machine, grants/review, migration, security, public-contract, privacy, or cross-service changes need an independent falsification pass (`.agents/skills/owbastion-verify-change/SKILL.md` when reviewing another author's change). Rendered Portal behavior keeps a separate evidence boundary from component and SSR checks; see the [testing and change policy](docs/dev-rules/testing-and-change-policy.md).
-
-Platform entropy work targets duplicate business truth or ownerless projections, obsolete adapters and compatibility paths after completed migrations, duplicated lifecycle state, stale execution/status material in durable docs, and wrappers that no longer protect a real boundary. It must not remove authorization, auditability, idempotency, migration compatibility, privacy boundaries, or failure visibility that remain part of the platform contract. Test access alone never widens production architecture.
+Apply the organization [testing](../.github/docs/testing-policy.md), [verification](../.github/docs/verification-and-acceptance.md), [engineering quality](../.github/docs/engineering-quality.md), and [entropy](../.github/docs/entropy-policy.md) policies. Their platform specialization is the [testing and change policy](docs/dev-rules/testing-and-change-policy.md): expected-result authority, the independent falsification pass, the rendered-Portal evidence boundary, and the limits of simplification. Read it before you change tests or remove a mechanism.
 
 ## High-risk stop conditions
 
 Re-read the routed specialist rule before changing credentials, authorization/permission boundaries, private evidence handling, production data, historical/applied migrations, public API compatibility, external publishing, or production deployment.
 
-If implementation requires changing another repository's ownership, unresolved product behavior, public-contract semantics, privacy boundary, or migration compatibility policy, stop at that decision and route it to the owner rather than self-authorizing it.
-
 ## Local validation
 
-- `pnpm check` is the default full local code gate. If it cannot run, execute the decisive focused checks and report the exact gap; focused checks do not prove the full gate.
-- Use local fakes for external services in normal automated tests. Real QQ, GitHub, OCRKit, deployment, or production checks are separate evidence and require their own authorization/configuration.
-- Run `pnpm check:migrations` for migration data-write exceptions.
-- Use `pnpm db:seed:local` for local fixtures. `pnpm db:import:catalog --snapshot <path>` is for explicit legacy migration/recovery, not Bastion synchronization; never target remote D1 unless `--remote` is explicitly intended.
-- Before committing, inspect the task-owned staged diff and run `git diff --cached --check`. Do not stage unrelated files, runtime-generated data, credentials, or private evidence.
+`pnpm check` is the default full local code gate. If it cannot run, execute the decisive focused checks and report the exact gap; focused checks do not prove the full gate. Database commands and their remote-D1 limits are in [database migrations and seeds](docs/dev-rules/database-migrations-and-seeds.md).

@@ -20,7 +20,13 @@ Follow the [organization testing policy](https://github.com/OWBastion/.github/bl
 A durable test protects a business/API/UI contract, state transition,
 idempotency/retry invariant, privacy/security boundary, migration invariant, or a
 real regression, not the current internal shape. Assert at public/domain
-boundaries with representative inputs.
+boundaries with representative inputs. Expected results come from an accepted
+business/API contract, a migration invariant, a representative regression, or
+observable UI behavior.
+
+Material state-machine, grants/review, migration, security, public-contract,
+privacy, or cross-service changes need an independent falsification pass. Use
+the `owbastion-verify-change` skill when you review another author's change.
 
 - Unit and contract tests for API, Portal, and package behavior; D1 and
   repository tests when persistence changes.
@@ -54,7 +60,28 @@ scrolling, overlay fit/dismissal, Tab/Escape focus, and affected loading, empty,
 error, pagination, and scroll-restoration states. Record routes, viewports, and
 behaviors separately from test results. Do not add a permanent browser runner.
 
+## Simplification
+
+Entropy work targets duplicate business truth or ownerless projections, obsolete
+adapters and compatibility paths after completed migrations, duplicated lifecycle
+state, stale execution/status material in durable docs, and wrappers that no
+longer protect a real boundary. It must not remove authorization, auditability,
+idempotency, migration compatibility, privacy boundaries, or failure visibility
+that remain part of the platform contract. Test access alone never widens
+production architecture.
+
+## Local evidence limits
+
+Real QQ, GitHub, OCRKit, deployment, or production checks are separate evidence
+and require their own authorization and configuration. HTTP success, health
+checks, builds, deployments, or local integration tests do not by themselves
+prove a production business path works.
+
 ## Done
 
 Source of truth, authorization, public/private boundary, idempotency, migrations,
 tests, deployment expectations, and docs are updated and verified.
+
+Before committing, inspect the task-owned staged diff and run
+`git diff --cached --check`. Do not stage unrelated files, runtime-generated
+data, credentials, or private evidence.
