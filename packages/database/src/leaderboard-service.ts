@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/d1";
 import type { PlatformServices } from "@owbastion/domain";
 import { leaderboardPlayerKey, leaderboardRuleVersion, projectLeaderboardEntry, rankLeaderboardRows, verifiedRunDifficulties, type VerifiedRunDifficulty } from "@owbastion/domain";
 import type { LeaderboardBoard, LeaderboardBoardStanding, LeaderboardEntry, LeaderboardEntryTitle, LeaderboardPlayerMapTitle } from "@owbastion/contracts";
+import { aggregateTitleStillMet } from "./aggregate-title";
 import { gameplayRevisions, mapTitleRewards, maps, playerAccounts, playerEquippedTitles, playerHandles, playerTitleGrants, seasons, titleCatalog, verifiedRuns } from "./schema";
 import type { PlatformCache } from "./platform-cache";
 import { resolvePortalSession } from "./portal-session";
@@ -26,6 +27,7 @@ const achievementGrantFilter = and(
   eq(titleCatalog.scope, "global"),
   sql`${titleCatalog.category} != '开发保留'`,
   eq(titleCatalog.publicVisibility, 1),
+  aggregateTitleStillMet(),
 );
 
 const titleView = (title: { key: string; label: string; icon: string; iconUrl: string | null }): LeaderboardEntryTitle => ({
@@ -123,6 +125,7 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>, platfo
         eq(playerTitleGrants.status, "active"),
         sql`${titleCatalog.category} != '开发保留'`,
         eq(titleCatalog.publicVisibility, 1),
+        aggregateTitleStillMet(),
       ));
     const equipped = new Map<string, LeaderboardEntryTitle>();
     const seen = new Set<string>();
@@ -171,6 +174,7 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>, platfo
         .from(playerTitleGrants)
         .innerJoin(titleCatalog, eq(titleCatalog.key, playerTitleGrants.titleKey))
         .innerJoin(maps, eq(maps.id, playerTitleGrants.mapId))
+        .innerJoin(gameplayRevisions, and(eq(gameplayRevisions.id, playerTitleGrants.gameplayRevisionId), eq(gameplayRevisions.lifecycle, "default")))
         .leftJoin(mapTitleRewards, and(eq(mapTitleRewards.mapId, playerTitleGrants.mapId), eq(mapTitleRewards.titleKey, playerTitleGrants.titleKey)))
         .where(and(
           eq(playerTitleGrants.playerAccountId, account.id),
