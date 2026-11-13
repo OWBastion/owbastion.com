@@ -189,7 +189,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     loadMapTitleRuleChallenges,
     loadTitleChallengeRevisions,
     mapChallengeQuery,
-    listPublicAchievements, publicEventChallenges,
+    publicLists, publicEventChallenges,
     publicTitleChallengeFields,
     toPublicMapChallenge,
     toPublicTitleChallenge,
@@ -1998,7 +1998,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       }
       return items;
     },
-    listPublicAchievements,
+    ...publicLists,
     ...createAdminCatalogServices({
       database,
       db,

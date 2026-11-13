@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { createReusableTemplate, useMediaQuery, usePreferredReducedMotion } from "@vueuse/core";
+import type { ActiveChallenge } from "@owbastion/contracts";
 import type { Map, MapChallenge } from "~/types/challenge";
 import type { OwnedTitle } from "~/types/title";
 import { findOwnedTitle } from "~/utils/achievement-status";
@@ -11,6 +12,8 @@ const props = defineProps<{
   challenges: MapChallenge[];
   authenticated: boolean;
   titles?: OwnedTitle[];
+  active?: ActiveChallenge | null;
+  now?: number;
 }>();
 
 const open = defineModel<boolean>("open", { required: true });
@@ -50,6 +53,7 @@ onMounted(() => { hydrated.value = true; });
         <span v-if="map.difficultyRating" class="detail-hero__tier num" :data-tier="tier">{{ map.difficultyRating }}</span>
       </div>
       <div class="detail-content">
+        <p v-if="active" class="detail-section detail-live"><UIcon name="i-lucide-flag" aria-hidden="true" /><strong>{{ active.titleName }}</strong><span class="num">{{ remainingLabel(active.endsAt, now ?? Date.now()) }}</span></p>
         <div v-if="ratingBonus || map.mechanics?.length" class="detail-section mechanics">
           <UBadge v-if="ratingBonus" :label="`精通经验 ${ratingBonus}`" color="primary" variant="subtle" />
           <UBadge v-for="mechanic in map.mechanics" :key="mechanic" :label="mechanic" color="neutral" variant="subtle" />
@@ -107,6 +111,8 @@ onMounted(() => { hydrated.value = true; });
 .detail-card { container-type: inline-size; min-width: 0; padding-block: 0 max(var(--space-5), env(safe-area-inset-bottom)); }
 .detail-content { display: grid; gap: 0; padding-inline: clamp(var(--space-4), 4vw, var(--space-6)); }
 .detail-section { display: grid; gap: var(--space-4); padding: var(--space-5) 0; border-top: 1px solid var(--line); }
+.detail-live { display: flex; align-items: center; gap: var(--space-2); margin: 0; }
+.detail-live span { margin-left: auto; color: var(--accent); font-weight: 700; }
 .detail-section:first-child { padding-top: var(--space-5); border-top: 0; }
 .detail-hero { position: relative; display: grid; place-items: center; aspect-ratio: 21 / 8; overflow: hidden; color: var(--accent); background: repeating-linear-gradient(135deg, transparent 0 10px, color-mix(in oklch, var(--accent) 7%, transparent) 10px 11px), radial-gradient(80% 90% at 70% 0%, color-mix(in oklch, var(--accent) 16%, transparent), transparent 70%), var(--surface-raised); }
 .detail-hero img { width: 100%; height: 100%; object-fit: cover; }

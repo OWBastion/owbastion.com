@@ -3,6 +3,7 @@ const catalogPaths = {
   mapChallenges: "/v1/challenges?family=map",
   achievements: "/v1/public/achievements",
   events: "/v1/events?status=all",
+  activeChallenges: "/v1/public/active-challenges",
 } as const;
 
 export type PublicCatalogName = keyof typeof catalogPaths;

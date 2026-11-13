@@ -302,7 +302,7 @@ export const createAdminCatalogServices = ({
         const projection = await resolveMapTitleProjection(rule.id, input.mapId);
         return { mapId: input.mapId, rule: asAdminMapTitleRule(rule, title.label), projected: projection !== null, source: "map_title_rule" as const,
           effective: projection ? { condition: projection.condition, evidenceRule: projection.evidenceRule, submissionMode: projection.submissionMode as "manual" | "automatic", slot: projection.slot as "pioneer" | "conqueror" | "dominator" | null } : null,
-          exception: exception ? { exceptionId: exception.id, ruleId: exception.ruleId, mapId: exception.mapId, enabled: exception.enabled === 1, condition: exception.condition, evidenceRule: exception.evidenceRule, submissionMode: exception.submissionMode as "manual" | "automatic" | null, slot: exception.slot as "pioneer" | "conqueror" | "dominator" | null, startsAt: exception.startsAt, endsAt: exception.endsAt } : null };
+          exception: exception ? { exceptionId: exception.id, ruleId: exception.ruleId, mapId: exception.mapId, enabled: exception.enabled === 1, condition: exception.condition, evidenceRule: exception.evidenceRule, submissionMode: exception.submissionMode as "manual" | "automatic" | null, slot: exception.slot as "pioneer" | "conqueror" | "dominator" | null, startsAt: exception.startsAt, endsAt: exception.endsAt, featured: exception.featured === 1 } : null };
       }));
       return { contractVersion: "1" as const, items };
     },
@@ -316,12 +316,13 @@ export const createAdminCatalogServices = ({
       const startsAt = input.startsAt ?? null;
       const endsAt = input.endsAt ?? null;
       if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && input.enabled && (startsAt === null || endsAt === null || endsAt <= startsAt)) throw new Error("PIONEER_EXCEPTION_SCHEDULE_REQUIRED");
+      const featured = input.featured === undefined ? null : Number(input.featured);
       const timestamp = now();
       const operation = "admin.map-title-rule-exception.upsert";
       const requestHash = await hashRequest(input);
       await database.batch([
-        database.prepare("INSERT INTO map_title_rule_exceptions (id,rule_id,map_id,enabled,condition,evidence_rule,submission_mode,slot,starts_at,ends_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(rule_id,map_id) DO UPDATE SET enabled=excluded.enabled, condition=excluded.condition, evidence_rule=excluded.evidence_rule, submission_mode=excluded.submission_mode, slot=excluded.slot, starts_at=excluded.starts_at, ends_at=excluded.ends_at, updated_at=excluded.updated_at")
-          .bind(crypto.randomUUID(), input.ruleId, input.mapId, input.enabled ? 1 : 0, input.condition ?? null, input.evidenceRule ?? null, input.submissionMode ?? null, input.slot ?? null, startsAt, endsAt, timestamp, timestamp),
+        database.prepare("INSERT INTO map_title_rule_exceptions (id,rule_id,map_id,enabled,condition,evidence_rule,submission_mode,slot,starts_at,ends_at,featured,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,COALESCE(?,0),?,?) ON CONFLICT(rule_id,map_id) DO UPDATE SET enabled=excluded.enabled, condition=excluded.condition, evidence_rule=excluded.evidence_rule, submission_mode=excluded.submission_mode, slot=excluded.slot, starts_at=excluded.starts_at, ends_at=excluded.ends_at, featured=COALESCE(?,featured), updated_at=excluded.updated_at")
+          .bind(crypto.randomUUID(), input.ruleId, input.mapId, input.enabled ? 1 : 0, input.condition ?? null, input.evidenceRule ?? null, input.submissionMode ?? null, input.slot ?? null, startsAt, endsAt, featured, timestamp, timestamp, featured),
         database.prepare("INSERT INTO idempotency_keys (id,actor_id,operation,request_hash,response_json,created_at) VALUES (?,?,?,?,?,?)")
           .bind(`${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, requestHash, JSON.stringify({}), timestamp),
         database.prepare("INSERT INTO audit_events (id,correlation_id,actor_type,actor_id,operation,entity_type,entity_id,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?,?)")

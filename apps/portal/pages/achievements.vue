@@ -21,6 +21,7 @@ const error = computed(() => catalogError.value ? portalErrorDetails(catalogErro
 <template>
   <main class="achievements-page directory-page page-shell">
     <PageMasthead title="成就图鉴" />
+    <ActiveChallengeList kind="achievement" :heading="false" />
     <LoadingReveal>
       <AchievementWallSkeleton v-if="loading" role="status" aria-label="读取中…" />
       <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取成就" :description="error" />
