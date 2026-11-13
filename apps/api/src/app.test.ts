@@ -53,12 +53,7 @@ const defaultServices: Partial<PlatformServices> = {
   resolveAdminSubmissionSpotCheck: async ({ submissionId, decision }) => ({ contractVersion: "1", submissionId, status: decision, grantId: null, verifiedRunId: null }),
   submitPlayerOcrFeedback: async (input) => ({ contractVersion: "1" as const, submissionId: input.submissionId, ocrResultId: input.ocrResultId, accuracy: input.accuracy, alreadySubmitted: false }),
   submitAdminOcrAccuracy: async (input) => ({ contractVersion: "1" as const, submissionId: input.submissionId, ocrResultId: input.ocrResultId, accuracy: input.accuracy, alreadySubmitted: false }),
-  listAdminScreenshotSetCandidates: async () => ({ contractVersion: "1" as const, items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
-  createAdminScreenshotSet: async () => ({ contractVersion: "1" as const, setId: "00000000-0000-4000-8000-000000000009", version: 1, status: "draft" as const, counts: { memberCount: 0, excludedCount: 0 } }),
-  listAdminScreenshotSets: async ({ page, pageSize }) => ({ contractVersion: "1" as const, items: [], page, pageSize, total: 0, hasMore: false }),
-  getAdminScreenshotSet: async () => { throw new Error("SCREENSHOT_SET_NOT_FOUND"); },
-  finalizeAdminScreenshotSet: async () => { throw new Error("SCREENSHOT_SET_NOT_FOUND"); },
-  discardAdminScreenshotSet: async () => { throw new Error("SCREENSHOT_SET_NOT_FOUND"); },
+  createAdminScreenshotSet: async () => ({ contractVersion: "1" as const, setId: "00000000-0000-4000-8000-000000000009", version: 1, counts: { memberCount: 1, excludedCount: 0 } }),
   getOcrkitScreenshotSet: async () => { throw new Error("SCREENSHOT_SET_NOT_FOUND"); },
   upsertQqGroupAccess: async () => {},
   registerQqGroup: async () => {},
@@ -2151,79 +2146,41 @@ describe("API", () => {
     expect(response.status).toBe(204);
   });
 
-  it("creates, lists, and finalizes screenshot sets through maintainer routes", async () => {
+  it("creates a finalized screenshot set in one maintainer step", async () => {
+    const created = { contractVersion: "1" as const, setId: "00000000-0000-4000-8000-000000000009", version: 1, counts: { memberCount: 1, excludedCount: 1 } };
     const setApp = createApp({
       authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }),
-      services: () => ({
-        ...services,
-        listAdminScreenshotSetCandidates: async () => ({ contractVersion: "1" as const, items: [{ sourceId: "00000000-0000-4000-8000-000000000010", submissionId: "00000000-0000-4000-8000-000000000011", mapName: "测试地图", submissionStatus: "approved", accuracy: null, layoutVersion: "layout-v2", mimeType: "image/png", sizeBytes: 12, evidenceUrl: "https://evidence.owbastion.codes/uploads/submissions/00000000-0000-4000-8000-000000000011/object.png" }], page: 1, pageSize: 100, total: 1, hasMore: false }),
-        createAdminScreenshotSet: async () => ({ contractVersion: "1" as const, setId: "00000000-0000-4000-8000-000000000009", version: 1, status: "draft" as const, counts: { memberCount: 1, excludedCount: 1 } }),
-        listAdminScreenshotSets: async () => ({ contractVersion: "1" as const, items: [{ setId: "00000000-0000-4000-8000-000000000009", version: 1, status: "draft" as const, createdBy: "admin", createdAt: 1, finalizedBy: null, finalizedAt: null, discardedBy: null, discardedAt: null, note: null, counts: { memberCount: 1, excludedCount: 1 } }], page: 1, pageSize: 20, total: 1, hasMore: false }),
-        getAdminScreenshotSet: async () => ({ contractVersion: "1" as const, set: { setId: "00000000-0000-4000-8000-000000000009", version: 1, status: "draft" as const, createdBy: "admin", createdAt: 1, finalizedBy: null, finalizedAt: null, discardedBy: null, discardedAt: null, note: null, counts: { memberCount: 1, excludedCount: 1 } }, members: [{ sourceId: "00000000-0000-4000-8000-000000000010", submissionId: "00000000-0000-4000-8000-000000000011", mapName: "测试地图", objectKey: "uploads/submissions/00000000-0000-4000-8000-000000000011/object.png", sha256: "a".repeat(64), mimeType: "image/png", sizeBytes: 12, layoutVersion: "layout-v2", accuracy: "inaccurate" as const, evidenceUrl: "https://evidence.owbastion.codes/uploads/submissions/00000000-0000-4000-8000-000000000011/object.png" }], exclusions: [{ sourceId: "00000000-0000-4000-8000-000000000012", submissionId: "00000000-0000-4000-8000-000000000013", reason: "missing_layout_version" }] }),
-        finalizeAdminScreenshotSet: async ({ setId }) => ({ contractVersion: "1" as const, setId, version: 1, status: "finalized" as const, finalizedAt: 2 }),
-        discardAdminScreenshotSet: async ({ setId }) => ({ contractVersion: "1" as const, setId, version: 1, status: "discarded" as const, discardedAt: 3 }),
-      }),
+      services: () => ({ ...services, createAdminScreenshotSet: async () => created }),
     });
+    const post = (headers: Record<string, string>, body: unknown = { contractVersion: "1" }) => ({ method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body) });
 
     // Admin surface requires a maintainer session.
-    expect((await app.request("http://localhost/v1/admin/screenshot-sets", {}, env)).status).toBe(403);
-    expect((await app.request("http://localhost/v1/admin/screenshot-sets/candidates", {}, env)).status).toBe(403);
+    expect((await app.request("http://localhost/v1/admin/screenshot-sets", post({ "idempotency-key": "set-1" }), env)).status).toBe(403);
 
-    const created = await setApp.request("http://localhost/v1/admin/screenshot-sets", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "set-1" }, body: JSON.stringify({ contractVersion: "1", note: "v1", excludedSourceIds: ["00000000-0000-4000-8000-000000000012"] }) }, env);
-    expect(created.status).toBe(201);
-    expect(await created.json()).toMatchObject({ setId: "00000000-0000-4000-8000-000000000009", version: 1, status: "draft", counts: { memberCount: 1, excludedCount: 1 } });
+    const response = await setApp.request("http://localhost/v1/admin/screenshot-sets", post({ "idempotency-key": "set-1" }), env);
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual(created);
 
-    expect((await setApp.request("http://localhost/v1/admin/screenshot-sets", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1" }) }, env)).status).toBe(422);
-
-    const list = await setApp.request("http://localhost/v1/admin/screenshot-sets?status=draft&page=1&pageSize=20", {}, env);
-    expect(list.status).toBe(200);
-    expect(await list.json()).toMatchObject({ items: [{ version: 1, status: "draft" }] });
-
-    expect((await setApp.request("http://localhost/v1/admin/screenshot-sets?status=bogus", {}, env)).status).toBe(422);
-    expect((await setApp.request("http://localhost/v1/admin/screenshot-sets/candidates?page=0", {}, env)).status).toBe(422);
-
-    const candidates = await setApp.request("http://localhost/v1/admin/screenshot-sets/candidates?page=1&pageSize=100", {}, env);
-    expect(candidates.status).toBe(200);
-    expect(await candidates.json()).toMatchObject({ items: [{ sourceId: "00000000-0000-4000-8000-000000000010", mapName: "测试地图", layoutVersion: "layout-v2" }] });
-
-    const detail = await setApp.request("http://localhost/v1/admin/screenshot-sets/00000000-0000-4000-8000-000000000009", {}, env);
-    expect(detail.status).toBe(200);
-    expect(await detail.json()).toMatchObject({ set: { version: 1 }, members: [{ sourceId: "00000000-0000-4000-8000-000000000010", layoutVersion: "layout-v2" }], exclusions: [{ reason: "missing_layout_version" }] });
-
-    expect((await setApp.request("http://localhost/v1/admin/screenshot-sets/not-a-uuid", {}, env)).status).toBe(422);
-    expect((await setApp.request("http://localhost/v1/admin/screenshot-sets/00000000-0000-4000-8000-000000000009/finalize", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1" }) }, env)).status).toBe(422);
-
-    const finalized = await setApp.request("http://localhost/v1/admin/screenshot-sets/00000000-0000-4000-8000-000000000009/finalize", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "set-finalize-1" }, body: JSON.stringify({ contractVersion: "1" }) }, env);
-    expect(finalized.status).toBe(200);
-    expect(await finalized.json()).toMatchObject({ status: "finalized", version: 1 });
-
-    const discarded = await setApp.request("http://localhost/v1/admin/screenshot-sets/00000000-0000-4000-8000-000000000009/discard", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "set-discard-1" }, body: JSON.stringify({ contractVersion: "1" }) }, env);
-    expect(discarded.status).toBe(200);
-    expect(await discarded.json()).toMatchObject({ status: "discarded", version: 1 });
-    expect((await setApp.request("http://localhost/v1/admin/screenshot-sets/00000000-0000-4000-8000-000000000009/discard", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1" }) }, env)).status).toBe(422);
-    expect((await setApp.request("http://localhost/v1/admin/screenshot-sets/not-a-uuid/discard", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "set-discard-2" }, body: JSON.stringify({ contractVersion: "1" }) }, env)).status).toBe(422);
+    expect((await setApp.request("http://localhost/v1/admin/screenshot-sets", post({}), env)).status).toBe(422);
+    // The retired draft-era request fields and routes are gone.
+    expect((await setApp.request("http://localhost/v1/admin/screenshot-sets", post({ "idempotency-key": "set-2" }, { contractVersion: "1", excludedSourceIds: [] }), env)).status).toBe(422);
+    for (const path of ["", "/candidates", "/00000000-0000-4000-8000-000000000009", "/00000000-0000-4000-8000-000000000009/finalize", "/00000000-0000-4000-8000-000000000009/discard"])
+      expect((await setApp.request(`http://localhost/v1/admin/screenshot-sets${path}`, path.endsWith("finalize") || path.endsWith("discard") ? post({ "idempotency-key": "x" }) : {}, env)).status).toBe(404);
   });
 
-  it("maps screenshot-set discard lifecycle errors to 404 and 409", async () => {
+  it("maps screenshot-set create errors to 409", async () => {
     const maintainerAuth = async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" });
-    const post = { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "set-discard-err" }, body: JSON.stringify({ contractVersion: "1" }) };
-    const path = "http://localhost/v1/admin/screenshot-sets/00000000-0000-4000-8000-000000000009/discard";
+    const post = { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "set-err" }, body: JSON.stringify({ contractVersion: "1" }) };
 
-    for (const [thrown, status] of [
-      ["SCREENSHOT_SET_NOT_FOUND", 404],
-      ["SCREENSHOT_SET_ALREADY_FINALIZED", 409],
-      ["SCREENSHOT_SET_ALREADY_DISCARDED", 409],
-      ["SCREENSHOT_SET_NOT_DRAFT", 409],
-      ["IDEMPOTENCY_CONFLICT", 409],
-    ] as const) {
-      const errorApp = createApp({ authenticate: maintainerAuth, services: () => ({ ...services, discardAdminScreenshotSet: async () => { throw new Error(thrown); } }) });
-      const response = await errorApp.request(path, post, env);
-      expect(response.status).toBe(status);
+    for (const thrown of ["SCREENSHOT_SET_EMPTY", "IDEMPOTENCY_CONFLICT"]) {
+      const errorApp = createApp({ authenticate: maintainerAuth, services: () => ({ ...services, createAdminScreenshotSet: async () => { throw new Error(thrown); } }) });
+      const response = await errorApp.request("http://localhost/v1/admin/screenshot-sets", post, env);
+      expect(response.status).toBe(409);
       expect((await response.json() as any).error.code).toBe(thrown);
     }
   });
 
-  it("serves finalized screenshot sets only through the private OCRKit contract", async () => {
+  it("serves screenshot sets only through the private OCRKit contract", async () => {
     const ocrkitSet = {
       schema_version: 1 as const,
       set_id: "00000000-0000-4000-8000-000000000009",
@@ -2256,9 +2213,6 @@ describe("API", () => {
     expect(body).not.toHaveProperty("player");
 
     expect((await ocrkitApp.request("http://localhost/v1/ocrkit/screenshot-sets/0", { headers: { authorization: "Bearer ocrkit-set-secret" } }, tokenEnv)).status).toBe(422);
-
-    const draftApp = createApp({ authenticate: auth, services: () => ({ ...services, getOcrkitScreenshotSet: async () => { throw new Error("SCREENSHOT_SET_NOT_FINALIZED"); } }) });
-    expect((await draftApp.request("http://localhost/v1/ocrkit/screenshot-sets/1", { headers: { authorization: "Bearer ocrkit-set-secret" } }, tokenEnv)).status).toBe(409);
 
     const missingApp = createApp({ authenticate: auth, services: () => ({ ...services, getOcrkitScreenshotSet: async () => { throw new Error("SCREENSHOT_SET_NOT_FOUND"); } }) });
     expect((await missingApp.request("http://localhost/v1/ocrkit/screenshot-sets/1", { headers: { authorization: "Bearer ocrkit-set-secret" } }, tokenEnv)).status).toBe(404);

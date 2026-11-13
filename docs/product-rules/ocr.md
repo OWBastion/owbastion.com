@@ -75,14 +75,15 @@ Immutable, versioned sets are the approval that member screenshots may be used f
 training; ROI review, labels, crops, and splits happen in OCRKit.
 
 - Membership is by rule: the latest stored screenshot of every approved Submission plus
-  that of any Submission whose current recognition is marked `inaccurate`. Maintainers
-  exclude anomalies before finalizing; candidates lacking evidence or layout version are
-  auto-excluded.
-- Membership freezes at draft creation; finalized sets are immutable (later changes go in
-  the next version). Rows carry the full delivery payload (source id, R2 key, SHA-256,
-  MIME, size, layout version, mark). Evidence stays retained as provenance even if the
-  Submission changes; copies OCRKit already downloaded are not recalled.
-- A draft is finalized or discarded (correct by discarding and recreating). Discarded sets
-  stay readable to maintainers, never served. Only finalized sets are served at
-  `GET /v1/ocrkit/screenshot-sets/{version}` (`OCRKIT_SNAPSHOT_TOKEN`), with member
-  facts only; OCRKit downloads from R2 with its own read-only credentials.
+  that of any Submission whose current recognition is marked `inaccurate`. Candidates
+  lacking evidence or layout version are auto-excluded and recorded on the audit event.
+  Excluding unusable screenshots is part of OCRKit Studio review, not set creation.
+- A maintainer creates a set in one step: membership freezes at creation and the set is
+  finalized and immutable (later changes go in the next version). A request with no
+  eligible screenshot creates nothing. Rows carry the full delivery payload (source id,
+  R2 key, SHA-256, MIME, size, layout version, mark). Evidence stays retained as
+  provenance even if the Submission changes; copies OCRKit already downloaded are not
+  recalled.
+- Sets are served at `GET /v1/ocrkit/screenshot-sets/{version}`
+  (`OCRKIT_SNAPSHOT_TOKEN`), with member facts only; OCRKit downloads from R2 with its
+  own read-only credentials.
