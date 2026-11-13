@@ -42,7 +42,7 @@ export const createAdminTitleServices = ({ database, evidenceBucket, db, now, re
     categoryOverride: challenge.categoryOverride, gameVersion: challenge.gameVersion,
     status: challenge.status as AdminTitleChallenge["status"], introducedVersion: challenge.introducedVersion,
     retiredVersion: challenge.retiredVersion, startsAt: challenge.startsAt, endsAt: challenge.endsAt,
-    scope: title.scope as "global" | "map", mapIds, replacedByChallengeId: challenge.replacedByChallengeId, featured: challenge.featured === 1,
+    scope: title.scope as "global" | "map", mapIds, replacedByChallengeId: challenge.replacedByChallengeId,
     ...(challenge.mapVariant ? { mapVariant: challenge.mapVariant as "classic" } : {}),
     ...(parseChallengeProgressRule(challenge.progressRule) ? { progressRule: parseChallengeProgressRule(challenge.progressRule)! } : {}),
   });
@@ -91,8 +91,8 @@ export const createAdminTitleServices = ({ database, evidenceBucket, db, now, re
     if (challenge.status !== "draft" && !challenge.gameVersion?.trim()) throw new Error("ACHIEVEMENT_GAME_VERSION_REQUIRED");
   };
   const writeChallenge = (row: TitleChallenge, insert: boolean, guarded = false) => insert
-    ? database.prepare(`INSERT INTO title_challenges (id,title_key,category_override,condition,evidence_rule,submission_mode,game_version,status,introduced_version,retired_version,starts_at,ends_at,scope,map_variant,progress_rule,replaced_by_challenge_id,featured,created_at,updated_at) ${guarded ? "SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE changes()=1" : "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"}`).bind(row.id, row.titleKey, row.categoryOverride, row.condition, row.evidenceRule, row.submissionMode, row.gameVersion, row.status, row.introducedVersion, row.retiredVersion, row.startsAt, row.endsAt, row.scope, row.mapVariant, row.progressRule, row.replacedByChallengeId, row.featured, row.createdAt, row.updatedAt)
-    : database.prepare("UPDATE title_challenges SET condition=?,evidence_rule=?,submission_mode=?,category_override=?,game_version=?,status=?,introduced_version=?,retired_version=?,starts_at=?,ends_at=?,featured=?,updated_at=? WHERE id=?" + (guarded ? " AND replaced_by_challenge_id IS NULL" : "")).bind(row.condition, row.evidenceRule, row.submissionMode, row.categoryOverride, row.gameVersion, row.status, row.introducedVersion, row.retiredVersion, row.startsAt, row.endsAt, row.featured, row.updatedAt, row.id);
+    ? database.prepare(`INSERT INTO title_challenges (id,title_key,category_override,condition,evidence_rule,submission_mode,game_version,status,introduced_version,retired_version,starts_at,ends_at,scope,map_variant,progress_rule,replaced_by_challenge_id,created_at,updated_at) ${guarded ? "SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE changes()=1" : "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"}`).bind(row.id, row.titleKey, row.categoryOverride, row.condition, row.evidenceRule, row.submissionMode, row.gameVersion, row.status, row.introducedVersion, row.retiredVersion, row.startsAt, row.endsAt, row.scope, row.mapVariant, row.progressRule, row.replacedByChallengeId, row.createdAt, row.updatedAt)
+    : database.prepare("UPDATE title_challenges SET condition=?,evidence_rule=?,submission_mode=?,category_override=?,game_version=?,status=?,introduced_version=?,retired_version=?,starts_at=?,ends_at=?,updated_at=? WHERE id=?" + (guarded ? " AND replaced_by_challenge_id IS NULL" : "")).bind(row.condition, row.evidenceRule, row.submissionMode, row.categoryOverride, row.gameVersion, row.status, row.introducedVersion, row.retiredVersion, row.startsAt, row.endsAt, row.updatedAt, row.id);
   const mapStatements = async (row: TitleChallenge, mapIds: string[], guarded = false) => {
     const revisions = row.scope === "map" ? await challengeCatalog.loadTitleChallengeRevisions(mapIds, row.mapVariant as "classic" | null) : [];
     return [
@@ -159,7 +159,7 @@ export const createAdminTitleServices = ({ database, evidenceBucket, db, now, re
       const title = await loadTitle(input.titleKey);
       await assertWritableTitle(title);
       const gameVersion = input.gameVersion?.trim() || (input.status === "active" ? await latestBuildVersion() : null);
-      const row: TitleChallenge = { id: `title.${title.key}.${crypto.randomUUID()}`, titleKey: title.key, categoryOverride: null, condition: input.condition, evidenceRule: input.evidenceRule ?? "上传包含结算画面、称号条件与玩家信息的完整截图。", submissionMode: input.submissionMode, gameVersion, introducedVersion: gameVersion, status: input.status, retiredVersion: null, startsAt: input.startsAt ?? null, endsAt: input.endsAt ?? null, scope: title.scope, mapVariant: input.mapVariant ?? null, progressRule: input.progressRule ? JSON.stringify(input.progressRule) : null, replacedByChallengeId: null, featured: 0, createdAt: now(), updatedAt: now() };
+      const row: TitleChallenge = { id: `title.${title.key}.${crypto.randomUUID()}`, titleKey: title.key, categoryOverride: null, condition: input.condition, evidenceRule: input.evidenceRule ?? "上传包含结算画面、称号条件与玩家信息的完整截图。", submissionMode: input.submissionMode, gameVersion, introducedVersion: gameVersion, status: input.status, retiredVersion: null, startsAt: input.startsAt ?? null, endsAt: input.endsAt ?? null, scope: title.scope, mapVariant: input.mapVariant ?? null, progressRule: input.progressRule ? JSON.stringify(input.progressRule) : null, replacedByChallengeId: null, createdAt: now(), updatedAt: now() };
       const mapIds = [...new Set(input.mapIds ?? [])];
       await validate(title, row, mapIds, input.mapIds !== undefined || input.mapVariant !== undefined);
       const nextTitle = { ...title, gameVersion: title.gameVersion ?? gameVersion, lifecycle: input.enableTitle && input.status === "active" && title.lifecycle === "draft" ? "active" : title.lifecycle };
@@ -226,7 +226,7 @@ export const createAdminTitleServices = ({ database, evidenceBucket, db, now, re
       const { challenge: old, title } = await loadChallenge(input.challengeId);
       // A Challenge replaced by a successor stays archived; reactivating it would leave two active paths.
       if (input.status === "active" && old.replacedByChallengeId !== null) throw new Error("CHALLENGE_ALREADY_REPLACED");
-      const row = { ...old, status: input.status, retiredVersion: input.retiredVersion === undefined ? old.retiredVersion : input.retiredVersion, startsAt: input.startsAt === undefined ? old.startsAt : input.startsAt, endsAt: input.endsAt === undefined ? old.endsAt : input.endsAt, featured: input.featured === undefined ? old.featured : Number(input.featured), gameVersion: old.gameVersion ?? (input.status === "active" ? await latestBuildVersion() : null), updatedAt: now() };
+      const row = { ...old, status: input.status, retiredVersion: input.retiredVersion === undefined ? old.retiredVersion : input.retiredVersion, startsAt: input.startsAt === undefined ? old.startsAt : input.startsAt, endsAt: input.endsAt === undefined ? old.endsAt : input.endsAt, gameVersion: old.gameVersion ?? (input.status === "active" ? await latestBuildVersion() : null), updatedAt: now() };
       row.introducedVersion ??= row.gameVersion;
       if (row.startsAt !== null && row.endsAt !== null && row.endsAt <= row.startsAt) throw new Error("INVALID_CHALLENGE_WINDOW");
       const nextTitle = { ...title, gameVersion: title.gameVersion ?? row.gameVersion };

@@ -248,7 +248,6 @@ export const mapTitleRuleExceptions = sqliteTable("map_title_rule_exceptions", {
   slot: text("slot"),
   startsAt: integer("starts_at"),
   endsAt: integer("ends_at"),
-  featured: integer("featured").notNull().default(0),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, (table) => ({
@@ -379,7 +378,6 @@ export const titleChallenges = sqliteTable("title_challenges", {
   mapVariant: text("map_variant"),
   progressRule: text("progress_rule"),
   replacedByChallengeId: text("replaced_by_challenge_id").references((): AnySQLiteColumn => titleChallenges.id),
-  featured: integer("featured").notNull().default(0),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, (table) => ({

@@ -259,7 +259,6 @@ export const installSchema = (sqlite: DatabaseSync) => {
       map_variant TEXT,
       progress_rule TEXT,
       replaced_by_challenge_id TEXT REFERENCES title_challenges(id),
-      featured INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       CHECK (ends_at IS NULL OR starts_at IS NULL OR ends_at > starts_at)

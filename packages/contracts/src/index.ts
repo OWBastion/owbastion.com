@@ -733,7 +733,6 @@ export const adminMapTitleRuleExceptionSchema = z.object({
   condition: z.string().trim().min(1).max(1024).nullable(), evidenceRule: z.string().trim().min(1).max(2048).nullable(),
   submissionMode: z.enum(["manual", "automatic"]).nullable(), slot: mapTitleRuleSlot.nullable(),
   startsAt: scheduleTimestamp.nullable(), endsAt: scheduleTimestamp.nullable(),
-  featured: z.boolean(),
 });
 export const adminMapTitleInheritanceSchema = z.object({
   mapId: externalId, rule: adminMapTitleRuleSchema, projected: z.boolean(),
@@ -746,7 +745,6 @@ export const adminMapTitleRuleExceptionUpsertRequestSchema = z.object({
   contractVersion, enabled: z.boolean(), condition: z.string().trim().min(1).max(1024).nullable().optional(),
   evidenceRule: z.string().trim().min(1).max(2048).nullable().optional(), submissionMode: z.enum(["manual", "automatic"]).nullable().optional(), slot: mapTitleRuleSlot.nullable().optional(),
   startsAt: scheduleTimestamp.nullable().optional(), endsAt: scheduleTimestamp.nullable().optional(),
-  featured: z.boolean().optional(),
 }).superRefine((value, ctx) => {
   if (value.startsAt !== undefined && value.endsAt !== undefined && value.startsAt !== null && value.endsAt !== null && value.endsAt <= value.startsAt) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endsAt"], message: "The end time must be after the start time" });
@@ -828,14 +826,12 @@ export const adminTitleChallengeSchema = adminAchievementChallengeSchema.extend(
   endsAt: scheduleTimestamp.nullable(),
   mapIds: z.array(externalId),
   replacedByChallengeId: externalId.nullable(),
-  featured: z.boolean(),
 });
 export const adminTitleChallengeResponseSchema = adminTitleChallengeSchema.extend({ contractVersion });
 const adminChallengePreviousStateSchema = z.object({ status: challengeLifecycleStatus, retiredVersion: storedRetirementVersion.nullable(), startsAt: scheduleTimestamp.nullable(), endsAt: scheduleTimestamp.nullable() });
 export const adminChallengeLifecycleRequestSchema = z.object({
   contractVersion, status: challengeLifecycleStatus, retiredVersion: optionalRetirementVersion.nullable(),
   startsAt: scheduleTimestamp.nullable().optional(), endsAt: scheduleTimestamp.nullable().optional(),
-  featured: z.boolean().optional(),
 }).strict().superRefine((value, ctx) => {
   if (value.startsAt != null && value.endsAt != null && value.endsAt <= value.startsAt) ctx.addIssue({ code: "custom", path: ["endsAt"], message: "The end time must be after the start time" });
 });

@@ -527,7 +527,6 @@ async function submitChallenge(payload: Record<string, unknown>) {
                             <UButton size="sm" color="neutral" variant="outline" label="编辑" :aria-label="`编辑${title.label}的挑战`" :disabled="savingKey === challenge.challengeId" @click="openEditChallenge(title, challenge)" />
                             <UButton v-if="challenge.status === 'draft'" size="sm" color="neutral" variant="outline" label="开放" :aria-label="`开放${title.label}的挑战`" :loading="savingKey === challenge.challengeId" @click="mutateChallengeLifecycle(title, challenge, { status: 'active' }, `已开放「${title.label}」的挑战`)" />
                             <UButton v-if="challengeDisplayStatus(challenge) === 'active' || challengeDisplayStatus(challenge) === 'sunsetting'" size="sm" color="error" variant="soft" label="结束" :aria-label="`结束${title.label}的挑战`" :loading="savingKey === challenge.challengeId" @click="mutateChallengeLifecycle(title, challenge, { status: 'archived' }, `已结束「${title.label}」的挑战`)" />
-                            <AdminChallengeFeaturedSwitch :challenge="challenge" :label="title.label" @saved="loadChallenges(title.titleKey)" />
                             <UButton v-if="challenge.status === 'archived'" size="sm" color="neutral" variant="outline" label="重开" :aria-label="`重开${title.label}的挑战`" :loading="savingKey === challenge.challengeId" @click="mutateChallengeLifecycle(title, challenge, { status: 'active' }, `已重开「${title.label}」的挑战`)" />
                           </div>
                         </li>
@@ -575,7 +574,6 @@ async function submitChallenge(payload: Record<string, unknown>) {
                     <UButton size="sm" color="neutral" variant="outline" label="编辑" @click="openEditChallenge(title, challenge)" />
                     <UButton v-if="challenge.status === 'draft'" size="sm" color="neutral" variant="outline" label="开放" :loading="savingKey === challenge.challengeId" @click="mutateChallengeLifecycle(title, challenge, { status: 'active' }, `已开放「${title.label}」的挑战`)" />
                     <UButton v-if="challengeDisplayStatus(challenge) === 'active' || challengeDisplayStatus(challenge) === 'sunsetting'" size="sm" color="error" variant="soft" label="结束" :loading="savingKey === challenge.challengeId" @click="mutateChallengeLifecycle(title, challenge, { status: 'archived' }, `已结束「${title.label}」的挑战`)" />
-                    <AdminChallengeFeaturedSwitch :challenge="challenge" :label="title.label" @saved="loadChallenges(title.titleKey)" />
                     <UButton v-if="challenge.status === 'archived'" size="sm" color="neutral" variant="outline" label="重开" :loading="savingKey === challenge.challengeId" @click="mutateChallengeLifecycle(title, challenge, { status: 'active' }, `已重开「${title.label}」的挑战`)" />
                   </div>
                 </div>

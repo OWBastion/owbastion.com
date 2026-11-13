@@ -1,7 +1,7 @@
 import { useIntervalFn, useNow } from "@vueuse/core";
 import type { ActiveChallenge, ActiveChallengeListResponse } from "@owbastion/contracts";
 
-// Featured timed challenges that are open now. A failed read shows nothing: this list only guides players.
+// Timed challenges that are open now. A failed read shows nothing: this list only guides players.
 export const useActiveChallenges = () => {
   const { data } = useAsyncData("active-challenges", async () => {
     try { return (await usePublicCatalog<ActiveChallengeListResponse>("activeChallenges")).items; }
