@@ -201,11 +201,13 @@ describe("public leaderboard projections", () => {
     addGrant("g2", "p1", "MAP_T", now, "active", "map.a");
     addGrant("g3", "p1", "CONQ_A", now, "active", "map.a");
     addGrant("g4", "p1", "DOM_A", now, "active", "map.a");
-    // A classic-version title is granted on a historical revision; it still
-    // groups under its map with no slot and adds no current-revision XP.
-    addTitle("CLASSIC_B", "map"); addRevision("rev.b0", "map.b", "archived");
+    sqlite.prepare("UPDATE player_title_grants SET gameplay_revision_id = 'rev.a1' WHERE id IN ('g2', 'g3', 'g4')").run();
+    // Titles earned on a reworked (non-default) revision and classic-version titles are not shown.
+    addTitle("CLASSIC_B", "map"); addRevision("rev.b0", "map.b", "selectable");
     addGrant("g5", "p1", "CLASSIC_B", now, "active", "map.b");
     sqlite.prepare("UPDATE player_title_grants SET gameplay_revision_id = 'rev.b0' WHERE id = 'g5'").run();
+    addGrant("g6", "p1", "DOM_A", now, "active", "map.a");
+    sqlite.prepare("UPDATE player_title_grants SET gameplay_revision_id = 'rev.a0' WHERE id = 'g6'").run();
     // A rule-based map has no reward row; the grant's own slot names the tier.
     sqlite.prepare("UPDATE player_title_grants SET slot = 'pioneer' WHERE id = 'g2'").run();
     sqlite.prepare("INSERT INTO map_title_rewards (map_id, slot, title_key) VALUES ('map.a', 'conqueror', 'CONQ_A'), ('map.a', 'dominator', 'DOM_A')").run();
@@ -225,13 +227,33 @@ describe("public leaderboard projections", () => {
         { titleKey: "CONQ_A", label: "CONQ_A", icon: "award", mapId: "map.a", mapName: "Map A", slot: "conqueror" },
         { titleKey: "DOM_A", label: "DOM_A", icon: "award", mapId: "map.a", mapName: "Map A", slot: "dominator" },
         { titleKey: "MAP_T", label: "MAP_T", icon: "award", mapId: "map.a", mapName: "Map A", slot: "pioneer" },
-        { titleKey: "CLASSIC_B", label: "CLASSIC_B", icon: "award", mapId: "map.b", mapName: "Map B", slot: null },
       ],
       general: [{ titleKey: "T1", label: "T1", icon: "award" }],
     });
     const redacted = await services.getPublicLeaderboardPlayer({ playerKey: await leaderboardPlayerKey("hidden") });
     expect(redacted).toEqual({ contractVersion: "1", publicProfile: false, player: null, boards: null, perMapXp: null, mapCount: null, titles: null });
     expect(await services.getPublicLeaderboardPlayer({ playerKey: "0".repeat(24) })).toBeNull();
+  });
+
+  it("counts and shows an aggregate global Title only while its map evidence is on the default revisions", async () => {
+    const { services, addPlayer, addMap, addRevision, addTitle, addGrant, sqlite, now } = fixture();
+    addPlayer("p1", "Alpha");
+    addMap("map.a", "Map A"); addRevision("rev.a1", "map.a", "default");
+    addTitle("CONQUEROR", "map"); addTitle("ALL_IN_ONE");
+    addGrant("g1", "p1", "ALL_IN_ONE", now);
+    addGrant("g2", "p1", "CONQUEROR", now, "active", "map.a");
+    sqlite.prepare("UPDATE player_title_grants SET gameplay_revision_id = 'rev.a1' WHERE id = 'g2'").run();
+    sqlite.prepare("INSERT INTO player_equipped_titles VALUES ('g1', 'p1', ?)").run(now);
+    const summary = async () => leaderboardPlayerSummarySchema.parse(await services.getPublicLeaderboardPlayer({ playerKey: await leaderboardPlayerKey("p1") }));
+    expect(await summary()).toMatchObject({ boards: { achievement: { score: 1 } }, player: { equippedTitle: { titleKey: "ALL_IN_ONE" } }, titles: { general: [{ titleKey: "ALL_IN_ONE" }] } });
+
+    // A rework makes the new revision the default; the old evidence no longer counts.
+    sqlite.prepare("UPDATE gameplay_revisions SET lifecycle = 'archived' WHERE id = 'rev.a1'").run();
+    addRevision("rev.a2", "map.a", "default");
+    const reworked = await summary();
+    expect(reworked.boards?.achievement).toBeNull();
+    expect(reworked.player?.equippedTitle).toBeNull();
+    expect(reworked.titles).toEqual({ map: [], general: [] });
   });
 
   it("reports the current Player's rank, score, and gap to the rank above", async () => {
