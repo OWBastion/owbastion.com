@@ -1,6 +1,6 @@
 import { getPublicCatalog, type PublicCatalogName } from "../../utils/public-catalog";
 
-const catalogNames = new Set<PublicCatalogName>(["maps", "mapChallenges", "achievements", "events"]);
+const catalogNames = new Set<PublicCatalogName>(["maps", "mapChallenges", "achievements", "events", "activeChallenges"]);
 
 export default defineEventHandler(async (event) => {
   const name = getRouterParam(event, "catalog");

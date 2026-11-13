@@ -15,6 +15,7 @@ const props = defineProps<{
   selectedMapId?: string;
 }>();
 
+const { forMap, now } = useActiveChallenges();
 const selectedMap = shallowRef<Map | null>(null);
 const modalOpen = shallowRef(false);
 const reviewSummaries = useReviewSummaries("map", () => props.maps.map((map) => map.mapId), () => props.maps.map((map) => map.defaultGameplayRevisionId ?? null));
@@ -101,11 +102,11 @@ watch(modalOpen, (open) => {
           <h2 :id="`map-group-${group.key}`">{{ group.label }}<span v-if="group.bonus" class="group-heading__bonus num">精通经验 {{ group.bonus }}</span></h2>
           <span class="type-label-sm num">{{ group.maps.length }}</span>
         </div>
-        <TransitionGroup tag="div" name="list" class="map-grid"><MapCard v-for="map in group.maps" :key="map.mapId" :map="map" :review-summary="reviewSummaries.summaryFor(map.mapId, map.defaultGameplayRevisionId)" @select="openMap(map)" /></TransitionGroup>
+        <TransitionGroup tag="div" name="list" class="map-grid"><MapCard v-for="map in group.maps" :key="map.mapId" :map="map" :review-summary="reviewSummaries.summaryFor(map.mapId, map.defaultGameplayRevisionId)" :active="forMap(map.mapId)" :now="now.getTime()" @select="openMap(map)" /></TransitionGroup>
       </section>
     </div>
     <UEmpty v-else :title="props.maps.length ? '没有找到' : '暂无地图'" variant="naked" />
-    <MapDetailModal v-model:open="modalOpen" :map="selectedMap" :challenges="props.challenges" :authenticated="props.authenticated" :titles="props.titles" @review-changed="refreshReviewSummaries" />
+    <MapDetailModal v-model:open="modalOpen" :map="selectedMap" :active="selectedMap ? forMap(selectedMap.mapId) : null" :now="now.getTime()" :challenges="props.challenges" :authenticated="props.authenticated" :titles="props.titles" @review-changed="refreshReviewSummaries" />
   </section>
 </template>
 

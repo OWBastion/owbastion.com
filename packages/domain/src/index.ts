@@ -57,6 +57,7 @@ import type {
   AdminVerifiedRunCorrectionRequest,
   AdminVerifiedRunCorrectionResponse,
   Challenge,
+  ActiveChallenge,
   Map,
   Title,
   AdminTitleGrantListResponse, AdminTitleGrantHolderDetailResponse, AdminHistoricalTitleHolderFilter, AdminTitleGrantRequest, AdminTitleGrantBulkRequest, AdminTitleGrantBulkResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse,
@@ -257,6 +258,7 @@ export type PlatformServices = {
   promoteAdminMapRevision(input: AdminMapRevisionPromotionRequest & { mapId: string; revisionId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminMapRevision>;
   listChallenges(input?: { family?: "map" | "achievement" }): Promise<Challenge[]>;
   listPublicAchievements(): Promise<Array<Extract<Challenge, { family: "achievement" }>>>;
+  listActiveChallenges(): Promise<ActiveChallenge[]>;
   listTitles(input: { mapId?: string }): Promise<Title[]>;
   uploadAdminTitleIcon(input: { titleKey: string; body: ArrayBuffer; contentType: string }, auth: AuthContext): Promise<{ iconUrl: string }>;
   getPublicTitleIcon(input: { titleKey: string; version?: string }): Promise<{ body: ReadableStream; contentType: string; etag?: string } | null>;

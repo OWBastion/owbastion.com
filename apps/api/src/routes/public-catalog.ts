@@ -18,6 +18,14 @@ export const registerPublicCatalogRoutes = (app: ApiApp, dependencies: PublicCat
     });
   });
 
+  app.get("/v1/public/active-challenges", async (c) => {
+    allowPortal(c);
+    return cachedCatalogResponse(c, {
+      operation: "catalog_public_active_challenges",
+      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_active_challenges", () => services(c).listActiveChallenges()) }),
+    });
+  });
+
   app.get("/v1/challenges", async (c) => {
     const family = c.req.query("family");
     if (family && family !== "map" && family !== "achievement") return errorResponse(c, 422, "INVALID_REQUEST", "The challenge family is invalid");

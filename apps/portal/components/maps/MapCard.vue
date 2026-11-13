@@ -1,10 +1,13 @@
 <script setup lang="ts">
+import type { ActiveChallenge } from "@owbastion/contracts";
 import type { Map } from "~/types/challenge";
 import type { ReviewSummary } from "~/composables/usePlayerReview";
 
 const props = defineProps<{
   map: Map;
   reviewSummary: ReviewSummary | null;
+  active?: ActiveChallenge | null;
+  now?: number;
 }>();
 
 const emit = defineEmits<{ select: [] }>();
@@ -23,6 +26,7 @@ const tier = computed(() => /^T(\d)$/.exec(props.map.difficultyRating ?? "")?.[1
       <span class="map-card-shade" aria-hidden="true" />
       <span v-if="map.difficultyRating" class="map-card-tier num" :data-tier="tier" aria-hidden="true">{{ map.difficultyRating }}</span>
       <span v-if="rating" class="map-card-rating num" :aria-label="`评分 ${rating}`">★ {{ rating }}</span>
+      <span v-if="active" class="map-card-live num"><UIcon name="i-lucide-flag" aria-hidden="true" />{{ active.titleName }} · {{ remainingLabel(active.endsAt, now ?? Date.now()) }}</span>
       <strong class="map-card-name">{{ map.mapName }}</strong>
     </div>
   </button>
@@ -37,6 +41,7 @@ const tier = computed(() => /^T(\d)$/.exec(props.map.difficultyRating ?? "")?.[1
 .map-card-index { font-family: var(--font-display); font-size: clamp(3rem, 26cqi, 6rem); font-weight: 700; letter-spacing: .04em; opacity: .22; }
 .map-card-shade { position: absolute; inset: 40% 0 0; background: linear-gradient(to bottom, transparent, oklch(12% 0.01 165 / 85%)); }
 .map-card-name { position: absolute; inset: auto var(--space-4) var(--space-3); overflow: hidden; color: oklch(97% 0.01 120); font-family: var(--font-display); font-size: clamp(1.125rem, 7cqi, 1.5rem); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.map-card-live { position: absolute; inset: auto auto calc(var(--space-3) + 2rem) var(--space-3); display: inline-flex; align-items: center; gap: var(--space-1); max-width: calc(100% - var(--space-6)); padding: .15rem .5rem; border-radius: calc(var(--radius-control) / 1.5); color: var(--on-accent); background: var(--accent); font-size: .8125rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .map-card-rating { position: absolute; top: var(--space-3); left: var(--space-3); padding: .15rem .5rem; border-radius: calc(var(--radius-control) / 1.5); color: oklch(97% 0.01 120); background: oklch(12% 0.01 165 / 70%); font-size: .8125rem; font-weight: 700; }
 .map-card-tier { position: absolute; top: var(--space-3); right: var(--space-3); min-width: 2.5rem; padding: .15rem .5rem; border-radius: calc(var(--radius-control) / 1.5); color: oklch(15% 0.02 150); background: oklch(80% 0.02 150); font-size: .8125rem; font-weight: 700; text-align: center; }
 .map-card-tier[data-tier="5"] { background: oklch(86% 0.07 220); }

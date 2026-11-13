@@ -10,6 +10,8 @@ export * from "./random-event";
 export * from "./review";
 export * from "./player-title-wear";
 export * from "./qq-group-lifecycle";
+export * from "./season";
+export * from "./active-challenge";
 export { submissionStatusResponseSchema, playerSubmissionListResponseSchema } from "./player-submissions";
 
 const retirementVersion = z.string().regex(/^\d{2}\.\d{4}\.[1-9]\d*$/);
@@ -731,6 +733,7 @@ export const adminMapTitleRuleExceptionSchema = z.object({
   condition: z.string().trim().min(1).max(1024).nullable(), evidenceRule: z.string().trim().min(1).max(2048).nullable(),
   submissionMode: z.enum(["manual", "automatic"]).nullable(), slot: mapTitleRuleSlot.nullable(),
   startsAt: scheduleTimestamp.nullable(), endsAt: scheduleTimestamp.nullable(),
+  featured: z.boolean(),
 });
 export const adminMapTitleInheritanceSchema = z.object({
   mapId: externalId, rule: adminMapTitleRuleSchema, projected: z.boolean(),
@@ -743,6 +746,7 @@ export const adminMapTitleRuleExceptionUpsertRequestSchema = z.object({
   contractVersion, enabled: z.boolean(), condition: z.string().trim().min(1).max(1024).nullable().optional(),
   evidenceRule: z.string().trim().min(1).max(2048).nullable().optional(), submissionMode: z.enum(["manual", "automatic"]).nullable().optional(), slot: mapTitleRuleSlot.nullable().optional(),
   startsAt: scheduleTimestamp.nullable().optional(), endsAt: scheduleTimestamp.nullable().optional(),
+  featured: z.boolean().optional(),
 }).superRefine((value, ctx) => {
   if (value.startsAt !== undefined && value.endsAt !== undefined && value.startsAt !== null && value.endsAt !== null && value.endsAt <= value.startsAt) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endsAt"], message: "The end time must be after the start time" });
@@ -824,12 +828,14 @@ export const adminTitleChallengeSchema = adminAchievementChallengeSchema.extend(
   endsAt: scheduleTimestamp.nullable(),
   mapIds: z.array(externalId),
   replacedByChallengeId: externalId.nullable(),
+  featured: z.boolean(),
 });
 export const adminTitleChallengeResponseSchema = adminTitleChallengeSchema.extend({ contractVersion });
 const adminChallengePreviousStateSchema = z.object({ status: challengeLifecycleStatus, retiredVersion: storedRetirementVersion.nullable(), startsAt: scheduleTimestamp.nullable(), endsAt: scheduleTimestamp.nullable() });
 export const adminChallengeLifecycleRequestSchema = z.object({
   contractVersion, status: challengeLifecycleStatus, retiredVersion: optionalRetirementVersion.nullable(),
   startsAt: scheduleTimestamp.nullable().optional(), endsAt: scheduleTimestamp.nullable().optional(),
+  featured: z.boolean().optional(),
 }).strict().superRefine((value, ctx) => {
   if (value.startsAt != null && value.endsAt != null && value.endsAt <= value.startsAt) ctx.addIssue({ code: "custom", path: ["endsAt"], message: "The end time must be after the start time" });
 });
@@ -1589,50 +1595,6 @@ export const currentPlayerLeaderboardRankSchema = z.object({
   gapToNextRank: z.number().int().nonnegative().nullable(),
 }).strict();
 
-// Seasons (#401): a named, time-boxed ranking window over the same Verified
-// Runs. Only the schedule, lifecycle status, and visibility are stored; the
-// phase is derived from time. The window includes both `startsAt` and
-// `endsAt` (epoch milliseconds).
-export const seasonStatusSchema = z.enum(["draft", "active", "archived"]);
-export const seasonPhaseSchema = z.enum(["draft", "scheduled", "running", "ended"]);
-export const adminSeasonSchema = z.object({
-  seasonId: z.string().uuid(),
-  name: z.string().trim().min(1).max(64),
-  startsAt: z.number().int().nonnegative(),
-  endsAt: z.number().int().nonnegative(),
-  status: seasonStatusSchema,
-  public: z.boolean(),
-  phase: seasonPhaseSchema,
-  // Players with at least one counted Run in the window so far; 0 before it starts.
-  playerCount: z.number().int().nonnegative(),
-  createdAt: z.number().int(),
-  updatedAt: z.number().int(),
-}).strict();
-export const adminSeasonListResponseSchema = z.object({
-  contractVersion,
-  now: z.number().int().nonnegative(),
-  items: z.array(adminSeasonSchema).max(200),
-}).strict();
-export const adminSeasonWriteRequestSchema = z.object({
-  contractVersion,
-  name: z.string().trim().min(1).max(64),
-  startsAt: z.number().int().nonnegative(),
-  endsAt: z.number().int().nonnegative(),
-  status: seasonStatusSchema,
-  public: z.boolean(),
-}).strict();
-export const publicSeasonSchema = z.object({
-  seasonId: z.string().uuid(),
-  name: z.string().trim().min(1).max(64),
-  startsAt: z.number().int().nonnegative(),
-  endsAt: z.number().int().nonnegative(),
-  phase: z.enum(["running", "ended"]),
-}).strict();
-export const publicSeasonListResponseSchema = z.object({
-  contractVersion,
-  items: z.array(publicSeasonSchema).max(200),
-}).strict();
-
 export const playerVerifiedRunSchema = z.object({
   runId: z.string().uuid(),
   mapId: externalId,
@@ -1777,13 +1739,6 @@ export type AdminPlayerHandle = z.infer<typeof adminPlayerHandleSchema>;
 export type AdminPlayerHandleListResponse = z.infer<typeof adminPlayerHandleListResponseSchema>;
 export type PublicPlayerProfile = z.infer<typeof publicPlayerProfileSchema>;
 export type CurrentPlayerLeaderboardRank = z.infer<typeof currentPlayerLeaderboardRankSchema>;
-export type SeasonStatus = z.infer<typeof seasonStatusSchema>;
-export type SeasonPhase = z.infer<typeof seasonPhaseSchema>;
-export type AdminSeason = z.infer<typeof adminSeasonSchema>;
-export type AdminSeasonListResponse = z.infer<typeof adminSeasonListResponseSchema>;
-export type AdminSeasonWriteRequest = z.infer<typeof adminSeasonWriteRequestSchema>;
-export type PublicSeason = z.infer<typeof publicSeasonSchema>;
-export type PublicSeasonListResponse = z.infer<typeof publicSeasonListResponseSchema>;
 export type AchievementProgressRule = z.infer<typeof achievementProgressRuleSchema>;
 export type PlayerChallengeProgress = z.infer<typeof playerChallengeProgressSchema>;
 export type PlayerChallengeProgressListResponse = z.infer<typeof playerChallengeProgressListResponseSchema>;

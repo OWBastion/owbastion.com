@@ -1298,6 +1298,17 @@
     }
    }
   },
+  "/v1/public/active-challenges": {
+   "get": {
+    "operationId": "listActiveChallenges",
+    "description": "Timed paths an administrator chose to feature that are open now: Pioneer windows (kind pioneer, with map) and time-limited achievement Challenges (kind achievement, with mapIds). Anonymous and cacheable like the other public catalog reads. Items are ordered by endsAt, then titleName. Conditions and evidence rules are not exposed. Clients hide items whose endsAt has passed and, when signed in, items whose Title the player already owns in that scope.",
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
   "/v1/public/achievement-icons/{titleKey}": {
    "get": {
     "operationId": "getPublicAchievementIcon",
@@ -2775,6 +2786,7 @@
   "/v1/admin/maps/{mapId}/map-title-rules/{ruleId}/exception": {
    "put": {
     "operationId": "upsertAdminMapTitleRuleException",
+    "description": "Body fields: enabled, condition, evidenceRule, submissionMode, slot, startsAt, endsAt and the optional featured flag. An omitted featured keeps the stored value; a new exception starts unfeatured. The inheritance listing returns featured on each exception.",
     "parameters": [
      {
       "$ref": "#/components/parameters/mapId"
@@ -4046,12 +4058,12 @@
     "type": "object", "required": ["status", "retiredVersion", "startsAt", "endsAt"], "properties": { "status": { "type": "string", "enum": ["draft", "active", "archived"] }, "retiredVersion": { "type": "string", "nullable": true }, "startsAt": { "type": "integer", "nullable": true }, "endsAt": { "type": "integer", "nullable": true } }
    },
    "AdminChallengeLifecycleRequest": {
-    "type": "object", "required": ["status"], "properties": { "status": { "type": "string", "enum": ["draft", "active", "archived"] }, "retiredVersion": { "type": "string", "nullable": true }, "startsAt": { "type": "integer", "nullable": true }, "endsAt": { "type": "integer", "nullable": true } }
+    "type": "object", "required": ["status"], "properties": { "status": { "type": "string", "enum": ["draft", "active", "archived"] }, "retiredVersion": { "type": "string", "nullable": true }, "startsAt": { "type": "integer", "nullable": true }, "endsAt": { "type": "integer", "nullable": true }, "featured": { "type": "boolean", "description": "Optional. Omitted keeps the stored value." } }
    },
    "AdminTitleChallenge": {
     "allOf": [{ "$ref": "#/components/schemas/AdminChallengeState" }, {
-     "type": "object", "required": ["challengeId", "titleKey", "family", "type", "kind", "titleName", "icon", "category", "categoryOverride", "condition", "evidenceRule", "submissionMode", "gameVersion", "introducedVersion", "mapIds", "replacedByChallengeId"],
-     "properties": { "challengeId": { "type": "string" }, "titleKey": { "type": "string" }, "family": { "type": "string", "enum": ["achievement"] }, "type": { "type": "string", "enum": ["title_achievement"] }, "kind": { "type": "string", "enum": ["title_achievement"] }, "titleName": { "type": "string" }, "icon": { "type": "string" }, "iconUrl": { "type": "string", "nullable": true }, "category": { "type": "string" }, "categoryOverride": { "type": "string", "nullable": true }, "condition": { "type": "string" }, "evidenceRule": { "type": "string" }, "submissionMode": { "type": "string", "enum": ["manual", "automatic"] }, "gameVersion": { "type": "string", "nullable": true }, "introducedVersion": { "type": "string", "nullable": true }, "mapIds": { "type": "array", "items": { "type": "string" } }, "mapVariant": { "type": "string", "enum": ["classic"] }, "scope": { "type": "string", "enum": ["global", "map"] }, "progressRule": { "$ref": "#/components/schemas/ChallengeProgressRule" }, "replacedByChallengeId": { "type": "string", "nullable": true } }
+     "type": "object", "required": ["challengeId", "titleKey", "family", "type", "kind", "titleName", "icon", "category", "categoryOverride", "condition", "evidenceRule", "submissionMode", "gameVersion", "introducedVersion", "mapIds", "replacedByChallengeId", "featured"],
+     "properties": { "challengeId": { "type": "string" }, "titleKey": { "type": "string" }, "family": { "type": "string", "enum": ["achievement"] }, "type": { "type": "string", "enum": ["title_achievement"] }, "kind": { "type": "string", "enum": ["title_achievement"] }, "titleName": { "type": "string" }, "icon": { "type": "string" }, "iconUrl": { "type": "string", "nullable": true }, "category": { "type": "string" }, "categoryOverride": { "type": "string", "nullable": true }, "condition": { "type": "string" }, "evidenceRule": { "type": "string" }, "submissionMode": { "type": "string", "enum": ["manual", "automatic"] }, "gameVersion": { "type": "string", "nullable": true }, "introducedVersion": { "type": "string", "nullable": true }, "mapIds": { "type": "array", "items": { "type": "string" } }, "mapVariant": { "type": "string", "enum": ["classic"] }, "scope": { "type": "string", "enum": ["global", "map"] }, "progressRule": { "$ref": "#/components/schemas/ChallengeProgressRule" }, "replacedByChallengeId": { "type": "string", "nullable": true }, "featured": { "type": "boolean" } }
     }]
    },
    "AdminTitleChallengeUpdateRequest": {

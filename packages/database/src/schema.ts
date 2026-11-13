@@ -1,6 +1,8 @@
 import { sql } from "drizzle-orm";
 import { type AnySQLiteColumn, index, integer, primaryKey, real, sqliteTable, text, unique, uniqueIndex } from "drizzle-orm/sqlite-core";
 
+export * from "./schema-seasons";
+
 export const identities = sqliteTable("identities", {
   id: text("id").primaryKey(),
   createdAt: integer("created_at").notNull(),
@@ -144,19 +146,6 @@ export const mapMetadata = sqliteTable("map_metadata", {
   updatedBy: text("updated_by").notNull(),
 });
 
-export const seasons = sqliteTable("seasons", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  startsAt: integer("starts_at").notNull(),
-  endsAt: integer("ends_at").notNull(),
-  status: text("status").notNull(),
-  public: integer("public").notNull().default(0),
-  createdAt: integer("created_at").notNull(),
-  updatedAt: integer("updated_at").notNull(),
-}, (table) => ({
-  startsAtIdx: index("seasons_starts_at_idx").on(table.startsAt),
-}));
-
 export const randomEvents = sqliteTable("random_events", {
   id: text("id").primaryKey(), name: text("name").notNull(), category: text("category").notNull(), rarity: text("rarity").notNull(),
   description: text("description").notNull(), durationSeconds: integer("duration_seconds"), cooldownSeconds: real("cooldown_seconds"), weight: real("weight"),
@@ -259,6 +248,7 @@ export const mapTitleRuleExceptions = sqliteTable("map_title_rule_exceptions", {
   slot: text("slot"),
   startsAt: integer("starts_at"),
   endsAt: integer("ends_at"),
+  featured: integer("featured").notNull().default(0),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, (table) => ({
@@ -389,6 +379,7 @@ export const titleChallenges = sqliteTable("title_challenges", {
   mapVariant: text("map_variant"),
   progressRule: text("progress_rule"),
   replacedByChallengeId: text("replaced_by_challenge_id").references((): AnySQLiteColumn => titleChallenges.id),
+  featured: integer("featured").notNull().default(0),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, (table) => ({
