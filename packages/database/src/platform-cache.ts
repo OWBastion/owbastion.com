@@ -313,6 +313,7 @@ const CATALOG_TABLES = new Set([
   "effect_glossary_terms",
 ]);
 const GRANT_TABLES = new Set([
+  "mastery_runs",
   "player_accounts",
   "player_title_grants",
   "player_title_entitlements",

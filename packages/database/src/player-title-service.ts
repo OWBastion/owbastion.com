@@ -5,6 +5,7 @@ import type { AdminManualTitleGrantRequest, AdminManualTitleGrantTarget, AdminMa
 import { auditEvents, challengeCompletions, challenges, gameplayRevisions, historicalTitleGrants, idempotencyKeys, maps, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, titleCatalog } from "./schema";
 import type { resolvePortalSession } from "./portal-session";
 import { createEquippedTitleServices, type EquippedTitleServices } from "./equipped-title-service";
+import { listVisiblePlayerTitleRows } from "./player-title-grants";
 import { inheritanceOrder, isInheritedTitleGrant } from "./title-inheritance";
 
 export type ManualTitleGrantResolution = {
@@ -54,26 +55,7 @@ export const createPlayerTitleServices = (
     async listCurrentPlayerTitles(input) {
       const current = await getCurrentPortalPlayer(input.sessionToken);
       if (!current) return null;
-      const rows = await db.select({ grant: playerTitleGrants, title: titleCatalog, mapName: maps.name, revisionMapId: gameplayRevisions.mapId, equipped: playerEquippedTitles.grantId }).from(playerTitleGrants)
-        .innerJoin(titleCatalog, eq(playerTitleGrants.titleKey, titleCatalog.key))
-        .leftJoin(playerEquippedTitles, eq(playerEquippedTitles.grantId, playerTitleGrants.id))
-        .leftJoin(maps, eq(playerTitleGrants.mapId, maps.id))
-        .leftJoin(gameplayRevisions, eq(playerTitleGrants.gameplayRevisionId, gameplayRevisions.id))
-        .where(and(
-          eq(playerTitleGrants.playerAccountId, current.player.id),
-          eq(playerTitleGrants.status, "active"),
-          or(
-            and(
-              eq(titleCatalog.scope, "global"),
-              isNotNull(titleCatalog.gameVersion),
-              or(
-                and(isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId)),
-                and(eq(playerTitleGrants.mapId, gameplayRevisions.mapId), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])),
-              ),
-            ),
-            and(eq(titleCatalog.scope, "map"), isNotNull(titleCatalog.gameVersion), eq(playerTitleGrants.mapId, gameplayRevisions.mapId), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])),
-          ),
-        )).orderBy(desc(playerTitleGrants.grantedAt));
+      const rows = await listVisiblePlayerTitleRows(db, current.player.id);
       const entitlement = await db.select({ allTitles: playerTitleEntitlements.allTitles }).from(playerTitleEntitlements).where(eq(playerTitleEntitlements.playerAccountId, current.player.id)).get();
       return { items: rows.map(({ grant, title, mapName, revisionMapId, equipped }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapId: grant.mapId ?? undefined, gameplayRevisionId: grant.gameplayRevisionId ?? undefined, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, equipped: title.scope === "global" && Boolean(equipped) && (grant.mapId === null && grant.gameplayRevisionId === null || grant.mapId === revisionMapId) })), allTitles: entitlement?.allTitles === 1 };
     },

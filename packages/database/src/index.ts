@@ -1,5 +1,6 @@
 import { count, desc, eq, and, or, inArray, isNull, isNotNull, ne, lte, lt, gte, sql, asc } from "drizzle-orm";
 
+import { findEquipableGrants } from "./player-title-grants";
 import { drizzle } from "drizzle-orm/d1";
 import { evidenceKeys } from "./submission-evidence";
 import { buildMasteryProfiles, calculateVerifiedRunXpV3, difficultyAtLeastSatisfied, progressProofTitleKeys, isWellFormedGameVersion, matchGameMode, normalizeGameMode, regularGameModeLabel, eventWeightTotalCode, runCodeEventWeightTotal, parseCanonicalChallengeConditions, parseChallengeProgressRule, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode, publicTitleChallengeStatus } from "@owbastion/domain";
@@ -228,25 +229,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   };
   const publicEvidenceBase = evidencePublicOrigin?.replace(/\/$/, "");
   const publicEvidenceUrl = (objectKey: string | null | undefined) => publicEvidenceBase && objectKey ? `${publicEvidenceBase}/${objectKey.split("/").map(encodeURIComponent).join("/")}` : null;
-  const findEquipableGrantIds = async (playerAccountId: string, grantIds: string[]) => {
-    if (!grantIds.length) return [];
-    const grants = await db.select({ id: playerTitleGrants.id, titleKey: playerTitleGrants.titleKey }).from(playerTitleGrants)
-      .innerJoin(titleCatalog, eq(playerTitleGrants.titleKey, titleCatalog.key))
-      .leftJoin(gameplayRevisions, eq(playerTitleGrants.gameplayRevisionId, gameplayRevisions.id))
-      .where(and(
-        inArray(playerTitleGrants.id, grantIds),
-        eq(playerTitleGrants.playerAccountId, playerAccountId),
-        eq(playerTitleGrants.status, "active"),
-        isNotNull(titleCatalog.gameVersion),
-        eq(titleCatalog.scope, "global"),
-        or(
-          and(isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId)),
-          and(eq(playerTitleGrants.mapId, gameplayRevisions.mapId), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])),
-        ),
-      ));
-    if (grants.length !== grantIds.length || new Set(grants.map((grant) => grant.titleKey)).size !== grants.length) throw new Error("EQUIPPED_TITLE_GRANT_INVALID");
-    return grants;
-  };
+  const findEquipableGrantIds = (playerAccountId: string, grantIds: string[]) => findEquipableGrants(db, playerAccountId, grantIds);
   const listGlobalAgentTitles = async () => (await platformCache.cached("catalog", "agent-global-titles", () => db.select().from(titleCatalog)
     .where(eq(titleCatalog.scope, "global"))
     .orderBy(titleCatalog.key))).map(toAgentTitle);
