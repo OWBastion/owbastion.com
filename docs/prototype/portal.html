@@ -110,6 +110,7 @@ function reviewSection(o){
 /* ================= public screens ================= */
 const PUBLIC_NAV_ICONS=()=>[['events','随机事件','zap'],['maps','地图','map'],['achievements','成就','award'],['changelog','版本更新','history'],['blog','开发日志','msg']];
 function home(){return `<main class="pg"><h1 class="h1" style="font-size:clamp(2.6rem,7vw,5rem);letter-spacing:-.04em">躲避堡垒 3</h1>
+ ${liveSec()}
  <h2 class="h2 sec">目录</h2><div class="grid w mt">${PUBLIC_NAV_ICONS().map(([p,l,i])=>`<a class="card pad row" href="${L(p)}">${ic(i)}<span class="h3">${l}</span></a>`).join('')}</div></main>`}
 
 /* ================= events ================= */
@@ -248,6 +249,13 @@ const MP=[
  M(6,'示例地图六','5.0',0,[],[['首次通关','普通','进行中']],[1,1,1],31,5210,0,4.8,44),
  M(7,'示例地图七','3.0',4,['示例机制 A'],[],[0,0,0],0,0,0,0,0),
  M(8,'示例地图八','5.0',2,['示例机制 B'],[['首次通关','普通','进行中'],['困难通关','困难','进行中']],[1,0,0],4,760,0,3.4,7)];
+/* 进行中的限时挑战：on = 管理员是否公开展示；剩余时间由结束时间推导（原型用小时数代替） */
+const LIVE=[{id:1,kind:'pio',n:'开拓者',map:4,left:18,on:true},{id:2,kind:'ach',n:'事件生存挑战',left:72,on:true},{id:3,kind:'pio',n:'开拓者',map:7,left:5,on:false}];
+const left=h=>h<24?`剩 ${h} 小时`:`剩 ${Math.ceil(h/24)} 天`;
+const liveOf=m=>LIVE.find(x=>x.on&&x.map===m.id&&!(S.role!=='guest'&&m.slots[0]));
+const liveAll=()=>LIVE.filter(x=>x.on&&!(x.kind==='pio'&&S.role!=='guest'&&MP.find(m=>m.id===x.map).slots[0]));
+const liveCard=(x,flat)=>{const m=x.map&&MP.find(v=>v.id===x.map);return `<${flat?'div':'a'} class="card pad row between" ${flat?'':`href="${L(m?'maps/'+m.id:'achievements')}"`} style="gap:var(--space-3)"><span class="row" style="gap:.75rem">${ic(m?'map':'award')}<span><span class="val">${x.n}</span><span class="cap" style="margin-left:var(--space-2)">${m?m.name:'成就'}</span></span></span><span class="badge acc num">${left(x.left)}</span></${flat?'div':'a'}>`};
+const liveSec=()=>{const l=liveAll();return l.length?`<section class="sec" aria-labelledby="lv"><h2 class="h2" id="lv">进行中的挑战</h2><div class="grid w mt">${l.map(liveCard).join('')}</div></section>`:''};
 Object.assign(S.ev,{rate:[],mech:[],mver:[]});S.mpQ='';S.mpSort='ver';S.mpProg='all';S.mpTq='';
 const ALLMECH=[...new Set(MP.flatMap(m=>m.mech))],ALLMVER=[...new Set(MP.map(m=>m.ver))].sort((a,b)=>b.localeCompare(a,undefined,{numeric:true}));
 const nDone=m=>m.slots.filter(Boolean).length;
@@ -279,7 +287,7 @@ function mpCard(m){
   return `<li><button class="evc mpc" data-act="mopen" data-id="${m.id}" aria-haspopup="dialog">
    <span class="cover" style="border-radius:0" aria-hidden="true">${m.name.slice(-1)}</span>
    <span class="in"><span class="row between" style="align-items:baseline;gap:.5rem"><span class="h3">${m.name}</span><span class="cap num">${m.ver}</span></span>
-   <span class="evmeta">${pips(m.rate)}<span class="cap num">挑战 ${m.ch.length} 项</span></span>
+   <span class="evmeta">${pips(m.rate)}<span class="cap num">挑战 ${m.ch.length} 项</span>${liveOf(m)?`<span class="badge acc num">${liveOf(m).n} · ${left(liveOf(m).left)}</span>`:''}</span>
    <span class="evtags">${t.map(x=>`<span class="tg">${x}</span>`).join('')}${more?`<span class="cap">+${more}</span>`:''}${!m.mech.length?'<span class="cap">无特殊机制</span>':''}</span>
    <span class="evfoot cap num">${g?`<span class="slots">${m.slots.map((v,i)=>`<span class="slot ${v?'on':''}" title="${SLOT[i]}${v?'已获得':'未获得'}">${SLOT[i]}<span class="sr">${v?'已获得':'未获得'}</span></span>`).join('')}</span>`:''}${m.n?`<span class="rate">${ic('star').replace('<svg class="i"','<svg class="i" style="fill:currentColor"')}${m.avg.toFixed(1)}</span>`:''}</span></span></button></li>`;
 }
@@ -304,6 +312,7 @@ function mapDlg(id){
   return `<div class="scrim" data-act="mscrim"><div class="dlg lg" role="dialog" aria-modal="true" aria-label="${esc(m.name)}">
    <div class="dlg-h" style="align-items:flex-start"><div><h2 class="h2" style="font-size:1.5rem">${m.name}</h2><div class="evmeta mt">${pips(m.rate)}<span class="cap num">${m.ver}</span></div></div><button class="btn btn-ghost btn-sm" data-act="mclose" aria-label="关闭">${ic('x')}</button></div>
    <div class="dlg-b" style="gap:var(--space-5)">
+    ${liveOf(m)?liveCard(liveOf(m),1):''}
     <div class="keys"><div class="card pad"><div class="lbl">挑战</div><div class="stat-v num">${m.ch.length}<small> 项</small></div></div>${g?`<div class="card pad"><div class="lbl">我的地图称号</div><div class="stat-v num">${nDone(m)}<small> / 3</small></div></div><div class="card pad"><div class="lbl">精通</div><div class="stat-v num">${m.runs}<small> 次通关</small></div></div>`:''}</div>
     ${m.mech.length?`<section><h3 class="h3">特殊机制</h3><div class="row mt" style="gap:.375rem">${m.mech.map(t=>`<span class="tg">${t}</span>`).join('')}</div></section>`:''}
     <section aria-labelledby="mt"><div class="row between"><h3 class="h3" id="mt">地图称号</h3>${m.cl?`<span class="seg" data-k="rev">${[['cur','当前版本'],['old','经典版本']].map(([v,l])=>`<button data-v="${v}" aria-pressed="${S.rev===v}">${l}</button>`).join('')}</span>`:''}</div>
@@ -319,6 +328,7 @@ function mapDlg(id){
 function achievements(){
   const guest=S.role==='guest',f=S.ach,list=PLAYER_TITLES.filter(a=>guest||f==='all'||(f==='on'?a.on:!a.on));
   return `<main class="pg">${pageTitle('成就')}
+  ${(()=>{const l=liveAll().filter(x=>x.kind==='ach');return l.length?`<div class="grid w mt-l">${l.map(liveCard).join('')}</div>`:''})()}
   ${guest?'':`<div class="tb"><span class="seg" data-k="ach">${[['all','全部'],['on','已获得'],['off','未获得']].map(([v,l])=>`<button data-v="${v}" aria-pressed="false">${l}</button>`).join('')}</span></div>`}
   <section class="${guest?'sec':''}" aria-labelledby="g-t"><div class="sec-h"><h2 class="h2" id="g-t">通用成就</h2>${guest?'':'<span class="lbl num">已佩戴 3 / 10</span>'}</div>
    <ul class="grid">${list.map(a=>`<li class="card tcard ${a.on||guest?'':'off'}"><span class="ico">${ic('award')}</span><div><div class="val">${a.n}</div><div class="cap">${a.c}</div></div>${guest?'':a.on?`<button class="btn btn-outline btn-sm" style="margin-left:auto" data-act="toast" data-m="${a.w?'已取消佩戴':'已佩戴'}（修改会在后续游戏版本同步后生效）">${a.w?'取消佩戴':'佩戴'}</button>`:'<span class="badge" style="margin-left:auto">未获得</span>'}</li>`).join('')||'<li class="card empty" style="grid-column:1/-1">没有符合条件的成就</li>'}</ul></section>
@@ -427,12 +437,14 @@ const AD={
  channels:{t:'QQ 群',f:[['全部环境','生产','测试']],cols:[['群','状态','环境','命令策略','成员']],
   rows:[[['示例群一',B('活动群','ok'),'生产','允许验证与绑定','1,020'],['示例群二',B('未启用'),'生产','仅通知','380'],['测试群',B('未启用'),'测试','全部','6']]],acts:[['设为活动群','primary'],['保存配置','outline']]}
 };
+const liveAdmin=()=>`<section class="card pad mt-l" aria-labelledby="la"><h2 class="h3" id="la">公开展示</h2><div class="list mt">${LIVE.map(x=>{const m=x.map&&MP.find(v=>v.id===x.map);return `<div class="sw"><span><span class="val">${x.n}</span><span class="cap" style="margin-left:var(--space-2)">${m?m.name:'成就挑战'} · ${left(x.left)}</span></span><button class="tog" role="switch" aria-checked="${x.on}" aria-label="公开展示 ${x.n} ${m?m.name:''}" data-act="livetog" data-id="${x.id}"></button></div>`}).join('')}</div></section>`;
 function adList(key){
   const c=AD[key],ti=+(S.tab[key]||0),cols=(c.cols[ti]||c.cols[0]),rows=c.rows[ti]||c.rows[0],f=Array.isArray(c.f[0][0])?c.f[ti]:c.f,pr=(c.primary||[])[ti]!==undefined?[c.primary[ti]]:(c.primary||[]);
   const tpl='2fr 1fr '+'1fr '.repeat(cols.length-2);
   return `${pageTitle(c.t)}
   ${c.tabs?`<div class="tabs mt-l" role="tablist">${c.tabs.map((t,i)=>`<button role="tab" aria-selected="${i===ti}" data-act="atab" data-key="${key}" data-i="${i}">${t}</button>`).join('')}</div>`:''}
   <div class="tb"><label class="search"><span class="sr">搜索</span>${ic('search')}<input class="inp" placeholder="搜索"></label>${(f||[]).map(o=>`<select class="inp" style="width:auto" aria-label="${o[0]}">${o.map(x=>`<option>${x}</option>`).join('')}</select>`).join('')}<span class="sp"></span>${pr.filter(Boolean).map((p,i)=>`<button class="btn ${i?'btn-outline':'btn-primary'}" data-act="toast" data-m="${p}（原型）">${ic('plus')}${p}</button>`).join('')}</div>
+  ${key==='achievements'&&ti===0?liveAdmin():''}
   <div class="card clip rows" style="--cols:${tpl}">${S.st==='loading'?'<div class="pad" style="display:grid;gap:8px">'+'<div class="sk" style="height:2.5rem"></div>'.repeat(4)+'</div>':S.st==='error'?`<div class="pad">${alertE('无法读取列表','请稍后重试。')}</div>`:S.st==='empty'?'<div class="empty">没有符合条件的记录</div>':`
    <div class="rhead">${cols.map((h,i)=>`<span class="${i>2?'lo':''}">${h}</span>`).join('')}</div>
    ${rows.map((r,i)=>{const inner=r.map((v,j)=>`<span class="${j===0?'pri':''} ${j>2?'lo':''}">${cell(v)}</span>`).join('');return c.href?`<a class="rrow" href="${c.href(i)}">${inner}</a>`:`<button class="rrow" data-act="row" data-key="${key}" data-tab="${ti}" data-i="${i}">${inner}</button>`}).join('')}
@@ -488,7 +500,7 @@ function admin(){
 /* ================= notes ================= */
 Object.assign(NOTES,{
  '/admin/reviews':{t:'截图审核',b:[['问题','放不大图片；决定、OCR 重试、准确性标记、字段校正、Challenge 判定、提交信息全部平铺在同一层；驳回和要求重提各多一个确认弹窗；每审一张要回到队列再点下一张。'],['结论优先','右侧第一张卡片只回答三件事：能不能通过、通过后会发生什么、下一步做什么。顶部色带三种状态：可直接通过 / 需要你确认一项 / 无法通过。'],['一步通过','常见路径是识别满足条件：点「通过」（快捷键 A）即完成，并自动进入下一条。需确认时把「截图可证明」做成一个开关，打开后再通过；无匹配时才出现「添加 Challenge」搜索。'],['看图','查看器占左侧主体：滚轮缩放、拖动平移、双击在适应与原始大小间切换、全屏（F）、0 / 1 / + / − 快捷键。识别核对表里悬停某个字段会在截图上框出对应区域，点击直接放大到该区域（依赖识别结果提供位置信息，需与 OCRKit 确认）。'],['降噪','字段校正合并进识别核对表：每行是「值 + 置信度」，置信度低的行提示，点勾确认或点齿轮修改，取代原来的复选框加输入框。重新识别、准确性标记、提交信息收进「更多」。'],['队列','按预判分类（可通过 / 需确认 / 无法通过 / 抽检）并显示等待时长，「开始审核」从最早一条连续处理；审核页为专注模式，不带侧栏。']],l:['决定不要求填写理由；要求重提与驳回点击后在原位展开可选说明，回车确认，不再弹窗','通过后自动前进可关闭','快捷键：A 通过 · R 要求重提 · X 驳回 · J/K 上下一条 · F 全屏','抽检模式：A 确认抽检，X 撤销称号']},
- '/':{t:'首页',b:[['调整','头部导航固定：5 个公开入口 + 提交截图 + 账号菜单，所有页面一致。玩家相关入口全部进账号菜单。']],l:['访客只看到「登录」，不显示玩家入口']},
+ '/':{t:'首页',b:[['调整','头部导航固定：5 个公开入口 + 提交截图 + 账号菜单，所有页面一致。玩家相关入口全部进账号菜单。'],['新增','「进行中的挑战」：只列出限时窗口内、管理员设为展示的挑战，点开去对应地图或成就页，没有时整块不出现。地图卡片和详情、成就页顶部同步显示。'],['规则','玩家已获得对应称号则不再显示；剩余时间由结束时间算出，不另存状态。管理员在「称号与挑战」的「公开展示」开关里决定显示哪些。']],l:['访客只看到「登录」，不显示玩家入口']},
  '/events':{t:'随机事件',b:[['1 搜索与筛选','搜索同时匹配名称、描述和效果；类别、稀有度常驻为可组合的切换按钮，效果与版本收进下拉；每个选项旁显示在当前条件下的数量，0 项的选项置灰，不会走进死胡同。已选条件以可移除的标签列在结果数上方，一键清除。窄屏合并为一个「筛选」入口，打开底部面板。'],['2 卡片','所有卡片同一版式：名称 → 类别（圆点+文字）· 稀有度（胶囊，R/SR/SSR 逐级加重）· 版本 → 描述 2 行 → 效果标签 → 关键数据（持续、概率、评分）。整张卡片是一个按钮，标签不再是嵌套按钮，因此高度一致；没有评分不显示「暂无评分」；「已实装」不再重复显示，只在开发中/已移除时标注。'],['3 分类','默认不分组，按最新版本排序，版本只是卡片上的一个小标注；需要时可切换按版本或按类别分组，也可按名称、出现概率、评分排序。'],['4 详情','先是一句话描述，再是最多三块关键数据（未知的不显示），然后是效果（每条一行说明，手机上不依赖悬停），挑战仅在有时显示，技术性的概率细节折叠，评价是紧凑的一行汇总加「写评价」按钮，展开才出现表单。地址为 #/events/编号，可分享。']],l:['效果筛选为「同时包含」；类别/稀有度/版本为「任一」','效果释义为示例文案']},
  '/maps':{t:'地图（与随机事件同一套布局）',b:[['复用了什么','搜索 + 排序、可组合的筛选按钮（附数量、0 项置灰）、已选条件标签、结果数、卡片网格、点开的详情面板、可分享的地址 #/maps/编号，全部与随机事件一致。'],['地图特有的','卡片带封面；评级用 5 点，同时写数字；登录后卡片底部显示三个地图称号的获得情况，并多一个「我的称号进度」筛选（进行中 / 未开始 / 已集齐）和「我的进度」排序。访客不显示任何个人信息，只在详情里出现一处登录提示，不再每张卡片重复「登录后查看」。'],['详情','先是关键数据（挑战数、我的称号、通关次数），再是特殊机制、地图称号（含当前/经典版本切换，经典版本不计入当前进度）、挑战、我的精通与最近通关，最后是评价。']],l:['特殊机制筛选为「同时包含」；评级、版本为「任一」','机制、挑战名称为示例']},
  '/achievements':{t:'成就',b:[['调整','成就只做目录与佩戴；标题固定为「成就」，个人地图进度不再在此重复，链接到公开主页。']],l:['访客：只读目录，无佩戴与过滤']},
@@ -564,6 +576,7 @@ function onAct(act,el,e){
    case 'bind':S.bind=d.v;return;
    case 'copy':S.toast='已复制';clearTimeout(flash.t);flash.t=setTimeout(()=>{S.toast='';render()},1500);return;
    case 'star':S.myStar=+d.n;return;
+   case 'livetog':{const x=LIVE.find(v=>v.id==d.id);x.on=!x.on;return}
    case 'atab':S.tab[d.key]=+d.i;return;
    case 'row':S.dlg=adRowDialog(d.key,+d.tab,+d.i);return;
    case 'gsel':{const a=S.grant[d.k],v=d.v;S.grant[d.k]=a.includes(v)?a.filter(x=>x!==v):[...a,v];return}
