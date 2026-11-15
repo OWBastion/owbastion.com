@@ -8,15 +8,16 @@ const points = (kind: MapPositionKind, positions: readonly Vector[] | undefined)
 // The drawn subset of a revision's spatial config, one entry per stage in config order.
 // Credits points are never drawn. A composite stage's respawn point only receives the jump
 // from the previous stage, and its route end is the last selected stage's jump point, so
-// composite stages carry neither.
+// composite stages carry neither. A composite stage draws only its own reset and third-person
+// points: the route-root ones belong to whichever stage starts the route and would distort
+// every other stage's fit.
 export const mapPositionStages = (config: AgentSpatialConfig): MapPositionStage[] => {
   if ("stages" in config) {
-    const root = "resetPosition" in config ? config : null;
     return config.stages.map((stage) => ({
       points: [
         ...points("bastion", stage.bastionPositions),
-        ...points("reset", [stage.resetPosition ?? root?.resetPosition].filter((value) => value !== undefined)),
-        ...points("third_person", [stage.thirdPersonPosition ?? root?.thirdPersonPosition].filter((value) => value !== undefined)),
+        ...points("reset", stage.resetPosition ? [stage.resetPosition] : []),
+        ...points("third_person", stage.thirdPersonPosition ? [stage.thirdPersonPosition] : []),
         ...points("portal", stage.portalPositions),
         ...points("springboard", stage.springboardPositions),
         ...points("control_center", stage.control?.centerPositions),

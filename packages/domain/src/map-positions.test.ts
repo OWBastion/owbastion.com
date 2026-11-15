@@ -60,19 +60,27 @@ describe("map position stages", () => {
     expect(stages[1]!.points.map((point) => point.position)).not.toContainEqual([53, 54, 55]);
   });
 
-  it("draws composite stages without respawn, end, or credits points, inheriting root reset and third-person points", () => {
+  it("draws composite stages without respawn, end, or credits points", () => {
     const [alpha, beta] = mapPositionStages(parse(composite));
-    expect(kinds(alpha!).sort()).toEqual(["bastion", "control_center", "control_jump", "reset", "third_person"]);
-    expect(positionsOf(alpha!, "reset")).toEqual([[100, 0, 0]]);
-    expect(positionsOf(alpha!, "third_person")).toEqual([[102, 0, 0]]);
+    expect(kinds(alpha!).sort()).toEqual(["bastion", "control_center", "control_jump"]);
     expect(positionsOf(alpha!, "control_jump")).toEqual([[12, 0, 0]]);
-    expect(positionsOf(beta!, "reset")).toEqual([[200, 0, 0]]);
-    expect(positionsOf(beta!, "third_person")).toEqual([[202, 0, 0]]);
+    expect(kinds(beta!).sort()).toEqual(["bastion", "control_center", "control_jump", "reset", "third_person"]);
     const drawn = [alpha!, beta!].flatMap((stage) => stage.points.map((point) => point.position));
     for (const hidden of [[13, 0, 0], [23, 0, 0], [101, 0, 0], [201, 0, 0], [103, 0, 0], [203, 0, 0]]) expect(drawn).not.toContainEqual(hidden);
   });
 
-  it("draws legacy full-stage composite stages without respawn, end, or credits points", () => {
+  it("draws a composite stage's own reset and third-person points and never the route root's", () => {
+    const [alpha, beta] = mapPositionStages(parse(composite));
+    expect(positionsOf(alpha!, "reset")).toEqual([]);
+    expect(positionsOf(alpha!, "third_person")).toEqual([]);
+    expect(positionsOf(beta!, "reset")).toEqual([[200, 0, 0]]);
+    expect(positionsOf(beta!, "third_person")).toEqual([[202, 0, 0]]);
+    const drawn = [alpha!, beta!].flatMap((stage) => stage.points.map((point) => point.position));
+    expect(drawn).not.toContainEqual([100, 0, 0]);
+    expect(drawn).not.toContainEqual([102, 0, 0]);
+  });
+
+  it("draws each legacy full-stage composite stage's own reset and third-person points without respawn, end, or credits points", () => {
     const legacyStage = (stageId: string, offset: number) => ({ ...single, stageId, bastionPositions: [[offset, 0, 0]] });
     const stages = mapPositionStages(parse({ composition: composite.composition, stages: [legacyStage("alpha", 1), legacyStage("beta", 2)] }));
     expect(stages).toHaveLength(2);
