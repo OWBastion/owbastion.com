@@ -22,7 +22,11 @@ Follow the organization [preflight](../.github/docs/issue-readiness.md#preflight
 
 ## Repository delivery constraints
 
-Follow the organization [PR delivery policy](../.github/docs/pr-delivery.md). Target `main` for changes to APIs, the database, or shared behavior; `next` holds only frontend-only changes and Cloudflare deployment changes, and is rebased onto `main` afterwards. Merge, releases, deployment, production data mutation, permission/authorization changes, external publication, destructive operations, secrets changes, and material scope expansion remain separate authorization boundaries.
+Follow the organization [PR delivery policy](../.github/docs/pr-delivery.md). Target `main` for changes to APIs, the database, or shared behavior; `next` holds only frontend-only changes and Cloudflare deployment changes, and is rebased onto `main` afterwards.
+
+A push to `main` deploys production: the API deploy workflow and Portal Workers Builds both run from it. Push directly to `main` only a change that you would merge and deploy without review. Changes to migrations, `docs/api/openapi.json`, authentication or authorization, private-evidence handling, `wrangler*.toml`, or `.github/workflows/` always go through a PR. `.githooks-local/pre-push-main` runs `pnpm check` before every direct push to `main`. A direct push that meets these conditions includes the authorization for the automatic deployment that follows it.
+
+Merge of a PR, releases, manual deployment, production data mutation, permission/authorization changes, external publication, destructive operations, secrets changes, and material scope expansion remain separate authorization boundaries.
 
 ## Rule routing
 

@@ -1,0 +1,4 @@
+#!/bin/sh
+# Full local gate for a direct push to main.
+set -eu
+exec pnpm check
