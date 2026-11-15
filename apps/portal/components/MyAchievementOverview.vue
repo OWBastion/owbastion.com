@@ -92,6 +92,7 @@ const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, 
 <template>
   <div class="collection">
     <p class="equip-count num" :class="{ 'is-warn': recoveryRequired }">{{ recoveryRequired ? "选择要佩戴的称号" : "已佩戴" }} {{ equippedCount }}/10</p>
+    <ActiveChallengeList kind="achievement" :heading="false" />
 
     <AchievementWall v-if="tileGroups.length">
       <AchievementShelf v-for="(group, groupIndex) in tileGroups" :key="group.name" :title="group.name" :heading-id="`my-series-${groupIndex}`" :count="`${group.tiles.filter((tile) => tile.earned).length}/${group.tiles.length}`" :retired-count="group.retired.length">

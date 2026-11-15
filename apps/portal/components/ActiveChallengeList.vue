@@ -2,8 +2,9 @@
 import type { ActiveChallenge } from "@owbastion/contracts";
 
 const props = withDefaults(defineProps<{ kind?: ActiveChallenge["kind"]; heading?: boolean }>(), { kind: undefined, heading: true });
-const { items, now } = useActiveChallenges();
-const shown = computed(() => items.value.filter((item) => !props.kind || item.kind === props.kind));
+const { items, isOwned, now } = useActiveChallenges();
+// Titles the player still lacks come first; held ones stay listed with a check mark.
+const shown = computed(() => items.value.filter((item) => !props.kind || item.kind === props.kind).sort((left, right) => Number(isOwned(left)) - Number(isOwned(right))));
 const target = (item: ActiveChallenge) => item.kind === "pioneer" ? { path: "/maps", query: { mapId: item.mapId } } : { path: "/achievements" };
 </script>
 
@@ -12,8 +13,9 @@ const target = (item: ActiveChallenge) => item.kind === "pioneer" ? { path: "/ma
     <h2 id="active-challenges-title" :class="heading ? 'active-challenges__title' : 'sr-only'">进行中的挑战</h2>
     <ul class="active-challenges__list">
       <li v-for="item in shown" :key="item.kind === 'pioneer' ? `${item.titleKey}:${item.mapId}` : item.challengeId">
-        <NuxtLink :to="target(item)" class="active-challenges__item interactive-card pressable-soft">
-          <UIcon :name="item.kind === 'pioneer' ? 'i-lucide-flag' : 'i-lucide-award'" aria-hidden="true" />
+        <NuxtLink :to="target(item)" class="active-challenges__item interactive-card pressable-soft" :class="{ 'is-owned': isOwned(item) }">
+          <UIcon v-if="isOwned(item)" name="i-lucide-circle-check" class="active-challenges__owned" aria-label="已获得" />
+          <UIcon v-else :name="item.kind === 'pioneer' ? 'i-lucide-flag' : 'i-lucide-award'" aria-hidden="true" />
           <span class="active-challenges__name">{{ item.titleName }}<small v-if="item.kind === 'pioneer'">{{ item.mapName }}</small></span>
           <span class="active-challenges__time num">{{ remainingLabel(item.endsAt, now.getTime()) }}</span>
         </NuxtLink>
@@ -28,6 +30,9 @@ const target = (item: ActiveChallenge) => item.kind === "pioneer" ? { path: "/ma
 .active-challenges__list { display: flex; gap: var(--space-3); margin: 0; padding: 0 0 var(--space-2); overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scrollbar-width: thin; list-style: none; }
 .active-challenges__list > li { flex: 0 0 min(80%, 15rem); scroll-snap-align: start; }
 .active-challenges__item { display: flex; height: 100%; align-items: center; gap: var(--space-3); min-height: var(--control-lg); padding: var(--space-3) var(--space-4); border-radius: var(--radius-card); color: var(--text); text-decoration: none; }
+.active-challenges__item.is-owned { color: var(--muted); }
+.active-challenges__owned { color: var(--accent); }
+.active-challenges__item.is-owned .active-challenges__time { color: var(--muted); background: var(--surface-raised); }
 .active-challenges__item:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .active-challenges__name { display: grid; flex: 1; min-width: 0; font-weight: 600; }
 .active-challenges__name small { overflow: hidden; color: var(--quiet); font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
