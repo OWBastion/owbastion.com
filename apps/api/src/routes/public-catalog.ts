@@ -59,6 +59,17 @@ export const registerPublicCatalogRoutes = (app: ApiApp, dependencies: PublicCat
     });
   });
 
+  app.get("/v1/maps/:mapId/positions", async (c) => {
+    allowPortal(c);
+    return cachedCatalogResponse(c, {
+      operation: "catalog_map_positions",
+      response: async () => {
+        const item = await logServiceOperation(c, "catalog_get_map_positions", () => services(c).getPublicMapPositions({ mapId: c.req.param("mapId") }));
+        return item ? c.json({ contractVersion: "1", item }) : errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist");
+      },
+    });
+  });
+
   app.get("/v1/events", async (c) => {
     allowPortal(c); const status = c.req.query("status");
     if (status && status !== "implemented" && status !== "removed" && status !== "development" && status !== "all") return errorResponse(c, 422, "INVALID_REQUEST", "The event status is invalid");

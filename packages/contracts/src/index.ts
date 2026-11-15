@@ -1,12 +1,13 @@
 import { z } from "zod";
-import { achievementIcon, contractVersion, externalId, gameVersionValue, pageInfo, playerId, playerName, titleColorSchema, titleLifecycleStatus } from "./shared";
+import { achievementIcon, contractVersion, externalId, finiteCoordinate, gameVersionValue, mapIdSchema, pageInfo, playerId, playerName, titleColorSchema, titleLifecycleStatus, vector3 } from "./shared";
 import { adminTitleSummarySchema } from "./admin-title";
 import { randomEventSchema } from "./random-event";
 import { playerVerifiedRunSubmissionOutcomeSchema, submissionStatusResponseSchema } from "./player-submissions";
 
-export { contractVersion } from "./shared";
+export { contractVersion, mapIdSchema } from "./shared";
 export * from "./admin-title";
 export * from "./random-event";
+export * from "./map-positions";
 export * from "./review";
 export * from "./player-title-wear";
 export * from "./qq-group-lifecycle";
@@ -279,8 +280,6 @@ export const mapSchema = z.object({
 });
 
 
-const finiteCoordinate = z.number().refine(Number.isFinite, "Coordinate must be finite");
-const vector3 = z.tuple([finiteCoordinate, finiteCoordinate, finiteCoordinate]);
 const spatialPositions = z.array(vector3).max(128);
 const requiredSpatialPositions = spatialPositions.min(1);
 const spatialStageId = z.string().trim().regex(/^[a-z0-9][a-z0-9_-]*$/).max(64);
@@ -481,7 +480,7 @@ export const adminStandaloneModeUpsertRequestSchema = z.object({
 export const adminMapCreateRequestSchema = z.object({
   contractVersion,
   mapName: z.string().trim().min(1).max(128),
-  mapId: z.string().trim().regex(/^map\.[a-z0-9_]{1,64}$/).optional(),
+  mapId: mapIdSchema.optional(),
   gameVersion: z.string().trim().min(1).max(64).optional(),
 }).strict();
 

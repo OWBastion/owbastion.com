@@ -1,0 +1,69 @@
+import { describe, expect, it, vi } from "vitest";
+import { createPlatformServices } from "./index";
+import { createTestDatabase, seedAgentSpatialConfig, seedMap, seedSelectableGameplayRevision, sharedCompositeSpatialConfig } from "../test/map-title-rule-fixtures";
+
+const drawnPositions = (stages: Array<{ points: Array<{ position: number[] }> }>) => stages.flatMap((stage) => stage.points.map((point) => point.position));
+
+describe("public map positions", () => {
+  it("projects only the active map's default revision and never its credits point", async () => {
+    const { database, sqlite } = createTestDatabase("map.public");
+    seedAgentSpatialConfig(sqlite, "revision:map.public:initial");
+    const selectableRevisionId = seedSelectableGameplayRevision(sqlite, "map.public");
+    seedAgentSpatialConfig(sqlite, selectableRevisionId, { bastionPositions: [[90, 91, 92]] });
+    const services = createPlatformServices(database);
+
+    const item = (await services.getPublicMapPositions({ mapId: "map.public" }))!;
+    expect(item).toMatchObject({ mapId: "map.public", gameplayRevisionId: "revision:map.public:initial" });
+    expect(item.stages).toHaveLength(1);
+    const drawn = drawnPositions(item.stages);
+    expect(drawn).toContainEqual([1, 2, 3]);
+    expect(drawn).not.toContainEqual([13, 14, 15]);
+    expect(drawn).not.toContainEqual([90, 91, 92]);
+  });
+
+  it("never exposes a preparing revision's draft", async () => {
+    const { database, sqlite } = createTestDatabase("map.preparing");
+    sqlite.prepare("UPDATE gameplay_revisions SET lifecycle = 'preparing' WHERE id = ?").run("revision:map.preparing:initial");
+    seedAgentSpatialConfig(sqlite, "revision:map.preparing:initial");
+    const services = createPlatformServices(database);
+
+    expect(await services.getPublicMapPositions({ mapId: "map.preparing" })).toEqual({ mapId: "map.preparing", gameplayRevisionId: null, stages: [] });
+  });
+
+  it("omits composite respawn, credits, and route-root reset and third-person points", async () => {
+    const { database, sqlite } = createTestDatabase("map.composite");
+    sqlite.prepare("UPDATE gameplay_revisions SET spatial_config_json = ? WHERE id = ?").run(JSON.stringify(sharedCompositeSpatialConfig()), "revision:map.composite:initial");
+    const services = createPlatformServices(database);
+
+    const item = (await services.getPublicMapPositions({ mapId: "map.composite" }))!;
+    expect(item.stages).toHaveLength(3);
+    const drawn = drawnPositions(item.stages);
+    for (const hidden of [[34, 35, 36], [22, 23, 24], [13, 14, 15], [7, 8, 9]]) expect(drawn).not.toContainEqual(hidden);
+    const drawnKinds = new Set(item.stages.flatMap((stage) => stage.points.map((point) => point.kind)));
+    for (const hidden of ["control_respawn", "end", "reset", "third_person"]) expect(drawnKinds.has(hidden as never)).toBe(false);
+    expect(drawn).not.toContainEqual([4, 5, 6]);
+    expect(drawn).toContainEqual([30, 31, 32]);
+  });
+
+  it("returns nothing for a retired or unknown map", async () => {
+    const { database, sqlite } = createTestDatabase();
+    seedMap(sqlite, "map.retired", "retired");
+    seedAgentSpatialConfig(sqlite, "revision:map.retired:initial");
+    const services = createPlatformServices(database);
+
+    expect(await services.getPublicMapPositions({ mapId: "map.retired" })).toBeNull();
+    expect(await services.getPublicMapPositions({ mapId: "map.unknown" })).toBeNull();
+  });
+
+  it("rejects an id that cannot name a map before touching the cache", async () => {
+    const { database } = createTestDatabase("map.public");
+    const kv = { get: vi.fn(async () => null), put: vi.fn(async () => undefined) } as unknown as KVNamespace;
+    const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, undefined, undefined, kv);
+
+    for (const mapId of ["map.".padEnd(600, "x"), "地图", "map.UPPER", "../map.public"]) {
+      expect(await services.getPublicMapPositions({ mapId })).toBeNull();
+    }
+    expect(kv.get).not.toHaveBeenCalled();
+    expect(kv.put).not.toHaveBeenCalled();
+  });
+});

@@ -6,6 +6,7 @@ import type { OwnedTitle } from "~/types/title";
 import { findOwnedTitle } from "~/utils/achievement-status";
 import { mapRatingBonusLabel } from "~/utils/map-rating";
 import PlayerReviewPanel from "../reviews/PlayerReviewPanel.vue";
+import MapDetailPositions from "./MapDetailPositions.vue";
 
 const props = defineProps<{
   map: Map | null;
@@ -68,6 +69,7 @@ onMounted(() => { hydrated.value = true; });
             </li>
           </ul>
         </section>
+        <MapDetailPositions class="detail-section" :map-id="map.mapId" />
         <PlayerReviewPanel v-if="map" target-type="map" :target-id="map.mapId" :gameplay-revision-id="map.defaultGameplayRevisionId ?? null" :authenticated="authenticated" @review-changed="emit('review-changed')" />
       </div>
     </div>

@@ -1,6 +1,6 @@
 import type { AgentMap, Map } from "@owbastion/contracts";
 import { agentGameplayRevisionSchema } from "@owbastion/contracts";
-import { parseAgentSpatialConfig } from "./map-revision-service";
+import { parseAgentSpatialConfig } from "./spatial-config";
 import { groupBy } from "./group-by";
 
 type AgentMapProjectionRow = {

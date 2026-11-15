@@ -1455,6 +1455,25 @@
     }
    }
   },
+  "/v1/maps/{mapId}/positions": {
+   "get": {
+    "operationId": "getPublicMapPositions",
+    "description": "Returns the drawn spatial points of an active map's current default gameplay revision as { contractVersion, item: { mapId, gameplayRevisionId, stages: [{ points: [{ kind, position }] }] } }. kind is one of bastion, reset, end, third_person, portal, springboard, control_center, control_jump, control_respawn; position is a world [x, y, z] vector with y as height. Stages follow the revision's spatial config order: the root stage, then alternate stages, or one entry per composite stage. Credits points are never included, and composite stages carry no respawn or end points. Preparing, selectable, historical, and classic revisions are never exposed. An active map without a valid default revision returns gameplayRevisionId null and no stages; a retired or unknown map, or an id that is not a map id (map. followed by 1 to 64 lowercase letters, digits, or underscores), returns 404 MAP_NOT_FOUND.",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/mapId"
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "404": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
   "/v1/events": {
    "get": {
     "operationId": "listRandomEvents",

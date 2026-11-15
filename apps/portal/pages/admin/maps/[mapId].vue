@@ -6,6 +6,9 @@ import { groupHonors, recommendedAssignments, windowComplete, type MapAssignment
 import { spatialProblems } from "~/utils/map-readiness";
 import type { SpatialConfigValue } from "~/utils/spatial-config-import";
 import { portalErrorDetails } from "~/utils/portal-error";
+import { agentSpatialConfigSchema } from "@owbastion/contracts";
+import { mapPositionStages } from "@owbastion/domain";
+import MapPositionOverview from "~/components/maps/MapPositionOverview.vue";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 
@@ -69,6 +72,11 @@ const draft = computed(() => selectedRevision.value ? drafts.value[selectedRevis
 const dirtyRevisionIds = computed(() => revisions.value.filter(isDirty).map((revision) => revision.revisionId));
 const selectedDirty = computed(() => Boolean(selectedRevision.value && isDirty(selectedRevision.value)));
 const problems = computed(() => !spatialValid.value ? ["点位代码有问题，见下方提示"] : draft.value ? spatialProblems(draft.value.spatialConfig) : []);
+// Drawn only once the draft is a complete spatial config; a half-pasted draft has no layout to show.
+const draftPositionStages = computed(() => {
+  const parsed = draft.value?.spatialConfig ? agentSpatialConfigSchema.safeParse(draft.value.spatialConfig) : null;
+  return parsed?.success ? mapPositionStages(parsed.data) : [];
+});
 const assignedCount = computed(() => draft.value ? enabledAssignments(draft.value.assignments).length : 0);
 // An enabled Pioneer rule needs an opening window; the window is saved with the assignment.
 const pioneerRuleIds = computed(() => new Set(catalog.value.filter((option) => option.kind.trim().toLowerCase() === "pioneer").map((option) => option.challengeId)));
@@ -217,6 +225,7 @@ useSeoMeta({ title: "地图编辑器 · 躲避堡垒 3" });
           @update:model-value="patchDraft({ spatialConfig: $event })"
           @valid="spatialValid = $event"
         />
+        <MapPositionOverview v-if="draftPositionStages.length" :stages="draftPositionStages" />
       </section>
 
       <section class="map-card" aria-labelledby="map-honors-title">

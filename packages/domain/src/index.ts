@@ -59,6 +59,7 @@ import type {
   Challenge,
   ActiveChallenge,
   Map,
+  PublicMapPositions,
   Title,
   AdminTitleGrantListResponse, AdminTitleGrantHolderDetailResponse, AdminHistoricalTitleHolderFilter, AdminTitleGrantRequest, AdminTitleGrantBulkRequest, AdminTitleGrantBulkResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse,
   AdminChallenge, AdminChallengeListResponse, AdminChallengeUpdateRequest, AdminTitleCreateRequest, AdminTitleChallengeCreateRequest, AdminTitleChallenge, AdminTitleSummary, AdminTitleHolderListResponse, AdminChallengeLifecycleRequest, AdminChallengeLifecycleResponse, AdminCatalogTitleUpdateResponse, AdminMapMetadataUpdateRequest, AdminMapCreateRequest,
@@ -105,6 +106,7 @@ export * from "./season";
 export * from "./title-availability";
 export * from "./player-handle";
 export * from "./player-invitation";
+export * from "./map-positions";
 
 export type LocalDevAccount = {
   accountId: string;
@@ -244,6 +246,7 @@ export type PlatformServices = {
   endAdminSeason(input: { seasonId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminSeason>;
   listPublicSeasons(): Promise<PublicSeasonListResponse>;
   listMaps(): Promise<Map[]>;
+  getPublicMapPositions(input: { mapId: string }): Promise<PublicMapPositions | null>;
   createAdminMap(input: AdminMapCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<Map>;
   updateAdminMapMetadata(input: AdminMapMetadataUpdateRequest & { mapId: string }, auth: AuthContext, idempotencyKey: string): Promise<Map>;
   getAdminMapEditor(input: { mapId: string }, auth: AuthContext): Promise<AdminMapEditorResponse>;

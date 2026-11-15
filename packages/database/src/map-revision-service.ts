@@ -1,7 +1,7 @@
 import { deleteGuardedAssignments, insertGuardedAssignment, insertGuardedMapTitleRuleAssignment, reconcileEquippedTitlesForHistoricalRevision, upsertGuardedPioneerException } from "./map-revision-statements";
 import { and, asc, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import { agentProjectedSpatialConfigSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
+import { agentProjectedSpatialConfigSchema } from "@owbastion/contracts";
 import type {
   AdminMapEditorChallengeOption,
   AdminMapEditorResponse,
@@ -9,7 +9,6 @@ import type {
   AdminMapRevision,
   AdminMapRevisionChallengeAssignment,
   AdminMapRevisionUpdateRequest,
-  AgentSpatialConfig,
   Map,
 } from "@owbastion/contracts";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
@@ -28,9 +27,12 @@ import {
 } from "./schema";
 import type { PlatformCache } from "./platform-cache";
 import { compareText } from "./compare-text";
+import { parseSpatialConfig } from "./spatial-config";
+import { createPublicMapPositionServices } from "./public-map-positions-service";
 
 type AdminMapRevisionServices = Pick<PlatformServices,
   | "listMaps"
+  | "getPublicMapPositions"
   | "updateAdminMapMetadata"
   | "getAdminMapEditor"
   | "createAdminMapRevision"
@@ -49,24 +51,6 @@ type Dependencies = {
 };
 
 export const pioneerExceptionHasValidWindow = (startsAt: number | null, endsAt: number | null) => startsAt !== null && endsAt !== null && endsAt > startsAt;
-
-const normalizeSpatialConfig = <T extends AgentSpatialConfig>(config: T): T => "stages" in config
-  ? { ...config, stages: [...config.stages].sort((left, right) => compareText(left.stageId, right.stageId)) } as T
-  : { ...config, alternateStages: [...config.alternateStages].sort((left, right) => compareText(left.stageId, right.stageId)) } as T;
-const parseSpatialConfig = (value: unknown): AgentSpatialConfig => {
-  const parsed = agentSpatialConfigSchema.safeParse(value);
-  if (!parsed.success) throw new Error("INVALID_SPATIAL_CONFIG");
-  return normalizeSpatialConfig(parsed.data);
-};
-export const parseAgentSpatialConfig = (value: string | null) => {
-  if (!value) return null;
-  try {
-    const parsed = agentProjectedSpatialConfigSchema.safeParse(JSON.parse(value));
-    return parsed.success ? normalizeSpatialConfig(parsed.data) : null;
-  } catch {
-    return null;
-  }
-};
 
 export const createMapRevisionServices = (
   database: D1Database,
@@ -300,6 +284,8 @@ export const createMapRevisionServices = (
   };
 
   return {
+    ...createPublicMapPositionServices(db, platformCache),
+
     async listMaps() {
       const rows = await platformCache.cached("catalog", "public-map-rows", () => db.select({ map: maps, metadata: mapMetadata, defaultRevisionId: gameplayRevisions.id }).from(maps)
         .leftJoin(mapMetadata, eq(mapMetadata.mapId, maps.id))
