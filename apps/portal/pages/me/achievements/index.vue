@@ -56,7 +56,6 @@ const updateEquipped = async (grantId: string) => {
 <template>
   <main class="achievements-page directory-page page-shell">
     <PageMasthead title="我的成就" />
-    <ActiveChallengeList kind="achievement" :heading="false" />
     <LoadingReveal>
       <AchievementWallSkeleton v-if="loading" role="status" aria-label="读取中…" />
       <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取成就" :description="error" />

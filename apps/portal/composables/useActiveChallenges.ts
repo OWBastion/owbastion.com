@@ -18,7 +18,8 @@ export const useActiveChallenges = () => {
     return item.mapIds.length ? item.mapIds.every((mapId) => own.some((title) => title.mapId === mapId)) : own.length > 0;
   };
   // The API response is cached for minutes, so the client also drops items whose end time has passed.
-  const items = computed(() => data.value.filter((item) => item.endsAt > now.value.getTime() && !owned(item)));
-  const forMap = (mapId: string) => items.value.find((item) => item.kind === "pioneer" && item.mapId === mapId) ?? null;
-  return { items, forMap, now };
+  const items = computed(() => data.value.filter((item) => item.endsAt > now.value.getTime()));
+  // A map badge only guides a player who still lacks the title; the lists keep owned items and mark them.
+  const forMap = (mapId: string) => items.value.find((item) => item.kind === "pioneer" && item.mapId === mapId && !owned(item)) ?? null;
+  return { items, forMap, isOwned: owned, now };
 };
