@@ -8,6 +8,8 @@ export type PublicAchievement = Extract<Challenge, { family: "achievement" }>;
 
 const props = defineProps<{ challenges: PublicAchievement[]; titles?: OwnedTitle[] }>();
 const stateOf = (challenge: PublicAchievement) => achievementState(findOwnedTitle(props.titles, challenge));
+// A title that is no longer issued and that the player does not hold folds away; held ones stay on the shelf.
+const isRetired = (challenge: PublicAchievement) => challenge.status === "ended" && stateOf(challenge) === "none";
 const groups = computed(() => {
   const grouped = new Map<string, PublicAchievement[]>();
   for (const challenge of props.challenges) grouped.set(challenge.category, [...(grouped.get(challenge.category) ?? []), challenge]);
@@ -18,6 +20,7 @@ const groups = computed(() => {
       obtained: props.titles ? challenges.filter((challenge) => stateOf(challenge) !== "none").length : null,
       challenges: [...challenges].sort((left, right) => Number(left.status === "ended") - Number(right.status === "ended") || left.titleName.localeCompare(right.titleName, "zh-CN")),
     }))
+    .map((group) => ({ ...group, current: group.challenges.filter((challenge) => !isRetired(challenge)), retired: group.challenges.filter(isRetired) }))
     .sort((left, right) => left.category.localeCompare(right.category, "zh-CN"));
 });
 const selected = shallowRef<PublicAchievement | null>(null);
@@ -29,10 +32,15 @@ const noteOf = (challenge: PublicAchievement) => { const availability = availabi
 <template>
   <div v-if="groups.length" class="catalog">
     <AchievementWall>
-      <AchievementShelf v-for="(group, groupIndex) in groups" :key="group.anchor" :title="group.category" :heading-id="`${group.anchor}-title`" :count="group.obtained === null ? String(group.challenges.length) : `${group.obtained}/${group.challenges.length}`">
-        <li v-for="(challenge, index) in group.challenges" :key="challenge.challengeId">
+      <AchievementShelf v-for="(group, groupIndex) in groups" :key="group.anchor" :title="group.category" :heading-id="`${group.anchor}-title`" :count="group.obtained === null ? String(group.challenges.length) : `${group.obtained}/${group.challenges.length}`" :retired-count="group.retired.length">
+        <li v-for="(challenge, index) in group.current" :key="challenge.challengeId">
           <AchievementTile :name="challenge.titleName" :icon-url="challenge.iconUrl" :icon="challenge.icon" :earned="earnedOf(challenge)" :availability="availabilityOf(challenge.status)" :retired-version="challenge.retiredVersion" :checked="Boolean(titles) && stateOf(challenge) !== 'none'" check-label="已获得" :shine-delay="groupIndex * .8 + index * .22" @click="selected = challenge" />
         </li>
+        <template #retired>
+          <li v-for="(challenge, index) in group.retired" :key="challenge.challengeId">
+            <AchievementTile :name="challenge.titleName" :icon-url="challenge.iconUrl" :icon="challenge.icon" :earned="earnedOf(challenge)" :availability="availabilityOf(challenge.status)" :retired-version="challenge.retiredVersion" :checked="Boolean(titles) && stateOf(challenge) !== 'none'" check-label="已获得" :shine-delay="groupIndex * .8 + index * .22" @click="selected = challenge" />
+          </li>
+        </template>
       </AchievementShelf>
     </AchievementWall>
 

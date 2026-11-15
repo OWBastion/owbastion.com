@@ -1,11 +1,18 @@
 <script setup lang="ts">
-defineProps<{ title: string; count: string; headingId: string }>();
+defineProps<{ title: string; count: string; headingId: string; retiredCount?: number }>();
+const retiredOpen = shallowRef(false);
 </script>
 
 <template>
   <section class="shelf" :aria-labelledby="headingId">
     <h2 :id="headingId" class="shelf__title">{{ title }}<span class="num">{{ count }}</span></h2>
     <ul class="shelf__row"><slot /></ul>
+    <template v-if="retiredCount">
+      <button type="button" class="shelf__retired-toggle" :aria-expanded="retiredOpen" :aria-controls="`${headingId}-retired`" @click="retiredOpen = !retiredOpen">
+        <UIcon name="i-lucide-chevron-down" class="shelf__chevron" aria-hidden="true" />不再发放 <span class="num">{{ retiredCount }}</span>
+      </button>
+      <ul v-show="retiredOpen" :id="`${headingId}-retired`" class="shelf__row"><slot name="retired" /></ul>
+    </template>
   </section>
 </template>
 
@@ -16,4 +23,11 @@ defineProps<{ title: string; count: string; headingId: string }>();
 /* Medals stand on a ledge: a bright top edge with a shadow falling beneath it. */
 .shelf__row { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); margin: 0; padding: 0 0 var(--space-3); border-bottom: 2px solid color-mix(in oklch, var(--line-strong) 80%, var(--accent)); box-shadow: 0 .6rem .8rem -.6rem rgb(0 0 0 / .2); list-style: none; }
 :is(html.dark) .shelf__row { box-shadow: 0 .6rem .8rem -.5rem rgb(0 0 0 / .6); }
+.shelf__row:empty { display: none; }
+.shelf__retired-toggle { display: inline-flex; align-items: center; gap: var(--space-2); justify-self: start; min-height: var(--control-sm); padding: 0 var(--space-2); border-radius: var(--radius-control); color: var(--muted); font-size: var(--type-label-sm-size); font-weight: 600; }
+.shelf__retired-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .shelf__retired-toggle:hover { color: var(--text); } }
+.shelf__chevron { transition: transform var(--dur-fast) var(--ease-out); }
+.shelf__retired-toggle[aria-expanded="true"] .shelf__chevron { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .shelf__chevron { transition: none; } }
 </style>

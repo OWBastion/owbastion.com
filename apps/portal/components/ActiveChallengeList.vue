@@ -31,5 +31,5 @@ const target = (item: ActiveChallenge) => item.kind === "pioneer" ? { path: "/ma
 .active-challenges__item:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .active-challenges__name { display: grid; flex: 1; min-width: 0; font-weight: 600; }
 .active-challenges__name small { overflow: hidden; color: var(--quiet); font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
-.active-challenges__time { padding: .15rem .5rem; border-radius: var(--radius-control); color: var(--text); background: var(--accent-surface); font-size: .8125rem; font-weight: 700; white-space: nowrap; }
+.active-challenges__time { padding: .15rem .5rem; border-radius: var(--radius-control); color: var(--on-signal); background: var(--signal); font-size: .8125rem; font-weight: 700; white-space: nowrap; }
 </style>
