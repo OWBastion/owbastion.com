@@ -33,6 +33,11 @@ const markRadius: Record<Shape, number> = { num: 11, square: 9, diamond: 7, tri:
 const W = 800;
 const H = 520;
 const PAD = 44;
+const SCALE_BAR_MAX = 160;
+const SCALE_BAR_METERS = [100, 50, 20, 10, 5];
+// A stage narrower than this (down to a single point) is framed as this many meters, so the
+// scale stays finite and the shortest scale bar always fits within SCALE_BAR_MAX.
+const MIN_FRAMED_SPAN = 20;
 
 const stageIndex = shallowRef(0);
 const turns = shallowRef(0);
@@ -69,9 +74,9 @@ const plot = computed(() => {
   const ys = flat.map((point) => point[1]);
   const minX = Math.min(...xs);
   const minY = Math.min(...ys);
-  const spanX = Math.max(...xs) - minX || 1;
-  const spanY = Math.max(...ys) - minY || 1;
-  const scale = Math.min((W - 2 * PAD) / spanX, (H - 2 * PAD) / spanY);
+  const spanX = Math.max(...xs) - minX;
+  const spanY = Math.max(...ys) - minY;
+  const scale = Math.min((W - 2 * PAD) / Math.max(spanX, MIN_FRAMED_SPAN), (H - 2 * PAD) / Math.max(spanY, MIN_FRAMED_SPAN));
   const offsetX = (W - spanX * scale) / 2;
   const offsetY = (H - spanY * scale) / 2;
   const toScreen = (position: MapPosition["position"]) => {
@@ -95,7 +100,7 @@ const plot = computed(() => {
     });
   });
   const portalLink = points.filter((point) => point.kind === "portal").map((point) => toScreen(point.position)).map(({ x, y }) => `${x},${y}`).join(" ");
-  const meters = [100, 50, 20, 10, 5].find((value) => value * scale <= 160) ?? 5;
+  const meters = SCALE_BAR_METERS.find((value) => value * scale <= SCALE_BAR_MAX) ?? SCALE_BAR_METERS.at(-1)!;
   const kinds = new Set(points.map((point) => point.kind));
   return {
     marks,
