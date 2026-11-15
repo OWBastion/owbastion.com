@@ -26,7 +26,6 @@ h1{margin:0;font-size:1.5rem;line-height:1.2}
 .btn{border:1px solid var(--line);background:var(--raised);border-radius:8px;padding:.25rem .65rem;min-height:2rem;font-size:13px}
 .btn[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}
 svg.plot{display:block;width:100%;height:auto;background:var(--raised)}
-.route{fill:none;stroke:var(--accent);stroke-width:2;stroke-opacity:.45;stroke-linejoin:round}
 .link{fill:none;stroke:var(--info);stroke-width:1.5;stroke-dasharray:4 4}
 .pt{cursor:default;outline:none}
 .pt .hit{fill:transparent}
@@ -71,7 +70,8 @@ svg.plot{display:block;width:100%;height:auto;background:var(--raised)}
 </div>
 
 <script>
-/* Sample data in the platform spatialConfig shape ([x, y, z], y is height). */
+/* Sample data in the platform spatialConfig shape ([x, y, z], y is height).
+   A composite stage's respawn point only receives the jump from the previous stage, so it is not drawn. */
 const MAPS=[
   {name:"花村",stages:[{name:"",
     bastionPositions:[[-19.486,7.268,-84.64],[2.807,5,-71.176],[-14.682,3,-42.659],[-2.195,.649,-53.808],[42.514,1.585,-57.729],[35.735,2.002,-24.213],[6.352,8.059,-11.463],[18.229,9.604,14.806],[49.375,14.557,18.15],[45.582,6.009,-9.355],[56.387,4.257,13.861]],
@@ -91,20 +91,33 @@ const MAPS=[
     resetPosition:[5.33,8.14,109.05],endPosition:[-43,28.65,-39.96],thirdPersonPosition:[2.08,8.02,109.16],creditsPosition:[.68,11.77,120.02],
     control:{centerPositions:[],jumpPositions:[[-91.45,2,-5.21]],respawnPositions:[[-.7,8.02,113.02],[-118.06,30.58,-2.12]]},
     portalPositions:[[-91.45,2,-5.21],[-118.06,30.58,-2.12]]}]},
+  {name:"釜山",stages:[
+    {name:"1",composite:true,
+      bastionPositions:[[-387.866,12.231,177.954],[-372.397,12.203,128.218],[-301.703,17.422,167.231],[-330.068,11.551,119.593],[-327.409,11.539,116.231],[-277.643,12.071,176.188]],
+      resetPosition:[-409.71,10.11,165.61],thirdPersonPosition:[-410.4,10.11,162.37],creditsPosition:[-426.04,13.11,165.81],
+      control:{centerPositions:[[-328.53,8.17,153.32]],jumpPositions:[[-251.99,11.34,174.77]],respawnPositions:[[-426.04,12.67,165.81]]}},
+    {name:"2",composite:true,
+      bastionPositions:[[-4.128,17.014,-100.22],[36.542,15.009,-133.395],[65.787,15.01,-118.11],[51.653,13.485,-97.256],[79.799,16.029,-121.293],[102.575,23,-133.553]],
+      resetPosition:[-30.05,17,-118.12],thirdPersonPosition:[-30.05,17,-133.42],creditsPosition:[-43.73,19,-125.54],
+      control:{centerPositions:[[51.89,14.5,-114.7]],jumpPositions:[[104.77,17.74,-137.21]],respawnPositions:[[-30.95,17.2,-125.55]]}},
+    {name:"3",composite:true,
+      bastionPositions:[[269.78,14.352,213.057],[236.195,15.616,223.324],[206.817,20.42,205.305],[224.696,16.14,246.115],[165.586,11.095,265.157],[187.898,18.595,244.477]],
+      resetPosition:[282.34,12.1,201.72],thirdPersonPosition:[289.73,12.1,199.05],creditsPosition:[297.09,14.1,208.95],
+      control:{centerPositions:[[222.72,9.24,241.77]],jumpPositions:[[158.67,10.81,260.91]],respawnPositions:[[291.62,12.16,208.25]]}}]},
 ];
 
-/* Draw order is back to front, so the route stays on top. */
+/* Draw order is back to front. */
 const KINDS=[
   {id:"control",name:"占领中心点",shape:"tri",get:s=>s.control?.centerPositions},
   {id:"control",name:"占领跳跃点",shape:"tri",get:s=>s.control?.jumpPositions},
-  {id:"control",name:"占领重生点",shape:"tri",get:s=>s.control?.respawnPositions},
+  {id:"control",name:"占领重生点",shape:"tri",get:s=>s.composite?[]:s.control?.respawnPositions},
   {id:"spring",name:"跳板点",shape:"tri",get:s=>s.springboardPositions},
   {id:"portal",name:"传送点",shape:"diamond",link:true,get:s=>s.portalPositions},
   {id:"reset",name:"重置点",shape:"square",get:s=>[s.resetPosition]},
   {id:"end",name:"终点",shape:"square",get:s=>[s.endPosition]},
   {id:"aux",name:"第三人称点",shape:"dot",get:s=>[s.thirdPersonPosition]},
   {id:"aux",name:"结算点",shape:"dot",get:s=>[s.creditsPosition]},
-  {id:"bastion",name:"Bastion 出生点",shape:"num",route:true,get:s=>s.bastionPositions},
+  {id:"bastion",name:"Bastion 出生点",shape:"num",get:s=>s.bastionPositions},
 ];
 const LEGEND=[["bastion","num","出生点"],["reset","square","重置点"],["end","square","终点"],["portal","diamond","传送点"],["control","tri","占领 / 跳板"],["aux","dot","其他"]];
 
@@ -112,7 +125,6 @@ const W=800,H=520,PAD=44,NS="http://www.w3.org/2000/svg";
 const $=id=>document.getElementById(id);
 const state={map:0,stage:0,turns:0,mirror:false};
 const fmt=n=>(Math.round(n*100)/100).toString();
-const dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
 
 function el(tag,attrs,parent){
   const node=document.createElementNS(NS,tag);
@@ -146,11 +158,8 @@ function seg(host,labels,active,onPick){
 }
 
 function summary(stage){
-  const route=stage.bastionPositions;
-  const ys=route.map(p=>p[1]);
-  let len=0;
-  for(let i=1;i<route.length;i++)len+=dist(route[i-1],route[i]);
-  return `${route.length} 个出生点 · 路线 ${Math.round(len)} m · 高差 ${fmt(Math.max(...ys)-Math.min(...ys))} m`;
+  const ys=stage.bastionPositions.map(p=>p[1]);
+  return `${ys.length} 个出生点 · 高差 ${fmt(Math.max(...ys)-Math.min(...ys))} m`;
 }
 
 function render(){
@@ -176,14 +185,13 @@ function render(){
 
   for(const {kind,points} of groups){
     const screen=points.map(px);
-    if(kind.route||kind.link)el("polyline",{class:kind.route?"route":"link",points:screen.map(p=>p.join(",")).join(" ")},svg);
+    if(kind.link)el("polyline",{class:"link",points:screen.map(p=>p.join(",")).join(" ")},svg);
   }
   for(const {kind,points} of groups){
     points.forEach((p,i)=>{
       const [x,y]=px(p);
       const many=points.length>1;
-      let label=`${kind.name}${many?" "+(i+1):""} · X ${fmt(p[0])} Y ${fmt(p[1])} Z ${fmt(p[2])}`;
-      if(kind.route&&i>0)label+=` · 距上一点 ${Math.round(dist(points[i-1],p))} m`;
+      const label=`${kind.name}${many?" "+(i+1):""} · X ${fmt(p[0])} Y ${fmt(p[1])} Z ${fmt(p[2])}`;
       const g=el("g",{class:`pt k-${kind.id}`,tabindex:0,role:"img","aria-label":label},svg);
       el("circle",{class:"hit",cx:x,cy:y,r:16},g);
       el("path",{class:"mark",d:shapePath(kind.shape,x,y,kind.shape==="num"?11:kind.shape==="dot"?5:kind.shape==="square"?14:7)},g);
