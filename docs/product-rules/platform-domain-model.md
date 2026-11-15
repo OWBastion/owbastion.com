@@ -74,7 +74,7 @@ because a material rule change creates a new Challenge.
   rewrites a processed Submission to `rejected`.
 - A Submission belongs to the authenticated account that created it and is never transferred.
   BattleTag is the game-identity binding, not an OCR field.
-- Retain evidence that supports a Run, Completion, Grant, or finalized screenshot-set member;
+- Retain evidence that supports a Run, Completion, Grant, or screenshot-set member;
   players cannot delete it. Evidence with no accepted fact (e.g. rejected) may be deleted per
   retention policy. No complex retention system until needed.
 - OCRKit owns recognition and the model lifecycle; its output is structured evidence, never a

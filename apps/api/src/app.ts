@@ -5,9 +5,6 @@ import {
   qqScreenshotSubmissionRequestSchema,
   qqGroupAccessRequestSchema,
   adminScreenshotSetCreateRequestSchema,
-  adminScreenshotSetFinalizeRequestSchema,
-  adminScreenshotSetDiscardRequestSchema,
-  screenshotSetStatusSchema,
   playerUploadSessionRequestSchema,
   adminPlayerEquippedTitlesRequestSchema,
   playerProfileVisibilityRequestSchema,
@@ -566,23 +563,6 @@ export const createApp = (dependencies: AppDependencies) => {
 
   registerAdminReviewWorkflowRoutes(app, { services: servicesFor, requireMaintainer, adminMutation });
 
-  app.get("/v1/admin/screenshot-sets", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const pagination = parsePagination(new URL(c.req.url).searchParams, 100);
-    const status = c.req.query("status");
-    if (!pagination || (status && !screenshotSetStatusSchema.safeParse(status).success)) return errorResponse(c, 422, "INVALID_REQUEST", "The screenshot set query is invalid");
-    return c.json(await servicesFor(c).listAdminScreenshotSets({ ...pagination, ...(status ? { status: status as "draft" | "finalized" | "discarded" } : {}) }, access.auth!));
-  });
-
-  app.get("/v1/admin/screenshot-sets/candidates", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const pagination = parsePagination(new URL(c.req.url).searchParams, 100);
-    if (!pagination) return errorResponse(c, 422, "INVALID_REQUEST", "The screenshot set candidate query is invalid");
-    return c.json(await servicesFor(c).listAdminScreenshotSetCandidates(pagination, access.auth!));
-  });
-
   app.post("/v1/admin/screenshot-sets", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
@@ -595,58 +575,7 @@ export const createApp = (dependencies: AppDependencies) => {
       return c.json(await servicesFor(c).createAdminScreenshotSet(input, access.auth!, idempotencyKey), 201);
     } catch (error) {
       const code = error instanceof Error ? error.message : "SCREENSHOT_SET_CREATE_FAILED";
-      if (code === "SCREENSHOT_SET_EXCLUSION_INVALID") return errorResponse(c, 422, code, "An excluded screenshot is not eligible for this set");
-      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
-      throw error;
-    }
-  });
-
-  app.get("/v1/admin/screenshot-sets/:setId", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const setId = c.req.param("setId");
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(setId)) return errorResponse(c, 422, "INVALID_SCREENSHOT_SET_ID", "The screenshot set ID is invalid");
-    try { return c.json(await servicesFor(c).getAdminScreenshotSet({ setId }, access.auth!)); }
-    catch (error) { if (error instanceof Error && error.message === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, "SCREENSHOT_SET_NOT_FOUND", "The screenshot set does not exist"); throw error; }
-  });
-
-  app.post("/v1/admin/screenshot-sets/:setId/finalize", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const setId = c.req.param("setId");
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(setId)) return errorResponse(c, 422, "INVALID_SCREENSHOT_SET_ID", "The screenshot set ID is invalid");
-    const idempotencyKey = c.req.header("idempotency-key");
-    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = adminScreenshotSetFinalizeRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    const input = parsed.data.note === undefined ? { setId } : { setId, note: parsed.data.note };
-    try {
-      return c.json(await servicesFor(c).finalizeAdminScreenshotSet(input, access.auth!, idempotencyKey));
-    } catch (error) {
-      const code = error instanceof Error ? error.message : "SCREENSHOT_SET_FINALIZE_FAILED";
-      if (code === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, code, "The screenshot set does not exist");
-      if (["SCREENSHOT_SET_ALREADY_FINALIZED", "SCREENSHOT_SET_ALREADY_DISCARDED", "SCREENSHOT_SET_NOT_DRAFT"].includes(code)) return errorResponse(c, 409, code, "The screenshot set is not a draft that can be finalized");
-      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
-      throw error;
-    }
-  });
-
-  app.post("/v1/admin/screenshot-sets/:setId/discard", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const setId = c.req.param("setId");
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(setId)) return errorResponse(c, 422, "INVALID_SCREENSHOT_SET_ID", "The screenshot set ID is invalid");
-    const idempotencyKey = c.req.header("idempotency-key");
-    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = adminScreenshotSetDiscardRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    const input = parsed.data.note === undefined ? { setId } : { setId, note: parsed.data.note };
-    try {
-      return c.json(await servicesFor(c).discardAdminScreenshotSet(input, access.auth!, idempotencyKey));
-    } catch (error) {
-      const code = error instanceof Error ? error.message : "SCREENSHOT_SET_DISCARD_FAILED";
-      if (code === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, code, "The screenshot set does not exist");
-      if (["SCREENSHOT_SET_ALREADY_FINALIZED", "SCREENSHOT_SET_ALREADY_DISCARDED", "SCREENSHOT_SET_NOT_DRAFT"].includes(code)) return errorResponse(c, 409, code, "The screenshot set is not a draft that can be discarded");
+      if (code === "SCREENSHOT_SET_EMPTY") return errorResponse(c, 409, code, "No screenshot is eligible for a set");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
     }
@@ -662,7 +591,6 @@ export const createApp = (dependencies: AppDependencies) => {
     } catch (error) {
       const code = error instanceof Error ? error.message : "OCRKIT_SCREENSHOT_SET_READ_FAILED";
       if (code === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, code, "The screenshot set does not exist");
-      if (code === "SCREENSHOT_SET_NOT_FINALIZED") return errorResponse(c, 409, code, "The screenshot set is not finalized");
       throw error;
     }
   });

@@ -711,7 +711,7 @@ export const datasetSnapshotAnnotations = sqliteTable("dataset_snapshot_annotati
 }));
 
 // Immutable, versioned screenshot sets supplied to OCRKit for training (#255).
-// Membership is rule-selected at draft creation and frozen: a finalized set is
+// Membership is rule-selected at creation and frozen: a set is
 // the explicit approval that its member screenshots may be used for OCR
 // training. Member rows store the complete delivery payload (object key,
 // sha256, mime type, size, layout version, accuracy mark) plus internal
@@ -719,18 +719,10 @@ export const datasetSnapshotAnnotations = sqliteTable("dataset_snapshot_annotati
 export const screenshotSets = sqliteTable("screenshot_sets", {
   id: text("id").primaryKey(),
   version: integer("version").notNull().unique(),
-  status: text("status").notNull().default("draft"),
   createdBy: text("created_by").notNull(),
+  // A set is finalized the moment it is created; this is its finalization time.
   createdAt: integer("created_at").notNull(),
-  finalizedBy: text("finalized_by"),
-  finalizedAt: integer("finalized_at"),
-  discardedBy: text("discarded_by"),
-  discardedAt: integer("discarded_at"),
-  note: text("note"),
-  eligibilityJson: text("eligibility_json").notNull().default("{}"),
-}, (table) => ({
-  statusIdx: index("screenshot_sets_status_idx").on(table.status, table.createdAt),
-}));
+});
 
 export const screenshotSetMembers = sqliteTable("screenshot_set_members", {
   setId: text("set_id").notNull().references(() => screenshotSets.id),

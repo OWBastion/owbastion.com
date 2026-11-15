@@ -77,15 +77,8 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   CREATE TABLE screenshot_sets (
     id TEXT PRIMARY KEY NOT NULL,
     version INTEGER NOT NULL UNIQUE,
-    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'finalized', 'discarded')),
     created_by TEXT NOT NULL,
-    created_at INTEGER NOT NULL,
-    finalized_by TEXT,
-    finalized_at INTEGER,
-    discarded_by TEXT,
-    discarded_at INTEGER,
-    note TEXT,
-    eligibility_json TEXT NOT NULL DEFAULT '{}'
+    created_at INTEGER NOT NULL
   );
   CREATE TABLE screenshot_set_members (
     set_id TEXT NOT NULL REFERENCES screenshot_sets(id),
@@ -148,6 +141,12 @@ const setup = () => {
   return { sqlite, services };
 };
 
+const sourceIds = async (services: ReturnType<typeof setup>["services"], version: number) =>
+  (await services.getOcrkitScreenshotSet({ version })).members.map((member) => member.source_id);
+
+const auditPayload = (sqlite: DatabaseSync, setId: string) =>
+  JSON.parse((sqlite.prepare("SELECT payload_json FROM audit_events WHERE entity_id = ? AND operation = 'screenshot_set.created'").get(setId) as { payload_json: string }).payload_json) as { memberCount: number; excludedCount: number; exclusions: Array<{ sourceId: string | null; submissionId: string; reason: string }> };
+
 describe("screenshot sets", () => {
   it("selects members by rule: approved submissions plus inaccurate-marked screenshots, deduplicated", async () => {
     const { sqlite, services } = setup();
@@ -160,19 +159,9 @@ describe("screenshot sets", () => {
     // Approved AND marked inaccurate -> a single member carrying the mark.
     seedSubmission(sqlite, { id: "sub-both", status: "approved", attachmentId: "att-both", ocrResultId: "ocr-both", mark: "inaccurate" });
 
-    const candidates = await services.listAdminScreenshotSetCandidates({ page: 1, pageSize: 100 }, maintainer);
-    expect(candidates.items.map((item) => item.sourceId).sort()).toEqual(["att-approved", "att-both", "att-marked"]);
-    const bySubmission = new Map(candidates.items.map((item) => [item.submissionId, item]));
-    expect(bySubmission.get("sub-approved")).toMatchObject({ sourceId: "att-approved", accuracy: null, submissionStatus: "approved" });
-    expect(bySubmission.get("sub-marked")).toMatchObject({ sourceId: "att-marked", accuracy: "inaccurate" });
-    expect(bySubmission.get("sub-both")).toMatchObject({ sourceId: "att-both", accuracy: "inaccurate" });
-    expect(bySubmission.has("sub-rejected")).toBe(false);
-
     const created = await services.createAdminScreenshotSet({}, maintainer, "key-1");
-    const detail = await services.getAdminScreenshotSet({ setId: created.setId }, maintainer);
-    expect(detail.members.map((member) => member.submissionId).sort()).toEqual(["sub-approved", "sub-both", "sub-marked"]);
-    // A source screenshot appears exactly once even when both rules match.
-    expect(detail.members.filter((member) => member.submissionId === "sub-both")).toHaveLength(1);
+    const payload = await services.getOcrkitScreenshotSet({ version: created.version });
+    expect(payload.members.map((member) => [member.source_id, member.accuracy]).sort()).toEqual([["att-approved", null], ["att-both", "inaccurate"], ["att-marked", "inaccurate"]]);
   });
 
   it("ignores stale inaccurate marks bound to an older recognition", async () => {
@@ -181,12 +170,13 @@ describe("screenshot sets", () => {
     // A newer unmarked recognition supersedes the marked one.
     sqlite.prepare("INSERT INTO ocr_results (id, submission_id, request_id, attempt, status, response_json, created_at) VALUES ('ocr-new', 'sub-stale', 'req-new', 2, 'ok', ?, 2)")
       .run(JSON.stringify(ocrResponse("layout-v3")));
+    seedSubmission(sqlite, { id: "sub-ok", status: "approved", attachmentId: "att-ok", ocrResultId: "ocr-ok" });
 
-    const candidates = await services.listAdminScreenshotSetCandidates({ page: 1, pageSize: 100 }, maintainer);
-    expect(candidates.items.map((item) => item.submissionId)).not.toContain("sub-stale");
+    const created = await services.createAdminScreenshotSet({}, maintainer, "key-1");
+    expect(await sourceIds(services, created.version)).toEqual(["att-ok"]);
   });
 
-  it("auto-excludes screenshots without a usable layout version or stored evidence", async () => {
+  it("auto-excludes screenshots without a usable layout version or stored evidence and records them on the audit event", async () => {
     const { sqlite, services } = setup();
     seedSubmission(sqlite, { id: "sub-ok", status: "approved", attachmentId: "att-ok", ocrResultId: "ocr-ok" });
     seedSubmission(sqlite, { id: "sub-nolayout", status: "approved", attachmentId: "att-nolayout", ocrResultId: "ocr-nolayout", layoutVersion: null });
@@ -194,75 +184,65 @@ describe("screenshot sets", () => {
     seedSubmission(sqlite, { id: "sub-unstored", status: "approved", attachmentId: "att-unstored", attachmentStatus: "pending", ocrResultId: "ocr-unstored" });
 
     const created = await services.createAdminScreenshotSet({}, maintainer, "key-1");
-    const detail = await services.getAdminScreenshotSet({ setId: created.setId }, maintainer);
-    expect(detail.members.map((member) => member.submissionId)).toEqual(["sub-ok"]);
-    const bySubmission = new Map(detail.exclusions.map((exclusion) => [exclusion.submissionId, exclusion]));
-    expect(bySubmission.get("sub-nolayout")).toMatchObject({ sourceId: "att-nolayout", reason: "missing_layout_version" });
-    expect(bySubmission.get("sub-noevidence")).toMatchObject({ sourceId: null, reason: "missing_evidence" });
-    expect(bySubmission.get("sub-unstored")).toMatchObject({ sourceId: null, reason: "missing_evidence" });
+    expect(created.counts).toEqual({ memberCount: 1, excludedCount: 3 });
+    expect(await sourceIds(services, created.version)).toEqual(["att-ok"]);
+    const exclusions = new Map(auditPayload(sqlite, created.setId).exclusions.map((exclusion) => [exclusion.submissionId, exclusion]));
+    expect(exclusions.get("sub-nolayout")).toMatchObject({ sourceId: "att-nolayout", reason: "missing_layout_version" });
+    expect(exclusions.get("sub-noevidence")).toMatchObject({ sourceId: null, reason: "missing_evidence" });
+    expect(exclusions.get("sub-unstored")).toMatchObject({ sourceId: null, reason: "missing_evidence" });
   });
 
-  it("lets a maintainer exclude anomalous screenshots before finalization and validates the list", async () => {
+  it("creates nothing when no screenshot is eligible", async () => {
     const { sqlite, services } = setup();
-    seedSubmission(sqlite, { id: "sub-a", status: "approved", attachmentId: "att-a", ocrResultId: "ocr-a" });
-    seedSubmission(sqlite, { id: "sub-b", status: "approved", attachmentId: "att-b", ocrResultId: "ocr-b" });
+    seedSubmission(sqlite, { id: "sub-rejected", status: "rejected", attachmentId: "att-rejected", ocrResultId: "ocr-rejected" });
+    seedSubmission(sqlite, { id: "sub-nolayout", status: "approved", attachmentId: "att-nolayout", ocrResultId: "ocr-nolayout", layoutVersion: null });
 
-    await expect(services.createAdminScreenshotSet({ excludedSourceIds: ["00000000-0000-4000-8000-0000000000aa"] }, maintainer, "key-bad")).rejects.toThrow("SCREENSHOT_SET_EXCLUSION_INVALID");
-
-    const created = await services.createAdminScreenshotSet({ excludedSourceIds: ["att-b"] }, maintainer, "key-2");
-    expect(created.counts).toEqual({ memberCount: 1, excludedCount: 1 });
-    const detail = await services.getAdminScreenshotSet({ setId: created.setId }, maintainer);
-    expect(detail.members.map((member) => member.sourceId)).toEqual(["att-a"]);
-    expect(detail.exclusions).toEqual([{ sourceId: "att-b", submissionId: "sub-b", reason: "maintainer_excluded" }]);
+    await expect(services.createAdminScreenshotSet({}, maintainer, "key-1")).rejects.toThrow("SCREENSHOT_SET_EMPTY");
+    expect(sqlite.prepare("SELECT COUNT(*) AS n FROM screenshot_sets").get()).toEqual({ n: 0 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS n FROM idempotency_keys").get()).toEqual({ n: 0 });
   });
 
-  it("freezes membership and provenance at creation; finalization is immutable", async () => {
+  it("freezes membership at creation, replays an idempotency key, and allocates the next version", async () => {
     const { sqlite, services } = setup();
     seedSubmission(sqlite, { id: "sub-a", status: "approved", attachmentId: "att-a", ocrResultId: "ocr-a", mark: "accurate" });
 
-    const draft = await services.createAdminScreenshotSet({ note: "first" }, maintainer, "key-1");
-    expect(draft).toMatchObject({ version: 1, status: "draft", counts: { memberCount: 1, excludedCount: 0 } });
-
-    // Replay of the same idempotency key returns the original result.
-    const replay = await services.createAdminScreenshotSet({ note: "first" }, maintainer, "key-1");
-    expect(replay).toEqual(draft);
-    await expect(services.createAdminScreenshotSet({ note: "different" }, maintainer, "key-1")).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+    const first = await services.createAdminScreenshotSet({}, maintainer, "key-1");
+    expect(first).toMatchObject({ version: 1, counts: { memberCount: 1, excludedCount: 0 } });
+    expect(await services.createAdminScreenshotSet({}, maintainer, "key-1")).toEqual(first);
+    expect(sqlite.prepare("SELECT COUNT(*) AS n FROM screenshot_sets").get()).toEqual({ n: 1 });
 
     // Later business changes do not rewrite the frozen member payload.
     sqlite.prepare("UPDATE submissions SET status = 'rejected', map_name = '改名后地图' WHERE id = 'sub-a'").run();
     sqlite.prepare("UPDATE ocr_accuracy_feedback SET accuracy = 'inaccurate' WHERE submission_id = 'sub-a'").run();
-    const detail = await services.getAdminScreenshotSet({ setId: draft.setId }, maintainer);
-    expect(detail.members).toEqual([{
-      sourceId: "att-a", submissionId: "sub-a", mapName: "地图-sub-a",
-      objectKey: `uploads/submissions/sub-a/${sha("sha-att-a")}.png`, sha256: sha("sha-att-a"),
-      mimeType: "image/png", sizeBytes: 1234, layoutVersion: "layout-v2", accuracy: "accurate",
-      evidenceUrl: `https://evidence.owbastion.codes/uploads/submissions/sub-a/${sha("sha-att-a")}.png`,
+    expect((await services.getOcrkitScreenshotSet({ version: 1 })).members).toEqual([{
+      source_id: "att-a",
+      object_key: `uploads/submissions/sub-a/${sha("sha-att-a")}.png`,
+      sha256: sha("sha-att-a"),
+      mime_type: "image/png",
+      size_bytes: 1234,
+      layout_version: "layout-v2",
+      accuracy: "accurate",
     }]);
 
-    const finalized = await services.finalizeAdminScreenshotSet({ setId: draft.setId }, maintainer, "key-f1");
-    expect(finalized).toMatchObject({ status: "finalized", version: 1 });
-    await expect(services.finalizeAdminScreenshotSet({ setId: draft.setId }, maintainer, "key-f2")).rejects.toThrow("SCREENSHOT_SET_ALREADY_FINALIZED");
-    const finalizedReplay = await services.finalizeAdminScreenshotSet({ setId: draft.setId }, maintainer, "key-f1");
-    expect(finalizedReplay).toEqual(finalized);
-
-    // The next set takes the next version number.
+    // The next set takes the next version number, reflects the changed marks, and leaves version 1 unchanged.
+    seedSubmission(sqlite, { id: "sub-b", status: "approved", attachmentId: "att-b", ocrResultId: "ocr-b" });
     const second = await services.createAdminScreenshotSet({}, maintainer, "key-2");
     expect(second.version).toBe(2);
+    expect(await sourceIds(services, 1)).toEqual(["att-a"]);
+    expect((await services.getOcrkitScreenshotSet({ version: 2 })).members.map((member) => [member.source_id, member.accuracy])).toEqual([["att-a", "inaccurate"], ["att-b", null]]);
   });
 
-  it("serves only finalized sets to OCRKit, with the privacy-scoped member payload", async () => {
+  it("serves a created set to OCRKit with the privacy-scoped member payload", async () => {
     const { sqlite, services } = setup();
     seedSubmission(sqlite, { id: "sub-a", status: "approved", attachmentId: "att-a", ocrResultId: "ocr-a", mark: "inaccurate" });
     seedSubmission(sqlite, { id: "sub-b", status: "approved", attachmentId: "att-b", ocrResultId: "ocr-b" });
 
-    const draft = await services.createAdminScreenshotSet({}, maintainer, "key-1");
+    const created = await services.createAdminScreenshotSet({}, maintainer, "key-1");
     await expect(services.getOcrkitScreenshotSet({ version: 99 })).rejects.toThrow("SCREENSHOT_SET_NOT_FOUND");
-    await expect(services.getOcrkitScreenshotSet({ version: draft.version })).rejects.toThrow("SCREENSHOT_SET_NOT_FINALIZED");
 
-    await services.finalizeAdminScreenshotSet({ setId: draft.setId }, maintainer, "key-f1");
-    const payload = await services.getOcrkitScreenshotSet({ version: draft.version });
+    const payload = await services.getOcrkitScreenshotSet({ version: created.version });
     expect(payload.schema_version).toBe(1);
-    expect(payload.set_id).toBe(draft.setId);
+    expect(payload.set_id).toBe(created.setId);
     expect(payload.version).toBe(1);
     expect(payload.finalized).toBe(true);
     expect(payload.finalized_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
@@ -285,11 +265,6 @@ describe("screenshot sets", () => {
       expect(serialized.toLowerCase()).not.toContain(forbidden);
     for (const member of payload.members)
       expect(Object.keys(member).sort()).toEqual(["accuracy", "layout_version", "mime_type", "object_key", "sha256", "size_bytes", "source_id"]);
-
-    const sets = await services.listAdminScreenshotSets({ page: 1, pageSize: 20 }, maintainer);
-    expect(sets.items).toHaveLength(1);
-    expect(sets.items[0]).toMatchObject({ version: 1, status: "finalized", counts: { memberCount: 2, excludedCount: 0 } });
-    await expect(services.getAdminScreenshotSet({ setId: "00000000-0000-4000-8000-0000000000aa" }, maintainer)).rejects.toThrow("SCREENSHOT_SET_NOT_FOUND");
   });
 
   it("evaluates eligibility for more than 100 candidates without exceeding D1's bound-parameter limit", async () => {
@@ -299,39 +274,8 @@ describe("screenshot sets", () => {
       seedSubmission(sqlite, { id, status: "approved", attachmentId: `att-${index}`, ocrResultId: `ocr-${index}` });
     }
 
-    const candidates = await services.listAdminScreenshotSetCandidates({ page: 1, pageSize: 100 }, maintainer);
-    expect(candidates.total).toBe(120);
-    expect(candidates.hasMore).toBe(true);
-
     const created = await services.createAdminScreenshotSet({}, maintainer, "key-1");
     expect(created.counts.memberCount).toBe(120);
-    const detail = await services.getAdminScreenshotSet({ setId: created.setId }, maintainer);
-    expect(detail.members).toHaveLength(120);
-  });
-
-  it("discards a draft, keeps it out of OCRKit, and rejects finalize", async () => {
-    const { sqlite, services } = setup();
-    seedSubmission(sqlite, { id: "sub-a", status: "approved", attachmentId: "att-a", ocrResultId: "ocr-a" });
-
-    const draft = await services.createAdminScreenshotSet({}, maintainer, "key-1");
-    const discarded = await services.discardAdminScreenshotSet({ setId: draft.setId }, maintainer, "key-d1");
-    expect(discarded).toMatchObject({ setId: draft.setId, version: 1, status: "discarded" });
-    expect(await services.discardAdminScreenshotSet({ setId: draft.setId }, maintainer, "key-d1")).toEqual(discarded);
-
-    const detail = await services.getAdminScreenshotSet({ setId: draft.setId }, maintainer);
-    expect(detail.set.status).toBe("discarded");
-    expect(detail.set.discardedBy).toBe(maintainer.subject);
-    expect(detail.set.discardedAt).toBe(discarded.discardedAt);
-    const list = await services.listAdminScreenshotSets({ page: 1, pageSize: 20, status: "discarded" }, maintainer);
-    expect(list.items.map((item) => item.setId)).toEqual([draft.setId]);
-
-    await expect(services.discardAdminScreenshotSet({ setId: draft.setId }, maintainer, "key-d2")).rejects.toThrow("SCREENSHOT_SET_ALREADY_DISCARDED");
-    await expect(services.finalizeAdminScreenshotSet({ setId: draft.setId }, maintainer, "key-f1")).rejects.toThrow("SCREENSHOT_SET_ALREADY_DISCARDED");
-    await expect(services.getOcrkitScreenshotSet({ version: draft.version })).rejects.toThrow("SCREENSHOT_SET_NOT_FINALIZED");
-
-    // Finalized sets cannot be discarded either.
-    const finalizedDraft = await services.createAdminScreenshotSet({}, maintainer, "key-2");
-    await services.finalizeAdminScreenshotSet({ setId: finalizedDraft.setId }, maintainer, "key-f2");
-    await expect(services.discardAdminScreenshotSet({ setId: finalizedDraft.setId }, maintainer, "key-d3")).rejects.toThrow("SCREENSHOT_SET_ALREADY_FINALIZED");
+    expect(await sourceIds(services, created.version)).toHaveLength(120);
   });
 });

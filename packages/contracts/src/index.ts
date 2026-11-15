@@ -1234,122 +1234,20 @@ export const adminPlayerRecentSubmissionSchema = submissionStatusResponseSchema.
 // Members are source screenshots selected by rule; a finalized set is the
 // explicit approval that its members may be used for OCR training.
 
-export const screenshotSetStatusSchema = z.enum(["draft", "finalized", "discarded"]);
-
 export const screenshotSetCountsSchema = z.object({
-  memberCount: z.number().int().nonnegative(),
+  memberCount: z.number().int().positive(),
   excludedCount: z.number().int().nonnegative(),
-}).strict();
-
-export const adminScreenshotSetSchema = z.object({
-  setId: z.string().uuid(),
-  version: z.number().int().positive(),
-  status: screenshotSetStatusSchema,
-  createdBy: z.string(),
-  createdAt: z.number().int(),
-  finalizedBy: z.string().nullable(),
-  finalizedAt: z.number().int().nullable(),
-  discardedBy: z.string().nullable(),
-  discardedAt: z.number().int().nullable(),
-  note: z.string().nullable(),
-  counts: screenshotSetCountsSchema,
-}).strict();
-
-export const adminScreenshotSetListResponseSchema = z.object({
-  contractVersion,
-  items: z.array(adminScreenshotSetSchema),
-  page: z.number().int().positive(),
-  pageSize: z.number().int().positive().max(100),
-  total: z.number().int().nonnegative(),
-  hasMore: z.boolean(),
-}).strict();
-
-export const adminScreenshotSetCandidateSchema = z.object({
-  sourceId: z.string().uuid(),
-  submissionId: z.string().uuid(),
-  mapName: z.string().trim().min(1),
-  submissionStatus: z.string(),
-  accuracy: ocrAccuracyMarkSchema.nullable(),
-  layoutVersion: z.string(),
-  mimeType: z.string(),
-  sizeBytes: z.number().int().nonnegative(),
-  evidenceUrl: z.string().url().nullable(),
-}).strict();
-
-export const adminScreenshotSetCandidateListResponseSchema = z.object({
-  contractVersion,
-  items: z.array(adminScreenshotSetCandidateSchema),
-  page: z.number().int().positive(),
-  pageSize: z.number().int().positive().max(100),
-  total: z.number().int().nonnegative(),
-  hasMore: z.boolean(),
 }).strict();
 
 export const adminScreenshotSetCreateRequestSchema = z.object({
   contractVersion,
-  note: z.string().trim().max(1000).optional(),
-  excludedSourceIds: z.array(z.string().uuid()).max(500).optional(),
 }).strict();
 
 export const adminScreenshotSetCreateResponseSchema = z.object({
   contractVersion,
   setId: z.string().uuid(),
   version: z.number().int().positive(),
-  status: z.literal("draft"),
   counts: screenshotSetCountsSchema,
-}).strict();
-
-export const adminScreenshotSetFinalizeRequestSchema = z.object({
-  contractVersion,
-  note: z.string().trim().max(1000).optional(),
-}).strict();
-
-export const adminScreenshotSetFinalizeResponseSchema = z.object({
-  contractVersion,
-  setId: z.string().uuid(),
-  version: z.number().int().positive(),
-  status: z.literal("finalized"),
-  finalizedAt: z.number().int(),
-}).strict();
-
-export const adminScreenshotSetDiscardRequestSchema = z.object({
-  contractVersion,
-  note: z.string().trim().max(1000).optional(),
-}).strict();
-
-export const adminScreenshotSetDiscardResponseSchema = z.object({
-  contractVersion,
-  setId: z.string().uuid(),
-  version: z.number().int().positive(),
-  status: z.literal("discarded"),
-  discardedAt: z.number().int(),
-}).strict();
-
-export const adminScreenshotSetMemberSchema = z.object({
-  sourceId: z.string().uuid(),
-  submissionId: z.string().uuid(),
-  mapName: z.string().trim().min(1),
-  objectKey: z.string(),
-  sha256: z.string(),
-  mimeType: z.string(),
-  sizeBytes: z.number().int().nonnegative(),
-  layoutVersion: z.string(),
-  accuracy: ocrAccuracyMarkSchema.nullable(),
-  evidenceUrl: z.string().url().nullable(),
-}).strict();
-
-export const adminScreenshotSetExclusionSchema = z.object({
-  // Null when the excluded Submission had no stored screenshot at all.
-  sourceId: z.string().uuid().nullable(),
-  submissionId: z.string().uuid(),
-  reason: z.string(),
-}).strict();
-
-export const adminScreenshotSetDetailResponseSchema = z.object({
-  contractVersion,
-  set: adminScreenshotSetSchema,
-  members: z.array(adminScreenshotSetMemberSchema),
-  exclusions: z.array(adminScreenshotSetExclusionSchema),
 }).strict();
 
 // Private OCRKit consumption payload: snake_case, per the snapshot contract.
@@ -1702,20 +1600,8 @@ export type PlayerSubmissionDetail = z.infer<typeof playerSubmissionDetailSchema
 export type OcrAccuracyMark = z.infer<typeof ocrAccuracyMarkSchema>;
 export type OcrAccuracyFeedbackRequest = z.infer<typeof ocrAccuracyFeedbackRequestSchema>;
 export type OcrAccuracyFeedbackResponse = z.infer<typeof ocrAccuracyFeedbackResponseSchema>;
-export type ScreenshotSetStatus = z.infer<typeof screenshotSetStatusSchema>;
-export type AdminScreenshotSet = z.infer<typeof adminScreenshotSetSchema>;
-export type AdminScreenshotSetListResponse = z.infer<typeof adminScreenshotSetListResponseSchema>;
-export type AdminScreenshotSetCandidate = z.infer<typeof adminScreenshotSetCandidateSchema>;
-export type AdminScreenshotSetCandidateListResponse = z.infer<typeof adminScreenshotSetCandidateListResponseSchema>;
 export type AdminScreenshotSetCreateRequest = z.infer<typeof adminScreenshotSetCreateRequestSchema>;
 export type AdminScreenshotSetCreateResponse = z.infer<typeof adminScreenshotSetCreateResponseSchema>;
-export type AdminScreenshotSetFinalizeRequest = z.infer<typeof adminScreenshotSetFinalizeRequestSchema>;
-export type AdminScreenshotSetFinalizeResponse = z.infer<typeof adminScreenshotSetFinalizeResponseSchema>;
-export type AdminScreenshotSetDiscardRequest = z.infer<typeof adminScreenshotSetDiscardRequestSchema>;
-export type AdminScreenshotSetDiscardResponse = z.infer<typeof adminScreenshotSetDiscardResponseSchema>;
-export type AdminScreenshotSetMember = z.infer<typeof adminScreenshotSetMemberSchema>;
-export type AdminScreenshotSetExclusion = z.infer<typeof adminScreenshotSetExclusionSchema>;
-export type AdminScreenshotSetDetailResponse = z.infer<typeof adminScreenshotSetDetailResponseSchema>;
 export type OcrkitScreenshotSetResponse = z.infer<typeof ocrkitScreenshotSetResponseSchema>;
 export type CurrentPlayerResponse = z.infer<typeof currentPlayerResponseSchema>;
 export type PlayerProfileVisibilityRequest = z.infer<typeof playerProfileVisibilityRequestSchema>;

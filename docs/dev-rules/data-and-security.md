@@ -52,9 +52,9 @@ KV outage falls back to D1; list endpoints must not add per-item queries or KV r
   decisions, Grants, mastery, or evidence, and is only a sampling hint, never a
   training label. Projections never include confidence, thresholds, warnings,
   risk signals, raw payloads, or other players' evidence.
-- Screenshot sets are OCRKit's training supply: admin management needs maintainer
+- Screenshot sets are OCRKit's training supply: set creation needs maintainer
   role; the read endpoint is private and versioned with Worker secret
-  `OCRKIT_SNAPSHOT_TOKEN`, serves finalized sets only, and returns per-screenshot
+  `OCRKIT_SNAPSHOT_TOKEN` and returns per-screenshot
   object facts (source id, key, SHA-256, MIME, size, layout version, accuracy
   mark), never identity, decisions, Grants, or bytes. OCRKit reads R2 directly with
   its own read-only prefix-scoped credentials; browsers never get storage

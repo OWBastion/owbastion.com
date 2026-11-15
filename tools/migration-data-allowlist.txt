@@ -44,3 +44,4 @@
 0107_title_lifecycle_draft_active.sql
 0112_review_survey_import.sql
 0113_enforce_pioneer_dominator_inheritance.sql
+0116_screenshot_sets_one_step.sql
