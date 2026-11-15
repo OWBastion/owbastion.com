@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>点位分布 · 原型</title>
+<style>
+:root{
+  --bg:#f3efe3; --surface:#fbf9f2; --raised:#fff; --ink:#1f1d18; --muted:#6b665a; --quiet:#8b8576; --line:#e2dccb;
+  --accent:#b4530a; --ok:#2f7d4f; --info:#1d5f8f; --bad:#b3261e;
+  --r:12px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif}
+button{font:inherit;color:inherit;cursor:pointer}
+.wrap{max-width:56rem;margin:0 auto;padding:1.25rem}
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:.75rem}
+h1{margin:0;font-size:1.5rem;line-height:1.2}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--raised)}
+.seg button{border:0;background:transparent;padding:.35rem .8rem;min-height:2.25rem;color:var(--muted)}
+.seg button[aria-pressed=true]{background:var(--accent);color:#fff;font-weight:600}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.5rem;padding:.6rem .75rem;border-bottom:1px solid var(--line)}
+.bar:empty{display:none}
+.tools{display:flex;gap:.4rem;margin-left:auto}
+.btn{border:1px solid var(--line);background:var(--raised);border-radius:8px;padding:.25rem .65rem;min-height:2rem;font-size:13px}
+.btn[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}
+svg.plot{display:block;width:100%;height:auto;background:var(--raised)}
+.route{fill:none;stroke:var(--accent);stroke-width:2;stroke-opacity:.45;stroke-linejoin:round}
+.link{fill:none;stroke:var(--info);stroke-width:1.5;stroke-dasharray:4 4}
+.pt{cursor:default;outline:none}
+.pt .hit{fill:transparent}
+.pt .mark{stroke:var(--raised);stroke-width:2}
+.pt:hover .mark,.pt:focus-visible .mark{stroke:var(--ink)}
+.pt text{font-size:11px;font-weight:700;fill:#fff;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.k-bastion .mark{fill:var(--accent)}
+.k-reset .mark{fill:var(--ok)}
+.k-end .mark{fill:var(--bad)}
+.k-portal .mark,.k-spring .mark{fill:var(--info)}
+.k-control .mark{fill:var(--muted)}
+.k-aux .mark{fill:var(--raised);stroke:var(--quiet)}
+.scale line{stroke:var(--muted);stroke-width:2}
+.scale text{font-size:11px;fill:var(--muted)}
+.foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.5rem 1rem;padding:.6rem .75rem;border-top:1px solid var(--line);font-size:13px}
+.read{font-variant-numeric:tabular-nums;min-height:1.5em}
+.legend{display:flex;flex-wrap:wrap;gap:.25rem .9rem;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:.3rem}
+.legend svg{width:14px;height:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>点位分布</h1>
+    <div class="seg" id="maps" role="group" aria-label="地图"></div>
+  </div>
+  <div class="card">
+    <div class="bar">
+      <div class="seg" id="stages" role="group" aria-label="路段"></div>
+      <div class="tools">
+        <button class="btn" id="rotate">旋转 90°</button>
+        <button class="btn" id="mirror" aria-pressed="false">镜像</button>
+      </div>
+    </div>
+    <svg class="plot" id="plot" viewBox="0 0 800 520" role="group" aria-label="俯视点位图"></svg>
+    <div class="foot">
+      <div class="read" id="read" aria-live="polite"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Sample data in the platform spatialConfig shape ([x, y, z], y is height). */
+const MAPS=[
+  {name:"花村",stages:[{name:"",
+    bastionPositions:[[-19.486,7.268,-84.64],[2.807,5,-71.176],[-14.682,3,-42.659],[-2.195,.649,-53.808],[42.514,1.585,-57.729],[35.735,2.002,-24.213],[6.352,8.059,-11.463],[18.229,9.604,14.806],[49.375,14.557,18.15],[45.582,6.009,-9.355],[56.387,4.257,13.861]],
+    resetPosition:[-34.66,1,-98.8],endPosition:[49.02,6,18.79],thirdPersonPosition:[-30.39,1,-102.96],creditsPosition:[-48.1,2.5,-116.08]}]},
+  {name:"伊利奥斯",stages:[
+    {name:"深井",
+      bastionPositions:[[-173.701,-.46,-71.552],[-207.983,5.46,-31.971],[-222.539,.1,-30.825],[-223.926,5.56,-16.079],[-245.721,5.56,5.19],[-257.45,2.85,35.113]],
+      resetPosition:[-160.308,-1.355,-91.403],endPosition:[-271.14,-5.585,33.279],thirdPersonPosition:[-148.168,-1.504,-88.932],creditsPosition:[-150.88,.2,-97.02]},
+    {name:"灯塔",
+      bastionPositions:[[321.799,-17.29,26.126],[314.215,-16.35,-18.283],[358.768,-6.597,-47.48],[353.915,-10.86,-53.746],[364.601,-25.62,-54.434],[304.692,-15.91,-42.049],[319.744,-24.11,-69.502]],
+      resetPosition:[331.08,-21.52,41.121],endPosition:[321.229,-26.291,-88.556],thirdPersonPosition:[318.997,-21.52,37.66],creditsPosition:[321.8,-20,46]},
+    {name:"废墟",
+      bastionPositions:[[111.31,68.78,-183.068],[83.25,67.65,-179.529],[28.394,61.39,-148.333],[5.918,60.37,-170.376],[-26.8,67.62,-178.826],[-52.04,65.39,-179.058]],
+      resetPosition:[128.072,63.254,-165.528],endPosition:[-47.306,58.37,-184.722],thirdPersonPosition:[129.56,62.45,-153.472],creditsPosition:[137.54,63.92,-158.9]}]},
+  {name:"新渣客城",stages:[{name:"",
+    bastionPositions:[[-45.678,8.298,88.433],[-74.958,6.937,72.937],[-76.296,7.756,40.01],[-74.877,6.937,7.044],[-78.144,-.941,-19.954],[-55.165,8.251,-.152],[-25.305,9.706,32.074],[13.116,4.058,87.188],[-15.766,7.025,.028],[-31.324,8.111,-39.913],[-85.606,.947,44.387],[-74.415,4.499,-63.359]],
+    resetPosition:[5.33,8.14,109.05],endPosition:[-43,28.65,-39.96],thirdPersonPosition:[2.08,8.02,109.16],creditsPosition:[.68,11.77,120.02],
+    control:{centerPositions:[],jumpPositions:[[-91.45,2,-5.21]],respawnPositions:[[-.7,8.02,113.02],[-118.06,30.58,-2.12]]},
+    portalPositions:[[-91.45,2,-5.21],[-118.06,30.58,-2.12]]}]},
+];
+
+/* Draw order is back to front, so the route stays on top. */
+const KINDS=[
+  {id:"control",name:"占领中心点",shape:"tri",get:s=>s.control?.centerPositions},
+  {id:"control",name:"占领跳跃点",shape:"tri",get:s=>s.control?.jumpPositions},
+  {id:"control",name:"占领重生点",shape:"tri",get:s=>s.control?.respawnPositions},
+  {id:"spring",name:"跳板点",shape:"tri",get:s=>s.springboardPositions},
+  {id:"portal",name:"传送点",shape:"diamond",link:true,get:s=>s.portalPositions},
+  {id:"reset",name:"重置点",shape:"square",get:s=>[s.resetPosition]},
+  {id:"end",name:"终点",shape:"square",get:s=>[s.endPosition]},
+  {id:"aux",name:"第三人称点",shape:"dot",get:s=>[s.thirdPersonPosition]},
+  {id:"aux",name:"结算点",shape:"dot",get:s=>[s.creditsPosition]},
+  {id:"bastion",name:"Bastion 出生点",shape:"num",route:true,get:s=>s.bastionPositions},
+];
+const LEGEND=[["bastion","num","出生点"],["reset","square","重置点"],["end","square","终点"],["portal","diamond","传送点"],["control","tri","占领 / 跳板"],["aux","dot","其他"]];
+
+const W=800,H=520,PAD=44,NS="http://www.w3.org/2000/svg";
+const $=id=>document.getElementById(id);
+const state={map:0,stage:0,turns:0,mirror:false};
+const fmt=n=>(Math.round(n*100)/100).toString();
+const dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
+
+function el(tag,attrs,parent){
+  const node=document.createElementNS(NS,tag);
+  for(const k in attrs)node.setAttribute(k,attrs[k]);
+  parent?.append(node);
+  return node;
+}
+
+function shapePath(shape,x,y,r){
+  if(shape==="square")return `M${x-r} ${y-r}h${2*r}v${2*r}h${-2*r}z`;
+  if(shape==="diamond")return `M${x} ${y-r-2}L${x+r+2} ${y}L${x} ${y+r+2}L${x-r-2} ${y}z`;
+  if(shape==="tri")return `M${x} ${y-r-1}L${x+r+1} ${y+r}L${x-r-1} ${y+r}z`;
+  return `M${x-r} ${y}a${r} ${r} 0 1 0 ${2*r} 0a${r} ${r} 0 1 0 ${-2*r} 0z`;
+}
+
+/* Top-down: world x/z become the plane; quarter turns and mirroring only change the view. */
+function plane([x,,z]){
+  let px=state.mirror?-x:x,py=z;
+  for(let i=0;i<state.turns;i++)[px,py]=[-py,px];
+  return [px,py];
+}
+
+function seg(host,labels,active,onPick){
+  host.replaceChildren(...labels.map((label,i)=>{
+    const b=document.createElement("button");
+    b.textContent=label;
+    b.setAttribute("aria-pressed",i===active);
+    b.onclick=()=>onPick(i);
+    return b;
+  }));
+}
+
+function summary(stage){
+  const route=stage.bastionPositions;
+  const ys=route.map(p=>p[1]);
+  let len=0;
+  for(let i=1;i<route.length;i++)len+=dist(route[i-1],route[i]);
+  return `${route.length} 个出生点 · 路线 ${Math.round(len)} m · 高差 ${fmt(Math.max(...ys)-Math.min(...ys))} m`;
+}
+
+function render(){
+  const map=MAPS[state.map],stage=map.stages[state.stage];
+  seg($("maps"),MAPS.map(m=>m.name),state.map,i=>{state.map=i;state.stage=0;render()});
+  seg($("stages"),map.stages.length>1?map.stages.map(s=>s.name):[],state.stage,i=>{state.stage=i;render()});
+  $("mirror").setAttribute("aria-pressed",state.mirror);
+
+  const groups=KINDS.map(kind=>({kind,points:(kind.get(stage)??[]).filter(Boolean)})).filter(g=>g.points.length);
+  const flat=groups.flatMap(g=>g.points.map(plane));
+  const xs=flat.map(p=>p[0]),ys=flat.map(p=>p[1]);
+  const minX=Math.min(...xs),minY=Math.min(...ys);
+  const spanX=Math.max(...xs)-minX||1,spanY=Math.max(...ys)-minY||1;
+  const k=Math.min((W-2*PAD)/spanX,(H-2*PAD)/spanY);
+  const ox=(W-spanX*k)/2,oy=(H-spanY*k)/2;
+  const px=p=>{const [a,b]=plane(p);return [ox+(a-minX)*k,oy+(b-minY)*k]};
+
+  const svg=$("plot");
+  svg.replaceChildren();
+  const base=summary(stage);
+  const read=text=>{$("read").textContent=text??base};
+  read();
+
+  for(const {kind,points} of groups){
+    const screen=points.map(px);
+    if(kind.route||kind.link)el("polyline",{class:kind.route?"route":"link",points:screen.map(p=>p.join(",")).join(" ")},svg);
+  }
+  for(const {kind,points} of groups){
+    points.forEach((p,i)=>{
+      const [x,y]=px(p);
+      const many=points.length>1;
+      let label=`${kind.name}${many?" "+(i+1):""} · X ${fmt(p[0])} Y ${fmt(p[1])} Z ${fmt(p[2])}`;
+      if(kind.route&&i>0)label+=` · 距上一点 ${Math.round(dist(points[i-1],p))} m`;
+      const g=el("g",{class:`pt k-${kind.id}`,tabindex:0,role:"img","aria-label":label},svg);
+      el("circle",{class:"hit",cx:x,cy:y,r:16},g);
+      el("path",{class:"mark",d:shapePath(kind.shape,x,y,kind.shape==="num"?11:kind.shape==="dot"?5:kind.shape==="square"?14:7)},g);
+      if(kind.shape==="num")el("text",{x,y},g).textContent=i+1;
+      g.onmouseenter=g.onfocus=()=>read(label);
+      g.onmouseleave=g.onblur=()=>read();
+    });
+  }
+
+  const meters=[5,10,20,50,100].findLast(m=>m*k<=160)??5;
+  const bar=el("g",{class:"scale"},svg);
+  el("line",{x1:16,y1:H-16,x2:16+meters*k,y2:H-16},bar);
+  el("text",{x:16,y:H-24},bar).textContent=`${meters} m`;
+}
+
+$("legend").innerHTML=LEGEND.map(([id,shape,name])=>
+  `<span><svg viewBox="0 0 20 20" class="pt k-${id}" aria-hidden="true"><path class="mark" d="${shapePath(shape,10,10,shape==="dot"?4:6)}"/></svg>${name}</span>`).join("");
+$("rotate").onclick=()=>{state.turns=(state.turns+1)%4;render()};
+$("mirror").onclick=()=>{state.mirror=!state.mirror;render()};
+render();
+</script>
+</body>
+</html>
