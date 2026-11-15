@@ -26,8 +26,10 @@ const tier = computed(() => /^T(\d)$/.exec(props.map.difficultyRating ?? "")?.[1
       <span class="map-card-shade" aria-hidden="true" />
       <span v-if="map.difficultyRating" class="map-card-tier num" :data-tier="tier" aria-hidden="true">{{ map.difficultyRating }}</span>
       <span v-if="rating" class="map-card-rating num" :aria-label="`评分 ${rating}`">★ {{ rating }}</span>
-      <span v-if="active" class="map-card-live num"><UIcon name="i-lucide-flag" aria-hidden="true" />{{ active.titleName }} · {{ remainingLabel(active.endsAt, now ?? Date.now()) }}</span>
-      <strong class="map-card-name">{{ map.mapName }}</strong>
+      <div class="map-card-foot">
+        <strong class="map-card-name">{{ map.mapName }}</strong>
+        <span v-if="active" class="map-card-live num" :aria-label="`${active.titleName}限时挑战，${remainingLabel(active.endsAt, now ?? Date.now())}`"><UIcon name="i-lucide-flag" aria-hidden="true" />{{ remainingLabel(active.endsAt, now ?? Date.now()) }}</span>
+      </div>
     </div>
   </button>
 </template>
@@ -40,8 +42,9 @@ const tier = computed(() => /^T(\d)$/.exec(props.map.difficultyRating ?? "")?.[1
 @media (hover: hover) and (pointer: fine) { .map-card:hover .map-card-media img { transform: scale(1.04); } }
 .map-card-index { font-family: var(--font-display); font-size: clamp(3rem, 26cqi, 6rem); font-weight: 700; letter-spacing: .04em; opacity: .22; }
 .map-card-shade { position: absolute; inset: 40% 0 0; background: linear-gradient(to bottom, transparent, oklch(12% 0.01 165 / 85%)); }
-.map-card-name { position: absolute; inset: auto var(--space-4) var(--space-3); overflow: hidden; color: oklch(97% 0.01 120); font-family: var(--font-display); font-size: clamp(1.125rem, 7cqi, 1.5rem); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.map-card-live { position: absolute; inset: auto auto calc(var(--space-3) + 2rem) var(--space-3); display: inline-flex; align-items: center; gap: var(--space-1); max-width: calc(100% - var(--space-6)); padding: .15rem .5rem; border-radius: calc(var(--radius-control) / 1.5); color: var(--on-accent); background: var(--accent); font-size: .8125rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.map-card-foot { position: absolute; inset: auto var(--space-4) var(--space-3); display: flex; align-items: center; gap: var(--space-2); }
+.map-card-name { flex: 1 1 auto; min-width: 0; overflow: hidden; color: oklch(97% 0.01 120); font-family: var(--font-display); font-size: clamp(1.125rem, 7cqi, 1.5rem); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.map-card-live { flex: none; display: inline-flex; align-items: center; gap: var(--space-1); padding: .15rem .5rem; border-radius: calc(var(--radius-control) / 1.5); color: var(--on-signal); background: var(--signal); font-size: .8125rem; font-weight: 700; white-space: nowrap; }
 .map-card-rating { position: absolute; top: var(--space-3); left: var(--space-3); padding: .15rem .5rem; border-radius: calc(var(--radius-control) / 1.5); color: oklch(97% 0.01 120); background: oklch(12% 0.01 165 / 70%); font-size: .8125rem; font-weight: 700; }
 .map-card-tier { position: absolute; top: var(--space-3); right: var(--space-3); min-width: 2.5rem; padding: .15rem .5rem; border-radius: calc(var(--radius-control) / 1.5); color: oklch(15% 0.02 150); background: oklch(80% 0.02 150); font-size: .8125rem; font-weight: 700; text-align: center; }
 .map-card-tier[data-tier="5"] { background: var(--tier-5); }
