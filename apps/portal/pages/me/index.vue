@@ -147,7 +147,7 @@ onMounted(() => {
 @media (hover: hover) and (pointer: fine) { .hub-cta:hover { box-shadow: 0 .75rem 2rem -1rem var(--accent); transform: translateY(-1px); } }
 .hub-cta > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hub-cta svg { width: 1.375rem; height: 1.375rem; }
-.hub-cta--warn { background: var(--signal); color: oklch(20% .03 75); }
+.hub-cta--warn { background: var(--signal); color: var(--on-signal); }
 .hub-cta--warn:focus-visible { box-shadow: 0 .75rem 2rem -1rem var(--signal); }
 @media (hover: hover) and (pointer: fine) { .hub-cta--warn:hover { box-shadow: 0 .75rem 2rem -1rem var(--signal); } }
 .hub-recent { display: grid; gap: var(--space-2); }

@@ -75,7 +75,11 @@ const cardTile = (card: AchievementCard): Omit<Tile, "series"> => card.kind === 
       progress: card.challenge.progressRule ? progressByChallenge.value.get(card.challenge.challengeId) : undefined,
     }
   : { key: card.title.grantId, name: card.title.label, icon: { url: card.title.iconUrl, icon: card.title.icon }, condition: card.title.condition, owned: card.title, earned: true, availability: "ended" };
-const tileGroups = computed(() => groups.value.map((group) => ({ name: group.category, tiles: group.cards.map((card) => ({ ...cardTile(card), series: group.category })) })));
+// A title that is no longer issued and that the player does not hold folds away; held ones stay on the shelf.
+const tileGroups = computed(() => groups.value.map((group) => {
+  const tiles = group.cards.map((card) => ({ ...cardTile(card), series: group.category }));
+  return { name: group.category, tiles, current: tiles.filter((tile) => tile.earned || tile.availability !== "ended"), retired: tiles.filter((tile) => !tile.earned && tile.availability === "ended") };
+}));
 
 const selectedKey = shallowRef<string | null>(null);
 // Looked up live so the sheet reflects an equip change as soon as the titles prop updates.
@@ -88,12 +92,18 @@ const mapProgressRows = computed(() => buildMapProgressRows({ maps: props.maps, 
 <template>
   <div class="collection">
     <p class="equip-count num" :class="{ 'is-warn': recoveryRequired }">{{ recoveryRequired ? "选择要佩戴的称号" : "已佩戴" }} {{ equippedCount }}/10</p>
+    <ActiveChallengeList kind="achievement" :heading="false" />
 
     <AchievementWall v-if="tileGroups.length">
-      <AchievementShelf v-for="(group, groupIndex) in tileGroups" :key="group.name" :title="group.name" :heading-id="`my-series-${groupIndex}`" :count="`${group.tiles.filter((tile) => tile.earned).length}/${group.tiles.length}`">
-        <li v-for="(tile, index) in group.tiles" :key="tile.key">
+      <AchievementShelf v-for="(group, groupIndex) in tileGroups" :key="group.name" :title="group.name" :heading-id="`my-series-${groupIndex}`" :count="`${group.tiles.filter((tile) => tile.earned).length}/${group.tiles.length}`" :retired-count="group.retired.length">
+        <li v-for="(tile, index) in group.current" :key="tile.key">
           <AchievementTile :name="tile.name" :icon-url="tile.icon.url" :icon="tile.icon.icon" :earned="tile.earned" :availability="tile.availability" :retired-version="tile.retiredVersion" :checked="tile.owned?.equipped" :highlighted="tile.owned?.equipped" check-label="已佩戴" :shine-delay="groupIndex * .8 + index * .22" @click="selectedKey = tile.key" />
         </li>
+        <template #retired>
+          <li v-for="(tile, index) in group.retired" :key="tile.key">
+            <AchievementTile :name="tile.name" :icon-url="tile.icon.url" :icon="tile.icon.icon" :earned="tile.earned" :availability="tile.availability" :retired-version="tile.retiredVersion" :checked="tile.owned?.equipped" :highlighted="tile.owned?.equipped" check-label="已佩戴" :shine-delay="groupIndex * .8 + index * .22" @click="selectedKey = tile.key" />
+          </li>
+        </template>
       </AchievementShelf>
     </AchievementWall>
 
