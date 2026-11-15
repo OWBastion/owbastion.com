@@ -87,7 +87,8 @@ export default defineNuxtModule({
         const files = await listMarkdownFiles(join(sourceRoot, kind));
         const entries = await Promise.all(files.map(async (file) => {
           const slug = file.slice(join(sourceRoot, kind).length + 1, -".md".length).replaceAll("\\", "/");
-          const parsed = await parse(await readFile(file, "utf8"));
+          const source = await readFile(file, "utf8");
+          const parsed = await parse(source);
           const meta = validateFrontmatter(schema, parsed.data, file);
           if (kind === "changelog") {
             const path = `/${kind}/${slug}`;
@@ -107,16 +108,23 @@ export default defineNuxtModule({
             cover: meta.cover,
             body: { ...parsed.body, toc: parsed.toc },
             slug,
+            // The raw Markdown below the frontmatter, kept apart so the public entry JSON stays AST-only.
+            markdown: source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "").trim(),
           };
         }));
         entries.sort((a, b) => Number(new Date(b[sortField] ?? 0)) - Number(new Date(a[sortField] ?? 0)));
 
-        for (const { slug, ...entry } of entries) {
+        for (const { slug, markdown, ...entry } of entries) {
           const target = join(outputRoot, kind, `${slug}.json`);
           await mkdir(dirname(target), { recursive: true });
           await writeFile(target, JSON.stringify(entry), "utf8");
+          if (kind === "changelog") {
+            const markdownTarget = join(outputRoot, "changelog-markdown", `${slug}.json`);
+            await mkdir(dirname(markdownTarget), { recursive: true });
+            await writeFile(markdownTarget, JSON.stringify({ title: entry.title, markdown }), "utf8");
+          }
         }
-        const summaries = entries.map(({ body: _body, slug: _slug, ...entry }) => entry);
+        const summaries = entries.map(({ body: _body, slug: _slug, markdown: _markdown, ...entry }) => entry);
         await mkdir(outputRoot, { recursive: true });
         await writeFile(join(outputRoot, `index.${kind}.json`), JSON.stringify(summaries), "utf8");
       }

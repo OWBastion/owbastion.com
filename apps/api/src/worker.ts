@@ -2,6 +2,8 @@ import { authenticateQqBot } from "@owbastion/auth";
 import { createVerifiedRunEvidenceCompatibilityV1 } from "@owbastion/domain";
 import { createPlatformServices } from "@owbastion/database";
 import { createApp, type RuntimeEnv } from "./app";
+import { webhookSignature } from "./webhook-signature";
+import { deliverQqChangelogPush, isQqChangelogMessage, QQ_CHANGELOG_MAX_ATTEMPTS, type QqChangelogQueueMessage } from "./qq-changelog-delivery";
 import { OCR_PENDING_RECOVERY_AGE_MS, OCR_QUEUE_MAX_DELIVERIES } from "./ocr-queue-policy";
 
 type OcrQueueMessage = { version: number; jobId: string; submissionId: string; objectKey: string; manual?: boolean; requestId?: string };
@@ -21,17 +23,11 @@ const app = createApp({
   services: (env) => createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), env.EVIDENCE_PUBLIC_ORIGIN, env.PLATFORM_CACHE, env.PROGRESS_RECONCILE_QUEUE),
 });
 
-const policySignature = async (secret: string, timestamp: string, body: string) => {
-  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${timestamp}.${body}`));
-  return Array.from(new Uint8Array(signature), (byte) => byte.toString(16).padStart(2, "0")).join("");
-};
-
-const isQqPolicyMessage = (body: OcrQueueMessage | QqPolicyQueueMessage | ProgressReconcileQueueMessage): body is QqPolicyQueueMessage => "eventId" in body;
+const isQqPolicyMessage = (body: OcrQueueMessage | QqPolicyQueueMessage | QqChangelogQueueMessage | ProgressReconcileQueueMessage): body is QqPolicyQueueMessage => "eventId" in body;
 
 export default {
   fetch: app.fetch,
-  async queue(batch: MessageBatch<OcrQueueMessage | QqPolicyQueueMessage | ProgressReconcileQueueMessage>, env: RuntimeEnv) {
+  async queue(batch: MessageBatch<OcrQueueMessage | QqPolicyQueueMessage | QqChangelogQueueMessage | ProgressReconcileQueueMessage>, env: RuntimeEnv) {
     const platform = createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), env.EVIDENCE_PUBLIC_ORIGIN, env.PLATFORM_CACHE, env.PROGRESS_RECONCILE_QUEUE);
     if (PROGRESS_RECONCILE_QUEUES.has(batch.queue)) {
       for (const message of batch.messages) {
@@ -60,12 +56,21 @@ export default {
       return;
     }
     for (const message of batch.messages) {
+      if (isQqChangelogMessage(message.body)) {
+        const push = message.body.changelogPush;
+        const outcome = await deliverQqChangelogPush(platform, env, message.body).catch(() => ({ done: false as const, errorCode: "QQBOT_CHANGELOG_STATE_UNAVAILABLE" }));
+        if (outcome.done) { message.ack(); continue; }
+        if (message.attempts < QQ_CHANGELOG_MAX_ATTEMPTS) { message.retry({ delaySeconds: Math.min(60, 5 * message.attempts) }); continue; }
+        try { await platform.recordQqChangelogPushResult({ ...push, result: { status: "failed", retryable: true, errorCode: outcome.errorCode } }); message.ack(); }
+        catch { message.retry({ delaySeconds: 60 }); }
+        continue;
+      }
       if (isQqPolicyMessage(message.body)) {
         try {
           if (!env.QQBOT_POLICY_WEBHOOK_URL || !env.QQBOT_POLICY_WEBHOOK_SECRET) throw new Error("QQBOT_POLICY_WEBHOOK_NOT_CONFIGURED");
           const body = JSON.stringify(message.body);
           const timestamp = String(Math.floor(Date.now() / 1000));
-          const response = await fetch(env.QQBOT_POLICY_WEBHOOK_URL, { method: "POST", headers: { "content-type": "application/json", "user-agent": "OWBastion-PlatformAPI/1.0", "x-owb-timestamp": timestamp, "x-owb-signature": await policySignature(env.QQBOT_POLICY_WEBHOOK_SECRET, timestamp, body) }, body });
+          const response = await fetch(env.QQBOT_POLICY_WEBHOOK_URL, { method: "POST", headers: { "content-type": "application/json", "user-agent": "OWBastion-PlatformAPI/1.0", "x-owb-timestamp": timestamp, "x-owb-signature": await webhookSignature(env.QQBOT_POLICY_WEBHOOK_SECRET, timestamp, body) }, body });
           if (!response.ok) throw new Error(`QQBOT_POLICY_WEBHOOK_FAILED_${response.status}`);
           await platform.markQqGroupPolicyEventDelivered({ eventId: message.body.eventId });
           message.ack();
@@ -95,5 +100,6 @@ export default {
   async scheduled(_controller: ScheduledController, env: RuntimeEnv) {
     const platform = createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), env.EVIDENCE_PUBLIC_ORIGIN, env.PLATFORM_CACHE, env.PROGRESS_RECONCILE_QUEUE);
     await platform.reconcileStaleOcrJobs({ olderThan: Date.now() - OCR_PENDING_RECOVERY_AGE_MS });
+    await platform.dispatchPendingQqChangelogPushes();
   },
 };

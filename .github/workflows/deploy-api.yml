@@ -105,6 +105,7 @@ jobs:
       QQBOT_API_TOKEN: ${{ secrets.QQBOT_API_TOKEN }}
       BASTION_BUILD_TOKEN: ${{ secrets.BASTION_BUILD_TOKEN }}
       QQBOT_POLICY_WEBHOOK_URL: ${{ secrets.QQBOT_POLICY_WEBHOOK_URL }}
+      QQBOT_CHANGELOG_WEBHOOK_URL: ${{ secrets.QQBOT_CHANGELOG_WEBHOOK_URL }}
       QQBOT_POLICY_WEBHOOK_SECRET: ${{ secrets.QQBOT_POLICY_WEBHOOK_SECRET }}
       OCRKIT_API_TOKEN: ${{ secrets.OCRKIT_API_TOKEN }}
       BINDING_INVITE_CODE_ENCRYPTION_KEY: ${{ secrets.BINDING_INVITE_CODE_ENCRYPTION_KEY }}
@@ -198,6 +199,8 @@ jobs:
           printf '%s' "$QQBOT_API_TOKEN" | pnpm exec wrangler secret put QQBOT_API_TOKEN
           printf '%s' "$BASTION_BUILD_TOKEN" | pnpm exec wrangler secret put BASTION_BUILD_TOKEN
           printf '%s' "$QQBOT_POLICY_WEBHOOK_URL" | pnpm exec wrangler secret put QQBOT_POLICY_WEBHOOK_URL
+          # Optional until QQBot ships the send endpoint; an unset URL makes queued pushes retry, then record failed.
+          if [ -n "$QQBOT_CHANGELOG_WEBHOOK_URL" ]; then printf '%s' "$QQBOT_CHANGELOG_WEBHOOK_URL" | pnpm exec wrangler secret put QQBOT_CHANGELOG_WEBHOOK_URL; fi
           printf '%s' "$QQBOT_POLICY_WEBHOOK_SECRET" | pnpm exec wrangler secret put QQBOT_POLICY_WEBHOOK_SECRET
           printf '%s' "$OCRKIT_API_TOKEN" | pnpm exec wrangler secret put OCRKIT_API_TOKEN
           printf '%s' "$BINDING_INVITE_CODE_ENCRYPTION_KEY" | pnpm exec wrangler secret put BINDING_INVITE_CODE_ENCRYPTION_KEY

@@ -24,6 +24,7 @@ export const adminSectionGroups: AdminSectionGroup[] = [
     { label: "绑定与邀请", icon: "i-lucide-link", to: "/admin/bindings" },
     { label: "邀请", icon: "i-lucide-ticket", to: "/admin/invitations" },
     { label: "QQ 群组策略", icon: "i-lucide-radio", to: "/admin/channels" },
+    { label: "更新日志推送", icon: "i-lucide-megaphone", to: "/admin/changelog-push" },
     { label: "赛季", icon: "i-lucide-calendar-range", to: "/admin/seasons" },
   ] },
 ];

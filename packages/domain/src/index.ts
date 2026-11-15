@@ -1,4 +1,5 @@
 import type {
+  QqChangelogPushRequest, QqChangelogPushItem, QqbotChangelogSendRequest, QqbotChangelogSendResponse,
   AdminBindingInviteRequest, AdminBindingInviteResponse, AdminBindingInviteBatchRequest, AdminBindingInviteBatchResponse, AdminBindingInviteListResponse, AdminBindingInviteRevokeRequest, AdminBindingInviteCodeResponse, AdminActiveBindingListResponse, BindingInviteRedeemRequest, BindingInviteRedeemResponse, BindingClaimSessionResponse, QqBindingClaimVerifyRequest, QqBindingClaimVerifyResponse, AdminBindingClaimDecisionRequest, AdminBindingClaimListResponse,
   SubmissionStatusResponse,
   PlayerSubmissionStatus,
@@ -329,6 +330,11 @@ export type PlatformServices = {
   listQqGroupAccess(auth: AuthContext): Promise<QqGroupAccessResponse[]>;
   dispatchPendingQqGroupPolicyEvents(): Promise<void>;
   markQqGroupPolicyEventDelivered(input: { eventId: string }): Promise<void>;
+  requestQqChangelogPush(input: QqChangelogPushRequest, auth: AuthContext): Promise<QqChangelogPushItem[]>;
+  listQqChangelogPushes(input: { version?: string }, auth: AuthContext): Promise<QqChangelogPushItem[]>;
+  dispatchPendingQqChangelogPushes(): Promise<void>;
+  loadQqChangelogPushForDelivery(input: { version: string; groupOpenId: string; idempotencyKey: string }): Promise<QqbotChangelogSendRequest | null>;
+  recordQqChangelogPushResult(input: { version: string; groupOpenId: string; idempotencyKey: string; result: QqbotChangelogSendResponse | { status: "failed"; retryable: boolean; errorCode: string } }): Promise<void>;
   listAdminPlayers(input: { query?: string; status?: "active" | "banned"; page: number; pageSize: number }, auth: AuthContext): Promise<AdminPlayerListResponse>;
   getAdminPlayer(input: { playerAccountId: string }, auth: AuthContext): Promise<AdminPlayerDetail>;
   setAdminPlayerStatus(input: { playerAccountId: string; status: "active" | "banned"; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;

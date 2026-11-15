@@ -38,3 +38,27 @@ describe("QQ group lifecycle routes", () => {
     expect((await post(anonymous, "/v1/qq/group-members/left", body, "left-3")).status).toBe(401);
   });
 });
+
+describe("QQ changelog push routes", () => {
+  const admin: Authenticator<RuntimeEnv> = async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" });
+  const body = { contractVersion: "1", version: "26.1115.3", markdown: "# 日志", groupOpenIds: ["group-1"] };
+  const post = (app: ReturnType<typeof createTestApp>, payload: unknown, key = "k1") =>
+    app.request("http://localhost/v1/admin/qq/changelog-pushes", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": key }, body: JSON.stringify(payload) }, env);
+
+  it("passes a valid request to the service and defaults confirmResend to false", async () => {
+    const calls: unknown[] = [];
+    const app = createTestApp({ requestQqChangelogPush: async (input) => { calls.push(input); return []; } }, admin);
+    expect((await post(app, body)).status).toBe(200);
+    expect(calls).toEqual([{ ...body, confirmResend: false }]);
+  });
+
+  it("maps an unconfirmed resend to 409 and rejects bad bodies and non-admins", async () => {
+    const app = createTestApp({ requestQqChangelogPush: async () => { throw new Error("QQ_CHANGELOG_ALREADY_SENT"); } }, admin);
+    expect((await post(app, body)).status).toBe(409);
+    expect((await post(app, { ...body, groupOpenIds: [] })).status).toBe(422);
+    expect((await post(app, { ...body, groupOpenIds: ["a", "a"] })).status).toBe(422);
+    const reader = createTestApp({}, async () => ({ actorType: "service", subject: "qqbot", roles: ["channel:write"], provider: "test" }));
+    expect((await post(reader, body)).status).toBe(403);
+    expect((await createTestApp({}, async () => null).request("http://localhost/v1/admin/qq/changelog-pushes", {}, env)).status).toBe(401);
+  });
+});

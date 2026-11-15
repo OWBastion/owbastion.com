@@ -28,6 +28,8 @@ export interface ChangelogSummary extends EditorialBase { releasedAt: string; ve
 const summaryModules = import.meta.glob("../.generated/editorial/index.*.json", { import: "default" });
 const entryModules = import.meta.glob("../.generated/editorial/*/*.json", { import: "default" });
 
+const changelogMarkdownModules = import.meta.glob("../.generated/editorial/changelog-markdown/*.json", { import: "default" });
+
 const eventHistoryModules = import.meta.glob("../.generated/editorial/event-history/*.json", { import: "default" });
 
 const sortField = { blog: "publishedAt", changelog: "releasedAt" } as const;
@@ -75,4 +77,10 @@ export async function findEditorialEntry(kind: EditorialKind, slug: string): Pro
 export async function findEventHistory(eventId: string): Promise<EventHistoryEntry[]> {
   const load = eventHistoryModules[`../.generated/editorial/event-history/${eventId}.json`];
   return load ? ((await load()) as EventHistoryEntry[]) : [];
+}
+
+/** The changelog source Markdown for one release, as pushed to QQ groups; null when the release does not exist. */
+export async function findChangelogMarkdown(slug: string): Promise<{ title: string; markdown: string } | null> {
+  const load = changelogMarkdownModules[`../.generated/editorial/changelog-markdown/${slug}.json`];
+  return load ? ((await load()) as { title: string; markdown: string }) : null;
 }

@@ -5,3 +5,4 @@ export const qqGroupRegistrationRequestSchema = z.object({ contractVersion, grou
 export const qqGroupMemberLeftRequestSchema = z.object({ contractVersion, groupOpenId: externalId, memberOpenId: externalId, occurredAt: z.number().int().nonnegative() });
 export type QqGroupRegistrationRequest = z.infer<typeof qqGroupRegistrationRequestSchema>;
 export type QqGroupMemberLeftRequest = z.infer<typeof qqGroupMemberLeftRequestSchema>;
+export * from "./qq-changelog-push";

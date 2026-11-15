@@ -238,18 +238,38 @@ describe("OCR Queue consumer", () => {
     expect(message.retry).toHaveBeenCalledWith({ delaySeconds: 10 });
   });
 
-  it("reconciles stale OCR jobs on schedule without dispatching QQ policy events", async () => {
+  it("reconciles stale OCR jobs on schedule and re-enqueues changelog pushes without dispatching QQ policy events", async () => {
+    const dispatchPendingQqChangelogPushes = vi.fn<PlatformServices["dispatchPendingQqChangelogPushes"]>().mockResolvedValue(undefined);
     const dispatchPendingQqGroupPolicyEvents = vi.fn<PlatformServices["dispatchPendingQqGroupPolicyEvents"]>().mockResolvedValue(undefined);
     const reconcileStaleOcrJobs = vi.fn<PlatformServices["reconcileStaleOcrJobs"]>().mockResolvedValue(0);
     const before = Date.now();
-    createPlatformServices.mockReturnValue({ dispatchPendingQqGroupPolicyEvents, reconcileStaleOcrJobs });
+    createPlatformServices.mockReturnValue({ dispatchPendingQqGroupPolicyEvents, dispatchPendingQqChangelogPushes, reconcileStaleOcrJobs });
 
     await worker.scheduled({} as never, {} as never);
 
     expect(dispatchPendingQqGroupPolicyEvents).not.toHaveBeenCalled();
+    expect(dispatchPendingQqChangelogPushes).toHaveBeenCalledOnce();
     expect(reconcileStaleOcrJobs).toHaveBeenCalledOnce();
     const olderThan = reconcileStaleOcrJobs.mock.calls[0]![0].olderThan;
     expect(olderThan).toBeGreaterThanOrEqual(before - 45 * 60_000);
     expect(olderThan).toBeLessThanOrEqual(Date.now() - 45 * 60_000);
+  });
+  it("records a retryable failure on the last changelog delivery and retries earlier ones", async () => {
+    const push = { version: "26.1115.3", groupOpenId: "group.a", idempotencyKey: "changelog:26.1115.3:group.a:1" };
+    const recordQqChangelogPushResult = vi.fn().mockResolvedValue(undefined);
+    createPlatformServices.mockReturnValue({ loadQqChangelogPushForDelivery: vi.fn().mockResolvedValue({ contractVersion: "1", ...push, markdown: "# 日志" }), recordQqChangelogPushResult });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 503 }));
+    const env = { QQBOT_CHANGELOG_WEBHOOK_URL: "https://qqbot.example/changelog", QQBOT_POLICY_WEBHOOK_SECRET: "secret" } as never;
+    const message = (attempts: number) => ({ body: { version: 1, changelogPush: push }, attempts, ack: vi.fn(), retry: vi.fn() });
+    const early = message(1);
+    const last = message(3);
+    try { await worker.queue({ messages: [early, last] } as never, env); } finally { globalThis.fetch = originalFetch; }
+
+    expect(early.retry).toHaveBeenCalledWith({ delaySeconds: 5 });
+    expect(early.ack).not.toHaveBeenCalled();
+    expect(recordQqChangelogPushResult).toHaveBeenCalledOnce();
+    expect(recordQqChangelogPushResult).toHaveBeenCalledWith({ ...push, result: { status: "failed", retryable: true, errorCode: "QQBOT_CHANGELOG_WEBHOOK_FAILED_503" } });
+    expect(last.ack).toHaveBeenCalledOnce();
   });
 });
