@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createPlatformServices } from "./index";
 import { createTestDatabase, seedAgentSpatialConfig, seedMap, seedSelectableGameplayRevision, sharedCompositeSpatialConfig } from "../test/map-title-rule-fixtures";
 
@@ -51,5 +51,17 @@ describe("public map positions", () => {
 
     expect(await services.getPublicMapPositions({ mapId: "map.retired" })).toBeNull();
     expect(await services.getPublicMapPositions({ mapId: "map.unknown" })).toBeNull();
+  });
+
+  it("rejects an id that cannot name a map before touching the cache", async () => {
+    const { database } = createTestDatabase("map.public");
+    const kv = { get: vi.fn(async () => null), put: vi.fn(async () => undefined) } as unknown as KVNamespace;
+    const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, undefined, undefined, kv);
+
+    for (const mapId of ["map.".padEnd(600, "x"), "地图", "map.UPPER", "../map.public"]) {
+      expect(await services.getPublicMapPositions({ mapId })).toBeNull();
+    }
+    expect(kv.get).not.toHaveBeenCalled();
+    expect(kv.put).not.toHaveBeenCalled();
   });
 });
