@@ -118,3 +118,28 @@ Managed in `/admin` (the Worker requires `is_admin`).
 - QQBot reads the group and command-policy snapshot at startup, then only after a signed
   platform policy event (D1 outbox, dedicated Queue, retried until acknowledged). It keeps
   the last good snapshot on refresh failure, fails closed before the first, and never polls.
+
+### Changelog push
+
+An admin pushes one changelog version to chosen groups from `/admin/changelog-push`. Nothing
+pushes automatically.
+
+- The platform owns the content and the group choice. The Portal build writes each release's
+  source Markdown (below the frontmatter) to generated data; the admin page sends the title
+  and Markdown with the request. Groups with status `disconnected` are rejected.
+- `qq_changelog_pushes` holds one row per version and group: status `pending`, `sent` or
+  `failed`, retryability, error code. The row is also the outbox; the QQ policy Queue carries
+  `{version, groupOpenId, idempotencyKey}`, and the scheduled pass re-enqueues stale rows.
+- The idempotency key is `changelog:{version}:{groupOpenId}:{generation}`. A retry of a failed
+  push reuses it. A group that already has `sent` for the version is rejected with 409 unless
+  the admin sets `confirmResend`; a confirmed resend advances the generation, so QQBot sends
+  again. A retry of a failed push with changed Markdown also advances it, because QQBot
+  dedupes by key. A result for an older generation is ignored.
+- One signed request per group goes to `QQBOT_CHANGELOG_WEBHOOK_URL` (same HMAC headers as the
+  policy event; schemas `QqbotChangelogSendRequest` and `QqbotChangelogSendResponse` in
+  `docs/api/openapi.json`). QQBot answers `sent`, or `failed` with `retryable` and `errorCode`.
+  The platform retries a retryable failure or an HTTP/transport error up to three deliveries,
+  then records `failed` as retryable. A non-retryable failure is recorded at once, as is an HTTP
+  client error other than 408 or 429 (for example a bad signature), which a retry cannot fix.
+- QQBot owns QQ sending: the active group message call, the Markdown to plain-text fallback
+  and splitting. The platform records no QQ message content beyond the pushed Markdown.

@@ -2,7 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { blogFrontmatterSchema, changelogFrontmatterSchema } from "../../content/editorial-schemas";
-import { findEditorialEntry, queryEditorialEntries, queryEditorialSummaries } from "../../utils/editorial-content";
+import { findChangelogMarkdown, findEditorialEntry, queryEditorialEntries, queryEditorialSummaries } from "../../utils/editorial-content";
 
 describe("editorial content collections", () => {
   it("validates Blog metadata", () => {
@@ -139,5 +139,17 @@ describe("build-time editorial loader", () => {
     expect(entry).toBeTruthy();
     expect(serialized).toContain("katex");
     expect(serialized).toContain("W_{total}");
+  });
+});
+
+describe("changelog Markdown for QQ pushes", () => {
+  it("serves the source Markdown below the frontmatter for every release", async () => {
+    for (const entry of await queryEditorialSummaries("changelog")) {
+      const source = await readFile(resolve(contentRoot, `${entry.path.slice(1)}.md`), "utf8");
+      const found = await findChangelogMarkdown(entry.path.replace("/changelog/", ""));
+      expect(found?.title, entry.path).toBe(entry.title);
+      expect(found?.markdown, entry.path).toBe(source.replace(/^---[\s\S]*?---\n/u, "").trim());
+    }
+    expect(await findChangelogMarkdown("0.0.0")).toBeNull();
   });
 });

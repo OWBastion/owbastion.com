@@ -25,6 +25,7 @@ import { registerLeaderboardRoutes } from "./routes/leaderboard";
 import { registerPlayerHandleRoutes } from "./routes/player-handles";
 import { registerPlayerInvitationRoutes } from "./routes/player-invitations";
 import { registerQqGroupLifecycleRoutes } from "./routes/qq-group-lifecycle";
+import { registerAdminQqChangelogRoutes } from "./routes/admin-qq-changelog";
 import { equippedTitleErrors, registerPlayerTitleRoutes } from "./routes/player-titles";
 import { registerReviewRoutes } from "./routes/reviews";
 import { registerPlayerSubmissionRoutes } from "./routes/player-submissions";
@@ -558,6 +559,8 @@ export const createApp = (dependencies: AppDependencies) => {
   });
 
   registerAdminPlayerManagementRoutes(app, { services: servicesFor, requireMaintainer, adminMutation });
+
+  registerAdminQqChangelogRoutes(app, { services: servicesFor, requireMaintainer, adminMutation });
 
   registerAdminCatalogRoutes(app, { services: servicesFor, requireMaintainer, adminMutation }, logServiceOperation);
 

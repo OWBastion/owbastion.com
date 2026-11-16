@@ -2,6 +2,7 @@ import { and, desc, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
 import type { QqGroupAccessRequest, QqGroupAccessResponse, QqGroupMemberLeftRequest, QqGroupRegistrationRequest } from "@owbastion/contracts";
+import { createQqChangelogPushServices } from "./qq-changelog-push-service";
 import { auditEvents, bindings, idempotencyKeys, playerAccounts, portalSessions, qqGroupAccess, qqGroupPolicyOutbox } from "./schema";
 
 type QqGroupServices = Pick<PlatformServices,
@@ -11,7 +12,7 @@ type QqGroupServices = Pick<PlatformServices,
   | "listQqGroupAccess"
   | "dispatchPendingQqGroupPolicyEvents"
   | "markQqGroupPolicyEventDelivered"
->;
+> & ReturnType<typeof createQqChangelogPushServices>;
 
 type QqGroupServicesDependencies = {
   db: ReturnType<typeof drizzle>;
@@ -42,6 +43,7 @@ export const createQqGroupServices = ({ db, queue, now, hashRequest, replayOrCon
   };
 
   return {
+    ...createQqChangelogPushServices({ db, queue, now }),
     dispatchPendingQqGroupPolicyEvents,
 
     async listQqGroupAccess(_auth: AuthContext): Promise<QqGroupAccessResponse[]> {

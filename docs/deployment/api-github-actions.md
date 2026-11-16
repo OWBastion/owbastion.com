@@ -46,6 +46,7 @@ Repository or `production` environment secrets (values are never printed):
 | `QQBOT_API_TOKEN` | QQBot service credential; same value as QQBot's `PLATFORM_SERVICE_TOKEN` |
 | `BASTION_BUILD_TOKEN` | Bastion build only (numeric player IDs); never to browsers or QQBot |
 | `QQBOT_POLICY_WEBHOOK_URL`, `QQBOT_POLICY_WEBHOOK_SECRET` | Group-policy callback and its HMAC secret |
+| `QQBOT_CHANGELOG_WEBHOOK_URL` | Changelog send endpoint; signed with the same `QQBOT_POLICY_WEBHOOK_SECRET` |
 | `OCRKIT_API_TOKEN` | Shared only with OCRKit |
 | `OCRKIT_SNAPSHOT_TOKEN` | OCRKit reads screenshot sets |
 | `BINDING_INVITE_CODE_ENCRYPTION_KEY` | AES-GCM key (`openssl rand -base64 32`); keep while invitations are active |
