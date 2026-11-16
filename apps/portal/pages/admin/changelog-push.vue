@@ -37,6 +37,10 @@ const adminData = useAdminAsyncData("changelog-push", async () => ({
 });
 watch(version, () => { selected.value = []; confirmResend.value = false; adminData.refresh(); });
 
+function toggle(groupOpenId: string, checked: boolean) {
+  selected.value = checked ? [...selected.value.filter((id) => id !== groupOpenId), groupOpenId] : selected.value.filter((id) => id !== groupOpenId);
+}
+
 async function send() {
   if (!version.value || !selected.value.length || sending.value) return;
   sending.value = true;
@@ -65,11 +69,11 @@ async function send() {
       <fieldset class="groups">
         <legend>目标群</legend>
         <p v-if="!pushableGroups.length" class="meta">暂无可推送的群。</p>
-        <label v-for="group in pushableGroups" :key="group.groupOpenId" class="group">
-          <UCheckbox v-model="selected" :value="group.groupOpenId" :aria-label="group.displayName || group.groupOpenId" />
+        <div v-for="group in pushableGroups" :key="group.groupOpenId" class="group">
+          <UCheckbox :model-value="selected.includes(group.groupOpenId)" :aria-label="group.displayName || group.groupOpenId" @update:model-value="toggle(group.groupOpenId, $event === true)" />
           <span><strong>{{ group.displayName || '未命名群组' }}</strong><small class="meta">{{ group.groupOpenId }}</small></span>
           <StatusBadge :label="resultLabel(statusOf(group.groupOpenId))" :tone="statusOf(group.groupOpenId)?.status === 'sent' ? 'success' : statusOf(group.groupOpenId)?.status === 'failed' ? 'error' : 'warning'" />
-        </label>
+        </div>
       </fieldset>
       <UCheckbox v-if="needsConfirm" v-model="confirmResend" label="所选群已收到该版本，确认重新发送" />
       <div class="actions">
