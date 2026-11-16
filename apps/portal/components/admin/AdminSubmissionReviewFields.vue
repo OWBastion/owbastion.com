@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { matchGameMode } from "@owbastion/domain";
 import type { AdminSubmission, AdminSubmissionReviewInput, AdminSubmissionReviewPreview } from "~/composables/useAdminApi";
 import { ocrStatusLabel, ocrStatusTone } from "~/utils/ocrStatus";
 import { mapVariantLabel } from "~/utils/map-variant";
@@ -17,7 +16,6 @@ const annotatableFields = [
   { key: "viewer_player", label: "玩家名称" },
   { key: "challenge_completed", label: "通关标记" },
   { key: "map_variant", label: "地图版本" },
-  { key: "mode", label: "模式" },
   { key: "achievement_titles", label: "左侧成就面板" },
   { key: "version", label: "游戏版本" },
   { key: "run_code", label: "对局码" },
@@ -34,7 +32,7 @@ const runtimeEvidence = computed(() => {
   const data = ocrPayload.value?.data;
   if (!data) return [];
   const labels: Record<string, string> = {
-    ai_mark_detected: "AI 标记", mode: "模式", restart_in_seconds: "重启倒计时（秒）",
+    ai_mark_detected: "AI 标记", restart_in_seconds: "重启倒计时（秒）",
     uptime_seconds: "运行时间（秒）", server_load: "服务器负载",
   };
   return Object.entries(labels).filter(([key]) => key in data).map(([key, label]) => ({
@@ -94,7 +92,6 @@ const fieldChoices = (key: string): Array<string | { label: string; value: strin
     case "map_name": return withCurrent(mapNames.value, [current]);
     case "difficulty": return withCurrent(difficultyNames, [current]);
     case "viewer_player": return withCurrent([props.submission.playerName], [current]);
-    case "mode": return [{ label: "常规（随机事件）", value: "随机事件" }, ...withCurrent(props.preview?.knownModes ?? [], [current]).filter((mode) => mode !== "随机事件").map((mode) => ({ label: mode, value: mode }))];
     case "challenge_completed": return [{ label: "已完成", value: "true" }, { label: "未完成", value: "false" }];
     case "map_variant": return [{ label: "标准版", value: "standard" }, { label: "经典版", value: "classic" }];
     default: return [];
@@ -112,7 +109,7 @@ const toggleFieldConfirmation = (fieldKey: string, checked: boolean) => {
 
 
 const ocrValue = (value: unknown) => value === null || value === undefined ? "未识别" : value === true ? "已识别完成" : value === false ? "未识别完成" : String(value);
-const ocrDisplayValue = (name: string, value: unknown) => name === "duration_seconds" && typeof value === "number" ? formatDuration(value) : name === "map_variant" ? mapVariantLabel(value) : name === "mode" && (value === null || value === undefined || value === "") ? "常规（随机事件）" : ocrValue(value);
+const ocrDisplayValue = (name: string, value: unknown) => name === "duration_seconds" && typeof value === "number" ? formatDuration(value) : name === "map_variant" ? mapVariantLabel(value) : ocrValue(value);
 const ocrConfidence = (value: unknown) => typeof value === "number" ? `${Math.round(value * 100)}%` : "—";
 const hasOcrConfidence = (value: unknown) => typeof value === "number";
 const ocrFieldStatusLabel = (status: unknown) => {
@@ -125,7 +122,7 @@ const ocrFieldStatusLabel = (status: unknown) => {
 };
 const ocrFieldStatusTone = (status: unknown): "default" | "success" | "warning" => status === "ok" ? "success" : status === "missing" || status === "low_confidence" || status === "unreadable" || status === "error" ? "warning" : "default";
 const candidates = computed(() => props.preview?.candidates ?? []);
-const primaryFieldKeys: readonly string[] = ["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "mode", "achievement_titles"];
+const primaryFieldKeys: readonly string[] = ["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "achievement_titles"];
 // Fields a still-unconfirmed Challenge is waiting for, so the chips can point at what needs checking.
 const neededFields = computed(() => new Set<string>(candidates.value.filter((candidate) => candidate.evidence === "needs_confirmation" && candidate.selectedBy === null).flatMap((candidate) => candidate.missingFields)));
 const showExtraFields = ref(false);
@@ -150,12 +147,6 @@ const unresolvable = (key: string, value: unknown) => {
   if (!text) return false;
   if (key === "map_name") return mapNames.value.length > 0 && !mapNames.value.includes(text);
   if (key === "duration_seconds") return parseDurationSeconds(text) === null;
-  if (key === "mode") {
-    const known = props.preview?.knownModes;
-    if (!known) return false;
-    const matched = matchGameMode(text, known).mode;
-    return Boolean(matched) && !matched!.includes("随机事件") && !known.includes(matched!);
-  }
   return unusableReadout(key, text);
 };
 const fieldRows = computed(() => annotatableFields.map((field) => {
@@ -165,18 +156,13 @@ const fieldRows = computed(() => annotatableFields.map((field) => {
   const isPanel = field.key === "achievement_titles";
   const primary = primaryFieldKeys.includes(field.key);
   // A standard map has no variant mark, so a missing map version is the normal reading, not something to check.
-  // The panel, map version and mode always read as something ("无", the standard version, the regular mode); only truly absent values invite typing one in.
-  const recognized = isPanel || field.key === "map_variant" || field.key === "mode" || (raw !== null && raw !== undefined);
+  // The panel and map version always read as something ("无", the standard version); only truly absent values invite typing one in.
+  const recognized = isPanel || field.key === "map_variant" || (raw !== null && raw !== undefined);
   const needed = neededFields.value.has(field.key) && !attested;
   const unusable = !attested && unusableReadout(field.key, raw);
   const attention = !attested && (needed || unusable || (primary && (!recognized || (ocr?.status !== undefined && ocr.status !== "ok" && !(field.key === "map_variant" && ocr.status === "missing")))));
   const changed = attested && (correctionInputs[field.key] ?? "") !== (initialInputs[field.key] ?? "");
-  // A mode matched to the nearest configured one still shows what OCR read, so a wrong match is visible.
-  // Results stored before the match existed carry only the raw label; the same match is applied here.
-  const nearMode = field.key === "mode" && typeof raw === "string" && !ocrPayload.value?.data?.mode_read ? matchGameMode(raw, props.preview?.knownModes ?? []) : null;
-  const modeRead = field.key === "mode" ? ocrPayload.value?.data?.mode_read ?? (nearMode?.approximate ? raw : null) : null;
-  const modeShown = nearMode?.approximate ? nearMode.mode : raw;
-  const text = isPanel ? achievementPanelLabel.value : modeRead ? `${ocrDisplayValue(field.key, modeShown)}（读到 ${modeRead}）` : ocrDisplayValue(field.key, raw);
+  const text = isPanel ? achievementPanelLabel.value : ocrDisplayValue(field.key, raw);
   const invalid = unresolvable(field.key, attested ? correctionInputs[field.key] : raw);
   const state = invalid ? "invalid" : changed ? "corrected" : attested ? "reviewed" : attention ? "attention" : "ok";
   return {
