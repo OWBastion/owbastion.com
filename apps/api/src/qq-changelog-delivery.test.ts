@@ -43,6 +43,13 @@ describe("QQ changelog delivery", () => {
     expect(recorded).toEqual([]);
   });
 
+  it("records a permanent failure when qqbot rejects the request with a client error", async () => {
+    respond(401, {});
+    const { services, recorded } = platform();
+    expect(await deliverQqChangelogPush(services, env, message)).toEqual({ done: true });
+    expect(recorded).toEqual([{ ...message.changelogPush, result: { status: "failed", retryable: false, errorCode: "QQBOT_CHANGELOG_WEBHOOK_FAILED_401" } }]);
+  });
+
   it("skips a stale message without calling qqbot", async () => {
     respond(200, {});
     expect(await deliverQqChangelogPush(platform(null).services, env, message)).toEqual({ done: true });

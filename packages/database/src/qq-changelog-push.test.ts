@@ -73,4 +73,20 @@ describe("QQ changelog pushes", () => {
     await record("group.b", 1, { contractVersion: "1", status: "sent" });
     expect(await services.loadQqChangelogPushForDelivery(input)).toBeNull();
   });
+  it("enqueues every group of a request, not only the first batch", async () => {
+    const { services, sqlite, sent } = setup();
+    const insert = sqlite.prepare("INSERT INTO qq_group_access (group_open_id, display_name, environment, status, created_at, updated_at) VALUES (?, '', 'test', 'legacy', 1, 1)");
+    const ids = Array.from({ length: 40 }, (_, index) => `bulk.${index}`);
+    ids.forEach((id) => insert.run(id));
+    await services.requestQqChangelogPush(request(ids), auth);
+    expect(sent).toHaveLength(40);
+  });
+
+  it("moves a failed push to a new key when its content changed", async () => {
+    const { services, sent, record } = setup();
+    await services.requestQqChangelogPush(request(["group.a"]), auth);
+    await record("group.a", 1, { contractVersion: "1", status: "failed", retryable: false, errorCode: "40034105" });
+    await services.requestQqChangelogPush({ ...request(["group.a"]), markdown: "# 更正后的日志" }, auth);
+    expect(sent[1]).toEqual(queued("group.a", 2));
+  });
 });

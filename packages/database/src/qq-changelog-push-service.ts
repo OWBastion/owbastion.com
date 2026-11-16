@@ -30,13 +30,13 @@ const toItem = (row: typeof qqChangelogPushes.$inferSelect): QqChangelogPushItem
 });
 
 export const createQqChangelogPushServices = ({ db, queue, now }: Dependencies): QqChangelogPushServices => {
-  const dispatchPendingQqChangelogPushes = async () => {
+  // A request enqueues every pending row of its version; the scheduled pass takes a bounded batch.
+  const dispatch = async (version?: string) => {
     if (!queue) return;
     const timestamp = now();
-    const rows = await db.select().from(qqChangelogPushes)
-      .where(and(eq(qqChangelogPushes.status, "pending"), or(isNull(qqChangelogPushes.enqueuedAt), lt(qqChangelogPushes.enqueuedAt, timestamp - REENQUEUE_AFTER_MS))))
-      .orderBy(qqChangelogPushes.createdAt)
-      .limit(25);
+    const due = and(eq(qqChangelogPushes.status, "pending"), or(isNull(qqChangelogPushes.enqueuedAt), lt(qqChangelogPushes.enqueuedAt, timestamp - REENQUEUE_AFTER_MS)));
+    const query = db.select().from(qqChangelogPushes).where(version ? and(due, eq(qqChangelogPushes.version, version)) : due).orderBy(qqChangelogPushes.createdAt);
+    const rows = await (version ? query : query.limit(25));
     for (const row of rows) {
       try {
         await queue.send({ version: 1, changelogPush: { version: row.version, groupOpenId: row.groupOpenId, idempotencyKey: row.idempotencyKey } });
@@ -48,7 +48,7 @@ export const createQqChangelogPushServices = ({ db, queue, now }: Dependencies):
   };
 
   return {
-    dispatchPendingQqChangelogPushes,
+    dispatchPendingQqChangelogPushes: () => dispatch(),
 
     async listQqChangelogPushes(input) {
       const rows = input.version
@@ -72,17 +72,19 @@ export const createQqChangelogPushServices = ({ db, queue, now }: Dependencies):
         // A pending push is already in flight; it is not queued twice.
         if (row?.status === "pending") continue;
         if (!row) {
-          statements.push(db.insert(qqChangelogPushes).values({ version: input.version, groupOpenId, generation: 1, idempotencyKey: idempotencyKeyFor(input.version, groupOpenId, 1), markdown: input.markdown, status: "pending", requestedBy: auth.subject, createdAt: timestamp, updatedAt: timestamp }));
+          statements.push(db.insert(qqChangelogPushes).values({ version: input.version, groupOpenId, generation: 1, idempotencyKey: idempotencyKeyFor(input.version, groupOpenId, 1), markdown: input.markdown, status: "pending", requestedBy: auth.subject, createdAt: timestamp, updatedAt: timestamp }).onConflictDoNothing());
           continue;
         }
-        const generation = row.status === "sent" ? row.generation + 1 : row.generation;
+        // A new key is needed when the group already got this version, or when the content changed:
+        // qqbot dedupes by key, so a retry under the old key would not carry the new text.
+        const generation = row.status === "sent" || row.markdown !== input.markdown ? row.generation + 1 : row.generation;
         statements.push(db.update(qqChangelogPushes)
           .set({ generation, idempotencyKey: idempotencyKeyFor(input.version, groupOpenId, generation), markdown: input.markdown, status: "pending", retryable: null, errorCode: null, requestedBy: auth.subject, updatedAt: timestamp, enqueuedAt: null })
           .where(and(eq(qqChangelogPushes.version, input.version), eq(qqChangelogPushes.groupOpenId, groupOpenId), eq(qqChangelogPushes.generation, row.generation), eq(qqChangelogPushes.status, row.status))));
       }
       statements.push(db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: auth.actorType, actorId: auth.subject, operation: "qq.changelog.push", entityType: "qq_changelog_push", entityId: input.version, payloadJson: JSON.stringify({ groupOpenIds: input.groupOpenIds, confirmResend: input.confirmResend }), createdAt: timestamp }));
       await db.batch(statements as [any, ...any[]]);
-      await dispatchPendingQqChangelogPushes();
+      await dispatch(input.version);
       const rows = await db.select().from(qqChangelogPushes).where(eq(qqChangelogPushes.version, input.version));
       return rows.filter((row) => input.groupOpenIds.includes(row.groupOpenId)).map(toItem);
     },

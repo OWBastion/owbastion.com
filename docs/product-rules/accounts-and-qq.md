@@ -133,11 +133,13 @@ pushes automatically.
 - The idempotency key is `changelog:{version}:{groupOpenId}:{generation}`. A retry of a failed
   push reuses it. A group that already has `sent` for the version is rejected with 409 unless
   the admin sets `confirmResend`; a confirmed resend advances the generation, so QQBot sends
-  again. A result for an older generation is ignored.
+  again. A retry of a failed push with changed Markdown also advances it, because QQBot
+  dedupes by key. A result for an older generation is ignored.
 - One signed request per group goes to `QQBOT_CHANGELOG_WEBHOOK_URL` (same HMAC headers as the
   policy event; schemas `QqbotChangelogSendRequest` and `QqbotChangelogSendResponse` in
   `docs/api/openapi.json`). QQBot answers `sent`, or `failed` with `retryable` and `errorCode`.
   The platform retries a retryable failure or an HTTP/transport error up to three deliveries,
-  then records `failed` as retryable. A non-retryable failure is recorded at once.
+  then records `failed` as retryable. A non-retryable failure is recorded at once, as is an HTTP
+  client error other than 408 or 429 (for example a bad signature), which a retry cannot fix.
 - QQBot owns QQ sending: the active group message call, the Markdown to plain-text fallback
   and splitting. The platform records no QQ message content beyond the pushed Markdown.
