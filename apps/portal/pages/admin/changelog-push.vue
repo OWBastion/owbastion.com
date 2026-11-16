@@ -2,6 +2,7 @@
 import type { AdminGroup } from "~/composables/useAdminApi";
 import type { QqChangelogPushItem } from "@owbastion/contracts";
 import { computed, shallowRef, watch } from "vue";
+import { composeChangelogPush } from "~/utils/changelog-push-markdown";
 import { findChangelogMarkdown, queryEditorialSummaries } from "~/utils/editorial-content";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
@@ -10,6 +11,7 @@ definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "更新日志推送 · 躲避堡垒 3" });
 const toast = useToast();
 const api = useAdminApi();
+const siteUrl = useRuntimeConfig().public.siteUrl;
 const errorMessage = ref("");
 const groups = ref<AdminGroup[]>([]);
 const pushes = ref<QqChangelogPushItem[]>([]);
@@ -48,7 +50,7 @@ async function send() {
   try {
     const source = await findChangelogMarkdown(version.value);
     if (!source) throw new Error("该版本没有更新日志。");
-    await api("/v1/qq/changelog-pushes", { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", version: version.value, markdown: `# ${source.title}\n\n${source.markdown}`, groupOpenIds: selected.value, confirmResend: confirmResend.value } });
+    await api("/v1/qq/changelog-pushes", { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", version: version.value, markdown: composeChangelogPush({ version: version.value, title: source.title, markdown: source.markdown, siteUrl }), groupOpenIds: selected.value, confirmResend: confirmResend.value } });
     toast.add({ title: "已提交推送", color: "success" });
     selected.value = [];
     confirmResend.value = false;

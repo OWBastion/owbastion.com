@@ -125,8 +125,9 @@ An admin pushes one changelog version to chosen groups from `/admin/changelog-pu
 pushes automatically.
 
 - The platform owns the content and the group choice. The Portal build writes each release's
-  source Markdown (below the frontmatter) to generated data; the admin page sends the title
-  and Markdown with the request. Groups with status `disconnected` are rejected.
+  source Markdown (below the frontmatter) to generated data; the admin page sends a version
+  heading, whole H2 sections up to about 1500 characters, and a link to `/changelog/{version}`.
+  A longer changelog is cut at a section boundary and players follow the link. Groups with status `disconnected` are rejected.
 - `qq_changelog_pushes` holds one row per version and group: status `pending`, `sent` or
   `failed`, retryability, error code. The row is also the outbox; the QQ policy Queue carries
   `{version, groupOpenId, idempotencyKey}`, and the scheduled pass re-enqueues stale rows.
