@@ -20,8 +20,18 @@ watch(() => props.mapId, async (mapId) => {
 </script>
 
 <template>
-  <section v-if="stages.length" class="detail-positions" aria-labelledby="map-positions-title">
-    <h3 id="map-positions-title" class="sr-only">点位分布</h3>
+  <details v-if="stages.length" class="detail-positions">
+    <summary class="detail-heading">点位分布<UIcon name="i-lucide-chevron-down" class="detail-positions__chevron" aria-hidden="true" /></summary>
     <MapPositionOverview :stages="stages" />
-  </section>
+  </details>
 </template>
+
+
+<style scoped>
+.detail-positions > summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; }
+.detail-positions > summary::-webkit-details-marker { display: none; }
+.detail-positions[open] > summary { margin-bottom: var(--space-3); }
+.detail-positions__chevron { transition: transform 150ms ease; }
+.detail-positions[open] .detail-positions__chevron { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .detail-positions__chevron { transition: none; } }
+</style>

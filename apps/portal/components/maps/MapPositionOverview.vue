@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { MapPosition, MapPositionKind, MapPositionStage } from "@owbastion/contracts";
 
-const props = defineProps<{ stages: MapPositionStage[] }>();
+const props = defineProps<{ stages: MapPositionStage[]; compact?: boolean }>();
 
 type Shape = "num" | "square" | "diamond" | "tri" | "dot";
 type Tone = "bastion" | "reset" | "end" | "link" | "control" | "aux";
@@ -133,8 +133,8 @@ function rotate() {
     <div class="position-overview__bar">
       <UTabs v-if="stageItems.length > 1" v-model="stageValue" :items="stageItems" :content="false" variant="pill" size="xs" aria-label="阶段" />
       <div class="position-overview__tools">
-        <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-rotate-cw" label="旋转 90°" @click="rotate" />
-        <UButton size="xs" color="neutral" :variant="mirrored ? 'soft' : 'outline'" icon="i-lucide-flip-horizontal-2" label="镜像" :aria-pressed="mirrored" @click="mirrored = !mirrored" />
+        <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-rotate-cw" :label="compact ? undefined : '旋转 90°'" aria-label="旋转 90°" title="旋转 90°" @click="rotate" />
+        <UButton size="xs" color="neutral" :variant="mirrored ? 'soft' : 'outline'" icon="i-lucide-flip-horizontal-2" :label="compact ? undefined : '镜像'" aria-label="镜像" title="镜像" :aria-pressed="mirrored" @click="mirrored = !mirrored" />
       </div>
     </div>
     <svg class="position-overview__plot" :viewBox="`0 0 ${W} ${H}`" role="group" aria-label="俯视点位图">

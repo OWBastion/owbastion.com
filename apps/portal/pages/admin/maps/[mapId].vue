@@ -217,15 +217,17 @@ useSeoMeta({ title: "地图编辑器 · 躲避堡垒 3" });
 
       <section class="map-card" aria-labelledby="map-spatial-title">
         <h2 id="map-spatial-title" class="type-headline"><span class="map-card__step">1</span>点位</h2>
-        <AdminSpatialConfigInput
-          :key="`${selectedRevision.revisionId}:${spatialValidKey}`"
-          :model-value="draft.spatialConfig"
-          :revision-key="selectedRevision.revisionId"
-          :disabled="api.saving.value"
-          @update:model-value="patchDraft({ spatialConfig: $event })"
-          @valid="spatialValid = $event"
-        />
-        <MapPositionOverview v-if="draftPositionStages.length" :stages="draftPositionStages" />
+        <div class="map-card__spatial">
+          <AdminSpatialConfigInput
+            :key="`${selectedRevision.revisionId}:${spatialValidKey}`"
+            :model-value="draft.spatialConfig"
+            :revision-key="selectedRevision.revisionId"
+            :disabled="api.saving.value"
+            @update:model-value="patchDraft({ spatialConfig: $event })"
+            @valid="spatialValid = $event"
+          />
+          <MapPositionOverview v-if="draftPositionStages.length" class="map-card__overview" compact :stages="draftPositionStages" />
+        </div>
       </section>
 
       <section class="map-card" aria-labelledby="map-honors-title">
@@ -278,6 +280,12 @@ useSeoMeta({ title: "地图编辑器 · 躲避堡垒 3" });
 .map-card h2 { display: flex; align-items: center; gap: 0.625rem; margin: 0; }
 .map-card__step { display: grid; place-items: center; width: 1.625rem; height: 1.625rem; border-radius: 50%; color: var(--surface); background: var(--text); font-size: 0.8125rem; }
 .map-card__fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: 0.75rem; }
+.map-card__spatial { display: grid; gap: 1rem; min-width: 0; }
+.map-card__overview { max-width: 26rem; }
+@container (min-width: 56rem) {
+  .map-card__spatial { grid-template-columns: minmax(0, 1fr) 22rem; align-items: start; }
+  .map-card__overview { position: sticky; top: 1rem; max-width: none; }
+}
 .map-card__mode { font-size: 0.875rem; }
 .draft-bar { position: fixed; z-index: 30; left: 50%; bottom: max(1rem, env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 0.75rem; max-width: calc(100vw - 1.5rem); padding: 0.5rem 0.5rem 0.5rem 1rem; border-radius: var(--radius-card); color: var(--surface); background: var(--text); box-shadow: var(--elevation-3); transform: translate(-50%, 160%); transition: transform 250ms ease; font-size: 0.875rem; }
 .draft-bar--visible { transform: translate(-50%, 0); }
