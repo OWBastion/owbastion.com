@@ -31,6 +31,7 @@ export const reviewCandidateSearchText = (candidate: AdminSubmissionReviewCandid
 
 const blockingMessages: Record<string, string> = {
   SUBMISSION_OUTCOME_NOT_CONFIGURED: "当前没有可产生的结果。请校正识别字段，或确认截图能证明的 Challenge。",
+  SUBMISSION_RUN_CODE_CONFLICT: "该玩家已有相同对局码的通关记录，且内容不一致。同一对局码不能重复通过，请驳回此提交。",
   CHALLENGE_CONFIRMATION_INELIGIBLE: "所选 Challenge 已不适用于该提交（可能已拥有、已被撤销或配置已变更），请重新选择。",
   CHALLENGE_NOT_COMPLETABLE: "所选 Challenge 在提交时不可完成（未开放、已结束或仅限手动发放）。",
   TITLE_GRANT_ADMINISTRATIVELY_REVOKED: "玩家的该称号已被管理员撤销，不能通过审核重新获得。",

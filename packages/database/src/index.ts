@@ -667,9 +667,10 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     superseded?: { runId: string; conflictFields: VerifiedRunConflictField[] };
   };
 
-  // supersedeConflicting is a maintainer's reviewed approval: a recorded Run from another
-  // Submission whose facts differ is invalidated (audited) and this Submission records the Run.
-  const planVerifiedRunRecord = async (input: VerifiedRunInput, rejectConcurrentInsert = false, restampRevision = false, supersedeConflicting = false): Promise<VerifiedRunRecordPlan> => {
+  // A match code identifies one Run per player, map and game version: a Run recorded from another
+  // Submission is never replaced, so a later Submission with that code is a duplicate or a conflict.
+  // rewriteOwnConflicting is a maintainer's reviewed approval of the Submission that already owns the Run.
+  const planVerifiedRunRecord = async (input: VerifiedRunInput, rejectConcurrentInsert = false, restampRevision = false, rewriteOwnConflicting = false): Promise<VerifiedRunRecordPlan> => {
     const candidate = prepareVerifiedRun(input, now());
     const source = await db.select({ playerAccountId: submissions.playerAccountId, gameplayRevisionId: submissions.gameplayRevisionId }).from(submissions)
       .where(eq(submissions.id, candidate.sourceSubmissionId)).get();
@@ -741,35 +742,26 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       };
     };
 
-    // A reviewed approval is the maintainer's decision about whichever other Run holds this match code.
-    const holder = supersedeConflicting
+    const holder = rewriteOwnConflicting
       ? await db.select().from(verifiedRuns).where(and(keyMatch, eq(verifiedRuns.status, "active"), ...(bySource ? [ne(verifiedRuns.id, bySource.id)] : []))).get()
       : undefined;
-    let superseded: VerifiedRunRecordPlan["superseded"];
-    let supersedeStatements: D1PreparedStatement[] = [];
     if (holder) {
       const holderFields = masteryConflictFields(asVerifiedRun(holder), candidate);
-      const retireOwn = bySource?.status === "active" ? invalidateRun(bySource, `Superseded by active Run ${holder.id}`) : [];
-      if (!holderFields.length) {
-        // A duplicate of the active Run: reuse it, and retire the Submission's own stale Run so it earns nothing twice.
-        return {
-          result: { outcome: "reused", run: asVerifiedRun(holder) },
-          ...(bySource ? { superseded: { runId: bySource.id, conflictFields: [] } } : {}),
-          statements: retireOwn,
-          row: holder,
-          candidate,
-        };
-      }
-      const displaceHolder = invalidateRun(holder, `Superseded by reviewed Submission ${candidate.sourceSubmissionId} (${holderFields.join(", ")})`);
-      superseded = { runId: holder.id, conflictFields: holderFields };
-      if (bySource) return rewriteOwnRun(bySource, [...displaceHolder, ...retireOwn], superseded);
-      supersedeStatements = displaceHolder;
+      if (holderFields.length) return { result: { outcome: "conflict", run: asVerifiedRun(holder), conflictFields: holderFields }, statements: [], row: holder, candidate };
+      // A duplicate of the active Run: reuse it, and retire the Submission's own stale Run so it earns nothing twice.
+      return {
+        result: { outcome: "reused", run: asVerifiedRun(holder) },
+        ...(bySource ? { superseded: { runId: bySource.id, conflictFields: [] } } : {}),
+        statements: bySource?.status === "active" ? invalidateRun(bySource, `Superseded by active Run ${holder.id}`) : [],
+        row: holder,
+        candidate,
+      };
     }
-    const existing = holder ? undefined : bySource ?? await db.select().from(verifiedRuns).where(keyMatch).get();
+    const existing = bySource ?? await db.select().from(verifiedRuns).where(keyMatch).get();
     const reopened = existing?.status === "invalidated" && existing.invalidationReason === submissionReopenedReason;
     // A reviewed approval of the Submission that already owns an active Run with differing facts
     // (e.g. recorded before the reviewer filled deaths and skips) rewrites that Run the same way.
-    const ownConflictFields = existing && existing === bySource && supersedeConflicting && existing.status === "active" ? masteryConflictFields(asVerifiedRun(existing), candidate) : [];
+    const ownConflictFields = existing && existing === bySource && rewriteOwnConflicting && existing.status === "active" ? masteryConflictFields(asVerifiedRun(existing), candidate) : [];
     if (existing && existing === bySource && (reopened || ownConflictFields.length)) {
       // The maintainer reopened this approved submission and has now re-approved it with
       // corrected evidence: the same run is restored and rewritten from that evidence.
@@ -782,15 +774,12 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     if (existing) {
       const run = asVerifiedRun(existing);
       const conflictFields = masteryConflictFields(run, candidate);
-      if (!(supersedeConflicting && conflictFields.length && existing.sourceSubmissionId !== candidate.sourceSubmissionId)) {
-        return {
-          result: conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run },
-          statements: [],
-          row: existing,
-          candidate,
-        };
-      }
-      superseded = { runId: existing.id, conflictFields };
+      return {
+        result: conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run },
+        statements: [],
+        row: existing,
+        candidate,
+      };
     }
 
     const award = awardFor();
@@ -821,9 +810,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     };
     return {
       result: { outcome: "created", run },
-      ...(superseded ? { superseded } : {}),
       statements: [
-        ...supersedeStatements,
         database.prepare(`${rejectConcurrentInsert ? "INSERT" : "INSERT OR IGNORE"} INTO mastery_runs (id, player_account_id, source_submission_id, map_id, gameplay_revision_id, map_variant, difficulty, game_version, run_code, completion_duration_seconds, deaths, skips, event_counters_json, acceptance_source, accepted_at, status, xp_rule_version, xp_input_snapshot_json, awarded_xp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)`).bind(runId, candidate.playerAccountId, candidate.sourceSubmissionId, candidate.mapId, candidate.gameplayRevisionId, candidate.mapVariant, candidate.difficulty, candidate.gameVersion, candidate.matchCode, candidate.completionDurationSeconds, candidate.deaths, candidate.skips, JSON.stringify(candidate.eventCounters), candidate.acceptanceSource, candidate.acceptedAt, award.snapshot.ruleVersion, JSON.stringify(award.snapshot), award.awardedXp, candidate.acceptedAt),
         database.prepare("INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) SELECT ?, ?, 'accepted', 'service', ?, NULL, ? WHERE EXISTS (SELECT 1 FROM mastery_runs WHERE id = ?)").bind(crypto.randomUUID(), runId, candidate.acceptanceSource, candidate.acceptedAt, runId),
       ],
@@ -836,6 +823,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     outcome: VerifiedRunSubmissionOutcome;
     statements: D1PreparedStatement[];
     recorded: boolean;
+    // True when another Submission's active Run already holds the match code with different facts.
+    duplicate?: boolean;
     recordInput?: VerifiedRunInput;
     superseded?: { runId: string; conflictFields: VerifiedRunConflictField[] };
   };
@@ -916,7 +905,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       ...recorded.statements,
     ];
     if (recorded.result.outcome === "conflict") {
-      return plan({ status: "conflict", verifiedRunId: recorded.result.run.runId, awardedXp: 0, reason: "conflicting_run_code_evidence", conflictFields: recorded.result.conflictFields }, statements);
+      const holder = recorded.result.run;
+      return { ...plan({ status: "conflict", verifiedRunId: holder.runId, awardedXp: 0, reason: "conflicting_run_code_evidence", conflictFields: recorded.result.conflictFields }, statements), duplicate: holder.status === "active" && holder.sourceSubmissionId !== row.id };
     }
     if (recorded.result.run.status === "invalidated") {
       if (existing?.status === "invalidated" && recorded.result.run.sourceSubmissionId === row.id) {
@@ -2481,6 +2471,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           : { status: "eligible" as const, reason: null }
         : { status: "ineligible" as const, reason: verifiedRunPlan.outcome.reason };
       const supersededFields = verifiedRunPlan.superseded?.conflictFields ?? [];
+      if (!blockingCode && verifiedRunPlan.duplicate) blockingCode = "SUBMISSION_RUN_CODE_CONFLICT";
       if (!blockingCode && !evidence.selections.length) {
         const retainedGrants = await loadRetainedSubmissionGrants(row.id);
         if (retainedGrants.length) {
@@ -2544,6 +2535,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           if (selectedRows.length) approvalRewards = await planApprovalRewards(row, selectedRows, approvalTimestamp, materializingCanonicalChallenges, evidence.prepared.canonicalChallengePlans);
           verifiedRunPlan = await planVerifiedRunSubmissionOutcome(row, evidence.correctedResponse, "submission_review", true, true, selectedRows.length);
           verifiedRunOutcome = verifiedRunPlan.outcome;
+          if (verifiedRunPlan.duplicate) throw new Error("SUBMISSION_RUN_CODE_CONFLICT");
           const verifiedRunAccepted = verifiedRunOutcome.status === "created" || verifiedRunOutcome.status === "reused";
           if (!selectedRows.length) {
             retainedGrants = await loadRetainedSubmissionGrants(row.id);
