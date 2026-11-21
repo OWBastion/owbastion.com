@@ -81,8 +81,8 @@ importers:
         specifier: ^15.0.0
         version: 15.0.0(vue@3.5.43(typescript@5.9.3))
       katex:
-        specifier: ^0.16.47
-        version: 0.16.47
+        specifier: ^0.19.1
+        version: 0.19.1
       nuxt:
         specifier: ^4.4.8
         version: 4.4.8(@babel/plugin-syntax-jsx@7.29.7(@babel/core@7.29.7))(@babel/plugin-syntax-typescript@7.29.7(@babel/core@7.29.7))(@parcel/watcher@2.5.6)(@types/node@26.2.0)(@vue/compiler-sfc@3.5.43)(bare-buffer@3.7.1)(cac@6.7.14)(db0@0.3.4(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260926.1)(@opentelemetry/api@1.9.1)))(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260926.1)(@opentelemetry/api@1.9.1))(esbuild@0.28.2)(ioredis@5.11.1)(lightningcss@1.33.0)(magicast@0.5.5)(meow@14.1.0)(rollup-plugin-visualizer@7.1.2(rollup@4.68.0))(rollup@4.68.0)(srvx@0.11.22)(stylelint@17.16.0(typescript@5.9.3))(terser@5.51.2)(tsx@4.23.15)(typescript@5.9.3)(vite@7.3.6(@types/node@26.2.0)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.0))(vue-tsc@3.3.9(typescript@5.9.3))(yaml@2.9.0)
@@ -3798,6 +3798,10 @@ packages:
     resolution: {integrity: sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw==}
     engines: {node: '>=20'}
 
+  commander@15.1.0:
+    resolution: {integrity: sha512-cgnQ88TRrWcC7pVq46RzJVRMktu3W2RcbnoidnfBsl1bmDCBwJS/udcIZpKoCrbAYYaCqsz1yZCVIgbIaU3ddQ==}
+    engines: {node: '>=22.12.0'}
+
   commander@2.20.3:
     resolution: {integrity: sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ==}
 
@@ -4901,6 +4905,10 @@ packages:
 
   katex@0.16.47:
     resolution: {integrity: sha512-Eeo8Ys1doU1z+x8AZsPpQu+p/QcZBI5PeOo7QGQdy2x2m0MU/hYagBbGOmXwr5KVbEfVuWv9LpnQWeehogurjg==}
+    hasBin: true
+
+  katex@0.19.1:
+    resolution: {integrity: sha512-jG8uKntjSEcm2EpQOh0XturpPuuC9r3Sq5HLHdsFdWZT27E672SF19QEi+of0/YeOy15lDgRhKvr5614uRrEfA==}
     hasBin: true
 
   keyv@5.6.0:
@@ -10827,6 +10835,8 @@ snapshots:
 
   commander@14.0.3: {}
 
+  commander@15.1.0: {}
+
   commander@2.20.3: {}
 
   commander@8.3.0: {}
@@ -11985,6 +11995,10 @@ snapshots:
   katex@0.16.47:
     dependencies:
       commander: 8.3.0
+
+  katex@0.19.1:
+    dependencies:
+      commander: 15.1.0
 
   keyv@5.6.0:
     dependencies:
