@@ -59,7 +59,7 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>, platfo
     return season;
   };
 
-  const masteryRows = async (mapId?: string, revisionId?: string, window?: { startsAt: number; endsAt: number }): Promise<BoardRow[]> => {
+  const loadMasteryRows = async (mapId?: string, revisionId?: string, window?: { startsAt: number; endsAt: number }): Promise<BoardRow[]> => {
     const conditions = [eq(verifiedRuns.status, "active"), notInArray(verifiedRuns.playerAccountId, developerAccounts)];
     if (window) conditions.push(gte(verifiedRuns.acceptedAt, window.startsAt), lte(verifiedRuns.acceptedAt, window.endsAt));
     if (mapId) conditions.push(eq(verifiedRuns.mapId, mapId), eq(verifiedRuns.gameplayRevisionId, revisionId!));
@@ -73,7 +73,16 @@ export const createLeaderboardServices = (db: ReturnType<typeof drizzle>, platfo
     return rows.map(({ topDifficultyRank, ...row }) => ({ ...row, topDifficulty: difficultyOrder[topDifficultyRank - 1] }));
   };
 
-  const achievementRows = async (): Promise<BoardRow[]> =>
+  // The all-time all-maps boards are whole-table aggregates that player pages,
+  // anonymous headline standings and rank lookups all reuse. They only change
+  // when grants, runs or the catalog do, so the version-scoped cache replaces
+  // per-request recomputation. Map and Season boards stay uncached.
+  const masteryRows = (mapId?: string, revisionId?: string, window?: { startsAt: number; endsAt: number }): Promise<BoardRow[]> =>
+    mapId || window ? loadMasteryRows(mapId, revisionId, window) : platformCache.cached("grants", "leaderboard-mastery-rows", () => loadMasteryRows());
+
+  const achievementRows = (): Promise<BoardRow[]> => platformCache.cached("grants", "leaderboard-achievement-rows", () => loadAchievementRows());
+
+  const loadAchievementRows = async (): Promise<BoardRow[]> =>
     db.select({
       playerAccountId: playerTitleGrants.playerAccountId,
       score: sql<number>`count(distinct ${playerTitleGrants.titleKey})`,

@@ -5,6 +5,7 @@ import { leaderboardResponseSchema, leaderboardPlayerSummarySchema, currentPlaye
 import { createD1 } from "./ocr-test-harness";
 import { playerHandlesSchema } from "../test/schema";
 import { createPlatformServices } from "./index";
+import { createPlatformCache, instrumentDatabase } from "./platform-cache";
 
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
@@ -419,5 +420,29 @@ describe("seasonal mastery boards", () => {
     }
     await expect(services.getCurrentPlayerLeaderboardRank({ sessionToken: "token.none", board: "mastery", seasonId: "hidden" })).resolves.toBeNull();
     expect((await services.listPublicSeasons()).items).toEqual([]);
+  });
+});
+
+describe("whole-board row cache", () => {
+  const memoryKv = () => {
+    const store = new Map<string, string>();
+    return { get: async (key: string) => store.get(key) ?? null, put: async (key: string, value: string) => { store.set(key, value); } } as unknown as KVNamespace;
+  };
+
+  it("reuses the all-maps board rows across requests until a grant write lands", async () => {
+    const { database, addPlayer, addTitle, addGrant, now } = fixture();
+    const kv = memoryKv();
+    // Services are built per request; the writer shares the cache namespace like another Worker would.
+    const servicesForRequest = () => createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, undefined, undefined, kv);
+    const writer = instrumentDatabase(database, createPlatformCache(kv));
+    addPlayer("p1", "Alpha"); addTitle("T1"); addTitle("T2");
+    addGrant("g1", "p1", "T1", now);
+    const achievementScore = async () => leaderboardPlayerSummarySchema.parse(await servicesForRequest().getPublicLeaderboardPlayer({ playerKey: await leaderboardPlayerKey("p1") })).boards?.achievement?.score;
+    expect(await achievementScore()).toBe(1);
+    // A write that bypasses the instrumented database cannot invalidate: the cached rows prove reuse.
+    addGrant("g2", "p1", "T2", now);
+    expect(await achievementScore()).toBe(1);
+    await writer.prepare("UPDATE player_title_grants SET granted_at = granted_at WHERE id = 'g2'").run();
+    expect(await achievementScore()).toBe(2);
   });
 });
